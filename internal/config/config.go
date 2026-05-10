@@ -32,6 +32,10 @@ type Config struct {
 	PageGapVertical     int
 	PageGapHorizontal   int
 	StatusBarHeight     int
+	StatusBarFontSize   int
+	StatusBarFontPath   string
+	StatusBarLeft       string
+	StatusBarRight      string
 	SequenceTimeoutMS   int
 	NormalMessage       string
 	KeyBindings         map[string]string
@@ -116,6 +120,10 @@ func Default() Config {
 		PageGapVertical:     0,
 		PageGapHorizontal:   0,
 		StatusBarHeight:     28,
+		StatusBarFontSize:   14,
+		StatusBarFontPath:   "",
+		StatusBarLeft:       "{message}",
+		StatusBarRight:      "{page}/{total} {mode} fit={fit} rot={rot} {zoom}",
 		SequenceTimeoutMS:   700,
 		NormalMessage:       "",
 		KeyBindings:         defaultBindings(),
@@ -571,6 +579,7 @@ func newLuaModule(L *lua.LState, rt *Runtime, cfg *Config) *lua.LTable {
 	L.SetField(mod, "search_mode_backward", newLuaActionValue(L, rt, "search_prompt_backward"))
 	L.SetField(mod, "next_search", newLuaActionValue(L, rt, "search_next"))
 	L.SetField(mod, "prev_search", newLuaActionValue(L, rt, "search_prev"))
+	L.SetField(mod, "status_bar", newLuaStatusBarTable(L, rt, cfg))
 	return mod
 }
 
@@ -641,6 +650,61 @@ func newLuaCacheTable(L *lua.LState, rt *Runtime) *lua.LTable {
 			return 0
 		},
 	})
+	return tbl
+}
+
+func newLuaStatusBarTable(L *lua.LState, rt *Runtime, cfg *Config) *lua.LTable {
+	tbl := L.NewTable()
+	mt := L.NewTable()
+	L.SetField(mt, "__newindex", L.NewFunction(func(L *lua.LState) int {
+		name := strings.ToLower(strings.TrimSpace(L.CheckString(2)))
+		value := L.CheckAny(3)
+		switch name {
+		case "left":
+			cfg.StatusBarLeft = lua.LVAsString(value)
+		case "right":
+			cfg.StatusBarRight = lua.LVAsString(value)
+		case "font_size":
+			cfg.StatusBarFontSize = int(lua.LVAsNumber(value))
+		case "font_path":
+			cfg.StatusBarFontPath = lua.LVAsString(value)
+		case "height":
+			cfg.StatusBarHeight = int(lua.LVAsNumber(value))
+		case "visible":
+			if rt.host != nil {
+				rt.host.SetStatusBarVisible(lua.LVAsBool(value))
+			}
+		default:
+			L.RaiseError("status_bar.%s: unknown option", name)
+		}
+		rt.dirty = true
+		return 0
+	}))
+	L.SetField(mt, "__index", L.NewFunction(func(L *lua.LState) int {
+		name := strings.ToLower(strings.TrimSpace(L.CheckString(2)))
+		switch name {
+		case "left":
+			L.Push(lua.LString(cfg.StatusBarLeft))
+		case "right":
+			L.Push(lua.LString(cfg.StatusBarRight))
+		case "font_size":
+			L.Push(lua.LNumber(cfg.StatusBarFontSize))
+		case "font_path":
+			L.Push(lua.LString(cfg.StatusBarFontPath))
+		case "height":
+			L.Push(lua.LNumber(cfg.StatusBarHeight))
+		case "visible":
+			if rt.host != nil {
+				L.Push(lua.LBool(rt.host.StatusBarVisible()))
+			} else {
+				L.Push(lua.LBool(cfg.StatusBarVisible))
+			}
+		default:
+			L.RaiseError("status_bar.%s: unknown option", name)
+		}
+		return 1
+	}))
+	L.SetMetatable(tbl, mt)
 	return tbl
 }
 
@@ -778,6 +842,14 @@ func luaSettingValue(L *lua.LState, name string, cfg *Config) (lua.LValue, error
 		return lua.LNumber(cfg.PageGapHorizontal), nil
 	case "status_bar_height":
 		return lua.LNumber(cfg.StatusBarHeight), nil
+	case "status_bar_font_size":
+		return lua.LNumber(cfg.StatusBarFontSize), nil
+	case "status_bar_font_path":
+		return lua.LString(cfg.StatusBarFontPath), nil
+	case "status_bar_left":
+		return lua.LString(cfg.StatusBarLeft), nil
+	case "status_bar_right":
+		return lua.LString(cfg.StatusBarRight), nil
 	case "sequence_timeout_ms":
 		return lua.LNumber(cfg.SequenceTimeoutMS), nil
 	case "background":
@@ -899,6 +971,26 @@ func applyLuaSetting(name string, value lua.LValue, cfg *Config) error {
 			return fmt.Errorf("expected number")
 		}
 		cfg.StatusBarHeight = int(lua.LVAsNumber(value))
+	case "status_bar_font_size":
+		if value.Type() != lua.LTNumber {
+			return fmt.Errorf("expected number")
+		}
+		cfg.StatusBarFontSize = int(lua.LVAsNumber(value))
+	case "status_bar_font_path":
+		if value.Type() != lua.LTString {
+			return fmt.Errorf("expected string")
+		}
+		cfg.StatusBarFontPath = lua.LVAsString(value)
+	case "status_bar_left":
+		if value.Type() != lua.LTString {
+			return fmt.Errorf("expected string")
+		}
+		cfg.StatusBarLeft = lua.LVAsString(value)
+	case "status_bar_right":
+		if value.Type() != lua.LTString {
+			return fmt.Errorf("expected string")
+		}
+		cfg.StatusBarRight = lua.LVAsString(value)
 	case "sequence_timeout_ms":
 		if value.Type() != lua.LTNumber {
 			return fmt.Errorf("expected number")

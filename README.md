@@ -55,6 +55,48 @@ gopdf.options.highlight_foreground = { 0, 0, 0 }
 gopdf.options.highlight_background = { 255, 224, 102 }
 ```
 
+### Status Bar
+
+Fully configurable via `gopdf.status_bar`:
+
+```lua
+gopdf.status_bar.height = 28       -- height in pixels
+gopdf.status_bar.font_size = 14     -- font size
+gopdf.status_bar.font_path = ""     -- path to TTF/OTF font (empty = default)
+
+-- Content templates with placeholders:
+gopdf.status_bar.left = "{message}"
+gopdf.status_bar.right = "{page}/{total} {mode} fit={fit} rot={rot} {zoom}"
+```
+
+**Available placeholders:**
+
+| Placeholder | Description |
+|-------------|-------------|
+| `{message}` | Current status message or input prompt |
+| `{page}` | Current page (or range in dual-page) |
+| `{total}` | Total pages |
+| `{mode}` | Render mode (continuous/single) |
+| `{fit}` | Fit mode (page/width/manual) |
+| `{rot}` | Rotation in degrees |
+| `{zoom}` | Zoom percentage |
+| `{dual}` | "dual" or "single" |
+| `{cover}` | "cover" or "flat" |
+| `{search}` | Search match counter |
+| `{document}` | Document filename |
+| `{input}` | Current input text |
+| `{prompt}` | Search prompt (/ or ?) |
+
+**Example:**
+
+```lua
+gopdf.status_bar.height = 32
+gopdf.status_bar.font_size = 13
+gopdf.status_bar.font_path = "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf"
+gopdf.status_bar.left = " {document} "
+gopdf.status_bar.right = " {page}/{total} | {mode} | zoom={zoom} "
+```
+
 ### Keybindings
 
 ```lua

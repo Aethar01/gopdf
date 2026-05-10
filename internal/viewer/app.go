@@ -6,6 +6,7 @@ import (
 	"image/color"
 	"math"
 	"os/exec"
+	"os"
 	"path/filepath"
 	"runtime"
 	"strconv"
@@ -19,6 +20,7 @@ import (
 	"github.com/veandco/go-sdl2/sdl"
 	"golang.org/x/image/font"
 	"golang.org/x/image/font/basicfont"
+	"golang.org/x/image/font/opentype"
 )
 
 type mode int
@@ -155,6 +157,37 @@ type jumpPosition struct {
 	scrollY float64
 }
 
+func loadFont(path string, size int) font.Face {
+	if path != "" {
+		data, err := os.ReadFile(path)
+		if err == nil {
+			if col, err := opentype.ParseCollection(data); err == nil {
+				if col.NumFonts() > 0 {
+					fnt, err := col.Font(0)
+					if err == nil {
+						face, err := opentype.NewFace(fnt, &opentype.FaceOptions{
+							Size: float64(size),
+							DPI:  72,
+						})
+						if err == nil {
+							return face
+						}
+					}
+				}
+			} else if fnt, err := opentype.Parse(data); err == nil {
+				face, err := opentype.NewFace(fnt, &opentype.FaceOptions{
+					Size: float64(size),
+					DPI:  72,
+				})
+				if err == nil {
+					return face
+				}
+			}
+		}
+	}
+	return basicfont.Face7x13
+}
+
 func New(docPath string, runtime *config.Runtime, startPage int) (*App, error) {
 	cfg := runtime.Config()
 	doc, err := mupdf.Open(docPath)
@@ -192,7 +225,7 @@ func New(docPath string, runtime *config.Runtime, startPage int) (*App, error) {
 		renderCache:        map[string]*renderedPage{},
 		cacheLimit:         minInt(24, pages),
 		minRenderBaseScale: 0.25,
-		fontFace:           basicfont.Face7x13,
+		fontFace:           loadFont(cfg.StatusBarFontPath, cfg.StatusBarFontSize),
 		message:            cfg.NormalMessage,
 		mouseBindings:      map[string]string{},
 		pageLinks:          map[int][]mupdf.Link{},
@@ -1425,19 +1458,69 @@ func (a *App) drawStatusBar(renderer *sdl.Renderer) error {
 	if err := fillRect(renderer, sdl.FRect{X: 0, Y: float32(y), W: float32(a.winW), H: float32(h)}, a.statusBarColor()); err != nil {
 		return err
 	}
-	left := a.statusLeft()
-	right := a.statusRight()
-	if err := drawText(renderer, a.fontFace, left, 8, y+19, a.foregroundColor()); err != nil {
+	left := a.formatStatusBar(a.config.StatusBarLeft)
+	right := a.formatStatusBar(a.config.StatusBarRight)
+	vertOffset := (h + a.fontFace.Metrics().Ascent.Ceil() - a.fontFace.Metrics().Descent.Ceil()) / 2
+	if err := drawText(renderer, a.fontFace, left, 8, y+vertOffset, a.foregroundColor()); err != nil {
 		return err
 	}
 	if err := a.drawInputCursor(renderer, y); err != nil {
 		return err
 	}
 	rw := measureText(a.fontFace, right)
-	if err := drawText(renderer, a.fontFace, right, a.winW-rw-8, y+19, a.foregroundColor()); err != nil {
+	if err := drawText(renderer, a.fontFace, right, a.winW-rw-8, y+vertOffset, a.foregroundColor()); err != nil {
 		return err
 	}
 	return nil
+}
+
+func (a *App) formatStatusBar(template string) string {
+	result := template
+
+	replacements := map[string]string{
+		"{message}":   a.message,
+		"{page}":      fmt.Sprintf("%d", a.page+1),
+		"{total}":     fmt.Sprintf("%d", a.pageCount),
+		"{mode}":      a.renderMode,
+		"{fit}":       a.fitMode,
+		"{rot}":       fmt.Sprintf("%.0f", a.rotation),
+		"{zoom}":      fmt.Sprintf("%.0f%%", a.zoom*100),
+		"{dual}":      boolWord(a.dualPage, "dual", "single"),
+		"{cover}":     boolWord(a.firstPageOffset, "cover", "flat"),
+		"{search}":    a.searchStatusCounter(),
+		"{document}": a.docName,
+		"$$":          "\x00",
+	}
+
+	if a.mode == modeCommand {
+		replacements["{message}"] = " COMMAND :" + a.input
+		replacements["{input}"] = a.input
+	} else if a.mode == modeGotoPage {
+		replacements["{message}"] = " GOTO " + a.input
+		replacements["{input}"] = a.input
+	} else if a.mode == modeSearch {
+		replacements["{message}"] = " SEARCH " + a.searchPromptToken() + a.input
+		replacements["{input}"] = a.input
+		replacements["{prompt}"] = a.searchPromptToken()
+	} else {
+		replacements["{input}"] = ""
+		replacements["{prompt}"] = ""
+	}
+
+	if a.dualPage && len(a.rows) > 0 && a.page >= 0 && a.page < len(a.pageToRow) {
+		row := a.rows[a.pageToRow[a.page]]
+		if len(row.pages) >= 2 {
+			replacements["{page}"] = fmt.Sprintf("%d-%d", row.pages[0]+1, row.pages[len(row.pages)-1]+1)
+		}
+	}
+
+	for k, v := range replacements {
+		result = strings.ReplaceAll(result, k, v)
+	}
+
+	result = strings.ReplaceAll(result, "\x00", "$")
+
+	return result
 }
 
 func (a *App) statusLeft() string {
