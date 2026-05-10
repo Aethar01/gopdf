@@ -23,12 +23,13 @@ func main() {
 	}
 
 	docPath := flag.Arg(0)
-	cfg, err := config.Load(cfgPath)
+	runtime, err := config.Open(cfgPath, docPath)
 	if err != nil {
 		log.Fatalf("load config: %v", err)
 	}
+	defer runtime.Close()
 
-	app, err := viewer.New(docPath, cfg, startPage-1)
+	app, err := viewer.New(docPath, runtime, startPage-1)
 	if err != nil {
 		log.Fatalf("start viewer: %v", err)
 	}

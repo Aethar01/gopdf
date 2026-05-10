@@ -82,6 +82,7 @@ type App struct {
 	docPath string
 	docName string
 	doc     *mupdf.Document
+	runtime *config.Runtime
 	config  config.Config
 
 	pageCount  int
@@ -141,17 +142,18 @@ type App struct {
 	search         searchState
 	searchWorker   *searchWorker
 
-	jumpBack   []jumpPosition
-	jumpAhead  []jumpPosition
+	jumpBack  []jumpPosition
+	jumpAhead []jumpPosition
 }
 
 type jumpPosition struct {
-	page         int
-	scrollX      float64
-	scrollY      float64
+	page    int
+	scrollX float64
+	scrollY float64
 }
 
-func New(docPath string, cfg config.Config, startPage int) (*App, error) {
+func New(docPath string, runtime *config.Runtime, startPage int) (*App, error) {
+	cfg := runtime.Config()
 	doc, err := mupdf.Open(docPath)
 	if err != nil {
 		return nil, err
@@ -168,29 +170,31 @@ func New(docPath string, cfg config.Config, startPage int) (*App, error) {
 		startPage = pages - 1
 	}
 	app := &App{
-		docPath:         docPath,
-		docName:         filepath.Base(docPath),
-		doc:             doc,
-		config:          cfg,
-		pageCount:       pages,
-		page:            startPage,
-		zoom:            1,
-		fitMode:         sanitizeFitMode(cfg.FitMode),
-		renderMode:      sanitizeRenderMode(cfg.RenderMode),
-		scale:           1,
-		altColors:       cfg.AltColors,
-		dualPage:        cfg.DualPage,
-		firstPageOffset: cfg.FirstPageOffset,
-		statusBarShown:  cfg.StatusBarVisible,
-		pageStep:        64,
+		docPath:            docPath,
+		docName:            filepath.Base(docPath),
+		doc:                doc,
+		runtime:            runtime,
+		config:             cfg,
+		pageCount:          pages,
+		page:               startPage,
+		zoom:               1,
+		fitMode:            sanitizeFitMode(cfg.FitMode),
+		renderMode:         sanitizeRenderMode(cfg.RenderMode),
+		scale:              1,
+		altColors:          cfg.AltColors,
+		dualPage:           cfg.DualPage,
+		firstPageOffset:    cfg.FirstPageOffset,
+		statusBarShown:     cfg.StatusBarVisible,
+		pageStep:           64,
 		renderCache:        map[string]*renderedPage{},
 		cacheLimit:         minInt(24, pages),
 		minRenderBaseScale: 0.25,
-		fontFace:        basicfont.Face7x13,
-		message:         cfg.NormalMessage,
-		mouseBindings:   map[string]string{},
-		sequenceLookup:  map[string]string{},
+		fontFace:           basicfont.Face7x13,
+		message:            cfg.NormalMessage,
+		mouseBindings:      map[string]string{},
+		sequenceLookup:     map[string]string{},
 	}
+	runtime.AttachHost(app)
 	for k, v := range cfg.KeyBindings {
 		app.sequenceLookup[normalizeBinding(k)] = v
 	}
@@ -227,7 +231,10 @@ func (a *App) Run() error {
 	ebiten.SetWindowSize(1400, 900)
 	ebiten.SetWindowTitle(a.docName + " - gopdf")
 	ebiten.SetWindowResizingMode(ebiten.WindowResizingModeEnabled)
-	if err := ebiten.RunGame(a); err != nil {
+	if err := ebiten.RunGameWithOptions(a, &ebiten.RunGameOptions{
+		X11ClassName:    "Gopdf",
+		X11InstanceName: "gopdf",
+	}); err != nil {
 		if a.quit {
 			return nil
 		}
@@ -818,6 +825,22 @@ func (a *App) hasPrefix(joined string) bool {
 }
 
 func (a *App) runAction(action string) {
+	if handled, dirty, err := a.runtime.RunAction(action); handled {
+		if err != nil {
+			a.message = err.Error()
+			return
+		}
+		if dirty {
+			a.applyConfig(a.runtime.Config())
+		}
+		return
+	}
+	if err := a.runBuiltinAction(action); err != nil {
+		a.message = err.Error()
+	}
+}
+
+func (a *App) runBuiltinAction(action string) error {
 	switch action {
 	case "next_page":
 		a.nextPage()
@@ -908,7 +931,7 @@ func (a *App) runAction(action string) {
 		a.rotation = math.Mod(a.rotation+90, 360)
 		if err := a.loadPageMetrics(); err != nil {
 			a.message = err.Error()
-			return
+			return nil
 		}
 		a.clearCache()
 		a.recomputeLayout(a.viewportSize())
@@ -917,7 +940,7 @@ func (a *App) runAction(action string) {
 		a.rotation = math.Mod(a.rotation+270, 360)
 		if err := a.loadPageMetrics(); err != nil {
 			a.message = err.Error()
-			return
+			return nil
 		}
 		a.clearCache()
 		a.recomputeLayout(a.viewportSize())
@@ -932,7 +955,207 @@ func (a *App) runAction(action string) {
 		a.jumpForward()
 	case "jump_backward":
 		a.jumpBackward()
+	default:
+		return fmt.Errorf("unknown action: %s", action)
 	}
+	return nil
+}
+
+func (a *App) ExecuteAction(action string) error {
+	return a.runBuiltinAction(action)
+}
+
+func (a *App) Page() int {
+	return a.page + 1
+}
+
+func (a *App) PageCount() int {
+	return a.pageCount
+}
+
+func (a *App) GotoPage(page int) error {
+	if a.pageCount == 0 {
+		return nil
+	}
+	a.alignPageTop(clampInt(page-1, 0, a.pageCount-1))
+	return nil
+}
+
+func (a *App) Message() string {
+	return a.message
+}
+
+func (a *App) SetMessage(message string) {
+	a.message = message
+}
+
+func (a *App) RunCommand(command string) error {
+	a.runCommand(command)
+	return nil
+}
+
+func (a *App) Mode() string {
+	switch a.mode {
+	case modeCommand:
+		return "command"
+	case modeGotoPage:
+		return "goto"
+	case modeSearch:
+		return "search"
+	default:
+		return "normal"
+	}
+}
+
+func (a *App) Search(query string, backward bool) error {
+	mode := searchModeForward
+	if backward {
+		mode = searchModeBackward
+	}
+	a.startSearch(query, mode)
+	return nil
+}
+
+func (a *App) SearchQuery() string {
+	return a.search.query
+}
+
+func (a *App) SearchMatchCount() int {
+	return len(a.search.order)
+}
+
+func (a *App) SearchMatchIndex() int {
+	if a.search.current < 0 || a.search.current >= len(a.search.order) {
+		return 0
+	}
+	return a.search.current + 1
+}
+
+func (a *App) CurrentCount() string {
+	return a.pendingCount
+}
+
+func (a *App) PendingKeys() []string {
+	return append([]string(nil), a.sequence...)
+}
+
+func (a *App) ClearPendingKeys() {
+	a.sequence = nil
+	a.pendingCount = ""
+	if a.mode == modeNormal {
+		a.message = ""
+	}
+}
+
+func (a *App) FitMode() string {
+	return a.fitMode
+}
+
+func (a *App) SetFitMode(mode string) error {
+	a.setFitMode(sanitizeFitMode(mode))
+	return nil
+}
+
+func (a *App) RenderMode() string {
+	return a.renderMode
+}
+
+func (a *App) SetRenderMode(mode string) error {
+	mode = sanitizeRenderMode(mode)
+	if a.renderMode == mode {
+		return nil
+	}
+	a.renderMode = mode
+	a.recomputeLayout(a.viewportSize())
+	a.alignPageTop(a.page)
+	return nil
+}
+
+func (a *App) Zoom() float64 {
+	return a.scale
+}
+
+func (a *App) SetZoom(zoom float64) error {
+	if zoom <= 0 {
+		return fmt.Errorf("zoom must be positive")
+	}
+	anchor := a.captureZoomAnchor()
+	a.fitMode = "manual"
+	a.zoom = clampFloat(zoom, 0.05, 8.0)
+	a.maybeUpgradeRenderScale(a.zoom)
+	a.recomputeLayout(a.viewportSize())
+	a.restoreZoomAnchor(anchor)
+	return nil
+}
+
+func (a *App) Rotation() float64 {
+	return math.Mod(a.rotation+360, 360)
+}
+
+func (a *App) SetRotation(rotation float64) error {
+	rotation = math.Mod(rotation, 360)
+	if rotation < 0 {
+		rotation += 360
+	}
+	a.rotation = rotation
+	if err := a.loadPageMetrics(); err != nil {
+		return err
+	}
+	a.clearCache()
+	a.recomputeLayout(a.viewportSize())
+	a.alignPageTop(a.page)
+	return nil
+}
+
+func (a *App) Fullscreen() bool {
+	return a.fullscreen
+}
+
+func (a *App) SetFullscreen(fullscreen bool) error {
+	a.fullscreen = fullscreen
+	ebiten.SetFullscreen(fullscreen)
+	return nil
+}
+
+func (a *App) StatusBarVisible() bool {
+	return a.statusBarShown
+}
+
+func (a *App) SetStatusBarVisible(visible bool) error {
+	if a.statusBarShown == visible {
+		return nil
+	}
+	a.statusBarShown = visible
+	a.recomputeLayout(a.viewportSize())
+	a.alignPageTop(a.page)
+	return nil
+}
+
+func (a *App) CacheEntries() int {
+	return len(a.renderCache)
+}
+
+func (a *App) CachePending() int {
+	return len(a.renderPending)
+}
+
+func (a *App) CacheLimit() int {
+	return a.cacheLimit
+}
+
+func (a *App) SetCacheLimit(limit int) error {
+	if limit < 1 {
+		return fmt.Errorf("cache limit must be at least 1")
+	}
+	a.cacheLimit = limit
+	for len(a.renderOrder) > a.cacheLimit {
+		a.evictRenderCacheEntry(a.renderOrder[0])
+	}
+	return nil
+}
+
+func (a *App) ClearCache() {
+	a.clearCache()
 }
 
 func (a *App) gotoPageInput(input string) {
@@ -999,11 +1222,11 @@ func (a *App) runCommand(input string) {
 }
 
 func (a *App) reloadConfig() {
-	cfg, err := config.Load(a.config.ConfigPath)
-	if err != nil {
+	if err := a.runtime.Reload(); err != nil {
 		a.message = err.Error()
 		return
 	}
+	cfg := a.runtime.Config()
 	a.applyConfig(cfg)
 	a.message = boolWord(cfg.ConfigPath != "", "config reloaded", "defaults reloaded")
 }

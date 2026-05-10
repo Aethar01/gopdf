@@ -46,7 +46,11 @@ Start from `config.lua.example`.
 Config files use a `gopdf` Lua namespace.
 
 ```lua
-gopdf.options.dual_page = true
+if gopdf.document.name == "cover-sheet.pdf" then
+  options.first_page_offset = false
+end
+
+gopdf.options.dual_page = false
 gopdf.options.first_page_offset = true
 gopdf.options.render_mode = "continuous"
 gopdf.options.mouse_text_select = true
@@ -58,22 +62,74 @@ gopdf.options.highlight_background = { 255, 224, 102 }
 gopdf.options.alt_colors = false
 gopdf.options.page_gap_vertical = 0
 gopdf.options.page_gap_horizontal = 0
-gopdf.bind("j", gopdf.scroll_down())
-gopdf.bind("J", gopdf.next_page())
-gopdf.bind("m", gopdf.toggle_render_mode())
-gopdf.bind("tb", gopdf.toggle_alt_colors())
-gopdf.bind_mouse("wheel_down", gopdf.scroll_down())
-gopdf.bind_mouse("<C-wheel_up>", gopdf.zoom_in())
-gopdf.bind("co", gopdf.toggle_first_page_offset())
+gopdf.bind("j", gopdf.scroll_down)
+gopdf.bind("J", gopdf.next_page)
+gopdf.bind("m", gopdf.toggle_render_mode)
+gopdf.bind("tb", gopdf.toggle_alt_colors)
+gopdf.bind_mouse("wheel_down", gopdf.scroll_down)
+gopdf.bind_mouse("<C-wheel_up>", gopdf.zoom_in)
+gopdf.bind("co", gopdf.toggle_first_page_offset)
+bind("h", function()
+  options.page_gap_vertical = 10
+  gopdf.next_page()
+  message("moved to page " .. gopdf.page())
+end)
+
+bind("X", function()
+  gopdf.goto_page(10)
+  gopdf.set_fit_mode("width")
+  gopdf.search("TODO")
+  gopdf.cache.set_limit(48)
+  message("match " .. tostring(gopdf.search_match_index()) .. "/" .. tostring(gopdf.search_match_count()))
+end)
 ```
 
 Available config helpers:
 
 - `gopdf.options.<name> = value`
-- `gopdf.bind(keys, gopdf.some_action())`
-- `gopdf.bind_mouse(event, gopdf.some_action())`
+- `options.<name> = value`
+- `gopdf.bind(keys, gopdf.some_action)`
+- `bind(keys, function() ... end)`
+- `gopdf.bind_mouse(event, gopdf.some_action)`
 - `gopdf.unbind(keys)`
 - `gopdf.unbind_mouse(event)`
+- `gopdf.some_action()` inside callbacks to execute a viewer command
+- `gopdf.page()`, `gopdf.page_count()`, `gopdf.goto_page(n)`
+- `gopdf.fit_mode()`, `gopdf.set_fit_mode(mode)`
+- `gopdf.render_mode()`, `gopdf.set_render_mode(mode)`
+- `gopdf.zoom()`, `gopdf.set_zoom(zoom)`
+- `gopdf.rotation()`, `gopdf.set_rotation(deg)`
+- `gopdf.fullscreen()`, `gopdf.set_fullscreen(bool)`
+- `gopdf.status_bar_visible()`, `gopdf.set_status_bar_visible(bool)`
+- `gopdf.mode()`
+- `gopdf.search(query[, backward])`
+- `gopdf.search_query()`, `gopdf.search_match_index()`, `gopdf.search_match_count()`
+- `gopdf.current_count()`, `gopdf.pending_keys()`, `gopdf.clear_pending_keys()`
+- `message(text)` or `gopdf.message(text)` inside callbacks
+- `command(":fit width")` or `gopdf.command(...)` inside callbacks
+
+Render cache controls live under `gopdf.cache`:
+
+- `gopdf.cache.entries()`
+- `gopdf.cache.pending()`
+- `gopdf.cache.limit()`
+- `gopdf.cache.set_limit(n)`
+- `gopdf.cache.clear()`
+
+Document metadata is available under `gopdf.document` while loading and later inside Lua callbacks:
+
+- `gopdf.document.name`
+- `gopdf.document.path`
+- `gopdf.document.extension`
+- `gopdf.document.exists`
+- `gopdf.document.size_bytes`
+- `gopdf.document.page_count`
+
+`page_count` is best-effort from the opened document. File facts like `exists`, `extension`, and `size_bytes` come from the filesystem.
+
+Lua function bindings run against the live viewer state. You can both call viewer actions imperatively and mutate `options` from a callback; option changes immediately update layout, gaps, colors, bindings, and other config-backed behavior.
+
+Action values are first-class Lua API objects. Pass them to `bind(...)` without calling them. Calling an action during config load is an error; call it from a callback instead.
 
 Action helpers currently include names like `gopdf.scroll_down()`, `gopdf.scroll_up()`, `gopdf.scroll_left()`, `gopdf.scroll_right()`, `gopdf.next_page()`, `gopdf.prev_page()`, `gopdf.toggle_dual_page()`, `gopdf.toggle_first_page_offset()`, `gopdf.fit_width()`, `gopdf.fit_page()`, `gopdf.reload_config()`, `gopdf.quit()`, and the other built-in viewer actions.
 
