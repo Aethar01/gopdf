@@ -13,6 +13,7 @@ MuPDF-backed PDF viewer written in Go.
 - Lua config loaded from standard config locations
 - Hideable bottom status bar with vim-like command prompts
 - Page jump, zoom, rotation, fit-width, fit-page, fullscreen
+- Async native text search with `/` and `?`, highlights, and `n` / `N` navigation
 
 ## Build
 
@@ -91,6 +92,8 @@ Action helpers currently include names like `gopdf.scroll_down()`, `gopdf.scroll
 - Left-drag text selection copies to clipboard on release
 - `gg` / `G`: first / last page
 - `:`: command prompt
+- `/` / `?`: forward / backward search prompt
+- `n` / `N`: repeat search in same / opposite direction
 - `d`: toggle dual-page mode
 - `co`: toggle first-page offset
 - `s`: toggle status bar
@@ -104,6 +107,7 @@ Action helpers currently include names like `gopdf.scroll_down()`, `gopdf.scroll
 ## Commands
 
 - `:page 42`
+- `:search needle`
 - `:100`
 - `:mode continuous`
 - `:mode single`

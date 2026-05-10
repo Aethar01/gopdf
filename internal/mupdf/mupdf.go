@@ -46,6 +46,22 @@ typedef struct {
 	int quad_count;
 } gopdf_selection;
 
+typedef struct {
+	gopdf_quad *quads;
+	int quad_count;
+} gopdf_search_hit;
+
+typedef struct {
+	gopdf_search_hit *hits;
+	int hit_count;
+} gopdf_search_result;
+
+typedef struct {
+	gopdf_search_hit *hits;
+	int hit_count;
+	int hit_cap;
+} gopdf_search_builder;
+
 static char *gopdf_dup_string(const char *src) {
 	size_t n = strlen(src) + 1;
 	char *dst = (char *)malloc(n);
@@ -193,6 +209,96 @@ static void gopdf_free_pixmap(gopdf_pixmap *pix) {
 	}
 }
 
+static void gopdf_free_search_builder(gopdf_search_builder *builder) {
+	if (builder == NULL) {
+		return;
+	}
+	for (int i = 0; i < builder->hit_count; i++) {
+		if (builder->hits[i].quads != NULL) {
+			free(builder->hits[i].quads);
+			builder->hits[i].quads = NULL;
+		}
+		builder->hits[i].quad_count = 0;
+	}
+	if (builder->hits != NULL) {
+		free(builder->hits);
+		builder->hits = NULL;
+	}
+	builder->hit_count = 0;
+	builder->hit_cap = 0;
+}
+
+static int gopdf_collect_search_hit(fz_context *ctx, void *opaque, int num_quads, fz_quad *hit_bbox) {
+	gopdf_search_builder *builder = (gopdf_search_builder *)opaque;
+	gopdf_search_hit *hits = NULL;
+	gopdf_quad *quads = NULL;
+	if (num_quads <= 0) {
+		return 0;
+	}
+	if (builder->hit_count == builder->hit_cap) {
+		int next_cap = builder->hit_cap == 0 ? 8 : builder->hit_cap * 2;
+		hits = (gopdf_search_hit *)realloc(builder->hits, sizeof(gopdf_search_hit) * next_cap);
+		if (hits == NULL) {
+			fz_throw(ctx, FZ_ERROR_SYSTEM, "realloc failed");
+		}
+		builder->hits = hits;
+		builder->hit_cap = next_cap;
+	}
+	quads = (gopdf_quad *)malloc(sizeof(gopdf_quad) * num_quads);
+	if (quads == NULL) {
+		fz_throw(ctx, FZ_ERROR_SYSTEM, "malloc failed");
+	}
+	for (int i = 0; i < num_quads; i++) {
+		quads[i].ul.x = hit_bbox[i].ul.x;
+		quads[i].ul.y = hit_bbox[i].ul.y;
+		quads[i].ur.x = hit_bbox[i].ur.x;
+		quads[i].ur.y = hit_bbox[i].ur.y;
+		quads[i].ll.x = hit_bbox[i].ll.x;
+		quads[i].ll.y = hit_bbox[i].ll.y;
+		quads[i].lr.x = hit_bbox[i].lr.x;
+		quads[i].lr.y = hit_bbox[i].lr.y;
+	}
+	builder->hits[builder->hit_count].quads = quads;
+	builder->hits[builder->hit_count].quad_count = num_quads;
+	builder->hit_count++;
+	return 0;
+}
+
+static int gopdf_search_page(gopdf_doc *handle, int page_number, const char *needle, gopdf_search_result *out, char **err) {
+	gopdf_search_builder builder = { 0 };
+	*err = NULL;
+	out->hits = NULL;
+	out->hit_count = 0;
+	fz_try(handle->ctx) {
+		fz_search_page_number_cb(handle->ctx, handle->doc, page_number, needle, gopdf_collect_search_hit, &builder);
+		out->hits = builder.hits;
+		out->hit_count = builder.hit_count;
+	} fz_catch(handle->ctx) {
+		gopdf_free_search_builder(&builder);
+		*err = gopdf_dup_string(fz_caught_message(handle->ctx));
+		return 0;
+	}
+	return 1;
+}
+
+static void gopdf_free_search_result(gopdf_search_result *result) {
+	if (result == NULL) {
+		return;
+	}
+	for (int i = 0; i < result->hit_count; i++) {
+		if (result->hits[i].quads != NULL) {
+			free(result->hits[i].quads);
+			result->hits[i].quads = NULL;
+		}
+		result->hits[i].quad_count = 0;
+	}
+	if (result->hits != NULL) {
+		free(result->hits);
+		result->hits = NULL;
+	}
+	result->hit_count = 0;
+}
+
 static int gopdf_extract_selection(gopdf_doc *handle, int page_number, float ax, float ay, float bx, float by, gopdf_selection *out, char **err) {
 	fz_page *page = NULL;
 	fz_stext_page *text = NULL;
@@ -316,6 +422,10 @@ type Selection struct {
 	Quads []Quad
 }
 
+type SearchHit struct {
+	Quads []Quad
+}
+
 func Open(path string) (*Document, error) {
 	cpath := C.CString(path)
 	defer C.free(unsafe.Pointer(cpath))
@@ -398,6 +508,41 @@ func (d *Document) ExtractSelection(page int, a, b Point) (*Selection, error) {
 		}
 	}
 	return result, nil
+}
+
+func (d *Document) SearchPage(page int, needle string) ([]SearchHit, error) {
+	if needle == "" {
+		return nil, nil
+	}
+	cneedle := C.CString(needle)
+	defer C.free(unsafe.Pointer(cneedle))
+	var result C.gopdf_search_result
+	var cerr *C.char
+	if ok := C.gopdf_search_page(d.handle, C.int(page), cneedle, &result, &cerr); ok == 0 {
+		return nil, consumeError("search page", cerr)
+	}
+	defer C.gopdf_free_search_result(&result)
+	if result.hit_count == 0 || result.hits == nil {
+		return nil, nil
+	}
+	rawHits := unsafe.Slice(result.hits, int(result.hit_count))
+	hits := make([]SearchHit, len(rawHits))
+	for i, rawHit := range rawHits {
+		if rawHit.quad_count <= 0 || rawHit.quads == nil {
+			continue
+		}
+		rawQuads := unsafe.Slice(rawHit.quads, int(rawHit.quad_count))
+		hits[i].Quads = make([]Quad, len(rawQuads))
+		for j, q := range rawQuads {
+			hits[i].Quads[j] = Quad{
+				UL: Point{X: float64(q.ul.x), Y: float64(q.ul.y)},
+				UR: Point{X: float64(q.ur.x), Y: float64(q.ur.y)},
+				LL: Point{X: float64(q.ll.x), Y: float64(q.ll.y)},
+				LR: Point{X: float64(q.lr.x), Y: float64(q.lr.y)},
+			}
+		}
+	}
+	return hits, nil
 }
 
 func consumeError(prefix string, cerr *C.char) error {

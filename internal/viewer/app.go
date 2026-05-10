@@ -29,6 +29,7 @@ const (
 	modeNormal mode = iota
 	modeCommand
 	modeGotoPage
+	modeSearch
 )
 
 type renderedPage struct {
@@ -38,6 +39,8 @@ type renderedPage struct {
 	pixX   float64
 	pixY   float64
 	key    string
+	page   int
+	scale  float64
 }
 
 type pageMetrics struct {
@@ -107,9 +110,13 @@ type App struct {
 	winW int
 	winH int
 
-	renderCache map[string]*renderedPage
-	renderOrder []string
-	cacheLimit  int
+	renderCache      map[string]*renderedPage
+	renderOrder      []string
+	cacheLimit       int
+	renderBaseScale  float64
+	renderGeneration int
+	renderPending    map[string]renderRequest
+	renderWorker     *renderWorker
 
 	fontFace      font.Face
 	mode          mode
@@ -117,6 +124,7 @@ type App struct {
 	inputCursor   int
 	message       string
 	mouseBindings map[string]string
+	searchInput   searchMode
 
 	sequence       []string
 	sequenceAt     time.Time
@@ -127,6 +135,8 @@ type App struct {
 	quit           bool
 	selection      textSelection
 	clipboardReady bool
+	search         searchState
+	searchWorker   *searchWorker
 }
 
 func New(docPath string, cfg config.Config, startPage int) (*App, error) {
@@ -162,7 +172,7 @@ func New(docPath string, cfg config.Config, startPage int) (*App, error) {
 		statusBarShown:  cfg.StatusBarVisible,
 		pageStep:        64,
 		renderCache:     map[string]*renderedPage{},
-		cacheLimit:      12,
+		cacheLimit:      maxInt(24, pages),
 		fontFace:        basicfont.Face7x13,
 		message:         cfg.NormalMessage,
 		mouseBindings:   map[string]string{},
@@ -177,16 +187,23 @@ func New(docPath string, cfg config.Config, startPage int) (*App, error) {
 	if err := clipboard.Init(); err == nil {
 		app.clipboardReady = true
 	}
+	app.initRenderWorker()
+	app.initSearch()
 	if err := app.loadPageMetrics(); err != nil {
+		app.closeRenderWorker()
+		app.closeSearch()
 		doc.Close()
 		return nil, err
 	}
 	app.recomputeLayout(1400, 900-app.config.StatusBarHeight)
+	app.ensureRenderBaseScale()
 	app.alignPageTop(startPage)
 	return app, nil
 }
 
 func (a *App) Close() {
+	a.closeRenderWorker()
+	a.closeSearch()
 	if a.doc != nil {
 		a.doc.Close()
 	}
@@ -209,6 +226,8 @@ func (a *App) Update() error {
 	if a.quit {
 		return ebiten.Termination
 	}
+	a.pollRenderUpdates()
+	a.pollSearchUpdates()
 	a.handleMouse()
 	a.expireSequence()
 	switch a.mode {
@@ -328,6 +347,8 @@ func (a *App) commitInputMode() {
 		a.runCommand(input)
 	case modeGotoPage:
 		a.gotoPageInput(input)
+	case modeSearch:
+		a.startSearch(input, a.searchInput)
 	}
 }
 
@@ -374,14 +395,19 @@ func (a *App) drawContinuousPages(screen *ebiten.Image) {
 			if !ok {
 				continue
 			}
+			drawScale := a.renderDrawScale(rp, a.scale)
+			drawW := rp.width * drawScale
+			drawH := rp.height * drawScale
 			x := row.pageX[i] - a.scrollX + offsetX
 			y := row.pageY[i] - a.scrollY + offsetY
-			if x+rp.width < 0 || x > float64(viewportW) || y+rp.height < 0 || y > float64(viewportH) {
+			if x+drawW < 0 || x > float64(viewportW) || y+drawH < 0 || y > float64(viewportH) {
 				continue
 			}
 			op := &ebiten.DrawImageOptions{}
+			op.GeoM.Scale(drawScale, drawScale)
 			op.GeoM.Translate(x, y)
 			screen.DrawImage(rp.image, op)
+			a.drawSearchHighlightsForPage(screen, page, x, y, rp)
 		}
 	}
 	a.drawSelection(screen)
@@ -400,52 +426,55 @@ func (a *App) drawSinglePage(screen *ebiten.Image) {
 		if !ok {
 			continue
 		}
+		drawScale := a.renderDrawScale(rp, a.scale)
+		drawW := rp.width * drawScale
+		drawH := rp.height * drawScale
 		x := baseX + (row.pageX[i] - row.x) - a.scrollX
 		y := baseY + (row.pageY[i] - row.y) - a.scrollY
-		if x+rp.width < 0 || x > float64(viewportW) || y+rp.height < 0 || y > float64(viewportH) {
+		if x+drawW < 0 || x > float64(viewportW) || y+drawH < 0 || y > float64(viewportH) {
 			continue
 		}
 		op := &ebiten.DrawImageOptions{}
+		op.GeoM.Scale(drawScale, drawScale)
 		op.GeoM.Translate(x, y)
 		screen.DrawImage(rp.image, op)
+		a.drawSearchHighlightsForPage(screen, page, x, y, rp)
 	}
 	a.drawSelection(screen)
 }
 
-func (a *App) renderPage(page int, scale float64) (*renderedPage, error) {
-	key := fmt.Sprintf("%d/%.4f/%.1f/%t", page, scale, a.rotation, a.altColors)
-	if cached, ok := a.renderCache[key]; ok {
-		return cached, nil
-	}
-	rendered, err := a.doc.Render(page, scale, a.rotation)
-	if err != nil {
-		return nil, err
-	}
-	if a.altColors {
-		remapPageColors(rendered.Image, a.config.AltBackground, a.config.AltForeground)
-	}
-	rp := &renderedPage{
-		image:  ebiten.NewImageFromImage(rendered.Image),
-		width:  float64(rendered.Image.Bounds().Dx()),
-		height: float64(rendered.Image.Bounds().Dy()),
-		pixX:   float64(rendered.X),
-		pixY:   float64(rendered.Y),
-		key:    key,
-	}
-	a.renderCache[key] = rp
-	a.renderOrder = append(a.renderOrder, key)
-	if len(a.renderOrder) > a.cacheLimit {
-		oldest := a.renderOrder[0]
-		a.renderOrder = a.renderOrder[1:]
-		delete(a.renderCache, oldest)
-	}
-	return rp, nil
-}
-
 func (a *App) cachedRenderPage(page int, scale float64) (*renderedPage, bool) {
-	key := fmt.Sprintf("%d/%.4f/%.1f/%t", page, scale, a.rotation, a.altColors)
-	rp, ok := a.renderCache[key]
-	return rp, ok
+	renderScale := a.renderScaleFor(scale)
+	key := renderCacheKey(page, renderScale, a.rotation, a.altColors)
+	if rp, ok := a.renderCache[key]; ok {
+		return rp, true
+	}
+	var bestHigher *renderedPage
+	var bestLower *renderedPage
+	for _, rp := range a.renderCache {
+		if rp.page != page {
+			continue
+		}
+		if math.Abs(rp.scale-renderScale) < 0.0001 {
+			return rp, true
+		}
+		if rp.scale >= renderScale {
+			if bestHigher == nil || rp.scale < bestHigher.scale {
+				bestHigher = rp
+			}
+			continue
+		}
+		if bestLower == nil || rp.scale > bestLower.scale {
+			bestLower = rp
+		}
+	}
+	if bestHigher != nil {
+		return bestHigher, true
+	}
+	if bestLower != nil {
+		return bestLower, true
+	}
+	return nil, false
 }
 
 func (a *App) prefetchVisiblePages() {
@@ -458,11 +487,7 @@ func (a *App) prefetchVisiblePages() {
 		}
 		row := a.rows[a.pageToRow[a.page]]
 		for _, page := range row.pages {
-			if _, err := a.renderPage(page, a.scale); err != nil {
-				a.lastErr = err
-				a.message = err.Error()
-				return
-			}
+			a.requestRender(page, a.scale)
 		}
 		return
 	}
@@ -475,11 +500,7 @@ func (a *App) prefetchVisiblePages() {
 			continue
 		}
 		for _, page := range row.pages {
-			if _, err := a.renderPage(page, a.scale); err != nil {
-				a.lastErr = err
-				a.message = err.Error()
-				return
-			}
+			a.requestRender(page, a.scale)
 		}
 	}
 }
@@ -634,9 +655,13 @@ func (a *App) anchorPage(page int) int {
 
 func (a *App) setManualZoom(delta float64) {
 	anchor := a.captureZoomAnchor()
+	baseZoom := a.zoom
+	if a.fitMode != "manual" {
+		baseZoom = a.scale
+	}
 	a.fitMode = "manual"
-	a.zoom = math.Max(0.05, math.Min(8.0, a.zoom*delta))
-	a.clearCache()
+	a.zoom = math.Max(0.05, math.Min(8.0, baseZoom*delta))
+	a.maybeUpgradeRenderScale(a.zoom)
 	a.recomputeLayout(a.viewportSize())
 	a.restoreZoomAnchor(anchor)
 }
@@ -644,7 +669,6 @@ func (a *App) setManualZoom(delta float64) {
 func (a *App) setFitMode(mode string) {
 	anchor := a.captureZoomAnchor()
 	a.fitMode = mode
-	a.clearCache()
 	a.recomputeLayout(a.viewportSize())
 	a.restoreZoomAnchor(anchor)
 }
@@ -652,6 +676,7 @@ func (a *App) setFitMode(mode string) {
 func (a *App) clearCache() {
 	a.renderCache = map[string]*renderedPage{}
 	a.renderOrder = nil
+	a.invalidateRenderRequests()
 }
 
 func (a *App) pushToken(token string) {
@@ -731,10 +756,24 @@ func (a *App) runAction(action string) {
 		a.mode = modeCommand
 		a.input = ""
 		a.inputCursor = 0
+	case "search_prompt":
+		a.mode = modeSearch
+		a.searchInput = searchModeForward
+		a.input = ""
+		a.inputCursor = 0
+	case "search_prompt_backward":
+		a.mode = modeSearch
+		a.searchInput = searchModeBackward
+		a.input = ""
+		a.inputCursor = 0
 	case "goto_page_prompt":
 		a.mode = modeGotoPage
 		a.input = ""
 		a.inputCursor = 0
+	case "search_next":
+		a.repeatSearch(true)
+	case "search_prev":
+		a.repeatSearch(false)
 	case "toggle_dual_page":
 		a.dualPage = !a.dualPage
 		a.recomputeLayout(a.viewportSize())
@@ -751,6 +790,7 @@ func (a *App) runAction(action string) {
 		a.message = "render mode " + a.renderMode
 	case "toggle_alt_colors":
 		a.altColors = !a.altColors
+		a.clearCache()
 		a.message = boolWord(a.altColors, "alt colors on", "alt colors off")
 	case "toggle_first_page_offset":
 		a.firstPageOffset = !a.firstPageOffset
@@ -861,8 +901,11 @@ func (a *App) runCommand(input string) {
 		}
 		a.applyConfig(cfg)
 		a.message = boolWord(cfg.ConfigPath != "", "config reloaded", "defaults reloaded")
+	case "search":
+		query := strings.TrimSpace(strings.TrimPrefix(strings.TrimPrefix(input, ":"), "search"))
+		a.startSearch(query, searchModeForward)
 	case "help":
-		a.message = ":page N | :mode continuous|single | :colors normal|alt | :set dual_page! | :set first_page_offset! | :fit width|page | :quit"
+		a.message = ":page N | :search text | :mode continuous|single | :colors normal|alt | :set dual_page! | :set first_page_offset! | :fit width|page | :quit"
 	default:
 		a.message = "unknown command: " + fields[0]
 	}
@@ -908,6 +951,8 @@ func (a *App) statusLeft() string {
 		return " COMMAND :" + a.input
 	case modeGotoPage:
 		return " GOTO " + a.input
+	case modeSearch:
+		return " SEARCH " + a.searchPromptToken() + a.input
 	}
 	if content == "" {
 		return " "
@@ -931,6 +976,9 @@ func (a *App) statusRight() string {
 		boolWord(a.dualPage, "dual", "single"),
 		boolWord(a.firstPageOffset, "cover", "flat"),
 	}
+	if counter := a.searchStatusCounter(); counter != "" {
+		parts = append(parts, counter)
+	}
 	if a.fitMode == "manual" {
 		parts = append(parts, fmt.Sprintf("zoom=%.0f%%", a.zoom*100))
 	}
@@ -953,9 +1001,18 @@ func (a *App) inputPrefix() string {
 		return " COMMAND :"
 	case modeGotoPage:
 		return " GOTO "
+	case modeSearch:
+		return " SEARCH " + a.searchPromptToken()
 	default:
 		return ""
 	}
+}
+
+func (a *App) searchPromptToken() string {
+	if a.searchInput == searchModeBackward {
+		return "?"
+	}
+	return "/"
 }
 
 func (a *App) drawText(screen *ebiten.Image, s string, x, y int, clr color.Color) {
@@ -1046,8 +1103,9 @@ func (a *App) restoreZoomAnchor(anchor zoomAnchor) {
 		return
 	}
 	tx, ty := transformPoint(anchor.point.X, anchor.point.Y, a.scale, a.rotation)
-	a.scrollX += (x + tx - rp.pixX) - anchor.centerX
-	a.scrollY += (y + ty - rp.pixY) - anchor.centerY
+	drawScale := a.renderDrawScale(rp, a.scale)
+	a.scrollX += (x + tx - rp.pixX*drawScale) - anchor.centerX
+	a.scrollY += (y + ty - rp.pixY*drawScale) - anchor.centerY
 	a.clampScroll()
 	if a.renderMode == "continuous" {
 		a.updateCurrentPageFromScroll()
@@ -1086,11 +1144,11 @@ func (a *App) renderMargin() float64 {
 
 func (a *App) pagePointAtScreen(sx, sy float64) (int, mupdf.Point, bool) {
 	for _, hit := range a.visiblePageHits() {
-		if sx < hit.x || sy < hit.y || sx > hit.x+hit.render.width || sy > hit.y+hit.render.height {
+		if sx < hit.x || sy < hit.y || sx > hit.x+hit.width || sy > hit.y+hit.height {
 			continue
 		}
-		transformedX := sx - hit.x + hit.render.pixX
-		transformedY := sy - hit.y + hit.render.pixY
+		transformedX := sx - hit.x + hit.render.pixX*hit.drawScale
+		transformedY := sy - hit.y + hit.render.pixY*hit.drawScale
 		pageX, pageY := inverseTransformPoint(transformedX, transformedY, a.scale, a.rotation)
 		return hit.page, mupdf.Point{X: pageX, Y: pageY}, true
 	}
@@ -1098,10 +1156,13 @@ func (a *App) pagePointAtScreen(sx, sy float64) (int, mupdf.Point, bool) {
 }
 
 type pageHit struct {
-	page   int
-	x      float64
-	y      float64
-	render *renderedPage
+	page      int
+	x         float64
+	y         float64
+	width     float64
+	height    float64
+	drawScale float64
+	render    *renderedPage
 }
 
 func (a *App) visiblePageHits() []pageHit {
@@ -1115,11 +1176,13 @@ func (a *App) visiblePageHits() []pageHit {
 		baseX := math.Max(float64(a.horizontalGap()), (float64(viewportW)-row.width)/2)
 		baseY := math.Max(float64(a.verticalGap()), (float64(viewportH)-row.height)/2)
 		for i, page := range row.pages {
-			rp, err := a.renderPage(page, a.scale)
-			if err != nil {
+			rp, ok := a.cachedRenderPage(page, a.scale)
+			if !ok {
+				a.requestRender(page, a.scale)
 				continue
 			}
-			hits = append(hits, pageHit{page: page, x: baseX + (row.pageX[i] - row.x) - a.scrollX, y: baseY + (row.pageY[i] - row.y) - a.scrollY, render: rp})
+			drawScale := a.renderDrawScale(rp, a.scale)
+			hits = append(hits, pageHit{page: page, x: baseX + (row.pageX[i] - row.x) - a.scrollX, y: baseY + (row.pageY[i] - row.y) - a.scrollY, width: rp.width * drawScale, height: rp.height * drawScale, drawScale: drawScale, render: rp})
 		}
 		return hits
 	}
@@ -1133,11 +1196,13 @@ func (a *App) visiblePageHits() []pageHit {
 			continue
 		}
 		for i, page := range row.pages {
-			rp, err := a.renderPage(page, a.scale)
-			if err != nil {
+			rp, ok := a.cachedRenderPage(page, a.scale)
+			if !ok {
+				a.requestRender(page, a.scale)
 				continue
 			}
-			hits = append(hits, pageHit{page: page, x: row.pageX[i] - a.scrollX + offsetX, y: row.pageY[i] - a.scrollY + offsetY, render: rp})
+			drawScale := a.renderDrawScale(rp, a.scale)
+			hits = append(hits, pageHit{page: page, x: row.pageX[i] - a.scrollX + offsetX, y: row.pageY[i] - a.scrollY + offsetY, width: rp.width * drawScale, height: rp.height * drawScale, drawScale: drawScale, render: rp})
 		}
 	}
 	if len(hits) == 0 {
@@ -1181,13 +1246,7 @@ func (a *App) drawSelection(screen *ebiten.Image) {
 }
 
 func (a *App) drawHighlightQuads(screen *ebiten.Image, quads []mupdf.Quad, x, y float64, rp *renderedPage) {
-	bg := a.highlightBackgroundColor()
-	fg := a.highlightForegroundColor()
-	for _, quad := range quads {
-		minX, minY, maxX, maxY := a.quadScreenBounds(quad, x, y, rp)
-		vector.DrawFilledRect(screen, float32(minX), float32(minY), float32(maxX-minX), float32(maxY-minY), bg, false)
-		vector.StrokeRect(screen, float32(minX), float32(minY), float32(maxX-minX), float32(maxY-minY), 1, fg, false)
-	}
+	a.drawHighlightQuadsWithStyle(screen, quads, x, y, rp, false)
 }
 
 func (a *App) highlightForegroundColor() color.RGBA {
@@ -1219,8 +1278,9 @@ func (a *App) pagePlacement(page int) (float64, float64, *renderedPage, bool) {
 	if index < 0 {
 		return 0, 0, nil, false
 	}
-	rp, err := a.renderPage(page, a.scale)
-	if err != nil {
+	rp, ok := a.cachedRenderPage(page, a.scale)
+	if !ok {
+		a.requestRender(page, a.scale)
 		return 0, 0, nil, false
 	}
 	if a.renderMode == "single" {
@@ -1229,17 +1289,19 @@ func (a *App) pagePlacement(page int) (float64, float64, *renderedPage, bool) {
 		baseY := math.Max(float64(a.verticalGap()), (float64(viewportH)-row.height)/2)
 		return baseX + (row.pageX[index] - row.x) - a.scrollX, baseY + (row.pageY[index] - row.y) - a.scrollY, rp, true
 	}
-	return row.pageX[index] - a.scrollX, row.pageY[index] - a.scrollY, rp, true
+	offsetX, offsetY := a.contentViewportOffset()
+	return row.pageX[index] - a.scrollX + offsetX, row.pageY[index] - a.scrollY + offsetY, rp, true
 }
 
 func (a *App) quadScreenBounds(quad mupdf.Quad, x, y float64, rp *renderedPage) (float64, float64, float64, float64) {
 	pts := []mupdf.Point{quad.UL, quad.UR, quad.LL, quad.LR}
 	minX, minY := math.MaxFloat64, math.MaxFloat64
 	maxX, maxY := -math.MaxFloat64, -math.MaxFloat64
+	drawScale := a.renderDrawScale(rp, a.scale)
 	for _, pt := range pts {
 		tx, ty := transformPoint(pt.X, pt.Y, a.scale, a.rotation)
-		sx := x + tx - rp.pixX
-		sy := y + ty - rp.pixY
+		sx := x + tx - rp.pixX*drawScale
+		sy := y + ty - rp.pixY*drawScale
 		minX = math.Min(minX, sx)
 		minY = math.Min(minY, sy)
 		maxX = math.Max(maxX, sx)
@@ -1374,6 +1436,50 @@ func (a *App) clampScroll() {
 	a.scrollY = clampFloat(a.scrollY, 0, maxY)
 }
 
+func (a *App) renderScaleFor(layoutScale float64) float64 {
+	if a.renderBaseScale <= 0 {
+		a.ensureRenderBaseScale()
+	}
+	if a.renderBaseScale <= 0 {
+		return 1
+	}
+	return a.renderBaseScale
+}
+
+func (a *App) renderDrawScale(rp *renderedPage, layoutScale float64) float64 {
+	if rp == nil || rp.scale <= 0 {
+		return 1
+	}
+	return layoutScale / rp.scale
+}
+
+func (a *App) ensureRenderBaseScale() {
+	if a.renderBaseScale > 0 {
+		return
+	}
+	base := math.Max(2, a.scale)
+	if base < 0.25 {
+		base = 0.25
+	}
+	a.renderBaseScale = base
+}
+
+func (a *App) maybeUpgradeRenderScale(target float64) bool {
+	if target <= a.renderBaseScale*0.95 {
+		return false
+	}
+	next := math.Max(a.renderBaseScale, 2)
+	for next < target && next < 8 {
+		next *= 1.5
+	}
+	next = math.Min(8, math.Max(next, target))
+	if next <= a.renderBaseScale+0.01 {
+		return false
+	}
+	a.renderBaseScale = next
+	return true
+}
+
 func (a *App) updateCurrentPageFromScroll() {
 	if len(a.rows) == 0 {
 		return
@@ -1459,7 +1565,7 @@ func mixChannel(fg, bg, t uint8) uint8 {
 
 func isCountableAction(action string) bool {
 	switch action {
-	case "next_page", "prev_page", "scroll_down", "scroll_up", "scroll_left", "scroll_right", "next_spread", "prev_spread", "zoom_in", "zoom_out":
+	case "next_page", "prev_page", "scroll_down", "scroll_up", "scroll_left", "scroll_right", "next_spread", "prev_spread", "zoom_in", "zoom_out", "search_next", "search_prev":
 		return true
 	default:
 		return false
