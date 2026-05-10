@@ -140,6 +140,15 @@ type App struct {
 	clipboardReady bool
 	search         searchState
 	searchWorker   *searchWorker
+
+	jumpBack   []jumpPosition
+	jumpAhead  []jumpPosition
+}
+
+type jumpPosition struct {
+	page         int
+	scrollX      float64
+	scrollY      float64
 }
 
 func New(docPath string, cfg config.Config, startPage int) (*App, error) {
@@ -636,6 +645,10 @@ func (a *App) alignPageTop(page int) {
 		return
 	}
 	page = a.anchorPage(page)
+	if a.positionMatchesPageTop(page) {
+		return
+	}
+	a.recordJump()
 	if a.renderMode == "single" {
 		a.page = page
 		a.scrollX = 0
@@ -648,6 +661,65 @@ func (a *App) alignPageTop(page int) {
 	a.scrollY = row.y - float64(a.verticalGap())/2
 	a.page = page
 	a.clampScroll()
+}
+
+func (a *App) recordJump() {
+	pos := a.currentJumpPosition()
+	if len(a.jumpBack) == 0 || a.jumpBack[len(a.jumpBack)-1] != pos {
+		a.jumpBack = append(a.jumpBack, pos)
+	}
+	a.jumpAhead = nil
+}
+
+func (a *App) jumpForward() {
+	if len(a.jumpAhead) == 0 {
+		return
+	}
+	current := a.currentJumpPosition()
+	jump := a.jumpAhead[len(a.jumpAhead)-1]
+	a.jumpAhead = a.jumpAhead[:len(a.jumpAhead)-1]
+	if len(a.jumpBack) == 0 || a.jumpBack[len(a.jumpBack)-1] != current {
+		a.jumpBack = append(a.jumpBack, current)
+	}
+	a.restoreJump(jump)
+}
+
+func (a *App) jumpBackward() {
+	if len(a.jumpBack) == 0 {
+		return
+	}
+	current := a.currentJumpPosition()
+	jump := a.jumpBack[len(a.jumpBack)-1]
+	a.jumpBack = a.jumpBack[:len(a.jumpBack)-1]
+	if len(a.jumpAhead) == 0 || a.jumpAhead[len(a.jumpAhead)-1] != current {
+		a.jumpAhead = append(a.jumpAhead, current)
+	}
+	a.restoreJump(jump)
+}
+
+func (a *App) currentJumpPosition() jumpPosition {
+	return jumpPosition{
+		page:    a.page,
+		scrollX: a.scrollX,
+		scrollY: a.scrollY,
+	}
+}
+
+func (a *App) restoreJump(jump jumpPosition) {
+	a.page = jump.page
+	a.scrollX = jump.scrollX
+	a.scrollY = jump.scrollY
+	a.recomputeLayout(a.viewportSize())
+	a.clampScroll()
+}
+
+func (a *App) positionMatchesPageTop(page int) bool {
+	if a.renderMode == "single" {
+		return a.page == page && a.scrollX == 0 && a.scrollY == 0
+	}
+	row := a.rows[a.pageToRow[page]]
+	expectedY := row.y - float64(a.verticalGap())/2
+	return a.page == page && a.scrollY == expectedY
 }
 
 func (a *App) anchorPage(page int) int {
@@ -856,6 +928,10 @@ func (a *App) runAction(action string) {
 		a.mode = modeNormal
 		a.input = ""
 		a.inputCursor = 0
+	case "jump_forward":
+		a.jumpForward()
+	case "jump_backward":
+		a.jumpBackward()
 	}
 }
 
@@ -1725,6 +1801,8 @@ func specialKeyToken(key ebiten.Key) (string, bool) {
 		return "<PgUp>", true
 	case ebiten.KeySpace:
 		return "<Space>", true
+	case ebiten.KeyTab:
+		return "<Tab>", true
 	default:
 		return "", false
 	}
@@ -1740,6 +1818,8 @@ func baseKeyName(key ebiten.Key) (string, bool) {
 	switch key {
 	case ebiten.KeySpace:
 		return "space", true
+	case ebiten.KeyTab:
+		return "tab", true
 	case ebiten.KeyEnter:
 		return "enter", true
 	case ebiten.KeyEscape:

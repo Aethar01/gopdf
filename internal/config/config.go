@@ -181,6 +181,30 @@ func newLuaModule(L *lua.LState, cfg *Config) *lua.LTable {
 			}
 			return 0
 		},
+		"search_mode": func(L *lua.LState) int {
+			L.Push(lua.LString("search_prompt"))
+			return 1
+		},
+		"next_search": func(L *lua.LState) int {
+			L.Push(lua.LString("search_next"))
+			return 1
+		},
+		"prev_search": func(L *lua.LState) int {
+			L.Push(lua.LString("search_prev"))
+			return 1
+		},
+		"search_mode_backward": func(L *lua.LState) int {
+			L.Push(lua.LString("search_prompt_backward"))
+			return 1
+		},
+		"jump_forward": func(L *lua.LState) int {
+			L.Push(lua.LString("jump_forward"))
+			return 1
+		},
+		"jump_backward": func(L *lua.LState) int {
+			L.Push(lua.LString("jump_backward"))
+			return 1
+		},
 	})
 	L.SetField(mod, "options", newLuaOptionsTable(L, cfg))
 	for _, action := range allActions() {
@@ -515,6 +539,8 @@ func defaultBindings() map[string]string {
 		"g":      "goto_page_prompt",
 		"q":      "quit",
 		"<Esc>":  "escape",
+		"<C-i>":  "jump_forward",
+		"<C-o>":  "jump_backward",
 	}
 }
 
@@ -550,6 +576,8 @@ func allActions() []string {
 		"rotate_cw",
 		"rotate_ccw",
 		"goto_page_prompt",
+		"jump_forward",
+		"jump_backward",
 		"quit",
 		"escape",
 	}

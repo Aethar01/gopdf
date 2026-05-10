@@ -42,6 +42,8 @@ gopdf.bind("s", gopdf.fit_page())
 gopdf.bind("r", gopdf.rotate_cw())
 gopdf.bind("R", gopdf.rotate_ccw())
 gopdf.bind("g", gopdf.goto_page_prompt())
+gopdf.bind("<C-o>", gopdf.jump_backward())
+gopdf.bind("<C-i>", gopdf.jump_forward())
 gopdf.bind("q", gopdf.quit())
 gopdf.bind("<C-S-r>", gopdf.reload_config())
 
