@@ -123,7 +123,7 @@ func Default() Config {
 		StatusBarHeight:     28,
 		StatusBarFontSize:   14,
 		StatusBarFontPath:   "",
-		StatusBarLeft:       "{message}",
+		StatusBarLeft:       "{gopdf.message}",
 		StatusBarRight:      "{page}/{total} {mode} fit={fit} rot={rot} {zoom}",
 		SequenceTimeoutMS:   700,
 		NormalMessage:       "",
@@ -308,8 +308,6 @@ func (r *Runtime) applyLuaConfig(path string) error {
 	L.SetGlobal("unbind_mouse", L.GetField(mod, "unbind_mouse"))
 	L.SetGlobal("options", L.GetField(mod, "options"))
 	L.SetGlobal("set", L.GetField(mod, "set"))
-	L.SetGlobal("message", L.GetField(mod, "message"))
-	L.SetGlobal("command", L.GetField(mod, "command"))
 	if err := L.DoFile(path); err != nil {
 		L.Close()
 		r.state = nil

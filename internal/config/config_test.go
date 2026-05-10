@@ -37,6 +37,10 @@ func (h *stubHost) ExecuteAction(action string) error {
 	return nil
 }
 
+func (h *stubHost) Open(path string) error {
+	return nil
+}
+
 func (h *stubHost) Page() int {
 	return h.page
 }
@@ -202,8 +206,8 @@ func TestActionValuesBindAndExecuteAgainstViewerHost(t *testing.T) {
 bind("J", gopdf.next_page)
 bind("H", function()
   gopdf.next_page()
-  message("page " .. gopdf.page() .. "/" .. gopdf.page_count())
-  command(":fit width")
+  gopdf.message("page " .. gopdf.page() .. "/" .. gopdf.page_count())
+  gopdf.command(":fit width")
 end)
 `), 0o644); err != nil {
 		t.Fatal(err)
@@ -300,7 +304,7 @@ bind("X", function()
   local keys = gopdf.pending_keys()
   gopdf.cache.set_limit(48)
   gopdf.cache.clear()
-  message(
+  gopdf.message(
     gopdf.mode() .. ":" ..
     gopdf.fit_mode() .. ":" ..
     gopdf.render_mode() .. ":" ..

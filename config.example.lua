@@ -19,7 +19,7 @@ gopdf.options.status_bar_font_path = ""
 gopdf.options.sequence_timeout_ms = 700
 
 -- Status bar content templates
-gopdf.status_bar.left = "{message}"
+gopdf.status_bar.left = "{gopdf.message}"
 gopdf.status_bar.right = "{page}/{total} {mode} fit={fit} rot={rot} {zoom}"
 
 gopdf.options.background = { 255, 255, 255 }
