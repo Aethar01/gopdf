@@ -66,6 +66,7 @@ type documentMeta struct {
 
 type Host interface {
 	ExecuteAction(action string) error
+	Open(path string) error
 	Page() int
 	PageCount() int
 	GotoPage(page int) error
@@ -163,6 +164,40 @@ func Open(explicitPath, docPath string) (*Runtime, error) {
 		return nil, err
 	}
 	return rt, nil
+}
+
+func StatePath() string {
+	if xdgData := os.Getenv("XDG_DATA_HOME"); xdgData != "" {
+		return filepath.Join(xdgData, "gopdf", "state")
+	}
+	if home, err := os.UserHomeDir(); err == nil {
+		return filepath.Join(home, ".local", "share", "gopdf", "state")
+	}
+	return ""
+}
+
+func GetLastFile() string {
+	path := StatePath()
+	if path == "" {
+		return ""
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(data))
+}
+
+func SetLastFile(path string) error {
+	statePath := StatePath()
+	if statePath == "" {
+		return nil
+	}
+	dir := filepath.Dir(statePath)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return err
+	}
+	return os.WriteFile(statePath, []byte(path), 0644)
 }
 
 func candidatePaths(explicitPath string) []string {
@@ -358,6 +393,15 @@ func newLuaModule(L *lua.LState, rt *Runtime, cfg *Config) *lua.LTable {
 			}
 			if err := rt.host.RunCommand(L.CheckString(1)); err != nil {
 				L.RaiseError("command: %v", err)
+			}
+			return 0
+		},
+		"open": func(L *lua.LState) int {
+			if rt.host == nil {
+				L.RaiseError("open: viewer host unavailable")
+			}
+			if err := rt.host.Open(L.CheckString(1)); err != nil {
+				L.RaiseError("open: %v", err)
 			}
 			return 0
 		},

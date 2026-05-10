@@ -142,6 +142,7 @@ type App struct {
 
 	lastErr      error
 	quit         bool
+	pendingOpen  string
 	selection    textSelection
 	pageLinks    map[int][]mupdf.Link
 	search       searchState
@@ -276,6 +277,13 @@ func (a *App) Close() {
 	if a.doc != nil {
 		a.doc.Close()
 	}
+	if a.docPath != "" {
+		config.SetLastFile(a.docPath)
+	}
+}
+
+func (a *App) PendingOpen() string {
+	return a.pendingOpen
 }
 
 func (a *App) Run() error {
@@ -1189,6 +1197,22 @@ func (a *App) RunCommand(command string) error {
 	return nil
 }
 
+func (a *App) Open(path string) error {
+	if path == "" {
+		return fmt.Errorf("open: empty path")
+	}
+	if !filepath.IsAbs(path) {
+		if a.docPath != "" {
+			dir := filepath.Dir(a.docPath)
+			path = filepath.Join(dir, path)
+		}
+	}
+	a.message = "opening " + path
+	a.quit = true
+	a.pendingOpen = path
+	return nil
+}
+
 func (a *App) Mode() string {
 	switch a.mode {
 	case modeCommand:
@@ -1414,6 +1438,21 @@ func (a *App) runCommand(input string) {
 	case "search":
 		query := strings.TrimSpace(strings.TrimPrefix(strings.TrimPrefix(input, ":"), "search"))
 		a.startSearch(query, searchModeForward)
+	case "open":
+		if len(fields) < 2 {
+			a.message = "usage: :open <filename>"
+			return
+		}
+		newPath := fields[1]
+		if !filepath.IsAbs(newPath) {
+			if a.docPath != "" {
+				dir := filepath.Dir(a.docPath)
+				newPath = filepath.Join(dir, newPath)
+			}
+		}
+		a.message = "opening " + newPath
+		a.quit = true
+		a.pendingOpen = newPath
 	case "help":
 		a.message = commandHelpMessage()
 	default:
