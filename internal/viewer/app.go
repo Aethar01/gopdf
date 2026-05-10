@@ -84,6 +84,8 @@ type App struct {
 	config   config.Config
 	window   *sdl.Window
 	renderer *sdl.Renderer
+	cursorHand  *sdl.Cursor
+	cursorArrow *sdl.Cursor
 
 	pageCount  int
 	page       int
@@ -221,6 +223,14 @@ func (a *App) Close() {
 	a.closeRenderWorker()
 	a.closeSearch()
 	a.clearCache()
+	if a.cursorHand != nil {
+		sdl.FreeCursor(a.cursorHand)
+		a.cursorHand = nil
+	}
+	if a.cursorArrow != nil {
+		sdl.FreeCursor(a.cursorArrow)
+		a.cursorArrow = nil
+	}
 	if a.renderer != nil {
 		a.renderer.Destroy()
 		a.renderer = nil
@@ -246,6 +256,8 @@ func (a *App) Run() error {
 	}
 	a.window = window
 	a.renderer = renderer
+	a.cursorHand = sdl.CreateSystemCursor(sdl.SYSTEM_CURSOR_HAND)
+	a.cursorArrow = sdl.CreateSystemCursor(sdl.SYSTEM_CURSOR_ARROW)
 	a.window.SetTitle(a.docName + " - gopdf")
 	a.renderer.SetDrawBlendMode(sdl.BLENDMODE_BLEND)
 	if w, h, err := a.renderer.GetOutputSize(); err == nil {
@@ -442,6 +454,16 @@ func (a *App) handleSDLMouseButton(e *sdl.MouseButtonEvent) {
 }
 
 func (a *App) handleSDLMouseMotion(e *sdl.MouseMotionEvent) {
+	if a.isLinkAt(float64(e.X), float64(e.Y)) {
+		if a.cursorHand != nil {
+			sdl.SetCursor(a.cursorHand)
+		}
+	} else {
+		if a.cursorArrow != nil {
+			sdl.SetCursor(a.cursorArrow)
+		}
+	}
+
 	if !a.selection.active || e.State&sdl.ButtonLMask() == 0 {
 		return
 	}
@@ -1672,6 +1694,24 @@ func (a *App) tryActivateLinkAt(sx, sy float64) bool {
 			continue
 		}
 		a.activateLink(link)
+		return true
+	}
+	return false
+}
+
+func (a *App) isLinkAt(sx, sy float64) bool {
+	page, point, ok := a.pagePointAtScreen(sx, sy)
+	if !ok {
+		return false
+	}
+	links, err := a.linksForPage(page)
+	if err != nil {
+		return false
+	}
+	for _, link := range links {
+		if point.X < float64(link.Bounds.X0) || point.X > float64(link.Bounds.X1) || point.Y < float64(link.Bounds.Y0) || point.Y > float64(link.Bounds.Y1) {
+			continue
+		}
 		return true
 	}
 	return false
