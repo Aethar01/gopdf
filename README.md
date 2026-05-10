@@ -75,7 +75,7 @@ Available config helpers:
 - `gopdf.unbind(keys)`
 - `gopdf.unbind_mouse(event)`
 
-Action helpers currently include names like `gopdf.scroll_down()`, `gopdf.scroll_up()`, `gopdf.scroll_left()`, `gopdf.scroll_right()`, `gopdf.next_page()`, `gopdf.prev_page()`, `gopdf.toggle_dual_page()`, `gopdf.toggle_first_page_offset()`, `gopdf.fit_width()`, `gopdf.fit_page()`, `gopdf.quit()`, and the other built-in viewer actions.
+Action helpers currently include names like `gopdf.scroll_down()`, `gopdf.scroll_up()`, `gopdf.scroll_left()`, `gopdf.scroll_right()`, `gopdf.next_page()`, `gopdf.prev_page()`, `gopdf.toggle_dual_page()`, `gopdf.toggle_first_page_offset()`, `gopdf.fit_width()`, `gopdf.fit_page()`, `gopdf.reload_config()`, `gopdf.quit()`, and the other built-in viewer actions.
 
 ## Default Keys
 

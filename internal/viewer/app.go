@@ -110,13 +110,16 @@ type App struct {
 	winW int
 	winH int
 
-	renderCache      map[string]*renderedPage
-	renderOrder      []string
-	cacheLimit       int
-	renderBaseScale  float64
-	renderGeneration int
-	renderPending    map[string]renderRequest
-	renderWorker     *renderWorker
+	renderCache        map[string]*renderedPage
+	renderOrder        []string
+	cacheLimit         int
+	renderBaseScale    float64
+	minRenderBaseScale float64
+	renderGeneration   int
+	renderPending      map[string]renderRequest
+	renderWorker       *renderWorker
+	renderScaleTime    float64
+	pendingRedraw      bool
 
 	fontFace      font.Face
 	mode          mode
@@ -171,8 +174,9 @@ func New(docPath string, cfg config.Config, startPage int) (*App, error) {
 		firstPageOffset: cfg.FirstPageOffset,
 		statusBarShown:  cfg.StatusBarVisible,
 		pageStep:        64,
-		renderCache:     map[string]*renderedPage{},
-		cacheLimit:      maxInt(24, pages),
+		renderCache:        map[string]*renderedPage{},
+		cacheLimit:         minInt(24, pages),
+		minRenderBaseScale: 0.25,
 		fontFace:        basicfont.Face7x13,
 		message:         cfg.NormalMessage,
 		mouseBindings:   map[string]string{},
@@ -210,6 +214,7 @@ func (a *App) Close() {
 }
 
 func (a *App) Run() error {
+	ebiten.SetScreenClearedEveryFrame(false)
 	ebiten.SetWindowSize(1400, 900)
 	ebiten.SetWindowTitle(a.docName + " - gopdf")
 	ebiten.SetWindowResizingMode(ebiten.WindowResizingModeEnabled)
@@ -237,6 +242,7 @@ func (a *App) Update() error {
 		a.handleInputMode()
 	}
 	a.prefetchVisiblePages()
+	a.adjustRenderBaseScaleForExtremeZoom(a.scale)
 	return nil
 }
 
@@ -245,6 +251,9 @@ func (a *App) Draw(screen *ebiten.Image) {
 	screen.Fill(bg)
 	a.winW, a.winH = screen.Bounds().Dx(), screen.Bounds().Dy()
 	a.drawPages(screen)
+	if a.pendingRedraw {
+		a.pendingRedraw = false
+	}
 	if a.statusVisible() {
 		a.drawStatusBar(screen)
 	}
@@ -400,12 +409,13 @@ func (a *App) drawContinuousPages(screen *ebiten.Image) {
 			drawH := rp.height * drawScale
 			x := row.pageX[i] - a.scrollX + offsetX
 			y := row.pageY[i] - a.scrollY + offsetY
-			if x+drawW < 0 || x > float64(viewportW) || y+drawH < 0 || y > float64(viewportH) {
+			drawX, drawY := pageImageOrigin(x, y, rp, drawScale)
+			if drawX+drawW < 0 || drawX > float64(viewportW) || drawY+drawH < 0 || drawY > float64(viewportH) {
 				continue
 			}
 			op := &ebiten.DrawImageOptions{}
 			op.GeoM.Scale(drawScale, drawScale)
-			op.GeoM.Translate(x, y)
+			op.GeoM.Translate(drawX, drawY)
 			screen.DrawImage(rp.image, op)
 			a.drawSearchHighlightsForPage(screen, page, x, y, rp)
 		}
@@ -431,12 +441,13 @@ func (a *App) drawSinglePage(screen *ebiten.Image) {
 		drawH := rp.height * drawScale
 		x := baseX + (row.pageX[i] - row.x) - a.scrollX
 		y := baseY + (row.pageY[i] - row.y) - a.scrollY
-		if x+drawW < 0 || x > float64(viewportW) || y+drawH < 0 || y > float64(viewportH) {
+		drawX, drawY := pageImageOrigin(x, y, rp, drawScale)
+		if drawX+drawW < 0 || drawX > float64(viewportW) || drawY+drawH < 0 || drawY > float64(viewportH) {
 			continue
 		}
 		op := &ebiten.DrawImageOptions{}
 		op.GeoM.Scale(drawScale, drawScale)
-		op.GeoM.Translate(x, y)
+		op.GeoM.Translate(drawX, drawY)
 		screen.DrawImage(rp.image, op)
 		a.drawSearchHighlightsForPage(screen, page, x, y, rp)
 	}
@@ -660,7 +671,7 @@ func (a *App) setManualZoom(delta float64) {
 		baseZoom = a.scale
 	}
 	a.fitMode = "manual"
-	a.zoom = math.Max(0.05, math.Min(8.0, baseZoom*delta))
+	a.zoom = math.Max(0.75, math.Min(4.0, baseZoom*delta))
 	a.maybeUpgradeRenderScale(a.zoom)
 	a.recomputeLayout(a.viewportSize())
 	a.restoreZoomAnchor(anchor)
@@ -669,11 +680,15 @@ func (a *App) setManualZoom(delta float64) {
 func (a *App) setFitMode(mode string) {
 	anchor := a.captureZoomAnchor()
 	a.fitMode = mode
+	a.maybeUpgradeRenderScale(a.zoom)
 	a.recomputeLayout(a.viewportSize())
 	a.restoreZoomAnchor(anchor)
 }
 
 func (a *App) clearCache() {
+	for _, rp := range a.renderCache {
+		rp.image.Dispose()
+	}
 	a.renderCache = map[string]*renderedPage{}
 	a.renderOrder = nil
 	a.invalidateRenderRequests()
@@ -815,6 +830,8 @@ func (a *App) runAction(action string) {
 		a.setFitMode("width")
 	case "fit_page":
 		a.setFitMode("page")
+	case "reload_config":
+		a.reloadConfig()
 	case "rotate_cw":
 		a.rotation = math.Mod(a.rotation+90, 360)
 		if err := a.loadPageMetrics(); err != nil {
@@ -894,21 +911,29 @@ func (a *App) runCommand(input string) {
 		}
 		a.setFitMode(sanitizeFitMode(fields[1]))
 	case "reload-config":
-		cfg, err := config.Load(a.config.ConfigPath)
-		if err != nil {
-			a.message = err.Error()
-			return
-		}
-		a.applyConfig(cfg)
-		a.message = boolWord(cfg.ConfigPath != "", "config reloaded", "defaults reloaded")
+		a.reloadConfig()
 	case "search":
 		query := strings.TrimSpace(strings.TrimPrefix(strings.TrimPrefix(input, ":"), "search"))
 		a.startSearch(query, searchModeForward)
 	case "help":
-		a.message = ":page N | :search text | :mode continuous|single | :colors normal|alt | :set dual_page! | :set first_page_offset! | :fit width|page | :quit"
+		a.message = commandHelpMessage()
 	default:
 		a.message = "unknown command: " + fields[0]
 	}
+}
+
+func (a *App) reloadConfig() {
+	cfg, err := config.Load(a.config.ConfigPath)
+	if err != nil {
+		a.message = err.Error()
+		return
+	}
+	a.applyConfig(cfg)
+	a.message = boolWord(cfg.ConfigPath != "", "config reloaded", "defaults reloaded")
+}
+
+func commandHelpMessage() string {
+	return ":page N | :search text | :mode continuous|single | :colors normal|alt | :set render_mode!|alt_colors!|dual_page!|first_page_offset!|status_bar! | :fit width|page | :reload-config | :quit"
 }
 
 func (a *App) runSet(setting string) {
@@ -1182,7 +1207,10 @@ func (a *App) visiblePageHits() []pageHit {
 				continue
 			}
 			drawScale := a.renderDrawScale(rp, a.scale)
-			hits = append(hits, pageHit{page: page, x: baseX + (row.pageX[i] - row.x) - a.scrollX, y: baseY + (row.pageY[i] - row.y) - a.scrollY, width: rp.width * drawScale, height: rp.height * drawScale, drawScale: drawScale, render: rp})
+			x := baseX + (row.pageX[i] - row.x) - a.scrollX
+			y := baseY + (row.pageY[i] - row.y) - a.scrollY
+			drawX, drawY := pageImageOrigin(x, y, rp, drawScale)
+			hits = append(hits, pageHit{page: page, x: drawX, y: drawY, width: rp.width * drawScale, height: rp.height * drawScale, drawScale: drawScale, render: rp})
 		}
 		return hits
 	}
@@ -1202,7 +1230,10 @@ func (a *App) visiblePageHits() []pageHit {
 				continue
 			}
 			drawScale := a.renderDrawScale(rp, a.scale)
-			hits = append(hits, pageHit{page: page, x: row.pageX[i] - a.scrollX + offsetX, y: row.pageY[i] - a.scrollY + offsetY, width: rp.width * drawScale, height: rp.height * drawScale, drawScale: drawScale, render: rp})
+			x := row.pageX[i] - a.scrollX + offsetX
+			y := row.pageY[i] - a.scrollY + offsetY
+			drawX, drawY := pageImageOrigin(x, y, rp, drawScale)
+			hits = append(hits, pageHit{page: page, x: drawX, y: drawY, width: rp.width * drawScale, height: rp.height * drawScale, drawScale: drawScale, render: rp})
 		}
 	}
 	if len(hits) == 0 {
@@ -1441,7 +1472,13 @@ func (a *App) renderScaleFor(layoutScale float64) float64 {
 		a.ensureRenderBaseScale()
 	}
 	if a.renderBaseScale <= 0 {
-		return 1
+		return math.Max(1, layoutScale)
+	}
+	if layoutScale < 0.1 {
+		return math.Max(layoutScale, a.minRenderBaseScale)
+	}
+	if layoutScale < a.renderBaseScale/4 {
+		return math.Max(layoutScale*2, a.minRenderBaseScale)
 	}
 	return a.renderBaseScale
 }
@@ -1458,7 +1495,9 @@ func (a *App) ensureRenderBaseScale() {
 		return
 	}
 	base := math.Max(2, a.scale)
-	if base < 0.25 {
+	if a.minRenderBaseScale > 0 && a.minRenderBaseScale < 0.25 {
+		base = a.minRenderBaseScale
+	} else if base < 0.25 {
 		base = 0.25
 	}
 	a.renderBaseScale = base
@@ -1469,15 +1508,48 @@ func (a *App) maybeUpgradeRenderScale(target float64) bool {
 		return false
 	}
 	next := math.Max(a.renderBaseScale, 2)
-	for next < target && next < 8 {
+	for next < target {
 		next *= 1.5
 	}
-	next = math.Min(8, math.Max(next, target))
+	next = math.Max(next, target)
 	if next <= a.renderBaseScale+0.01 {
 		return false
 	}
 	a.renderBaseScale = next
+	a.invalidateRenderRequests()
 	return true
+}
+
+func (a *App) maybeDowngradeRenderScale() {
+	if a.renderBaseScale <= a.minRenderBaseScale {
+		return
+	}
+	target := a.scale
+	if a.fitMode != "manual" {
+		target = math.Max(target, a.zoom)
+	}
+	safeLevel := target * 2.5
+	if safeLevel >= a.renderBaseScale*0.95 {
+		return
+	}
+	newScale := a.renderBaseScale / 1.5
+	if newScale < a.minRenderBaseScale {
+		newScale = a.minRenderBaseScale
+	}
+	if newScale >= a.renderBaseScale {
+		return
+	}
+	a.renderBaseScale = newScale
+	a.invalidateRenderRequests()
+}
+
+func (a *App) adjustRenderBaseScaleForExtremeZoom(layoutScale float64) {
+	if layoutScale > a.renderBaseScale {
+		return
+	}
+	if layoutScale < a.renderBaseScale/4 && a.renderBaseScale > 1 {
+		a.maybeDowngradeRenderScale()
+	}
 }
 
 func (a *App) updateCurrentPageFromScroll() {
@@ -1540,6 +1612,13 @@ func (a *App) statusBarColor() color.RGBA {
 
 func rgb(c [3]uint8) color.RGBA {
 	return color.RGBA{R: c[0], G: c[1], B: c[2], A: 0xff}
+}
+
+func pageImageOrigin(pageX, pageY float64, rp *renderedPage, drawScale float64) (float64, float64) {
+	if rp == nil {
+		return pageX, pageY
+	}
+	return pageX - rp.pixX*drawScale, pageY - rp.pixY*drawScale
 }
 
 func remapPageColors(img *image.RGBA, bg, fg [3]uint8) {

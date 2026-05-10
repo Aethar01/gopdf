@@ -39,7 +39,7 @@ func newRenderWorker(docPath string) *renderWorker {
 		requests: make(chan renderRequest, 128),
 		updates:  make(chan renderUpdate, 128),
 		closing:  make(chan struct{}),
-		done:     make(chan struct{}),
+		done:    make(chan struct{}),
 	}
 	go w.run(docPath)
 	return w
@@ -135,6 +135,10 @@ func (a *App) pollRenderUpdates() {
 			if update.altColors {
 				remapPageColors(update.rendered.Image, a.config.AltBackground, a.config.AltForeground)
 			}
+			oldRP := a.renderCache[update.cacheKey]
+			if oldRP != nil {
+				oldRP.image.Dispose()
+			}
 			rp := &renderedPage{
 				image:  ebiten.NewImageFromImage(update.rendered.Image),
 				width:  float64(update.rendered.Image.Bounds().Dx()),
@@ -147,15 +151,42 @@ func (a *App) pollRenderUpdates() {
 			}
 			a.renderCache[update.cacheKey] = rp
 			a.renderOrder = append(a.renderOrder, update.cacheKey)
+			a.pendingRedraw = true
 			for len(a.renderOrder) > a.cacheLimit {
 				oldest := a.renderOrder[0]
 				a.renderOrder = a.renderOrder[1:]
 				if _, pending := a.renderPending[oldest]; pending {
 					continue
 				}
+				if oldRP := a.renderCache[oldest]; oldRP != nil {
+					oldRP.image.Dispose()
+				}
 				delete(a.renderCache, oldest)
 			}
 		default:
+			return
+		}
+	}
+}
+
+func (a *App) touchRenderCacheEntry(key string) {
+	for i, k := range a.renderOrder {
+		if k == key {
+			a.renderOrder = append(a.renderOrder[:i], a.renderOrder[i+1:]...)
+			a.renderOrder = append(a.renderOrder, key)
+			return
+		}
+	}
+}
+
+func (a *App) evictRenderCacheEntry(key string) {
+	for i, k := range a.renderOrder {
+		if k == key {
+			a.renderOrder = append(a.renderOrder[:i], a.renderOrder[i+1:]...)
+			if oldRP := a.renderCache[key]; oldRP != nil {
+				oldRP.image.Dispose()
+			}
+			delete(a.renderCache, key)
 			return
 		}
 	}
@@ -168,6 +199,7 @@ func (a *App) requestRender(page int, scale float64) {
 	renderScale := a.renderScaleFor(scale)
 	cacheKey := renderCacheKey(page, renderScale, a.rotation, a.altColors)
 	if _, ok := a.renderCache[cacheKey]; ok {
+		a.touchRenderCacheEntry(cacheKey)
 		return
 	}
 	if _, ok := a.renderPending[cacheKey]; ok {

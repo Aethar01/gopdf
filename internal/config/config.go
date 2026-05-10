@@ -546,6 +546,7 @@ func allActions() []string {
 		"reset_zoom",
 		"fit_width",
 		"fit_page",
+		"reload_config",
 		"rotate_cw",
 		"rotate_ccw",
 		"goto_page_prompt",
