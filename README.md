@@ -191,4 +191,5 @@ gopdf.cache.clear()          -- Clear cache
 
 ## License
 
+gopdf is licensed under [AGPL](./LICENSE)
 Links against [MuPDF](https://mupdf.com/), which is licensed under AGPL unless you have a separate commercial license.
