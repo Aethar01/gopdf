@@ -4,6 +4,5 @@ Name=GoPDF
 GenericName=PDF Viewer
 Comment=Lightweight PDF viewer written in Go
 Exec=gopdf %F
-Terminal=true
 Categories=Office;Viewer;
 MimeType=application/pdf;
