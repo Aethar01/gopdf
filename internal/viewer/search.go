@@ -7,8 +7,7 @@ import (
 
 	"gopdf/internal/mupdf"
 
-	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/hajimehoshi/ebiten/v2/vector"
+	"github.com/veandco/go-sdl2/sdl"
 )
 
 type searchMode int
@@ -234,6 +233,17 @@ func (a *App) startSearch(query string, mode searchMode) {
 	}
 }
 
+func (a *App) clearSearch() {
+	a.search.generation++
+	a.search.query = ""
+	a.search.matches = map[int][]mupdf.SearchHit{}
+	a.search.order = nil
+	a.search.current = -1
+	a.search.running = false
+	a.search.mode = searchModeForward
+	a.message = ""
+}
+
 func (a *App) repeatSearch(forward bool) {
 	delta := 1
 	if a.search.mode == searchModeBackward {
@@ -308,7 +318,7 @@ func (a *App) searchHitBounds(hit mupdf.SearchHit, x, y float64, rp *renderedPag
 	return minX, minY, maxX, maxY
 }
 
-func (a *App) drawSearchHighlightsForPage(screen *ebiten.Image, page int, x, y float64, rp *renderedPage) {
+func (a *App) drawSearchHighlightsForPage(renderer *sdl.Renderer, page int, x, y float64, rp *renderedPage) {
 	hits := a.search.matches[page]
 	if len(hits) == 0 {
 		return
@@ -319,22 +329,23 @@ func (a *App) drawSearchHighlightsForPage(screen *ebiten.Image, page int, x, y f
 			ref := a.search.order[a.search.current]
 			active = ref.page == page && ref.hit == i
 		}
-		a.drawHighlightQuadsWithStyle(screen, hit.Quads, x, y, rp, active)
+		a.drawHighlightQuadsWithStyle(renderer, hit.Quads, x, y, rp, active)
 	}
 }
 
-func (a *App) drawHighlightQuadsWithStyle(screen *ebiten.Image, quads []mupdf.Quad, x, y float64, rp *renderedPage, active bool) {
+func (a *App) drawHighlightQuadsWithStyle(renderer *sdl.Renderer, quads []mupdf.Quad, x, y float64, rp *renderedPage, active bool) {
 	bg := a.highlightBackgroundColor()
 	fg := a.highlightForegroundColor()
-	stroke := float32(1)
+	stroke := 1
 	if active {
 		bg.A = 0xdd
 		stroke = 2
 	}
 	for _, quad := range quads {
 		minX, minY, maxX, maxY := a.quadScreenBounds(quad, x, y, rp)
-		vector.DrawFilledRect(screen, float32(minX), float32(minY), float32(maxX-minX), float32(maxY-minY), bg, false)
-		vector.StrokeRect(screen, float32(minX), float32(minY), float32(maxX-minX), float32(maxY-minY), stroke, fg, false)
+		rect := sdl.FRect{X: float32(minX), Y: float32(minY), W: float32(maxX - minX), H: float32(maxY - minY)}
+		fillRect(renderer, rect, bg)
+		strokeRect(renderer, rect, fg, stroke)
 	}
 }
 

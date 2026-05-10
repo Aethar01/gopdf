@@ -57,6 +57,20 @@ typedef struct {
 } gopdf_search_result;
 
 typedef struct {
+	gopdf_rect rect;
+	char *uri;
+	int is_external;
+	int page_number;
+	float x;
+	float y;
+} gopdf_link;
+
+typedef struct {
+	gopdf_link *links;
+	int link_count;
+} gopdf_link_result;
+
+typedef struct {
 	gopdf_search_hit *hits;
 	int hit_count;
 	int hit_cap;
@@ -299,6 +313,89 @@ static void gopdf_free_search_result(gopdf_search_result *result) {
 	result->hit_count = 0;
 }
 
+static int gopdf_load_links(gopdf_doc *handle, int page_number, gopdf_link_result *out, char **err) {
+	fz_page *page = NULL;
+	fz_link *links = NULL;
+	gopdf_link *items = NULL;
+	int count = 0;
+	*err = NULL;
+	out->links = NULL;
+	out->link_count = 0;
+	fz_var(page);
+	fz_var(links);
+	fz_try(handle->ctx) {
+		float xp = 0;
+		float yp = 0;
+		page = fz_load_page(handle->ctx, handle->doc, page_number);
+		links = fz_load_links(handle->ctx, page);
+		for (fz_link *link = links; link != NULL; link = link->next) {
+			count++;
+		}
+		if (count > 0) {
+			items = (gopdf_link *)calloc(count, sizeof(gopdf_link));
+			if (items == NULL) {
+				fz_throw(handle->ctx, FZ_ERROR_SYSTEM, "calloc failed");
+			}
+			int i = 0;
+			for (fz_link *link = links; link != NULL; link = link->next, i++) {
+				items[i].rect.x0 = link->rect.x0;
+				items[i].rect.y0 = link->rect.y0;
+				items[i].rect.x1 = link->rect.x1;
+				items[i].rect.y1 = link->rect.y1;
+				items[i].uri = link->uri ? gopdf_dup_string(link->uri) : NULL;
+				items[i].is_external = link->uri ? fz_is_external_link(handle->ctx, link->uri) : 0;
+				items[i].page_number = -1;
+				items[i].x = 0;
+				items[i].y = 0;
+				if (link->uri != NULL && !items[i].is_external) {
+					fz_location loc = fz_resolve_link(handle->ctx, handle->doc, link->uri, &xp, &yp);
+					items[i].page_number = fz_page_number_from_location(handle->ctx, handle->doc, loc);
+					items[i].x = xp;
+					items[i].y = yp;
+				}
+			}
+		}
+		out->links = items;
+		out->link_count = count;
+	} fz_always(handle->ctx) {
+		if (links != NULL) {
+			fz_drop_link(handle->ctx, links);
+		}
+		if (page != NULL) {
+			fz_drop_page(handle->ctx, page);
+		}
+	} fz_catch(handle->ctx) {
+		if (items != NULL) {
+			for (int i = 0; i < count; i++) {
+				if (items[i].uri != NULL) {
+					free(items[i].uri);
+				}
+			}
+			free(items);
+		}
+		*err = gopdf_dup_string(fz_caught_message(handle->ctx));
+		return 0;
+	}
+	return 1;
+}
+
+static void gopdf_free_link_result(gopdf_link_result *result) {
+	if (result == NULL) {
+		return;
+	}
+	if (result->links != NULL) {
+		for (int i = 0; i < result->link_count; i++) {
+			if (result->links[i].uri != NULL) {
+				free(result->links[i].uri);
+				result->links[i].uri = NULL;
+			}
+		}
+		free(result->links);
+		result->links = NULL;
+	}
+	result->link_count = 0;
+}
+
 static int gopdf_extract_selection(gopdf_doc *handle, int page_number, float ax, float ay, float bx, float by, gopdf_selection *out, char **err) {
 	fz_page *page = NULL;
 	fz_stext_page *text = NULL;
@@ -426,6 +523,15 @@ type SearchHit struct {
 	Quads []Quad
 }
 
+type Link struct {
+	Bounds   Rect
+	URI      string
+	External bool
+	Page     int
+	X        float64
+	Y        float64
+}
+
 func Open(path string) (*Document, error) {
 	cpath := C.CString(path)
 	defer C.free(unsafe.Pointer(cpath))
@@ -543,6 +649,31 @@ func (d *Document) SearchPage(page int, needle string) ([]SearchHit, error) {
 		}
 	}
 	return hits, nil
+}
+
+func (d *Document) Links(page int) ([]Link, error) {
+	var result C.gopdf_link_result
+	var cerr *C.char
+	if ok := C.gopdf_load_links(d.handle, C.int(page), &result, &cerr); ok == 0 {
+		return nil, consumeError("load links", cerr)
+	}
+	defer C.gopdf_free_link_result(&result)
+	if result.link_count == 0 || result.links == nil {
+		return nil, nil
+	}
+	raw := unsafe.Slice(result.links, int(result.link_count))
+	links := make([]Link, len(raw))
+	for i, link := range raw {
+		links[i] = Link{
+			Bounds:   Rect{X0: float32(link.rect.x0), Y0: float32(link.rect.y0), X1: float32(link.rect.x1), Y1: float32(link.rect.y1)},
+			URI:      C.GoString(link.uri),
+			External: link.is_external != 0,
+			Page:     int(link.page_number),
+			X:        float64(link.x),
+			Y:        float64(link.y),
+		}
+	}
+	return links, nil
 }
 
 func consumeError(prefix string, cerr *C.char) error {

@@ -17,7 +17,7 @@ MuPDF-backed PDF viewer written in Go.
 
 ## Build
 
-`libmupdf` must be installed and discoverable through `pkg-config`.
+`libmupdf` and `sdl2` must be installed and discoverable through `pkg-config`.
 
 ```bash
 go build ./...

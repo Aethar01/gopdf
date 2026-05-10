@@ -4,8 +4,6 @@ import (
 	"fmt"
 
 	"gopdf/internal/mupdf"
-
-	"github.com/hajimehoshi/ebiten/v2"
 )
 
 type renderRequest struct {
@@ -39,7 +37,7 @@ func newRenderWorker(docPath string) *renderWorker {
 		requests: make(chan renderRequest, 128),
 		updates:  make(chan renderUpdate, 128),
 		closing:  make(chan struct{}),
-		done:    make(chan struct{}),
+		done:     make(chan struct{}),
 	}
 	go w.run(docPath)
 	return w
@@ -137,17 +135,23 @@ func (a *App) pollRenderUpdates() {
 			}
 			oldRP := a.renderCache[update.cacheKey]
 			if oldRP != nil {
-				oldRP.image.Dispose()
+				oldRP.texture.Destroy()
+			}
+			tex, err := textureFromImage(a.renderer, update.rendered.Image)
+			if err != nil {
+				a.lastErr = err
+				a.message = err.Error()
+				continue
 			}
 			rp := &renderedPage{
-				image:  ebiten.NewImageFromImage(update.rendered.Image),
-				width:  float64(update.rendered.Image.Bounds().Dx()),
-				height: float64(update.rendered.Image.Bounds().Dy()),
-				pixX:   float64(update.rendered.X),
-				pixY:   float64(update.rendered.Y),
-				key:    update.cacheKey,
-				page:   update.page,
-				scale:  update.scale,
+				texture: tex,
+				width:   float64(update.rendered.Image.Bounds().Dx()),
+				height:  float64(update.rendered.Image.Bounds().Dy()),
+				pixX:    float64(update.rendered.X),
+				pixY:    float64(update.rendered.Y),
+				key:     update.cacheKey,
+				page:    update.page,
+				scale:   update.scale,
 			}
 			a.renderCache[update.cacheKey] = rp
 			a.renderOrder = append(a.renderOrder, update.cacheKey)
@@ -159,7 +163,7 @@ func (a *App) pollRenderUpdates() {
 					continue
 				}
 				if oldRP := a.renderCache[oldest]; oldRP != nil {
-					oldRP.image.Dispose()
+					oldRP.texture.Destroy()
 				}
 				delete(a.renderCache, oldest)
 			}
@@ -184,7 +188,7 @@ func (a *App) evictRenderCacheEntry(key string) {
 		if k == key {
 			a.renderOrder = append(a.renderOrder[:i], a.renderOrder[i+1:]...)
 			if oldRP := a.renderCache[key]; oldRP != nil {
-				oldRP.image.Dispose()
+				oldRP.texture.Destroy()
 			}
 			delete(a.renderCache, key)
 			return

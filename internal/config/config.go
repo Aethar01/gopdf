@@ -553,22 +553,6 @@ func newLuaModule(L *lua.LState, rt *Runtime, cfg *Config) *lua.LTable {
 			}
 			return 0
 		},
-		"search_mode": func(L *lua.LState) int {
-			L.Push(lua.LString("search_prompt"))
-			return 1
-		},
-		"next_search": func(L *lua.LState) int {
-			L.Push(lua.LString("search_next"))
-			return 1
-		},
-		"prev_search": func(L *lua.LState) int {
-			L.Push(lua.LString("search_prev"))
-			return 1
-		},
-		"search_mode_backward": func(L *lua.LState) int {
-			L.Push(lua.LString("search_prompt_backward"))
-			return 1
-		},
 		"jump_forward": func(L *lua.LState) int {
 			L.Push(lua.LString("jump_forward"))
 			return 1
@@ -583,6 +567,10 @@ func newLuaModule(L *lua.LState, rt *Runtime, cfg *Config) *lua.LTable {
 		name := action
 		L.SetField(mod, name, newLuaActionValue(L, rt, name))
 	}
+	L.SetField(mod, "search_mode", newLuaActionValue(L, rt, "search_prompt"))
+	L.SetField(mod, "search_mode_backward", newLuaActionValue(L, rt, "search_prompt_backward"))
+	L.SetField(mod, "next_search", newLuaActionValue(L, rt, "search_next"))
+	L.SetField(mod, "prev_search", newLuaActionValue(L, rt, "search_prev"))
 	return mod
 }
 
@@ -1086,6 +1074,7 @@ func allActions() []string {
 		"rotate_cw",
 		"rotate_ccw",
 		"goto_page_prompt",
+		"clear_search",
 		"jump_forward",
 		"jump_backward",
 		"quit",

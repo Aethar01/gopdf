@@ -5,7 +5,9 @@ import (
 	"image"
 	"image/color"
 	"math"
+	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -14,11 +16,7 @@ import (
 	"gopdf/internal/config"
 	"gopdf/internal/mupdf"
 
-	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/hajimehoshi/ebiten/v2/inpututil"
-	"github.com/hajimehoshi/ebiten/v2/text"
-	"github.com/hajimehoshi/ebiten/v2/vector"
-	"golang.design/x/clipboard"
+	"github.com/veandco/go-sdl2/sdl"
 	"golang.org/x/image/font"
 	"golang.org/x/image/font/basicfont"
 )
@@ -33,14 +31,14 @@ const (
 )
 
 type renderedPage struct {
-	image  *ebiten.Image
-	width  float64
-	height float64
-	pixX   float64
-	pixY   float64
-	key    string
-	page   int
-	scale  float64
+	texture *sdl.Texture
+	width   float64
+	height  float64
+	pixX    float64
+	pixY    float64
+	key     string
+	page    int
+	scale   float64
 }
 
 type pageMetrics struct {
@@ -79,11 +77,13 @@ type rowLayout struct {
 }
 
 type App struct {
-	docPath string
-	docName string
-	doc     *mupdf.Document
-	runtime *config.Runtime
-	config  config.Config
+	docPath  string
+	docName  string
+	doc      *mupdf.Document
+	runtime  *config.Runtime
+	config   config.Config
+	window   *sdl.Window
+	renderer *sdl.Renderer
 
 	pageCount  int
 	page       int
@@ -126,6 +126,7 @@ type App struct {
 	mode          mode
 	input         string
 	inputCursor   int
+	ignoreText    string
 	message       string
 	mouseBindings map[string]string
 	searchInput   searchMode
@@ -135,12 +136,12 @@ type App struct {
 	sequenceLookup map[string]string
 	pendingCount   string
 
-	lastErr        error
-	quit           bool
-	selection      textSelection
-	clipboardReady bool
-	search         searchState
-	searchWorker   *searchWorker
+	lastErr      error
+	quit         bool
+	selection    textSelection
+	pageLinks    map[int][]mupdf.Link
+	search       searchState
+	searchWorker *searchWorker
 
 	jumpBack  []jumpPosition
 	jumpAhead []jumpPosition
@@ -192,6 +193,7 @@ func New(docPath string, runtime *config.Runtime, startPage int) (*App, error) {
 		fontFace:           basicfont.Face7x13,
 		message:            cfg.NormalMessage,
 		mouseBindings:      map[string]string{},
+		pageLinks:          map[int][]mupdf.Link{},
 		sequenceLookup:     map[string]string{},
 	}
 	runtime.AttachHost(app)
@@ -200,9 +202,6 @@ func New(docPath string, runtime *config.Runtime, startPage int) (*App, error) {
 	}
 	for k, v := range cfg.MouseBindings {
 		app.mouseBindings[k] = v
-	}
-	if err := clipboard.Init(); err == nil {
-		app.clipboardReady = true
 	}
 	app.initRenderWorker()
 	app.initSearch()
@@ -221,72 +220,235 @@ func New(docPath string, runtime *config.Runtime, startPage int) (*App, error) {
 func (a *App) Close() {
 	a.closeRenderWorker()
 	a.closeSearch()
+	a.clearCache()
+	if a.renderer != nil {
+		a.renderer.Destroy()
+		a.renderer = nil
+	}
+	if a.window != nil {
+		a.window.Destroy()
+		a.window = nil
+	}
+	sdl.Quit()
 	if a.doc != nil {
 		a.doc.Close()
 	}
 }
 
 func (a *App) Run() error {
-	ebiten.SetScreenClearedEveryFrame(false)
-	ebiten.SetWindowSize(1400, 900)
-	ebiten.SetWindowTitle(a.docName + " - gopdf")
-	ebiten.SetWindowResizingMode(ebiten.WindowResizingModeEnabled)
-	if err := ebiten.RunGameWithOptions(a, &ebiten.RunGameOptions{
-		X11ClassName:    "Gopdf",
-		X11InstanceName: "gopdf",
-	}); err != nil {
-		if a.quit {
-			return nil
-		}
+	if err := sdl.Init(sdl.INIT_VIDEO); err != nil {
 		return err
 	}
+	window, renderer, err := sdl.CreateWindowAndRenderer(1400, 900, sdl.WINDOW_RESIZABLE|sdl.WINDOW_ALLOW_HIGHDPI)
+	if err != nil {
+		sdl.Quit()
+		return err
+	}
+	a.window = window
+	a.renderer = renderer
+	a.window.SetTitle(a.docName + " - gopdf")
+	a.renderer.SetDrawBlendMode(sdl.BLENDMODE_BLEND)
+	if w, h, err := a.renderer.GetOutputSize(); err == nil {
+		a.winW, a.winH = int(w), int(h)
+	}
+	a.recomputeLayout(a.viewportSize())
+	sdl.StartTextInput()
+	defer sdl.StopTextInput()
+	for !a.quit {
+		for event := sdl.PollEvent(); event != nil; event = sdl.PollEvent() {
+			if err := a.handleSDLEvent(event); err != nil {
+				return err
+			}
+		}
+		a.pollRenderUpdates()
+		a.pollSearchUpdates()
+		a.expireSequence()
+		a.prefetchVisiblePages()
+		a.adjustRenderBaseScaleForExtremeZoom(a.scale)
+		if err := a.drawFrame(); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
-func (a *App) Update() error {
-	if a.quit {
-		return ebiten.Termination
+func (a *App) handleSDLEvent(event sdl.Event) error {
+	switch e := event.(type) {
+	case *sdl.QuitEvent:
+		a.quit = true
+	case *sdl.WindowEvent:
+		if e.Event == sdl.WINDOWEVENT_SIZE_CHANGED {
+			a.winW = int(e.Data1)
+			a.winH = int(e.Data2)
+			a.recomputeLayout(a.viewportSize())
+		}
+	case *sdl.KeyboardEvent:
+		if e.Type == sdl.KEYDOWN && e.Repeat == 0 {
+			a.handleSDLKeyDown(e)
+		}
+	case *sdl.TextInputEvent:
+		a.handleSDLTextInput(e)
+	case *sdl.MouseWheelEvent:
+		a.handleSDLMouseWheel(e)
+	case *sdl.MouseButtonEvent:
+		a.handleSDLMouseButton(e)
+	case *sdl.MouseMotionEvent:
+		a.handleSDLMouseMotion(e)
 	}
-	a.pollRenderUpdates()
-	a.pollSearchUpdates()
-	a.handleMouse()
-	a.expireSequence()
-	switch a.mode {
-	case modeNormal:
-		a.handleNormalMode()
-	default:
-		a.handleInputMode()
-	}
-	a.prefetchVisiblePages()
-	a.adjustRenderBaseScaleForExtremeZoom(a.scale)
 	return nil
 }
 
-func (a *App) Draw(screen *ebiten.Image) {
+func (a *App) drawFrame() error {
+	if a.renderer == nil {
+		return nil
+	}
+	if w, h, err := a.renderer.GetOutputSize(); err == nil {
+		a.winW, a.winH = int(w), int(h)
+	}
 	bg := a.backgroundColor()
-	screen.Fill(bg)
-	a.winW, a.winH = screen.Bounds().Dx(), screen.Bounds().Dy()
-	a.drawPages(screen)
+	if err := a.renderer.SetDrawColor(bg.R, bg.G, bg.B, bg.A); err != nil {
+		return err
+	}
+	if err := a.renderer.Clear(); err != nil {
+		return err
+	}
+	a.drawPages(a.renderer)
 	if a.pendingRedraw {
 		a.pendingRedraw = false
 	}
 	if a.statusVisible() {
-		a.drawStatusBar(screen)
+		if err := a.drawStatusBar(a.renderer); err != nil {
+			return err
+		}
+	}
+	a.renderer.Present()
+	return nil
+}
+
+func (a *App) handleSDLKeyDown(e *sdl.KeyboardEvent) {
+	if a.mode == modeNormal {
+		if token, ok := keyToken(e.Keysym.Sym, sdl.Keymod(e.Keysym.Mod)); ok {
+			prevMode := a.mode
+			if a.handleCountToken(token) {
+				return
+			}
+			a.pushToken(token)
+			if prevMode == modeNormal && a.mode != modeNormal && utf8.RuneCountInString(token) == 1 {
+				a.ignoreText = token
+			}
+		}
+		return
+	}
+	switch e.Keysym.Sym {
+	case sdl.K_ESCAPE:
+		a.mode = modeNormal
+		a.input = ""
+		a.inputCursor = 0
+	case sdl.K_RETURN, sdl.K_KP_ENTER:
+		a.commitInputMode()
+	case sdl.K_LEFT:
+		a.moveInputCursor(-1)
+	case sdl.K_RIGHT:
+		a.moveInputCursor(1)
+	case sdl.K_BACKSPACE:
+		a.backspaceInput()
 	}
 }
 
-func (a *App) Layout(outsideWidth, outsideHeight int) (int, int) {
-	a.winW, a.winH = outsideWidth, outsideHeight
-	a.recomputeLayout(a.viewportSize())
-	return outsideWidth, outsideHeight
+func (a *App) handleSDLTextInput(e *sdl.TextInputEvent) {
+	text := e.GetText()
+	if text == "" {
+		return
+	}
+	if a.mode == modeNormal {
+		return
+	}
+	if a.ignoreText != "" {
+		if strings.HasPrefix(text, a.ignoreText) {
+			text = strings.TrimPrefix(text, a.ignoreText)
+		}
+		a.ignoreText = ""
+		if text == "" {
+			return
+		}
+	}
+	for _, r := range text {
+		if r >= 0x20 && r != 0x7f {
+			a.insertInputRune(r)
+		}
+	}
 }
 
-func (a *App) handleNormalMode() {
-	for _, token := range collectTokens() {
-		if a.handleCountToken(token) {
-			continue
+func (a *App) handleSDLMouseWheel(e *sdl.MouseWheelEvent) {
+	wx, wy := e.PreciseX, e.PreciseY
+	if wx == 0 {
+		wx = float32(e.X)
+	}
+	if wy == 0 {
+		wy = float32(e.Y)
+	}
+	if e.Direction == sdl.MOUSEWHEEL_FLIPPED {
+		wx = -wx
+		wy = -wy
+	}
+	ctrl := sdl.GetModState()&sdl.KMOD_CTRL != 0
+	if ctrl {
+		if wy > 0 {
+			a.runMouseBinding("<c-wheel_up>")
 		}
-		a.pushToken(token)
+		if wy < 0 {
+			a.runMouseBinding("<c-wheel_down>")
+		}
+		return
+	}
+	if wy > 0 {
+		a.runMouseBinding("wheel_up")
+	}
+	if wy < 0 {
+		a.runMouseBinding("wheel_down")
+	}
+	if wx > 0 {
+		a.runMouseBinding("wheel_right")
+	}
+	if wx < 0 {
+		a.runMouseBinding("wheel_left")
+	}
+}
+
+func (a *App) handleSDLMouseButton(e *sdl.MouseButtonEvent) {
+	if e.Button != sdl.BUTTON_LEFT || !a.config.MouseTextSelect {
+		if e.Button == sdl.BUTTON_LEFT && e.Type == sdl.MOUSEBUTTONDOWN {
+			a.tryActivateLinkAt(float64(e.X), float64(e.Y))
+		}
+		return
+	}
+	if e.Type == sdl.MOUSEBUTTONDOWN {
+		if a.tryActivateLinkAt(float64(e.X), float64(e.Y)) {
+			a.selection.active = false
+			a.selection.quads = nil
+			return
+		}
+		page, point, ok := a.pagePointAtScreen(float64(e.X), float64(e.Y))
+		if ok {
+			a.selection = textSelection{active: true, page: page, anchor: point, focus: point}
+		}
+		return
+	}
+	if e.Type == sdl.MOUSEBUTTONUP && a.selection.active {
+		a.copySelectionToClipboard()
+		a.selection.active = false
+		a.selection.quads = nil
+	}
+}
+
+func (a *App) handleSDLMouseMotion(e *sdl.MouseMotionEvent) {
+	if !a.selection.active || e.State&sdl.ButtonLMask() == 0 {
+		return
+	}
+	page, point, ok := a.pagePointAtScreen(float64(e.X), float64(e.Y))
+	if ok && page == a.selection.page {
+		a.selection.focus = point
+		a.refreshSelection()
 	}
 }
 
@@ -331,33 +493,6 @@ func (a *App) runCountAction(token string) bool {
 	return true
 }
 
-func (a *App) handleInputMode() {
-	if inpututil.IsKeyJustPressed(ebiten.KeyEscape) {
-		a.mode = modeNormal
-		a.input = ""
-		a.inputCursor = 0
-		return
-	}
-	if inpututil.IsKeyJustPressed(ebiten.KeyEnter) || inpututil.IsKeyJustPressed(ebiten.KeyNumpadEnter) {
-		a.commitInputMode()
-		return
-	}
-	if inpututil.IsKeyJustPressed(ebiten.KeyArrowLeft) {
-		a.moveInputCursor(-1)
-	}
-	if inpututil.IsKeyJustPressed(ebiten.KeyArrowRight) {
-		a.moveInputCursor(1)
-	}
-	if inpututil.IsKeyJustPressed(ebiten.KeyBackspace) {
-		a.backspaceInput()
-	}
-	for _, r := range ebiten.AppendInputChars(nil) {
-		if r >= 0x20 && r != 0x7f {
-			a.insertInputRune(r)
-		}
-	}
-}
-
 func (a *App) commitInputMode() {
 	input := strings.TrimSpace(a.input)
 	currentMode := a.mode
@@ -397,15 +532,15 @@ func (a *App) moveInputCursor(delta int) {
 	a.inputCursor = clampInt(a.inputCursor+delta, 0, utf8.RuneCountInString(a.input))
 }
 
-func (a *App) drawPages(screen *ebiten.Image) {
+func (a *App) drawPages(renderer *sdl.Renderer) {
 	if a.renderMode == "single" {
-		a.drawSinglePage(screen)
+		a.drawSinglePage(renderer)
 		return
 	}
-	a.drawContinuousPages(screen)
+	a.drawContinuousPages(renderer)
 }
 
-func (a *App) drawContinuousPages(screen *ebiten.Image) {
+func (a *App) drawContinuousPages(renderer *sdl.Renderer) {
 	viewportW, viewportH := a.viewportSize()
 	margin := a.renderMargin()
 	minY := a.scrollY - margin
@@ -429,17 +564,15 @@ func (a *App) drawContinuousPages(screen *ebiten.Image) {
 			if drawX+drawW < 0 || drawX > float64(viewportW) || drawY+drawH < 0 || drawY > float64(viewportH) {
 				continue
 			}
-			op := &ebiten.DrawImageOptions{}
-			op.GeoM.Scale(drawScale, drawScale)
-			op.GeoM.Translate(drawX, drawY)
-			screen.DrawImage(rp.image, op)
-			a.drawSearchHighlightsForPage(screen, page, x, y, rp)
+			dst := sdl.FRect{X: float32(drawX), Y: float32(drawY), W: float32(drawW), H: float32(drawH)}
+			renderer.CopyF(rp.texture, nil, &dst)
+			a.drawSearchHighlightsForPage(renderer, page, x, y, rp)
 		}
 	}
-	a.drawSelection(screen)
+	a.drawSelection(renderer)
 }
 
-func (a *App) drawSinglePage(screen *ebiten.Image) {
+func (a *App) drawSinglePage(renderer *sdl.Renderer) {
 	if len(a.rows) == 0 || a.page < 0 || a.page >= len(a.pageToRow) {
 		return
 	}
@@ -461,13 +594,11 @@ func (a *App) drawSinglePage(screen *ebiten.Image) {
 		if drawX+drawW < 0 || drawX > float64(viewportW) || drawY+drawH < 0 || drawY > float64(viewportH) {
 			continue
 		}
-		op := &ebiten.DrawImageOptions{}
-		op.GeoM.Scale(drawScale, drawScale)
-		op.GeoM.Translate(drawX, drawY)
-		screen.DrawImage(rp.image, op)
-		a.drawSearchHighlightsForPage(screen, page, x, y, rp)
+		dst := sdl.FRect{X: float32(drawX), Y: float32(drawY), W: float32(drawW), H: float32(drawH)}
+		renderer.CopyF(rp.texture, nil, &dst)
+		a.drawSearchHighlightsForPage(renderer, page, x, y, rp)
 	}
-	a.drawSelection(screen)
+	a.drawSelection(renderer)
 }
 
 func (a *App) cachedRenderPage(page int, scale float64) (*renderedPage, bool) {
@@ -766,7 +897,7 @@ func (a *App) setFitMode(mode string) {
 
 func (a *App) clearCache() {
 	for _, rp := range a.renderCache {
-		rp.image.Dispose()
+		rp.texture.Destroy()
 	}
 	a.renderCache = map[string]*renderedPage{}
 	a.renderOrder = nil
@@ -913,7 +1044,7 @@ func (a *App) runBuiltinAction(action string) error {
 		a.alignPageTop(a.page)
 	case "toggle_fullscreen":
 		a.fullscreen = !a.fullscreen
-		ebiten.SetFullscreen(a.fullscreen)
+		a.SetFullscreen(a.fullscreen)
 	case "zoom_in":
 		a.setManualZoom(1.15)
 	case "zoom_out":
@@ -948,13 +1079,22 @@ func (a *App) runBuiltinAction(action string) error {
 	case "quit":
 		a.quit = true
 	case "escape":
+		if a.mode == modeNormal {
+			if a.search.query != "" || len(a.search.order) > 0 || a.search.running {
+				a.clearSearch()
+			}
+			return nil
+		}
 		a.mode = modeNormal
 		a.input = ""
 		a.inputCursor = 0
+		a.ignoreText = ""
 	case "jump_forward":
 		a.jumpForward()
 	case "jump_backward":
 		a.jumpBackward()
+	case "clear_search":
+		a.clearSearch()
 	default:
 		return fmt.Errorf("unknown action: %s", action)
 	}
@@ -1113,8 +1253,13 @@ func (a *App) Fullscreen() bool {
 
 func (a *App) SetFullscreen(fullscreen bool) error {
 	a.fullscreen = fullscreen
-	ebiten.SetFullscreen(fullscreen)
-	return nil
+	if a.window == nil {
+		return nil
+	}
+	if fullscreen {
+		return a.window.SetFullscreen(sdl.WINDOW_FULLSCREEN_DESKTOP)
+	}
+	return a.window.SetFullscreen(0)
 }
 
 func (a *App) StatusBarVisible() bool {
@@ -1252,20 +1397,25 @@ func (a *App) runSet(setting string) {
 	}
 }
 
-func (a *App) drawStatusBar(screen *ebiten.Image) {
+func (a *App) drawStatusBar(renderer *sdl.Renderer) error {
 	h := a.config.StatusBarHeight
 	y := a.winH - h
-	bar := ebiten.NewImage(a.winW, h)
-	bar.Fill(a.statusBarColor())
-	op := &ebiten.DrawImageOptions{}
-	op.GeoM.Translate(0, float64(y))
-	screen.DrawImage(bar, op)
+	if err := fillRect(renderer, sdl.FRect{X: 0, Y: float32(y), W: float32(a.winW), H: float32(h)}, a.statusBarColor()); err != nil {
+		return err
+	}
 	left := a.statusLeft()
 	right := a.statusRight()
-	a.drawText(screen, left, 8, y+19, a.foregroundColor())
-	a.drawInputCursor(screen, y)
-	rw := text.BoundString(a.fontFace, right).Dx()
-	a.drawText(screen, right, a.winW-rw-8, y+19, a.foregroundColor())
+	if err := drawText(renderer, a.fontFace, left, 8, y+19, a.foregroundColor()); err != nil {
+		return err
+	}
+	if err := a.drawInputCursor(renderer, y); err != nil {
+		return err
+	}
+	rw := measureText(a.fontFace, right)
+	if err := drawText(renderer, a.fontFace, right, a.winW-rw-8, y+19, a.foregroundColor()); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (a *App) statusLeft() string {
@@ -1309,14 +1459,18 @@ func (a *App) statusRight() string {
 	return strings.Join(parts, "  ")
 }
 
-func (a *App) drawInputCursor(screen *ebiten.Image, barY int) {
+func (a *App) drawInputCursor(renderer *sdl.Renderer, barY int) error {
 	if a.mode == modeNormal {
-		return
+		return nil
 	}
 	prefix := a.inputPrefix()
 	left, _ := splitAtRune(a.input, a.inputCursor)
-	x := 8 + text.BoundString(a.fontFace, prefix+left).Dx()
-	vector.StrokeLine(screen, float32(x), float32(barY+6), float32(x), float32(barY+22), 1, a.foregroundColor(), false)
+	x := 8 + measureText(a.fontFace, prefix+left)
+	fg := a.foregroundColor()
+	if err := renderer.SetDrawColor(fg.R, fg.G, fg.B, fg.A); err != nil {
+		return err
+	}
+	return renderer.DrawLine(int32(x), int32(barY+6), int32(x), int32(barY+22))
 }
 
 func (a *App) inputPrefix() string {
@@ -1337,66 +1491,6 @@ func (a *App) searchPromptToken() string {
 		return "?"
 	}
 	return "/"
-}
-
-func (a *App) drawText(screen *ebiten.Image, s string, x, y int, clr color.Color) {
-	text.Draw(screen, s, a.fontFace, x, y, clr)
-}
-
-func (a *App) handleMouse() {
-	a.handleWheel()
-	if !a.config.MouseTextSelect {
-		a.selection.active = false
-		return
-	}
-	mx, my := ebiten.CursorPosition()
-	if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
-		page, point, ok := a.pagePointAtScreen(float64(mx), float64(my))
-		if ok {
-			a.selection = textSelection{active: true, page: page, anchor: point, focus: point}
-		}
-	}
-	if a.selection.active && ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft) {
-		page, point, ok := a.pagePointAtScreen(float64(mx), float64(my))
-		if ok && page == a.selection.page {
-			a.selection.focus = point
-			a.refreshSelection()
-		}
-	}
-	if a.selection.active && inpututil.IsMouseButtonJustReleased(ebiten.MouseButtonLeft) {
-		a.copySelectionToClipboard()
-		a.selection.active = false
-		a.selection.quads = nil
-	}
-}
-
-func (a *App) handleWheel() {
-	wx, wy := ebiten.Wheel()
-	if wx == 0 && wy == 0 {
-		return
-	}
-	ctrl := ebiten.IsKeyPressed(ebiten.KeyControl) || ebiten.IsKeyPressed(ebiten.KeyControlLeft) || ebiten.IsKeyPressed(ebiten.KeyControlRight)
-	if ctrl {
-		if wy > 0 {
-			a.runMouseBinding("<c-wheel_up>")
-		}
-		if wy < 0 {
-			a.runMouseBinding("<c-wheel_down>")
-		}
-		return
-	}
-	if wy > 0 {
-		a.runMouseBinding("wheel_up")
-	}
-	if wy < 0 {
-		a.runMouseBinding("wheel_down")
-	}
-	if wx > 0 {
-		a.runMouseBinding("wheel_right")
-	}
-	if wx < 0 {
-		a.runMouseBinding("wheel_left")
-	}
 }
 
 func (a *App) runMouseBinding(event string) {
@@ -1555,16 +1649,81 @@ func (a *App) copySelectionToClipboard() {
 	if strings.TrimSpace(a.selection.text) == "" {
 		return
 	}
-	if !a.clipboardReady {
+	if err := sdl.SetClipboardText(a.selection.text); err != nil {
 		a.message = "clipboard unavailable"
 		return
 	}
-	clipboard.Write(clipboard.FmtText, []byte(a.selection.text))
 	a.message = fmt.Sprintf("copied %d chars", len(a.selection.text))
 	a.selection.text = ""
 }
 
-func (a *App) drawSelection(screen *ebiten.Image) {
+func (a *App) tryActivateLinkAt(sx, sy float64) bool {
+	page, point, ok := a.pagePointAtScreen(sx, sy)
+	if !ok {
+		return false
+	}
+	links, err := a.linksForPage(page)
+	if err != nil {
+		a.message = err.Error()
+		return false
+	}
+	for _, link := range links {
+		if point.X < float64(link.Bounds.X0) || point.X > float64(link.Bounds.X1) || point.Y < float64(link.Bounds.Y0) || point.Y > float64(link.Bounds.Y1) {
+			continue
+		}
+		a.activateLink(link)
+		return true
+	}
+	return false
+}
+
+func (a *App) linksForPage(page int) ([]mupdf.Link, error) {
+	if links, ok := a.pageLinks[page]; ok {
+		return links, nil
+	}
+	links, err := a.doc.Links(page)
+	if err != nil {
+		return nil, err
+	}
+	a.pageLinks[page] = links
+	return links, nil
+}
+
+func (a *App) activateLink(link mupdf.Link) {
+	if link.External {
+		if link.URI == "" {
+			return
+		}
+		if err := openExternalURL(link.URI); err != nil {
+			a.message = err.Error()
+			return
+		}
+		a.message = link.URI
+		return
+	}
+	if link.Page >= 0 {
+		a.alignPageTop(link.Page)
+		return
+	}
+	if link.URI != "" {
+		a.message = link.URI
+	}
+}
+
+func openExternalURL(uri string) error {
+	var cmd *exec.Cmd
+	switch runtime.GOOS {
+	case "darwin":
+		cmd = exec.Command("open", uri)
+	case "windows":
+		cmd = exec.Command("rundll32", "url.dll,FileProtocolHandler", uri)
+	default:
+		cmd = exec.Command("xdg-open", uri)
+	}
+	return cmd.Start()
+}
+
+func (a *App) drawSelection(renderer *sdl.Renderer) {
 	if len(a.selection.quads) == 0 {
 		return
 	}
@@ -1572,11 +1731,11 @@ func (a *App) drawSelection(screen *ebiten.Image) {
 	if !ok {
 		return
 	}
-	a.drawHighlightQuads(screen, a.selection.quads, x, y, rp)
+	a.drawHighlightQuads(renderer, a.selection.quads, x, y, rp)
 }
 
-func (a *App) drawHighlightQuads(screen *ebiten.Image, quads []mupdf.Quad, x, y float64, rp *renderedPage) {
-	a.drawHighlightQuadsWithStyle(screen, quads, x, y, rp, false)
+func (a *App) drawHighlightQuads(renderer *sdl.Renderer, quads []mupdf.Quad, x, y float64, rp *renderedPage) {
+	a.drawHighlightQuadsWithStyle(renderer, quads, x, y, rp, false)
 }
 
 func (a *App) highlightForegroundColor() color.RGBA {
@@ -1980,10 +2139,9 @@ func normalizeAngleToken(token string) string {
 	return "<" + strings.Join(parts, "-") + ">"
 }
 
-func keyToken(key ebiten.Key, ctrl, shift bool) (string, bool) {
-	if isModifierKey(key) {
-		return "", false
-	}
+func keyToken(key sdl.Keycode, mod sdl.Keymod) (string, bool) {
+	ctrl := mod&sdl.KMOD_CTRL != 0
+	shift := mod&sdl.KMOD_SHIFT != 0
 	if ctrl {
 		if base, ok := baseKeyName(key); ok {
 			if shift {
@@ -1998,84 +2156,92 @@ func keyToken(key ebiten.Key, ctrl, shift bool) (string, bool) {
 		}
 		return normalizeAngleToken(token), true
 	}
+	if token, ok := printableKeyToken(key, shift); ok {
+		return token, true
+	}
 	return "", false
 }
 
-func isModifierKey(key ebiten.Key) bool {
+func printableKeyToken(key sdl.Keycode, shift bool) (string, bool) {
+	if key >= sdl.K_a && key <= sdl.K_z {
+		r := rune('a' + (key - sdl.K_a))
+		if shift {
+			r -= 'a' - 'A'
+		}
+		return string(r), true
+	}
+	if key >= sdl.K_0 && key <= sdl.K_9 {
+		return string(rune('0' + (key - sdl.K_0))), true
+	}
 	switch key {
-	case ebiten.KeyControl, ebiten.KeyControlLeft, ebiten.KeyControlRight, ebiten.KeyShift, ebiten.KeyShiftLeft, ebiten.KeyShiftRight:
-		return true
+	case sdl.K_SPACE:
+		return " ", true
+	case sdl.K_SLASH:
+		if shift {
+			return "?", true
+		}
+		return "/", true
+	case sdl.K_SEMICOLON:
+		if shift {
+			return ":", true
+		}
+		return ";", true
+	case sdl.K_EQUALS:
+		if shift {
+			return "+", true
+		}
+		return "=", true
+	case sdl.K_MINUS:
+		return "-", true
 	default:
-		return false
+		return "", false
 	}
 }
 
-func specialKeyToken(key ebiten.Key) (string, bool) {
+func specialKeyToken(key sdl.Keycode) (string, bool) {
 	switch key {
-	case ebiten.KeyEnter:
+	case sdl.K_RETURN, sdl.K_KP_ENTER:
 		return "<Enter>", true
-	case ebiten.KeyEscape:
+	case sdl.K_ESCAPE:
 		return "<Esc>", true
-	case ebiten.KeyBackspace:
+	case sdl.K_BACKSPACE:
 		return "<BS>", true
-	case ebiten.KeyPageDown:
+	case sdl.K_PAGEDOWN:
 		return "<PgDn>", true
-	case ebiten.KeyPageUp:
+	case sdl.K_PAGEUP:
 		return "<PgUp>", true
-	case ebiten.KeySpace:
-		return "<Space>", true
-	case ebiten.KeyTab:
+	case sdl.K_TAB:
 		return "<Tab>", true
 	default:
 		return "", false
 	}
 }
 
-func baseKeyName(key ebiten.Key) (string, bool) {
-	if key >= ebiten.KeyA && key <= ebiten.KeyZ {
-		return strings.ToLower(key.String()), true
+func baseKeyName(key sdl.Keycode) (string, bool) {
+	if key >= sdl.K_a && key <= sdl.K_z {
+		return string(rune('a' + (key - sdl.K_a))), true
 	}
-	if key >= ebiten.Key0 && key <= ebiten.Key9 {
-		return key.String(), true
+	if key >= sdl.K_0 && key <= sdl.K_9 {
+		return string(rune('0' + (key - sdl.K_0))), true
 	}
 	switch key {
-	case ebiten.KeySpace:
+	case sdl.K_SPACE:
 		return "space", true
-	case ebiten.KeyTab:
+	case sdl.K_TAB:
 		return "tab", true
-	case ebiten.KeyEnter:
+	case sdl.K_RETURN, sdl.K_KP_ENTER:
 		return "enter", true
-	case ebiten.KeyEscape:
+	case sdl.K_ESCAPE:
 		return "esc", true
-	case ebiten.KeyBackspace:
+	case sdl.K_BACKSPACE:
 		return "bs", true
-	case ebiten.KeyPageDown:
+	case sdl.K_PAGEDOWN:
 		return "pgdn", true
-	case ebiten.KeyPageUp:
+	case sdl.K_PAGEUP:
 		return "pgup", true
 	default:
 		return "", false
 	}
-}
-
-func collectTokens() []string {
-	var out []string
-	ctrl := ebiten.IsKeyPressed(ebiten.KeyControl) || ebiten.IsKeyPressed(ebiten.KeyControlLeft) || ebiten.IsKeyPressed(ebiten.KeyControlRight)
-	shift := ebiten.IsKeyPressed(ebiten.KeyShift) || ebiten.IsKeyPressed(ebiten.KeyShiftLeft) || ebiten.IsKeyPressed(ebiten.KeyShiftRight)
-	for _, r := range ebiten.AppendInputChars(nil) {
-		if r >= 0x20 && r != 0x7f {
-			if ctrl {
-				continue
-			}
-			out = append(out, string(r))
-		}
-	}
-	for _, key := range inpututil.AppendJustPressedKeys(nil) {
-		if token, ok := keyToken(key, ctrl, shift); ok {
-			out = append(out, token)
-		}
-	}
-	return out
 }
 
 func boolWord(v bool, whenTrue, whenFalse string) string {
