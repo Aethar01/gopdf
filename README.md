@@ -38,19 +38,28 @@ Start from [`config.lua.example`](./config.lua.example).
 ### Options
 
 ```lua
-gopdf.options.dual_page = true           -- boolean
-gopdf.options.first_page_offset = true  -- boolean
-gopdf.options.render_mode = "continuous" -- "continuous" or "single"
-gopdf.options.mouse_text_select = true  -- boolean
-gopdf.options.alt_colors = true         -- boolean
-gopdf.options.page_gap_vertical = 10    -- integer (px)
-gopdf.options.page_gap_horizontal = 10  -- integer (px)
+gopdf.options.status_bar_visible = true       -- boolean
+gopdf.options.dual_page = false              -- boolean
+gopdf.options.first_page_offset = true       -- boolean
+gopdf.options.alt_colors = false             -- boolean
+gopdf.options.mouse_text_select = true      -- boolean
+
+gopdf.options.render_mode = "continuous"    -- "continuous" or "single"
+gopdf.options.fit_mode = "page"              -- "page", "width", or "manual"
+
+gopdf.options.page_gap = 0                   -- integer (px), sets both directions
+gopdf.options.page_gap_vertical = 0          -- integer (px)
+gopdf.options.page_gap_horizontal = 0        -- integer (px)
+
+gopdf.options.sequence_timeout_ms = 700      -- milliseconds
 
 -- Colors (0-255)
-gopdf.options.foreground = { 255, 255, 255 }
-gopdf.options.background = { 20, 20, 20 }
-gopdf.options.alt_foreground = { 0, 0, 0 }
-gopdf.options.alt_background = { 235, 235, 235 }
+gopdf.options.foreground = { 17, 17, 17 }
+gopdf.options.background = { 255, 255, 255 }
+gopdf.options.status_bar_color = { 17, 17, 17 }
+gopdf.options.alt_foreground = { 255, 255, 255 }
+gopdf.options.alt_background = { 17, 17, 17 }
+gopdf.options.alt_status_bar_color = { 17, 17, 17 }
 gopdf.options.highlight_foreground = { 0, 0, 0 }
 gopdf.options.highlight_background = { 255, 224, 102 }
 ```
@@ -62,7 +71,7 @@ Fully configurable via `gopdf.status_bar`:
 ```lua
 gopdf.status_bar.height = 28       -- height in pixels
 gopdf.status_bar.font_size = 14     -- font size
-gopdf.status_bar.font_path = ""     -- path to TTF/OTF font (empty = default)
+gopdf.status_bar.font_path = ""     -- path to font file (empty = default)
 
 -- Content templates with placeholders:
 gopdf.status_bar.left = "{message}"
