@@ -1,192 +1,194 @@
 # gopdf
 
-MuPDF-backed PDF viewer written in Go.
+MuPDF-backend PDF viewer written in Go with Lua configuration.
 
-## Features
+## Requirements
 
-- `libmupdf` backend through a direct cgo wrapper
-- Continuous vertical scrolling with visible-page-only rendering
-- Optional single-page rendering mode
-- Single-page and dual-page book view
-- Toggleable first-page offset for cover-style spreads
-- Vim-style default keybindings
-- Lua config loaded from standard config locations
-- Hideable bottom status bar with vim-like command prompts
-- Page jump, zoom, rotation, fit-width, fit-page, fullscreen
-- Async native text search with `/` and `?`, highlights, and `n` / `N` navigation
+- [libmupdf](https://mupdf.com/)
+- [SDL2](https://libsdl.org/)
 
-## Build
-
-`libmupdf` and `sdl2` must be installed and discoverable through `pkg-config`.
+## Installation
 
 ```bash
-go build ./...
+go build
 ```
 
-## Run
+## Usage
 
 ```bash
-go run . /path/to/file.pdf
-go run . --page 20 /path/to/file.pdf
-go run . --config /path/to/config.lua /path/to/file.pdf
+gopdf /path/to/file.pdf      # open file
+gopdf --page 20 file.pdf     # start at page 20
+gopdf --config custom.lua file.pdf
 ```
 
-## Config Locations
+## Configuration
 
-The viewer checks these locations in order:
+### Config File Locations (in order)
 
-1. `--config <path>` if provided
-2. `~/.config/gopdf/config.lua`
-3. `$XDG_CONFIG_HOME/gopdf/config.lua`
-4. Each `$XDG_CONFIG_DIRS/gopdf/config.lua`
-5. `/etc/xdg/gopdf/config.lua`
+| Priority | Path |
+|----------|------|
+| 1 (highest) | `--config <path>` argument |
+| 2 | `~/.config/gopdf/config.lua` |
+| 3 | `$XDG_CONFIG_HOME/gopdf/config.lua` |
+| 4 | `$XDG_CONFIG_DIRS/gopdf/config.lua` |
+| 5 (lowest) | `/etc/xdg/gopdf/config.lua` |
 
-Start from `config.lua.example`.
+Start from [`config.lua.example`](./config.lua.example).
 
-Config files use a `gopdf` Lua namespace.
+### Options
 
 ```lua
-if gopdf.document.name == "cover-sheet.pdf" then
-  options.first_page_offset = false
-end
+gopdf.options.dual_page = true           -- boolean
+gopdf.options.first_page_offset = true  -- boolean
+gopdf.options.render_mode = "continuous" -- "continuous" or "single"
+gopdf.options.mouse_text_select = true  -- boolean
+gopdf.options.alt_colors = true         -- boolean
+gopdf.options.page_gap_vertical = 10    -- integer (px)
+gopdf.options.page_gap_horizontal = 10  -- integer (px)
 
-gopdf.options.dual_page = false
-gopdf.options.first_page_offset = true
-gopdf.options.render_mode = "continuous"
-gopdf.options.mouse_text_select = true
-gopdf.options.foreground = { 0, 0, 0 }
-gopdf.options.alt_background = { 20, 20, 20 }
-gopdf.options.alt_foreground = { 235, 235, 235 }
+-- Colors (0-255)
+gopdf.options.foreground = { 255, 255, 255 }
+gopdf.options.background = { 20, 20, 20 }
+gopdf.options.alt_foreground = { 0, 0, 0 }
+gopdf.options.alt_background = { 235, 235, 235 }
 gopdf.options.highlight_foreground = { 0, 0, 0 }
 gopdf.options.highlight_background = { 255, 224, 102 }
-gopdf.options.alt_colors = false
-gopdf.options.page_gap_vertical = 0
-gopdf.options.page_gap_horizontal = 0
+```
+
+### Keybindings
+
+```lua
+-- Keyboard
 gopdf.bind("j", gopdf.scroll_down)
 gopdf.bind("J", gopdf.next_page)
-gopdf.bind("m", gopdf.toggle_render_mode)
-gopdf.bind("tb", gopdf.toggle_alt_colors)
 gopdf.bind_mouse("wheel_down", gopdf.scroll_down)
 gopdf.bind_mouse("<C-wheel_up>", gopdf.zoom_in)
-gopdf.bind("co", gopdf.toggle_first_page_offset)
+
+-- With custom callbacks
 bind("h", function()
-  options.page_gap_vertical = 10
   gopdf.next_page()
   message("moved to page " .. gopdf.page())
 end)
-
-bind("X", function()
-  gopdf.goto_page(10)
-  gopdf.set_fit_mode("width")
-  gopdf.search("TODO")
-  gopdf.cache.set_limit(48)
-  message("match " .. tostring(gopdf.search_match_index()) .. "/" .. tostring(gopdf.search_match_count()))
-end)
 ```
 
-Available config helpers:
+Unbind: `gopdf.unbind("j")`, `gopdf.unbind_mouse("wheel_down")`
 
-- `gopdf.options.<name> = value`
-- `options.<name> = value`
-- `gopdf.bind(keys, gopdf.some_action)`
-- `bind(keys, function() ... end)`
-- `gopdf.bind_mouse(event, gopdf.some_action)`
-- `gopdf.unbind(keys)`
-- `gopdf.unbind_mouse(event)`
-- `gopdf.some_action()` inside callbacks to execute a viewer command
-- `gopdf.page()`, `gopdf.page_count()`, `gopdf.goto_page(n)`
-- `gopdf.fit_mode()`, `gopdf.set_fit_mode(mode)`
-- `gopdf.render_mode()`, `gopdf.set_render_mode(mode)`
-- `gopdf.zoom()`, `gopdf.set_zoom(zoom)`
-- `gopdf.rotation()`, `gopdf.set_rotation(deg)`
-- `gopdf.fullscreen()`, `gopdf.set_fullscreen(bool)`
-- `gopdf.status_bar_visible()`, `gopdf.set_status_bar_visible(bool)`
-- `gopdf.mode()`
-- `gopdf.search(query[, backward])`
-- `gopdf.search_query()`, `gopdf.search_match_index()`, `gopdf.search_match_count()`
-- `gopdf.current_count()`, `gopdf.pending_keys()`, `gopdf.clear_pending_keys()`
-- `message(text)` or `gopdf.message(text)` inside callbacks
-- `command(":fit width")` or `gopdf.command(...)` inside callbacks
+### Lua API
 
-Render cache controls live under `gopdf.cache`:
+**Viewer State**
 
-- `gopdf.cache.entries()`
-- `gopdf.cache.pending()`
-- `gopdf.cache.limit()`
-- `gopdf.cache.set_limit(n)`
-- `gopdf.cache.clear()`
+| Function | Description |
+|----------|-------------|
+| `gopdf.page()` | Current page number |
+| `gopdf.page_count()` | Total pages |
+| `gopdf.goto_page(n)` | Jump to page n |
+| `gopdf.mode()` | Current view mode |
 
-Document metadata is available under `gopdf.document` while loading and later inside Lua callbacks:
+**Display**
 
-- `gopdf.document.name`
-- `gopdf.document.path`
-- `gopdf.document.extension`
-- `gopdf.document.exists`
-- `gopdf.document.size_bytes`
-- `gopdf.document.page_count`
+| Function | Description |
+|----------|-------------|
+| `gopdf.zoom()` / `gopdf.set_zoom(n)` | Get/set zoom level |
+| `gopdf.fit_mode()` / `gopdf.set_fit_mode("width"\|"page")` | Fit mode |
+| `gopdf.rotation()` / `gopdf.set_rotation(deg)` | Rotation (0/90/180/270) |
+| `gopdf.fullscreen()` / `gopdf.set_fullscreen(bool)` | Fullscreen |
+| `gopdf.status_bar_visible()` / `gopdf.set_status_bar_visible(bool)` | Status bar |
 
-`page_count` is best-effort from the opened document. File facts like `exists`, `extension`, and `size_bytes` come from the filesystem.
+**Search**
 
-Lua function bindings run against the live viewer state. You can both call viewer actions imperatively and mutate `options` from a callback; option changes immediately update layout, gaps, colors, bindings, and other config-backed behavior.
+| Function | Description |
+|----------|-------------|
+| `gopdf.search(query[, backward])` | Search document |
+| `gopdf.search_query()` | Current search term |
+| `gopdf.search_match_index()` | Current match (1-indexed) |
+| `gopdf.search_match_count()` | Total matches |
 
-Action values are first-class Lua API objects. Pass them to `bind(...)` without calling them. Calling an action during config load is an error; call it from a callback instead.
+**Actions**
 
-Action helpers currently include names like `gopdf.scroll_down()`, `gopdf.scroll_up()`, `gopdf.scroll_left()`, `gopdf.scroll_right()`, `gopdf.next_page()`, `gopdf.prev_page()`, `gopdf.toggle_dual_page()`, `gopdf.toggle_first_page_offset()`, `gopdf.fit_width()`, `gopdf.fit_page()`, `gopdf.reload_config()`, `gopdf.quit()`, and the other built-in viewer actions.
+```lua
+gopdf.scroll_down()   gopdf.scroll_up()
+gopdf.next_page()     gopdf.prev_page()
+gopdf.toggle_dual_page()
+gopdf.toggle_first_page_offset()
+gopdf.toggle_render_mode()
+gopdf.toggle_alt_colors()
+gopdf.fit_width()     gopdf.fit_page()
+gopdf.reload_config() gopdf.quit()
+```
 
-## Default Keys
+**Utilities**
 
-- `j` / `k`: scroll down / up
-- `h` / `l`: scroll left / right
-- `J` / `K`: next / previous page jump
-- `10g`: jump to page 10
-- `20j`: scroll down 20 steps
-- `5J`: jump forward 5 pages or spreads
-- `m`: toggle continuous / single-page render mode
-- `tb`: toggle alternate color mode
-- Mouse wheel: scroll
-- `Ctrl` + mouse wheel: zoom
-- Left-drag text selection copies to clipboard on release
-- `gg` / `G`: first / last page
-- `:`: command prompt
-- `/` / `?`: forward / backward search prompt
-- `n` / `N`: repeat search in same / opposite direction
-- `d`: toggle dual-page mode
-- `co`: toggle first-page offset
-- `s`: toggle status bar
-- `+` / `-` / `0`: zoom in / out / reset to 100%
-- `w` / `z`: fit width / fit page
-- `r` / `R`: rotate clockwise / counter-clockwise
-- `g`: page prompt
-- `f`: fullscreen
-- `q`: quit
+```lua
+message("text")              -- Show status message
+command(":fit width")        -- Execute command
+gopdf.clear_pending_keys()   -- Clear queued keys
+```
+
+**Cache**
+
+```lua
+gopdf.cache.limit()          -- Current cache limit
+gopdf.cache.set_limit(n)     -- Set limit (MB)
+gopdf.cache.clear()          -- Clear cache
+```
+
+**Document Metadata** (available during config load)
+
+| Property | Description |
+|----------|-------------|
+| `gopdf.document.name` | Filename |
+| `gopdf.document.path` | Full path |
+| `gopdf.document.extension` | File extension |
+| `gopdf.document.page_count` | Total pages |
+| `gopdf.document.size_bytes` | File size |
+| `gopdf.document.exists` | File exists |
+
+## Default Keybindings
+
+| Key | Action |
+|-----|--------|
+| `j` / `k` | Scroll down / up |
+| `h` / `l` | Scroll left / right |
+| `J` / `K` | Next / previous page |
+| `gg` / `G` | First / last page |
+| `Ng` | Jump to page N |
+| `Nj` | Scroll N steps |
+| `NJ` | Jump N pages/spreads |
+| `m` | Toggle continuous/single page |
+| `d` | Toggle dual-page mode |
+| `co` | Toggle first-page offset |
+| `tb` | Toggle alternate colors |
+| `s` | Toggle status bar |
+| `+` / `-` / `0` | Zoom in / out / reset |
+| `w` / `z` | Fit width / fit page |
+| `r` / `R` | Rotate clockwise / counter-clockwise |
+| `g` | Page prompt |
+| `/` / `?` | Search forward / backward |
+| `n` / `N` | Next / previous match |
+| `:` | Command prompt |
+| `f` | Fullscreen |
+| `q` | Quit |
+| Mouse wheel | Scroll |
+| `Ctrl` + wheel | Zoom |
+| Left-drag | Text selection (copies on release) |
 
 ## Commands
 
-- `:page 42`
-- `:search needle`
-- `:100`
-- `:mode continuous`
-- `:mode single`
-- `:set render_mode!`
-- `:colors normal`
-- `:colors alt`
-- `:set alt_colors!`
-- `:set dual_page!`
-- `:set first_page_offset!`
-- `:set status_bar!`
-- `:fit width`
-- `:fit page`
-- `:reload-config`
-- `:quit`
+| Command | Description |
+|---------|-------------|
+| `:page N` | Jump to page N |
+| `:search <text>` | Search document |
+| `:N` | Jump to page N |
+| `:fit width` | Fit to width |
+| `:fit page` | Fit to page |
+| `:mode continuous` | Continuous scroll |
+| `:mode single` | Single page mode |
+| `:colors normal` | Normal colors |
+| `:colors alt` | Alternate colors |
+| `:set <option>!` | Toggle boolean option |
+| `:reload-config` | Reload config file |
+| `:quit` | Exit |
 
-## Notes
+## License
 
-- This project links against MuPDF, which is licensed under AGPL unless you have a separate commercial license.
-- Pages are rendered on demand from the visible rows instead of rendering the full document at once.
-- `page_gap_vertical` controls spacing between rows and top/bottom margins.
-- `page_gap_horizontal` controls spacing between pages in a spread and left/right margins.
-- `background` / `foreground` control the normal viewer and status text colors.
-- `alt_background` / `alt_foreground` control the alternate palette.
-- `highlight_foreground` / `highlight_background` control mouse text highlighting.
-- Alternate colors now recolor the rendered PDF pages as well as the viewer chrome.
->>>>>>> a810f56 (first)
+Links against [MuPDF](https://mupdf.com/), which is licensed under AGPL unless you have a separate commercial license.
