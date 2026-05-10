@@ -1,0 +1,55 @@
+gopdf.options.status_bar_visible = true
+gopdf.options.render_mode = "continuous"
+gopdf.options.dual_page = true
+gopdf.options.first_page_offset = true
+gopdf.options.fit_mode = "page"
+gopdf.options.mouse_text_select = true
+gopdf.options.background = { 255, 255, 255 }
+gopdf.options.foreground = { 20, 20, 20 }
+gopdf.options.status_bar_color = { 20, 20, 20 }
+gopdf.options.alt_background = { 20, 20, 20 }
+gopdf.options.alt_foreground = { 235, 235, 235 }
+gopdf.options.alt_status_bar_color = { 20, 20, 20 }
+gopdf.options.highlight_foreground = { 0, 0, 0 }
+gopdf.options.highlight_background = { 255, 224, 102 }
+gopdf.options.alt_colors = false
+gopdf.options.page_gap_vertical = 0
+gopdf.options.page_gap_horizontal = 0
+gopdf.options.status_bar_height = 28
+gopdf.options.sequence_timeout_ms = 700
+
+gopdf.bind("j", gopdf.scroll_down())
+gopdf.bind("k", gopdf.scroll_up())
+gopdf.bind("h", gopdf.scroll_left())
+gopdf.bind("l", gopdf.scroll_right())
+gopdf.bind("J", gopdf.next_page())
+gopdf.bind("K", gopdf.prev_page())
+gopdf.bind("m", gopdf.toggle_render_mode())
+gopdf.bind("tb", gopdf.toggle_alt_colors())
+gopdf.bind("gg", gopdf.first_page())
+gopdf.bind("G", gopdf.last_page())
+gopdf.bind(":", gopdf.command_mode())
+gopdf.bind("d", gopdf.toggle_dual_page())
+gopdf.bind("co", gopdf.toggle_first_page_offset())
+gopdf.bind("s", gopdf.toggle_status_bar())
+gopdf.bind("f", gopdf.toggle_fullscreen())
+gopdf.bind("+", gopdf.zoom_in())
+gopdf.bind("-", gopdf.zoom_out())
+gopdf.bind("0", gopdf.reset_zoom())
+gopdf.bind("w", gopdf.fit_width())
+gopdf.bind("z", gopdf.fit_page())
+gopdf.bind("r", gopdf.rotate_cw())
+gopdf.bind("R", gopdf.rotate_ccw())
+gopdf.bind("g", gopdf.goto_page_prompt())
+gopdf.bind("q", gopdf.quit())
+
+gopdf.bind_mouse("wheel_up", gopdf.scroll_up())
+gopdf.bind_mouse("wheel_down", gopdf.scroll_down())
+gopdf.bind_mouse("wheel_left", gopdf.scroll_left())
+gopdf.bind_mouse("wheel_right", gopdf.scroll_right())
+gopdf.bind_mouse("<C-wheel_up>", gopdf.zoom_in())
+gopdf.bind_mouse("<C-wheel_down>", gopdf.zoom_out())
+
+-- Example:
+-- gopdf.unbind(" ")
+-- gopdf.bind("<PgDn>", gopdf.next_page())
