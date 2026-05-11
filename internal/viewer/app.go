@@ -4,11 +4,13 @@ import (
 	"fmt"
 	"image"
 	"image/color"
+	"maps"
 	"math"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -243,9 +245,7 @@ func New(docPath string, runtime *config.Runtime, startPage int) (*App, error) {
 	for k, v := range cfg.KeyBindings {
 		app.sequenceLookup[normalizeBinding(k)] = v
 	}
-	for k, v := range cfg.MouseBindings {
-		app.mouseBindings[k] = v
-	}
+	maps.Copy(app.mouseBindings, cfg.MouseBindings)
 	app.initRenderWorker()
 	app.initSearch()
 	if outline, err := doc.Outline(); err == nil {
@@ -490,9 +490,7 @@ func (a *App) handleSDLTextInput(e *sdl.TextInputEvent) {
 		return
 	}
 	if a.ignoreText != "" {
-		if strings.HasPrefix(text, a.ignoreText) {
-			text = strings.TrimPrefix(text, a.ignoreText)
-		}
+		text, _ = strings.CutPrefix(text, a.ignoreText)
 		a.ignoreText = ""
 		if text == "" {
 			return
@@ -697,7 +695,7 @@ func (a *App) runCountAction(token string) bool {
 	if !ok || !isCountableAction(action) {
 		return false
 	}
-	for i := 0; i < count; i++ {
+	for range count {
 		a.runAction(action)
 	}
 	return true
@@ -1733,31 +1731,36 @@ func (a *App) formatStatusBar(template string) string {
 	result := template
 
 	replacements := map[string]string{
-		"{message}":       a.message,
-		"{page}":          fmt.Sprintf("%d", a.page+1),
-		"{total}":         fmt.Sprintf("%d", a.pageCount),
-		"{mode}":          a.renderMode,
-		"{fit}":           a.fitMode,
-		"{rot}":           fmt.Sprintf("%.0f", a.rotation),
-		"{zoom}":          fmt.Sprintf("%.0f%%", a.zoom*100),
-		"{dual}":          boolWord(a.dualPage, "dual", "single"),
-		"{cover}":         boolWord(a.firstPageOffset, "cover", "flat"),
-		"{search}":        a.searchStatusCounter(),
-		"{document}":      a.docName,
-		"$$":              "\x00",
+		"{message}":  a.message,
+		"{page}":     fmt.Sprintf("%d", a.page+1),
+		"{total}":    fmt.Sprintf("%d", a.pageCount),
+		"{mode}":     a.renderMode,
+		"{fit}":      a.fitMode,
+		"{rot}":      fmt.Sprintf("%.0f", a.rotation),
+		"{zoom}":     fmt.Sprintf("%.0f%%", a.zoom*100),
+		"{dual}":     boolWord(a.dualPage, "dual", "single"),
+		"{cover}":    boolWord(a.firstPageOffset, "cover", "flat"),
+		"{search}":   a.searchStatusCounter(),
+		"{document}": a.docName,
+		"$$":         "\x00",
 	}
 
-	if a.mode == modeCommand {
-		replacements["{message}"] = " COMMAND :" + a.input
+	switch a.mode {
+	case modeCommand:
+		replacements["{message}"] = ":" + a.input
 		replacements["{input}"] = a.input
-	} else if a.mode == modeGotoPage {
+
+	case modeGotoPage:
 		replacements["{message}"] = " GOTO " + a.input
 		replacements["{input}"] = a.input
-	} else if a.mode == modeSearch {
-		replacements["{message}"] = " SEARCH " + a.searchPromptToken() + a.input
+
+	case modeSearch:
+		prompt := a.searchPromptToken()
+		replacements["{message}"] = prompt + a.input
 		replacements["{input}"] = a.input
-		replacements["{prompt}"] = a.searchPromptToken()
-	} else {
+		replacements["{prompt}"] = prompt
+
+	default:
 		replacements["{input}"] = ""
 		replacements["{prompt}"] = ""
 	}
@@ -1778,47 +1781,6 @@ func (a *App) formatStatusBar(template string) string {
 	return result
 }
 
-func (a *App) statusLeft() string {
-	content := a.message
-	switch a.mode {
-	case modeCommand:
-		return " COMMAND :" + a.input
-	case modeGotoPage:
-		return " GOTO " + a.input
-	case modeSearch:
-		return " SEARCH " + a.searchPromptToken() + a.input
-	}
-	if content == "" {
-		return " "
-	}
-	return " " + content
-}
-
-func (a *App) statusRight() string {
-	pageDisplay := fmt.Sprintf("%d/%d", a.page+1, a.pageCount)
-	if a.dualPage && len(a.rows) > 0 && a.page >= 0 && a.page < len(a.pageToRow) {
-		row := a.rows[a.pageToRow[a.page]]
-		if len(row.pages) >= 2 {
-			pageDisplay = fmt.Sprintf("%d-%d/%d", row.pages[0]+1, row.pages[len(row.pages)-1]+1, a.pageCount)
-		}
-	}
-	parts := []string{
-		pageDisplay,
-		fmt.Sprintf("mode=%s", a.renderMode),
-		fmt.Sprintf("fit=%s", a.fitMode),
-		fmt.Sprintf("rot=%.0f", a.rotation),
-		boolWord(a.dualPage, "dual", "single"),
-		boolWord(a.firstPageOffset, "cover", "flat"),
-	}
-	if counter := a.searchStatusCounter(); counter != "" {
-		parts = append(parts, counter)
-	}
-	if a.fitMode == "manual" {
-		parts = append(parts, fmt.Sprintf("zoom=%.0f%%", a.zoom*100))
-	}
-	return strings.Join(parts, "  ")
-}
-
 func (a *App) drawInputCursor(renderer *sdl.Renderer, barY int) error {
 	if a.mode == modeNormal {
 		return nil
@@ -1836,11 +1798,11 @@ func (a *App) drawInputCursor(renderer *sdl.Renderer, barY int) error {
 func (a *App) inputPrefix() string {
 	switch a.mode {
 	case modeCommand:
-		return " COMMAND :"
+		return ":"
 	case modeGotoPage:
 		return " GOTO "
 	case modeSearch:
-		return " SEARCH " + a.searchPromptToken()
+		return a.searchPromptToken()
 	default:
 		return ""
 	}
@@ -1900,10 +1862,7 @@ func (a *App) viewportSize() (int, int) {
 	if h < 1 {
 		h = 1
 	}
-	w := a.winW
-	if w < 1 {
-		w = 1
-	}
+	w := max(a.winW, 1)
 	return w, h
 }
 
@@ -2241,10 +2200,8 @@ func (a *App) baseRows() []rowLayout {
 func (a *App) baseRowIndexForPage(page int, rows []rowLayout) int {
 	index := 0
 	for i, row := range rows {
-		for _, candidate := range row.pages {
-			if candidate == page {
-				return i
-			}
+		if slices.Contains(row.pages, page) {
+			return i
 		}
 		index = i
 	}
@@ -2701,9 +2658,7 @@ func (a *App) applyConfig(cfg config.Config) {
 	for k, v := range cfg.KeyBindings {
 		a.sequenceLookup[normalizeBinding(k)] = v
 	}
-	for k, v := range cfg.MouseBindings {
-		a.mouseBindings[k] = v
-	}
+	maps.Copy(a.mouseBindings, cfg.MouseBindings)
 	if a.fitMode != "manual" {
 		a.fitMode = sanitizeFitMode(cfg.FitMode)
 	}

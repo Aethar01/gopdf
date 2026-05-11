@@ -61,5 +61,3 @@ func main() {
 		startPage = 1
 	}
 }
-
-

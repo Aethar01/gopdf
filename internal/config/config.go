@@ -374,7 +374,7 @@ func newLuaModule(L *lua.LState, rt *Runtime, cfg *Config) *lua.LTable {
 			rt.unbindMouse(event)
 			return 0
 		},
-		
+
 		"message": func(L *lua.LState) int {
 			if L.GetTop() > 0 {
 				if rt.host == nil {
