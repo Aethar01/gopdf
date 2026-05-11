@@ -43,6 +43,7 @@ gopdf.options.dual_page = false              -- boolean
 gopdf.options.first_page_offset = true       -- boolean
 gopdf.options.alt_colors = false             -- boolean
 gopdf.options.mouse_text_select = true      -- boolean
+gopdf.options.natural_scroll = false         -- boolean
 
 gopdf.options.render_mode = "continuous"    -- "continuous" or "single"
 gopdf.options.fit_mode = "page"              -- "page", "width", or "manual"
@@ -114,6 +115,8 @@ gopdf.bind("j", gopdf.scroll_down)
 gopdf.bind("J", gopdf.next_page)
 gopdf.bind_mouse("wheel_down", gopdf.scroll_down)
 gopdf.bind_mouse("<C-wheel_up>", gopdf.zoom_in)
+gopdf.bind_mouse("middle_down", gopdf.pan)
+gopdf.bind("<Space>", gopdf.pan) -- hold Space and move mouse to pan
 
 -- With custom callbacks
 bind("h", function()

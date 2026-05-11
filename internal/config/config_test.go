@@ -243,6 +243,30 @@ end)
 	}
 }
 
+func TestMouseInteractionOptions(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.lua")
+	if err := os.WriteFile(path, []byte(`
+options.natural_scroll = true
+bind_mouse("right_down", gopdf.pan)
+`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	rt, err := Open(path, "/tmp/doc.pdf")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rt.Close()
+
+	if got := rt.Config().MouseBindings["right_down"]; got != "pan" {
+		t.Fatalf("expected right_down to bind pan, got %q", got)
+	}
+	if !rt.Config().NaturalScroll {
+		t.Fatal("expected natural_scroll=true")
+	}
+}
+
 func TestCallingActionDuringConfigLoadFails(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "config.lua")

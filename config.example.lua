@@ -2,6 +2,7 @@
 
 gopdf.options.status_bar_visible = true
 gopdf.options.mouse_text_select = true
+gopdf.options.natural_scroll = false
 gopdf.options.alt_colors = false
 
 gopdf.options.render_mode = "continuous"
@@ -77,3 +78,4 @@ gopdf.bind_mouse("wheel_left", gopdf.scroll_left)
 gopdf.bind_mouse("wheel_right", gopdf.scroll_right)
 gopdf.bind_mouse("<C-wheel_up>", gopdf.zoom_in)
 gopdf.bind_mouse("<C-wheel_down>", gopdf.zoom_out)
+gopdf.bind_mouse("middle_down", gopdf.pan)

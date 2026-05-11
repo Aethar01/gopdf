@@ -6,6 +6,8 @@ import (
 
 	"gopdf/internal/config"
 	"gopdf/internal/mupdf"
+
+	"github.com/veandco/go-sdl2/sdl"
 )
 
 func TestRecomputeLayoutUsesRotatedPageDimensions(t *testing.T) {
@@ -68,6 +70,61 @@ func TestSetRenderModeKeepsCurrentPage(t *testing.T) {
 
 	if app.page != 3 {
 		t.Fatalf("expected render mode change to keep page 3, got %d", app.page)
+	}
+}
+
+func TestSmoothWheelUsesPreciseScrollDelta(t *testing.T) {
+	app := testLayoutApp(5)
+	app.pageStep = 64
+	app.mouseBindings = map[string]string{
+		"wheel_up":    "scroll_up",
+		"wheel_down":  "scroll_down",
+		"wheel_left":  "scroll_left",
+		"wheel_right": "scroll_right",
+	}
+	app.recomputeLayout(1000, 100)
+	app.scrollY = 100
+
+	if !app.handleSmoothWheel(0.25, 0.5) {
+		t.Fatal("expected default wheel bindings to use smooth scrolling")
+	}
+
+	assertClose(t, app.scrollX, 16)
+	assertClose(t, app.scrollY, 68)
+}
+
+func TestNaturalScrollInvertsVerticalWheelDelta(t *testing.T) {
+	app := testLayoutApp(5)
+	app.pageStep = 64
+	app.config.NaturalScroll = true
+	app.mouseBindings = map[string]string{
+		"wheel_up":   "scroll_up",
+		"wheel_down": "scroll_down",
+	}
+	app.recomputeLayout(1000, 100)
+	app.scrollY = 100
+
+	if !app.handleSmoothWheel(0, 0.5) {
+		t.Fatal("expected default wheel bindings to use smooth scrolling")
+	}
+
+	assertClose(t, app.scrollY, 132)
+}
+
+func TestPanCanBeHeldByKey(t *testing.T) {
+	app := testLayoutApp(5)
+	app.actionKey = " "
+
+	if err := app.runBuiltinAction("pan"); err != nil {
+		t.Fatal(err)
+	}
+
+	if !app.panning || app.panKey != " " || app.panButton != 0 {
+		t.Fatalf("expected key pan state, panning=%v panKey=%q panButton=%d", app.panning, app.panKey, app.panButton)
+	}
+	app.handleSDLKeyUp(&sdl.KeyboardEvent{Keysym: sdl.Keysym{Sym: sdl.K_SPACE}})
+	if app.panning {
+		t.Fatal("expected key release to stop panning")
 	}
 }
 

@@ -41,6 +41,7 @@ type Config struct {
 	KeyBindings         map[string]string
 	MouseBindings       map[string]string
 	MouseTextSelect     bool
+	NaturalScroll       bool
 }
 
 type Runtime struct {
@@ -135,8 +136,10 @@ func Default() Config {
 			"wheel_right":    "scroll_right",
 			"<c-wheel_up>":   "zoom_in",
 			"<c-wheel_down>": "zoom_out",
+			"middle_down":    "pan",
 		},
 		MouseTextSelect: true,
+		NaturalScroll:   false,
 	}
 }
 
@@ -864,6 +867,8 @@ func luaSettingValue(L *lua.LState, name string, cfg *Config) (lua.LValue, error
 		return lua.LBool(cfg.StatusBarVisible), nil
 	case "mouse_text_select":
 		return lua.LBool(cfg.MouseTextSelect), nil
+	case "natural_scroll":
+		return lua.LBool(cfg.NaturalScroll), nil
 	case "alt_colors":
 		return lua.LBool(cfg.AltColors), nil
 	case "render_mode":
@@ -959,6 +964,11 @@ func applyLuaSetting(name string, value lua.LValue, cfg *Config) error {
 			return fmt.Errorf("expected boolean")
 		}
 		cfg.MouseTextSelect = lua.LVAsBool(value)
+	case "natural_scroll":
+		if value.Type() != lua.LTBool {
+			return fmt.Errorf("expected boolean")
+		}
+		cfg.NaturalScroll = lua.LVAsBool(value)
 	case "alt_colors":
 		if value.Type() != lua.LTBool {
 			return fmt.Errorf("expected boolean")
@@ -1211,6 +1221,7 @@ func allActions() []string {
 		"clear_search",
 		"jump_forward",
 		"jump_backward",
+		"pan",
 		"quit",
 		"escape",
 	}
