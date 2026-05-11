@@ -260,8 +260,8 @@ Default mouse bindings:
 
 | Function | Description |
 |----------|-------------|
-| `gopdf.fit_mode()` / `gopdf.set_fit_mode("width"|"page"|"manual")` | Get/set fit mode |
-| `gopdf.render_mode()` / `gopdf.set_render_mode("continuous"|"single")` | Get/set render mode |
+| `gopdf.fit_mode()` / `gopdf.set_fit_mode("width"\|"page"\|"manual")` | Get/set fit mode |
+| `gopdf.render_mode()` / `gopdf.set_render_mode("continuous"\|"single")` | Get/set render mode |
 | `gopdf.zoom()` / `gopdf.set_zoom(n)` | Get/set zoom scale |
 | `gopdf.rotation()` / `gopdf.set_rotation(deg)` | Get/set rotation |
 | `gopdf.fullscreen()` / `gopdf.set_fullscreen(bool)` | Get/set fullscreen |
