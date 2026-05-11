@@ -630,10 +630,6 @@ func newLuaModule(L *lua.LState, rt *Runtime, cfg *Config) *lua.LTable {
 		name := action
 		L.SetField(mod, name, newLuaActionValue(L, rt, name))
 	}
-	L.SetField(mod, "search_mode", newLuaActionValue(L, rt, "search_prompt"))
-	L.SetField(mod, "search_mode_backward", newLuaActionValue(L, rt, "search_prompt_backward"))
-	L.SetField(mod, "next_search", newLuaActionValue(L, rt, "search_next"))
-	L.SetField(mod, "prev_search", newLuaActionValue(L, rt, "search_prev"))
 	L.SetField(mod, "status_bar", newLuaStatusBarTable(L, rt, cfg))
 	return mod
 }
