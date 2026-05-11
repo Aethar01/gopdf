@@ -1733,7 +1733,7 @@ func (a *App) formatStatusBar(template string) string {
 	result := template
 
 	replacements := map[string]string{
-		"{gopdf.message}": a.message,
+		"{message}":       a.message,
 		"{page}":          fmt.Sprintf("%d", a.page+1),
 		"{total}":         fmt.Sprintf("%d", a.pageCount),
 		"{mode}":          a.renderMode,

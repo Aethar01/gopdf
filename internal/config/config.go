@@ -131,7 +131,7 @@ func Default() Config {
 		StatusBarHeight:     28,
 		UIFontSize:          14,
 		UIFontPath:          "",
-		StatusBarLeft:       "{gopdf.message}",
+		StatusBarLeft:       "{message}",
 		StatusBarRight:      "{page}/{total} {mode} fit={fit} rot={rot} {zoom}",
 		SequenceTimeoutMS:   700,
 		NormalMessage:       "",
