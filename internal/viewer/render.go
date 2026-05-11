@@ -10,7 +10,6 @@ type renderRequest struct {
 	generation int
 	page       int
 	scale      float64
-	rotation   float64
 	altColors  bool
 	cacheKey   string
 }
@@ -72,7 +71,7 @@ func (w *renderWorker) run(docPath string) {
 		case <-w.closing:
 			return
 		case req := <-w.requests:
-			rendered, err := doc.Render(req.page, req.scale, req.rotation)
+			rendered, err := doc.Render(req.page, req.scale, 0)
 			w.send(renderUpdate{
 				generation: req.generation,
 				page:       req.page,
@@ -94,8 +93,8 @@ func (w *renderWorker) send(update renderUpdate) {
 	}
 }
 
-func renderCacheKey(page int, scale, rotation float64, altColors bool) string {
-	return fmt.Sprintf("%d/%.4f/%.1f/%t", page, scale, rotation, altColors)
+func renderCacheKey(page int, scale float64, altColors bool) string {
+	return fmt.Sprintf("%d/%.4f/%t", page, scale, altColors)
 }
 
 func (a *App) initRenderWorker() {
@@ -201,7 +200,7 @@ func (a *App) requestRender(page int, scale float64) {
 		return
 	}
 	renderScale := a.renderScaleFor(scale)
-	cacheKey := renderCacheKey(page, renderScale, a.rotation, a.altColors)
+	cacheKey := renderCacheKey(page, renderScale, a.altColors)
 	if _, ok := a.renderCache[cacheKey]; ok {
 		a.touchRenderCacheEntry(cacheKey)
 		return
@@ -213,7 +212,6 @@ func (a *App) requestRender(page int, scale float64) {
 		generation: a.renderGeneration,
 		page:       page,
 		scale:      renderScale,
-		rotation:   a.rotation,
 		altColors:  a.altColors,
 		cacheKey:   cacheKey,
 	}

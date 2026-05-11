@@ -5,8 +5,8 @@ import (
 	"image"
 	"image/color"
 	"math"
-	"os/exec"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strconv"
@@ -79,13 +79,13 @@ type rowLayout struct {
 }
 
 type App struct {
-	docPath  string
-	docName  string
-	doc      *mupdf.Document
-	runtime  *config.Runtime
-	config   config.Config
-	window   *sdl.Window
-	renderer *sdl.Renderer
+	docPath     string
+	docName     string
+	doc         *mupdf.Document
+	runtime     *config.Runtime
+	config      config.Config
+	window      *sdl.Window
+	renderer    *sdl.Renderer
 	cursorHand  *sdl.Cursor
 	cursorArrow *sdl.Cursor
 
@@ -619,16 +619,12 @@ func (a *App) drawContinuousPages(renderer *sdl.Renderer) {
 				continue
 			}
 			drawScale := a.renderDrawScale(rp, a.scale)
-			drawW := rp.width * drawScale
-			drawH := rp.height * drawScale
 			x := row.pageX[i] - a.scrollX + offsetX
 			y := row.pageY[i] - a.scrollY + offsetY
-			drawX, drawY := pageImageOrigin(x, y, rp, drawScale)
-			if drawX+drawW < 0 || drawX > float64(viewportW) || drawY+drawH < 0 || drawY > float64(viewportH) {
+			if x+row.pageW[i] < 0 || x > float64(viewportW) || y+row.pageH[i] < 0 || y > float64(viewportH) {
 				continue
 			}
-			dst := sdl.FRect{X: float32(drawX), Y: float32(drawY), W: float32(drawW), H: float32(drawH)}
-			renderer.CopyF(rp.texture, nil, &dst)
+			a.drawPageTexture(renderer, x, y, row.pageW[i], row.pageH[i], rp, drawScale)
 			a.drawSearchHighlightsForPage(renderer, page, x, y, rp)
 		}
 	}
@@ -649,24 +645,46 @@ func (a *App) drawSinglePage(renderer *sdl.Renderer) {
 			continue
 		}
 		drawScale := a.renderDrawScale(rp, a.scale)
-		drawW := rp.width * drawScale
-		drawH := rp.height * drawScale
 		x := baseX + (row.pageX[i] - row.x) - a.scrollX
 		y := baseY + (row.pageY[i] - row.y) - a.scrollY
-		drawX, drawY := pageImageOrigin(x, y, rp, drawScale)
-		if drawX+drawW < 0 || drawX > float64(viewportW) || drawY+drawH < 0 || drawY > float64(viewportH) {
+		if x+row.pageW[i] < 0 || x > float64(viewportW) || y+row.pageH[i] < 0 || y > float64(viewportH) {
 			continue
 		}
-		dst := sdl.FRect{X: float32(drawX), Y: float32(drawY), W: float32(drawW), H: float32(drawH)}
-		renderer.CopyF(rp.texture, nil, &dst)
+		a.drawPageTexture(renderer, x, y, row.pageW[i], row.pageH[i], rp, drawScale)
 		a.drawSearchHighlightsForPage(renderer, page, x, y, rp)
 	}
 	a.drawSelection(renderer)
 }
 
+func (a *App) drawPageTexture(renderer *sdl.Renderer, x, y, width, height float64, rp *renderedPage, drawScale float64) {
+	drawW := rp.width * drawScale
+	drawH := rp.height * drawScale
+	centerX := x + width/2
+	centerY := y + height/2
+	if rp.scale > 0 {
+		originX, originY := rotatedBoundsOrigin(a.pageMetrics[rp.page].bounds, a.scale, a.rotation)
+		pageX := (rp.pixX + rp.width/2) / rp.scale
+		pageY := (rp.pixY + rp.height/2) / rp.scale
+		tx, ty := transformPoint(pageX, pageY, a.scale, a.rotation)
+		centerX = x + tx - originX
+		centerY = y + ty - originY
+	}
+	dst := sdl.FRect{
+		X: float32(centerX - drawW/2),
+		Y: float32(centerY - drawH/2),
+		W: float32(drawW),
+		H: float32(drawH),
+	}
+	if normalizeRotation(a.rotation) == 0 {
+		renderer.CopyF(rp.texture, nil, &dst)
+		return
+	}
+	renderer.CopyExF(rp.texture, nil, &dst, a.rotation, nil, sdl.FLIP_NONE)
+}
+
 func (a *App) cachedRenderPage(page int, scale float64) (*renderedPage, bool) {
 	renderScale := a.renderScaleFor(scale)
-	key := renderCacheKey(page, renderScale, a.rotation, a.altColors)
+	key := renderCacheKey(page, renderScale, a.altColors)
 	if rp, ok := a.renderCache[key]; ok {
 		return rp, true
 	}
@@ -1084,13 +1102,14 @@ func (a *App) runBuiltinAction(action string) error {
 		a.alignPageTop(a.page)
 		a.message = boolWord(a.dualPage, "dual-page on", "dual-page off")
 	case "toggle_render_mode":
+		page := a.page
 		if a.renderMode == "single" {
 			a.renderMode = "continuous"
 		} else {
 			a.renderMode = "single"
 		}
 		a.recomputeLayout(a.viewportSize())
-		a.alignPageTop(a.page)
+		a.alignPageTop(page)
 		a.message = "render mode " + a.renderMode
 	case "toggle_alt_colors":
 		a.altColors = !a.altColors
@@ -1122,23 +1141,17 @@ func (a *App) runBuiltinAction(action string) error {
 	case "reload_config":
 		a.reloadConfig()
 	case "rotate_cw":
-		a.rotation = math.Mod(a.rotation+90, 360)
-		if err := a.loadPageMetrics(); err != nil {
-			a.message = err.Error()
-			return nil
-		}
-		a.clearCache()
+		page := a.page
+		a.rotation = normalizeRotation(a.rotation + 90)
+		a.updatePageMetricSizes()
 		a.recomputeLayout(a.viewportSize())
-		a.alignPageTop(a.page)
+		a.alignPageTop(page)
 	case "rotate_ccw":
-		a.rotation = math.Mod(a.rotation+270, 360)
-		if err := a.loadPageMetrics(); err != nil {
-			a.message = err.Error()
-			return nil
-		}
-		a.clearCache()
+		page := a.page
+		a.rotation = normalizeRotation(a.rotation + 270)
+		a.updatePageMetricSizes()
 		a.recomputeLayout(a.viewportSize())
-		a.alignPageTop(a.page)
+		a.alignPageTop(page)
 	case "quit":
 		a.quit = true
 	case "escape":
@@ -1284,9 +1297,10 @@ func (a *App) SetRenderMode(mode string) error {
 	if a.renderMode == mode {
 		return nil
 	}
+	page := a.page
 	a.renderMode = mode
 	a.recomputeLayout(a.viewportSize())
-	a.alignPageTop(a.page)
+	a.alignPageTop(page)
 	return nil
 }
 
@@ -1308,21 +1322,15 @@ func (a *App) SetZoom(zoom float64) error {
 }
 
 func (a *App) Rotation() float64 {
-	return math.Mod(a.rotation+360, 360)
+	return normalizeRotation(a.rotation)
 }
 
 func (a *App) SetRotation(rotation float64) error {
-	rotation = math.Mod(rotation, 360)
-	if rotation < 0 {
-		rotation += 360
-	}
-	a.rotation = rotation
-	if err := a.loadPageMetrics(); err != nil {
-		return err
-	}
-	a.clearCache()
+	page := a.page
+	a.rotation = normalizeRotation(rotation)
+	a.updatePageMetricSizes()
 	a.recomputeLayout(a.viewportSize())
-	a.alignPageTop(a.page)
+	a.alignPageTop(page)
 	return nil
 }
 
@@ -1517,18 +1525,18 @@ func (a *App) formatStatusBar(template string) string {
 	result := template
 
 	replacements := map[string]string{
-		"{gopdf.message}":   a.message,
-		"{page}":      fmt.Sprintf("%d", a.page+1),
-		"{total}":     fmt.Sprintf("%d", a.pageCount),
-		"{mode}":      a.renderMode,
-		"{fit}":       a.fitMode,
-		"{rot}":       fmt.Sprintf("%.0f", a.rotation),
-		"{zoom}":      fmt.Sprintf("%.0f%%", a.zoom*100),
-		"{dual}":      boolWord(a.dualPage, "dual", "single"),
-		"{cover}":     boolWord(a.firstPageOffset, "cover", "flat"),
-		"{search}":    a.searchStatusCounter(),
-		"{document}": a.docName,
-		"$$":          "\x00",
+		"{gopdf.message}": a.message,
+		"{page}":          fmt.Sprintf("%d", a.page+1),
+		"{total}":         fmt.Sprintf("%d", a.pageCount),
+		"{mode}":          a.renderMode,
+		"{fit}":           a.fitMode,
+		"{rot}":           fmt.Sprintf("%.0f", a.rotation),
+		"{zoom}":          fmt.Sprintf("%.0f%%", a.zoom*100),
+		"{dual}":          boolWord(a.dualPage, "dual", "single"),
+		"{cover}":         boolWord(a.firstPageOffset, "cover", "flat"),
+		"{search}":        a.searchStatusCounter(),
+		"{document}":      a.docName,
+		"$$":              "\x00",
 	}
 
 	if a.mode == modeCommand {
@@ -1665,9 +1673,9 @@ func (a *App) restoreZoomAnchor(anchor zoomAnchor) {
 		return
 	}
 	tx, ty := transformPoint(anchor.point.X, anchor.point.Y, a.scale, a.rotation)
-	drawScale := a.renderDrawScale(rp, a.scale)
-	a.scrollX += (x + tx - rp.pixX*drawScale) - anchor.centerX
-	a.scrollY += (y + ty - rp.pixY*drawScale) - anchor.centerY
+	originX, originY := rotatedBoundsOrigin(a.pageMetrics[rp.page].bounds, a.scale, a.rotation)
+	a.scrollX += (x + tx - originX) - anchor.centerX
+	a.scrollY += (y + ty - originY) - anchor.centerY
 	a.clampScroll()
 	if a.renderMode == "continuous" {
 		a.updateCurrentPageFromScroll()
@@ -1709,8 +1717,9 @@ func (a *App) pagePointAtScreen(sx, sy float64) (int, mupdf.Point, bool) {
 		if sx < hit.x || sy < hit.y || sx > hit.x+hit.width || sy > hit.y+hit.height {
 			continue
 		}
-		transformedX := sx - hit.x + hit.render.pixX*hit.drawScale
-		transformedY := sy - hit.y + hit.render.pixY*hit.drawScale
+		originX, originY := rotatedBoundsOrigin(a.pageMetrics[hit.page].bounds, a.scale, a.rotation)
+		transformedX := sx - hit.x + originX
+		transformedY := sy - hit.y + originY
 		pageX, pageY := inverseTransformPoint(transformedX, transformedY, a.scale, a.rotation)
 		return hit.page, mupdf.Point{X: pageX, Y: pageY}, true
 	}
@@ -1746,8 +1755,7 @@ func (a *App) visiblePageHits() []pageHit {
 			drawScale := a.renderDrawScale(rp, a.scale)
 			x := baseX + (row.pageX[i] - row.x) - a.scrollX
 			y := baseY + (row.pageY[i] - row.y) - a.scrollY
-			drawX, drawY := pageImageOrigin(x, y, rp, drawScale)
-			hits = append(hits, pageHit{page: page, x: drawX, y: drawY, width: rp.width * drawScale, height: rp.height * drawScale, drawScale: drawScale, render: rp})
+			hits = append(hits, pageHit{page: page, x: x, y: y, width: row.pageW[i], height: row.pageH[i], drawScale: drawScale, render: rp})
 		}
 		return hits
 	}
@@ -1769,8 +1777,7 @@ func (a *App) visiblePageHits() []pageHit {
 			drawScale := a.renderDrawScale(rp, a.scale)
 			x := row.pageX[i] - a.scrollX + offsetX
 			y := row.pageY[i] - a.scrollY + offsetY
-			drawX, drawY := pageImageOrigin(x, y, rp, drawScale)
-			hits = append(hits, pageHit{page: page, x: drawX, y: drawY, width: rp.width * drawScale, height: rp.height * drawScale, drawScale: drawScale, render: rp})
+			hits = append(hits, pageHit{page: page, x: x, y: y, width: row.pageW[i], height: row.pageH[i], drawScale: drawScale, render: rp})
 		}
 	}
 	if len(hits) == 0 {
@@ -1948,11 +1955,11 @@ func (a *App) quadScreenBounds(quad mupdf.Quad, x, y float64, rp *renderedPage) 
 	pts := []mupdf.Point{quad.UL, quad.UR, quad.LL, quad.LR}
 	minX, minY := math.MaxFloat64, math.MaxFloat64
 	maxX, maxY := -math.MaxFloat64, -math.MaxFloat64
-	drawScale := a.renderDrawScale(rp, a.scale)
+	originX, originY := rotatedBoundsOrigin(a.pageMetrics[rp.page].bounds, a.scale, a.rotation)
 	for _, pt := range pts {
 		tx, ty := transformPoint(pt.X, pt.Y, a.scale, a.rotation)
-		sx := x + tx - rp.pixX*drawScale
-		sy := y + ty - rp.pixY*drawScale
+		sx := x + tx - originX
+		sy := y + ty - originY
 		minX = math.Min(minX, sx)
 		minY = math.Min(minY, sy)
 		maxX = math.Max(maxX, sx)
@@ -1968,14 +1975,16 @@ func (a *App) loadPageMetrics() error {
 		if err != nil {
 			return err
 		}
-		w, h := bounds.Width(), bounds.Height()
-		rot := math.Mod(math.Abs(a.rotation), 180)
-		if math.Abs(rot-90) < 0.1 {
-			w, h = h, w
-		}
+		w, h := rotatedBoundsSize(bounds, a.rotation)
 		a.pageMetrics[i] = pageMetrics{bounds: bounds, width: w, height: h}
 	}
 	return nil
+}
+
+func (a *App) updatePageMetricSizes() {
+	for i := range a.pageMetrics {
+		a.pageMetrics[i].width, a.pageMetrics[i].height = rotatedBoundsSize(a.pageMetrics[i].bounds, a.rotation)
+	}
 }
 
 func (a *App) baseRows() []rowLayout {
@@ -2232,13 +2241,6 @@ func (a *App) statusBarColor() color.RGBA {
 
 func rgb(c [3]uint8) color.RGBA {
 	return color.RGBA{R: c[0], G: c[1], B: c[2], A: 0xff}
-}
-
-func pageImageOrigin(pageX, pageY float64, rp *renderedPage, drawScale float64) (float64, float64) {
-	if rp == nil {
-		return pageX, pageY
-	}
-	return pageX - rp.pixX*drawScale, pageY - rp.pixY*drawScale
 }
 
 func remapPageColors(img *image.RGBA, bg, fg [3]uint8) {
@@ -2513,35 +2515,58 @@ func clampFloat(v, lo, hi float64) float64 {
 	return v
 }
 
+func normalizeRotation(rotation float64) float64 {
+	rotation = math.Mod(rotation, 360)
+	if rotation < 0 {
+		rotation += 360
+	}
+	return rotation
+}
+
+func rotatedBoundsSize(bounds mupdf.Rect, rotation float64) (float64, float64) {
+	minX, minY, maxX, maxY := rotatedBounds(bounds, rotation)
+	return maxX - minX, maxY - minY
+}
+
+func rotatedBoundsOrigin(bounds mupdf.Rect, scale, rotation float64) (float64, float64) {
+	minX, minY, _, _ := rotatedBounds(bounds, rotation)
+	return minX * scale, minY * scale
+}
+
+func rotatedBounds(bounds mupdf.Rect, rotation float64) (float64, float64, float64, float64) {
+	points := []mupdf.Point{
+		{X: float64(bounds.X0), Y: float64(bounds.Y0)},
+		{X: float64(bounds.X1), Y: float64(bounds.Y0)},
+		{X: float64(bounds.X0), Y: float64(bounds.Y1)},
+		{X: float64(bounds.X1), Y: float64(bounds.Y1)},
+	}
+	minX, minY := math.MaxFloat64, math.MaxFloat64
+	maxX, maxY := -math.MaxFloat64, -math.MaxFloat64
+	for _, point := range points {
+		x, y := transformPoint(point.X, point.Y, 1, rotation)
+		minX = math.Min(minX, x)
+		minY = math.Min(minY, y)
+		maxX = math.Max(maxX, x)
+		maxY = math.Max(maxY, y)
+	}
+	return minX, minY, maxX, maxY
+}
+
 func transformPoint(x, y, scale, rotation float64) (float64, float64) {
 	x *= scale
 	y *= scale
-	switch int(math.Mod(rotation+360, 360)) {
-	case 90:
-		return -y, x
-	case 180:
-		return -x, -y
-	case 270:
-		return y, -x
-	default:
-		return x, y
-	}
+	radians := normalizeRotation(rotation) * math.Pi / 180
+	sin, cos := math.Sin(radians), math.Cos(radians)
+	return x*cos - y*sin, x*sin + y*cos
 }
 
 func inverseTransformPoint(x, y, scale, rotation float64) (float64, float64) {
 	if scale == 0 {
 		return x, y
 	}
-	switch int(math.Mod(rotation+360, 360)) {
-	case 90:
-		return y / scale, -x / scale
-	case 180:
-		return -x / scale, -y / scale
-	case 270:
-		return -y / scale, x / scale
-	default:
-		return x / scale, y / scale
-	}
+	radians := normalizeRotation(rotation) * math.Pi / 180
+	sin, cos := math.Sin(radians), math.Cos(radians)
+	return (x*cos + y*sin) / scale, (-x*sin + y*cos) / scale
 }
 
 func minInt(a, b int) int {
