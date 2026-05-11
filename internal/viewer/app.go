@@ -35,14 +35,16 @@ const (
 )
 
 type renderedPage struct {
-	texture *sdl.Texture
-	width   float64
-	height  float64
-	pixX    float64
-	pixY    float64
-	key     string
-	page    int
-	scale   float64
+	texture   *sdl.Texture
+	width     float64
+	height    float64
+	pixX      float64
+	pixY      float64
+	key       string
+	page      int
+	scale     float64
+	altColors bool
+	aaLevel   int
 }
 
 type pageMetrics struct {
@@ -302,6 +304,7 @@ func (a *App) Run() error {
 	if err := sdl.Init(sdl.INIT_VIDEO); err != nil {
 		return err
 	}
+	sdl.SetHint(sdl.HINT_RENDER_SCALE_QUALITY, "2")
 	window, renderer, err := sdl.CreateWindowAndRenderer(1400, 900, sdl.WINDOW_RESIZABLE|sdl.WINDOW_ALLOW_HIGHDPI)
 	if err != nil {
 		sdl.Quit()
@@ -859,14 +862,14 @@ func pageBackgroundVertices(x, y float64, bounds mupdf.Rect, scale, rotation flo
 
 func (a *App) cachedRenderPage(page int, scale float64) (*renderedPage, bool) {
 	renderScale := a.renderScaleFor(scale)
-	key := renderCacheKey(page, renderScale, a.altColors)
+	key := renderCacheKey(page, renderScale, a.altColors, a.config.AntiAliasing)
 	if rp, ok := a.renderCache[key]; ok {
 		return rp, true
 	}
 	var bestHigher *renderedPage
 	var bestLower *renderedPage
 	for _, rp := range a.renderCache {
-		if rp.page != page {
+		if rp.page != page || rp.altColors != a.altColors || rp.aaLevel != a.config.AntiAliasing {
 			continue
 		}
 		if math.Abs(rp.scale-renderScale) < 0.0001 {
@@ -2286,61 +2289,123 @@ func (a *App) renderDrawScale(rp *renderedPage, layoutScale float64) float64 {
 	return layoutScale / rp.scale
 }
 
+const (
+	defaultMinRenderBaseScale = 0.25
+	defaultRenderOversample   = 1
+	renderUpgradeTolerance    = 0.95
+	renderDowngradeHeadroom   = 2.0
+	renderScaleStep           = 1.5
+)
+
+func validRenderScale(v float64) bool {
+	return v > 0 && !math.IsNaN(v) && !math.IsInf(v, 0)
+}
+
+func (a *App) renderScaleFloor() float64 {
+	if validRenderScale(a.minRenderBaseScale) {
+		return a.minRenderBaseScale
+	}
+	return defaultMinRenderBaseScale
+}
+
+func (a *App) renderOversampleFactor() float64 {
+	if validRenderScale(a.config.RenderOversample) {
+		return a.config.RenderOversample
+	}
+	return defaultRenderOversample
+}
+
+func (a *App) oversampledRenderScale(scale float64) float64 {
+	if !validRenderScale(scale) {
+		scale = 1
+	}
+	return math.Max(scale*a.renderOversampleFactor(), a.renderScaleFloor())
+}
+
+func (a *App) currentRenderTarget() float64 {
+	target := a.scale
+	if !validRenderScale(target) {
+		target = 1
+	}
+
+	if a.fitMode != "manual" && validRenderScale(a.zoom) {
+		target = math.Max(target, a.zoom)
+	}
+
+	return a.oversampledRenderScale(target)
+}
+
 func (a *App) ensureRenderBaseScale() {
-	if a.renderBaseScale > 0 {
+	floor := a.renderScaleFloor()
+
+	if validRenderScale(a.renderBaseScale) {
+		if a.renderBaseScale < floor {
+			a.renderBaseScale = floor
+		}
 		return
 	}
-	base := math.Max(2, a.scale)
-	if a.minRenderBaseScale > 0 && a.minRenderBaseScale < 0.25 {
-		base = a.minRenderBaseScale
-	} else if base < 0.25 {
-		base = 0.25
-	}
-	a.renderBaseScale = base
+
+	base := math.Max(2, a.currentRenderTarget())
+	a.renderBaseScale = math.Max(base, floor)
 }
 
 func (a *App) maybeUpgradeRenderScale(target float64) bool {
-	if target <= a.renderBaseScale*0.95 {
+	a.ensureRenderBaseScale()
+
+	if !validRenderScale(target) {
 		return false
 	}
-	next := math.Max(a.renderBaseScale, 2)
-	for next < target {
-		next *= 1.5
+
+	target = a.oversampledRenderScale(target)
+
+	if target <= a.renderBaseScale*renderUpgradeTolerance {
+		return false
 	}
-	next = math.Max(next, target)
+
+	next := math.Max(a.renderBaseScale, 2)
+	next = math.Max(next, a.renderScaleFloor())
+
+	for next < target {
+		next *= renderScaleStep
+	}
+
 	if next <= a.renderBaseScale+0.01 {
 		return false
 	}
+
 	a.renderBaseScale = next
 	a.invalidateRenderRequests()
 	return true
 }
 
 func (a *App) maybeDowngradeRenderScale() {
-	if a.renderBaseScale <= a.minRenderBaseScale {
+	a.ensureRenderBaseScale()
+
+	floor := a.renderScaleFloor()
+	if a.renderBaseScale <= floor {
 		return
 	}
-	target := a.scale
-	if a.fitMode != "manual" {
-		target = math.Max(target, a.zoom)
-	}
-	safeLevel := target * 2.5
-	if safeLevel >= a.renderBaseScale*0.95 {
+
+	target := a.currentRenderTarget()
+
+	if target*renderDowngradeHeadroom >= a.renderBaseScale {
 		return
 	}
-	newScale := a.renderBaseScale / 1.5
-	if newScale < a.minRenderBaseScale {
-		newScale = a.minRenderBaseScale
-	}
-	if newScale >= a.renderBaseScale {
+
+	next := a.renderBaseScale / renderScaleStep
+	next = math.Max(next, floor)
+	next = math.Max(next, target)
+
+	if next >= a.renderBaseScale {
 		return
 	}
-	a.renderBaseScale = newScale
+
+	a.renderBaseScale = next
 	a.invalidateRenderRequests()
 }
 
 func (a *App) adjustRenderBaseScaleForExtremeZoom(layoutScale float64) {
-	if layoutScale > a.renderBaseScale {
+	if a.maybeUpgradeRenderScale(layoutScale) {
 		return
 	}
 	if layoutScale < a.renderBaseScale/4 && a.renderBaseScale > 1 {

@@ -15,6 +15,7 @@ type Config struct {
 	ConfigPath           string
 	StatusBarVisible     bool
 	RenderMode           string
+	RenderOversample     float64
 	DualPage             bool
 	FirstPageOffset      bool
 	FitMode              string
@@ -44,6 +45,7 @@ type Config struct {
 	MouseBindings        map[string]string
 	MouseTextSelect      bool
 	NaturalScroll        bool
+	AntiAliasing         int
 	OutlineInitialDepth  int
 	OutlineWidthPercent  int
 	OutlineHeightPercent int
@@ -110,6 +112,7 @@ func Default() Config {
 	return Config{
 		StatusBarVisible:    true,
 		RenderMode:          "continuous",
+		RenderOversample:    1,
 		DualPage:            false,
 		FirstPageOffset:     true,
 		FitMode:             "page",
@@ -147,6 +150,7 @@ func Default() Config {
 		},
 		MouseTextSelect:      true,
 		NaturalScroll:        false,
+		AntiAliasing:         8,
 		OutlineInitialDepth:  1,
 		OutlineWidthPercent:  70,
 		OutlineHeightPercent: 80,
@@ -859,6 +863,8 @@ func luaSettingValue(L *lua.LState, name string, cfg *Config) (lua.LValue, error
 		return lua.LBool(cfg.MouseTextSelect), nil
 	case "natural_scroll":
 		return lua.LBool(cfg.NaturalScroll), nil
+	case "anti_aliasing":
+		return lua.LNumber(cfg.AntiAliasing), nil
 	case "outline_initial_depth":
 		return lua.LNumber(cfg.OutlineInitialDepth), nil
 	case "outline_width_percent":
@@ -869,6 +875,8 @@ func luaSettingValue(L *lua.LState, name string, cfg *Config) (lua.LValue, error
 		return lua.LBool(cfg.AltColors), nil
 	case "render_mode":
 		return lua.LString(cfg.RenderMode), nil
+	case "render_oversample":
+		return lua.LNumber(cfg.RenderOversample), nil
 	case "dual_page":
 		return lua.LBool(cfg.DualPage), nil
 	case "first_page_offset":
@@ -977,6 +985,11 @@ func applyLuaSetting(name string, value lua.LValue, cfg *Config) error {
 			return fmt.Errorf("expected boolean")
 		}
 		cfg.NaturalScroll = lua.LVAsBool(value)
+	case "anti_aliasing":
+		if value.Type() != lua.LTNumber {
+			return fmt.Errorf("expected number")
+		}
+		cfg.AntiAliasing = int(lua.LVAsNumber(value))
 	case "outline_initial_depth":
 		if value.Type() != lua.LTNumber {
 			return fmt.Errorf("expected number")
@@ -1002,6 +1015,11 @@ func applyLuaSetting(name string, value lua.LValue, cfg *Config) error {
 			return fmt.Errorf("expected string")
 		}
 		cfg.RenderMode = normalizeRenderMode(value.String())
+	case "render_oversample":
+		if value.Type() != lua.LTNumber {
+			return fmt.Errorf("expected number")
+		}
+		cfg.RenderOversample = float64(lua.LVAsNumber(value))
 	case "dual_page":
 		if value.Type() != lua.LTBool {
 			return fmt.Errorf("expected boolean")

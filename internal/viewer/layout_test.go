@@ -146,6 +146,26 @@ func TestPanCanBeHeldByKey(t *testing.T) {
 	}
 }
 
+func TestRenderTargetOversamplesZoom(t *testing.T) {
+	app := testLayoutApp(1)
+	app.scale = 2
+	app.zoom = 2
+	app.minRenderBaseScale = 0.25
+	app.config.RenderOversample = 1
+
+	assertClose(t, app.currentRenderTarget(), 2)
+}
+
+func TestRenderTargetAllowsUndersampling(t *testing.T) {
+	app := testLayoutApp(1)
+	app.scale = 2
+	app.zoom = 2
+	app.minRenderBaseScale = 0.25
+	app.config.RenderOversample = 0.75
+
+	assertClose(t, app.currentRenderTarget(), 1.5)
+}
+
 func testLayoutApp(pageCount int) *App {
 	metrics := make([]pageMetrics, pageCount)
 	for i := range metrics {

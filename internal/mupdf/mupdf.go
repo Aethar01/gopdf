@@ -181,11 +181,12 @@ static int gopdf_page_bounds(gopdf_doc *handle, int page_number, gopdf_rect *out
 	return 1;
 }
 
-static int gopdf_render_page(gopdf_doc *handle, int page_number, float scale, float rotation, gopdf_pixmap *out, char **err) {
+static int gopdf_render_page(gopdf_doc *handle, int page_number, float scale, float rotation, int aa_level, gopdf_pixmap *out, char **err) {
 	fz_page *page = NULL;
 	fz_pixmap *pix = NULL;
 	fz_matrix ctm;
 	int size = 0;
+	int old_aa = 0;
 	unsigned char *samples = NULL;
 	*err = NULL;
 	out->width = 0;
@@ -197,6 +198,8 @@ static int gopdf_render_page(gopdf_doc *handle, int page_number, float scale, fl
 	fz_var(page);
 	fz_var(pix);
 	fz_try(handle->ctx) {
+		old_aa = fz_aa_level(handle->ctx);
+		fz_set_aa_level(handle->ctx, aa_level);
 		page = fz_load_page(handle->ctx, handle->doc, page_number);
 		ctm = fz_concat(fz_scale(scale, scale), fz_rotate(rotation));
 		pix = fz_new_pixmap_from_page(handle->ctx, page, ctm, fz_device_rgb(handle->ctx), 1);
@@ -213,6 +216,7 @@ static int gopdf_render_page(gopdf_doc *handle, int page_number, float scale, fl
 		memcpy(samples, fz_pixmap_samples(handle->ctx, pix), size);
 		out->samples = samples;
 	} fz_always(handle->ctx) {
+		fz_set_aa_level(handle->ctx, old_aa);
 		if (pix != NULL) {
 			fz_drop_pixmap(handle->ctx, pix);
 		}
@@ -687,10 +691,10 @@ func (d *Document) Bounds(page int) (Rect, error) {
 	return Rect{X0: float32(rect.x0), Y0: float32(rect.y0), X1: float32(rect.x1), Y1: float32(rect.y1)}, nil
 }
 
-func (d *Document) Render(page int, scale float64, rotation float64) (*RenderedPage, error) {
+func (d *Document) Render(page int, scale float64, rotation float64, aaLevel int) (*RenderedPage, error) {
 	var pix C.gopdf_pixmap
 	var cerr *C.char
-	if ok := C.gopdf_render_page(d.handle, C.int(page), C.float(scale), C.float(rotation), &pix, &cerr); ok == 0 {
+	if ok := C.gopdf_render_page(d.handle, C.int(page), C.float(scale), C.float(rotation), C.int(aaLevel), &pix, &cerr); ok == 0 {
 		return nil, consumeError("render page", cerr)
 	}
 	defer C.gopdf_free_pixmap(&pix)

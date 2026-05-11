@@ -46,7 +46,9 @@ The first existing file in this order is used:
 gopdf.options.status_bar_visible = true
 gopdf.options.mouse_text_select = true
 gopdf.options.natural_scroll = false
+gopdf.options.anti_aliasing = 8                -- 0 disables AA; MuPDF clamps values to 0-8
 gopdf.options.alt_colors = false
+gopdf.options.render_oversample = 1            -- >1 supersamples, <1 undersamples
 
 gopdf.options.render_mode = "continuous"       -- "continuous" or "single"
 gopdf.options.dual_page = false

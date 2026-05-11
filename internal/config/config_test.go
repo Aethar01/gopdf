@@ -248,6 +248,8 @@ func TestMouseInteractionOptions(t *testing.T) {
 	path := filepath.Join(dir, "config.lua")
 	if err := os.WriteFile(path, []byte(`
 options.natural_scroll = true
+options.anti_aliasing = 4
+options.render_oversample = 0.75
 bind_mouse("right_down", gopdf.pan)
 `), 0o644); err != nil {
 		t.Fatal(err)
@@ -264,6 +266,12 @@ bind_mouse("right_down", gopdf.pan)
 	}
 	if !rt.Config().NaturalScroll {
 		t.Fatal("expected natural_scroll=true")
+	}
+	if got := rt.Config().AntiAliasing; got != 4 {
+		t.Fatalf("expected anti_aliasing=4, got %d", got)
+	}
+	if got := rt.Config().RenderOversample; got != 0.75 {
+		t.Fatalf("expected render_oversample=0.75, got %.2f", got)
 	}
 }
 

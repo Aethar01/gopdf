@@ -11,6 +11,7 @@ type renderRequest struct {
 	page       int
 	scale      float64
 	altColors  bool
+	aaLevel    int
 	cacheKey   string
 }
 
@@ -19,6 +20,7 @@ type renderUpdate struct {
 	page       int
 	scale      float64
 	altColors  bool
+	aaLevel    int
 	cacheKey   string
 	rendered   *mupdf.RenderedPage
 	err        error
@@ -71,12 +73,13 @@ func (w *renderWorker) run(docPath string) {
 		case <-w.closing:
 			return
 		case req := <-w.requests:
-			rendered, err := doc.Render(req.page, req.scale, 0)
+			rendered, err := doc.Render(req.page, req.scale, 0, req.aaLevel)
 			w.send(renderUpdate{
 				generation: req.generation,
 				page:       req.page,
 				scale:      req.scale,
 				altColors:  req.altColors,
+				aaLevel:    req.aaLevel,
 				cacheKey:   req.cacheKey,
 				rendered:   rendered,
 				err:        err,
@@ -93,8 +96,8 @@ func (w *renderWorker) send(update renderUpdate) {
 	}
 }
 
-func renderCacheKey(page int, scale float64, altColors bool) string {
-	return fmt.Sprintf("%d/%.4f/%t", page, scale, altColors)
+func renderCacheKey(page int, scale float64, altColors bool, aaLevel int) string {
+	return fmt.Sprintf("%d/%.4f/%t/%d", page, scale, altColors, aaLevel)
 }
 
 func (a *App) initRenderWorker() {
@@ -143,14 +146,16 @@ func (a *App) pollRenderUpdates() {
 				continue
 			}
 			rp := &renderedPage{
-				texture: tex,
-				width:   float64(update.rendered.Image.Bounds().Dx()),
-				height:  float64(update.rendered.Image.Bounds().Dy()),
-				pixX:    float64(update.rendered.X),
-				pixY:    float64(update.rendered.Y),
-				key:     update.cacheKey,
-				page:    update.page,
-				scale:   update.scale,
+				texture:   tex,
+				width:     float64(update.rendered.Image.Bounds().Dx()),
+				height:    float64(update.rendered.Image.Bounds().Dy()),
+				pixX:      float64(update.rendered.X),
+				pixY:      float64(update.rendered.Y),
+				key:       update.cacheKey,
+				page:      update.page,
+				scale:     update.scale,
+				altColors: update.altColors,
+				aaLevel:   update.aaLevel,
 			}
 			a.renderCache[update.cacheKey] = rp
 			a.renderOrder = append(a.renderOrder, update.cacheKey)
@@ -200,7 +205,7 @@ func (a *App) requestRender(page int, scale float64) {
 		return
 	}
 	renderScale := a.renderScaleFor(scale)
-	cacheKey := renderCacheKey(page, renderScale, a.altColors)
+	cacheKey := renderCacheKey(page, renderScale, a.altColors, a.config.AntiAliasing)
 	if _, ok := a.renderCache[cacheKey]; ok {
 		a.touchRenderCacheEntry(cacheKey)
 		return
@@ -213,6 +218,7 @@ func (a *App) requestRender(page int, scale float64) {
 		page:       page,
 		scale:      renderScale,
 		altColors:  a.altColors,
+		aaLevel:    a.config.AntiAliasing,
 		cacheKey:   cacheKey,
 	}
 	if !a.renderWorker.Enqueue(req) {
