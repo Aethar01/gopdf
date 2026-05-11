@@ -320,7 +320,6 @@ func (r *Runtime) applyLuaConfig(path string) error {
 	L.SetGlobal("bind_mouse", L.GetField(mod, "bind_mouse"))
 	L.SetGlobal("unbind_mouse", L.GetField(mod, "unbind_mouse"))
 	L.SetGlobal("options", L.GetField(mod, "options"))
-	L.SetGlobal("set", L.GetField(mod, "set"))
 	if err := L.DoFile(path); err != nil {
 		L.Close()
 		r.state = nil
@@ -375,14 +374,7 @@ func newLuaModule(L *lua.LState, rt *Runtime, cfg *Config) *lua.LTable {
 			rt.unbindMouse(event)
 			return 0
 		},
-		"set": func(L *lua.LState) int {
-			name := strings.ToLower(strings.TrimSpace(L.CheckString(1)))
-			value := L.CheckAny(2)
-			if err := rt.setOption(name, value); err != nil {
-				L.RaiseError("set %s: %v", name, err)
-			}
-			return 0
-		},
+		
 		"message": func(L *lua.LState) int {
 			if L.GetTop() > 0 {
 				if rt.host == nil {

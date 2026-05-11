@@ -80,13 +80,6 @@ gopdf.options.highlight_foreground = { 0, 0, 0 }
 gopdf.options.highlight_background = { 255, 224, 102 }
 ```
 
-Options can also be written with `gopdf.set(name, value)` or the global `set(name, value)` alias:
-
-```lua
-gopdf.set("fit_mode", "width")
-set("dual_page", true)
-```
-
 ### Status Bar
 
 ```lua
