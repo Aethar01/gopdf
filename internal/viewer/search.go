@@ -177,6 +177,7 @@ func (a *App) pollSearchUpdates() {
 			if update.generation != a.search.generation {
 				continue
 			}
+			a.pendingRedraw = true
 			if update.err != nil {
 				a.search.running = false
 				a.message = update.err.Error()

@@ -144,6 +144,11 @@ type App struct {
 	quit         bool
 	pendingOpen  string
 	selection    textSelection
+	panning      bool
+	panButton    uint8
+	panKey       string
+	mouseButton  uint8
+	actionKey    string
 	pageLinks    map[int][]mupdf.Link
 	search       searchState
 	searchWorker *searchWorker
@@ -305,6 +310,7 @@ func (a *App) Run() error {
 		a.winW, a.winH = int(w), int(h)
 	}
 	a.recomputeLayout(a.viewportSize())
+	a.pendingRedraw = true
 	sdl.StartTextInput()
 	defer sdl.StopTextInput()
 	for !a.quit {
@@ -318,14 +324,41 @@ func (a *App) Run() error {
 		a.expireSequence()
 		a.prefetchVisiblePages()
 		a.adjustRenderBaseScaleForExtremeZoom(a.scale)
-		if err := a.drawFrame(); err != nil {
-			return err
+		if a.pendingRedraw {
+			if err := a.drawFrame(); err != nil {
+				return err
+			}
+		}
+		if !a.quit {
+			if event := sdl.WaitEventTimeout(a.eventWaitTimeoutMS()); event != nil {
+				if err := a.handleSDLEvent(event); err != nil {
+					return err
+				}
+			}
 		}
 	}
 	return nil
 }
 
+func (a *App) eventWaitTimeoutMS() int {
+	if len(a.renderPending) > 0 || a.search.running {
+		return 16
+	}
+	if len(a.sequence) > 0 {
+		elapsed := time.Since(a.sequenceAt)
+		remaining := time.Duration(a.config.SequenceTimeoutMS)*time.Millisecond - elapsed
+		if remaining <= 0 {
+			return 1
+		}
+		if remaining < 100*time.Millisecond {
+			return maxInt(1, int(remaining/time.Millisecond))
+		}
+	}
+	return 100
+}
+
 func (a *App) handleSDLEvent(event sdl.Event) error {
+	defer func() { a.pendingRedraw = true }()
 	switch e := event.(type) {
 	case *sdl.QuitEvent:
 		a.quit = true
@@ -336,6 +369,9 @@ func (a *App) handleSDLEvent(event sdl.Event) error {
 			a.recomputeLayout(a.viewportSize())
 		}
 	case *sdl.KeyboardEvent:
+		if e.Type == sdl.KEYUP {
+			a.handleSDLKeyUp(e)
+		}
 		if e.Type == sdl.KEYDOWN && e.Repeat == 0 {
 			a.handleSDLKeyDown(e)
 		}
@@ -385,7 +421,9 @@ func (a *App) handleSDLKeyDown(e *sdl.KeyboardEvent) {
 			if a.handleCountToken(token) {
 				return
 			}
+			a.actionKey = token
 			a.pushToken(token)
+			a.actionKey = ""
 			if prevMode == modeNormal && a.mode != modeNormal && utf8.RuneCountInString(token) == 1 {
 				a.ignoreText = token
 			}
@@ -405,6 +443,15 @@ func (a *App) handleSDLKeyDown(e *sdl.KeyboardEvent) {
 		a.moveInputCursor(1)
 	case sdl.K_BACKSPACE:
 		a.backspaceInput()
+	}
+}
+
+func (a *App) handleSDLKeyUp(e *sdl.KeyboardEvent) {
+	if !a.panning || a.panKey == "" {
+		return
+	}
+	if token, ok := keyToken(e.Keysym.Sym, sdl.Keymod(e.Keysym.Mod)); ok && token == a.panKey {
+		a.stopPan()
 	}
 }
 
@@ -454,6 +501,12 @@ func (a *App) handleSDLMouseWheel(e *sdl.MouseWheelEvent) {
 		}
 		return
 	}
+	if a.handleSmoothWheel(wx, wy) {
+		return
+	}
+	if a.config.NaturalScroll {
+		wy = -wy
+	}
 	if wy > 0 {
 		a.runMouseBinding("wheel_up")
 	}
@@ -468,7 +521,46 @@ func (a *App) handleSDLMouseWheel(e *sdl.MouseWheelEvent) {
 	}
 }
 
+func (a *App) handleSmoothWheel(wx, wy float32) bool {
+	if wx == 0 && wy == 0 {
+		return true
+	}
+	if wy > 0 && a.mouseBindings["wheel_up"] != "scroll_up" {
+		return false
+	}
+	if wy < 0 && a.mouseBindings["wheel_down"] != "scroll_down" {
+		return false
+	}
+	if wx > 0 && a.mouseBindings["wheel_right"] != "scroll_right" {
+		return false
+	}
+	if wx < 0 && a.mouseBindings["wheel_left"] != "scroll_left" {
+		return false
+	}
+	dy := -float64(wy) * a.pageStep
+	if a.config.NaturalScroll {
+		dy = -dy
+	}
+	a.scrollBy(float64(wx)*a.pageStep, dy)
+	return true
+}
+
 func (a *App) handleSDLMouseButton(e *sdl.MouseButtonEvent) {
+	if e.Type == sdl.MOUSEBUTTONUP && a.panning && e.Button == a.panButton {
+		a.stopPan()
+		return
+	}
+	if event, ok := mouseButtonEvent(e.Button, e.Type); ok {
+		a.mouseButton = e.Button
+		handled := a.runMouseBinding(event)
+		a.mouseButton = 0
+		if handled {
+			return
+		}
+	}
+	if a.panning {
+		return
+	}
 	if e.Button != sdl.BUTTON_LEFT || !a.config.MouseTextSelect {
 		if e.Button == sdl.BUTTON_LEFT && e.Type == sdl.MOUSEBUTTONDOWN {
 			a.tryActivateLinkAt(float64(e.X), float64(e.Y))
@@ -495,6 +587,12 @@ func (a *App) handleSDLMouseButton(e *sdl.MouseButtonEvent) {
 }
 
 func (a *App) handleSDLMouseMotion(e *sdl.MouseMotionEvent) {
+	if a.panning && (a.panButton == 0 || e.State&buttonMask(a.panButton) != 0) {
+		a.scrollBy(-float64(e.XRel), -float64(e.YRel))
+		return
+	}
+	a.stopPan()
+
 	if a.isLinkAt(float64(e.X), float64(e.Y)) {
 		if a.cursorHand != nil {
 			sdl.SetCursor(a.cursorHand)
@@ -513,6 +611,12 @@ func (a *App) handleSDLMouseMotion(e *sdl.MouseMotionEvent) {
 		a.selection.focus = point
 		a.refreshSelection()
 	}
+}
+
+func (a *App) stopPan() {
+	a.panning = false
+	a.panButton = 0
+	a.panKey = ""
 }
 
 func (a *App) handleCountToken(token string) bool {
@@ -1066,6 +1170,18 @@ func (a *App) runBuiltinAction(action string) error {
 		a.scrollBy(-a.pageStep, 0)
 	case "scroll_right":
 		a.scrollBy(a.pageStep, 0)
+	case "pan":
+		if a.actionKey != "" {
+			a.panning = true
+			a.panKey = a.actionKey
+			a.panButton = 0
+			return nil
+		}
+		if a.mouseButton != 0 {
+			a.panning = true
+			a.panButton = a.mouseButton
+			a.panKey = ""
+		}
 	case "next_spread":
 		a.nextSpread()
 	case "prev_spread":
@@ -1645,10 +1761,12 @@ func (a *App) searchPromptToken() string {
 	return "/"
 }
 
-func (a *App) runMouseBinding(event string) {
+func (a *App) runMouseBinding(event string) bool {
 	if action, ok := a.mouseBindings[event]; ok {
 		a.runAction(action)
+		return true
 	}
+	return false
 }
 
 func (a *App) captureZoomAnchor() zoomAnchor {
@@ -2300,6 +2418,9 @@ func normalizeAngleToken(token string) string {
 	for i, part := range parts {
 		parts[i] = strings.ToLower(strings.TrimSpace(part))
 	}
+	if len(parts) == 1 && parts[0] == "space" {
+		return " "
+	}
 	return "<" + strings.Join(parts, "-") + ">"
 }
 
@@ -2378,6 +2499,55 @@ func specialKeyToken(key sdl.Keycode) (string, bool) {
 		return "<Tab>", true
 	default:
 		return "", false
+	}
+}
+
+func mouseButtonEvent(button uint8, eventType uint32) (string, bool) {
+	name, ok := mouseButtonName(button)
+	if !ok {
+		return "", false
+	}
+	switch eventType {
+	case sdl.MOUSEBUTTONDOWN:
+		return name + "_down", true
+	case sdl.MOUSEBUTTONUP:
+		return name + "_up", true
+	default:
+		return "", false
+	}
+}
+
+func mouseButtonName(button uint8) (string, bool) {
+	switch button {
+	case sdl.BUTTON_LEFT:
+		return "left", true
+	case sdl.BUTTON_MIDDLE:
+		return "middle", true
+	case sdl.BUTTON_RIGHT:
+		return "right", true
+	case sdl.BUTTON_X1:
+		return "x1", true
+	case sdl.BUTTON_X2:
+		return "x2", true
+	default:
+		return "", false
+	}
+}
+
+func buttonMask(button uint8) uint32 {
+	switch button {
+	case sdl.BUTTON_LEFT:
+		return sdl.ButtonLMask()
+	case sdl.BUTTON_MIDDLE:
+		return sdl.ButtonMMask()
+	case sdl.BUTTON_RIGHT:
+		return sdl.ButtonRMask()
+	case sdl.BUTTON_X1:
+		return sdl.ButtonX1Mask()
+	case sdl.BUTTON_X2:
+		return sdl.ButtonX2Mask()
+	default:
+		return 0
 	}
 }
 
