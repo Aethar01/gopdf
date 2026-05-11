@@ -4,6 +4,9 @@ gopdf.options.status_bar_visible = true
 gopdf.options.mouse_text_select = true
 gopdf.options.natural_scroll = false
 gopdf.options.alt_colors = false
+gopdf.options.outline_initial_depth = 1
+gopdf.options.outline_width_percent = 70
+gopdf.options.outline_height_percent = 80
 
 gopdf.options.render_mode = "continuous"
 gopdf.options.dual_page = false
@@ -15,8 +18,8 @@ gopdf.options.spread_gap = 0
 gopdf.options.page_gap_vertical = 0
 gopdf.options.page_gap_horizontal = 0
 gopdf.options.status_bar_height = 28
-gopdf.options.status_bar_font_size = 14
-gopdf.options.status_bar_font_path = ""
+gopdf.options.ui_font_size = 14
+gopdf.options.ui_font_path = ""
 gopdf.options.sequence_timeout_ms = 700
 
 -- Status bar content templates
@@ -24,9 +27,11 @@ gopdf.status_bar.left = "{gopdf.message}"
 gopdf.status_bar.right = "{page}/{total} {mode} fit={fit} rot={rot} {zoom}"
 
 gopdf.options.background = { 255, 255, 255 }
+gopdf.options.page_background = { 255, 255, 255 }
 gopdf.options.foreground = { 17, 17, 17 }
 gopdf.options.status_bar_color = { 17, 17, 17 }
 gopdf.options.alt_background = { 17, 17, 17 }
+gopdf.options.alt_page_background = { 17, 17, 17 }
 gopdf.options.alt_foreground = { 255, 255, 255 }
 gopdf.options.alt_status_bar_color = { 17, 17, 17 }
 gopdf.options.highlight_foreground = { 0, 0, 0 }
@@ -56,6 +61,8 @@ gopdf.bind("tb", gopdf.toggle_alt_colors)
 gopdf.bind("co", gopdf.toggle_first_page_offset)
 gopdf.bind("s", gopdf.toggle_status_bar)
 gopdf.bind("f", gopdf.toggle_fullscreen)
+gopdf.bind("o", gopdf.outline)
+gopdf.bind("<CR>", gopdf.confirm)
 gopdf.bind("+", gopdf.zoom_in)
 gopdf.bind("=", gopdf.zoom_in)
 gopdf.bind("-", gopdf.zoom_out)
@@ -66,7 +73,7 @@ gopdf.bind("r", gopdf.rotate_cw)
 gopdf.bind("R", gopdf.rotate_ccw)
 gopdf.bind("g", gopdf.goto_page_prompt)
 gopdf.bind("q", gopdf.quit)
-gopdf.bind("<Esc>", gopdf.escape)
+gopdf.bind("<Esc>", gopdf.close)
 gopdf.bind("<C-i>", gopdf.jump_forward)
 gopdf.bind("<C-o>", gopdf.jump_backward)
 

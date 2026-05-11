@@ -152,6 +152,8 @@ type App struct {
 	pageLinks    map[int][]mupdf.Link
 	search       searchState
 	searchWorker *searchWorker
+	outline      []mupdf.OutlineItem
+	outlineMenu  outlineMenuState
 
 	jumpBack  []jumpPosition
 	jumpAhead []jumpPosition
@@ -231,7 +233,7 @@ func New(docPath string, runtime *config.Runtime, startPage int) (*App, error) {
 		renderCache:        map[string]*renderedPage{},
 		cacheLimit:         minInt(24, pages),
 		minRenderBaseScale: 0.25,
-		fontFace:           loadFont(cfg.StatusBarFontPath, cfg.StatusBarFontSize),
+		fontFace:           loadFont(cfg.UIFontPath, cfg.UIFontSize),
 		message:            cfg.NormalMessage,
 		mouseBindings:      map[string]string{},
 		pageLinks:          map[int][]mupdf.Link{},
@@ -246,6 +248,11 @@ func New(docPath string, runtime *config.Runtime, startPage int) (*App, error) {
 	}
 	app.initRenderWorker()
 	app.initSearch()
+	if outline, err := doc.Outline(); err == nil {
+		app.outline = outline
+	} else {
+		app.message = err.Error()
+	}
 	if err := app.loadPageMetrics(); err != nil {
 		app.closeRenderWorker()
 		app.closeSearch()
@@ -410,11 +417,24 @@ func (a *App) drawFrame() error {
 			return err
 		}
 	}
+	if a.outlineMenu.visible {
+		if err := a.drawOutlineMenu(a.renderer); err != nil {
+			return err
+		}
+	}
 	a.renderer.Present()
 	return nil
 }
 
 func (a *App) handleSDLKeyDown(e *sdl.KeyboardEvent) {
+	if a.outlineMenu.visible && a.handleOutlineMenuKey(e) {
+		return
+	}
+	if a.mode != modeNormal {
+		if token, ok := keyToken(e.Keysym.Sym, sdl.Keymod(e.Keysym.Mod)); ok && a.handleInputModeBinding(token) {
+			return
+		}
+	}
 	if a.mode == modeNormal {
 		if token, ok := keyToken(e.Keysym.Sym, sdl.Keymod(e.Keysym.Mod)); ok {
 			prevMode := a.mode
@@ -431,12 +451,6 @@ func (a *App) handleSDLKeyDown(e *sdl.KeyboardEvent) {
 		return
 	}
 	switch e.Keysym.Sym {
-	case sdl.K_ESCAPE:
-		a.mode = modeNormal
-		a.input = ""
-		a.inputCursor = 0
-	case sdl.K_RETURN, sdl.K_KP_ENTER:
-		a.commitInputMode()
 	case sdl.K_LEFT:
 		a.moveInputCursor(-1)
 	case sdl.K_RIGHT:
@@ -444,6 +458,18 @@ func (a *App) handleSDLKeyDown(e *sdl.KeyboardEvent) {
 	case sdl.K_BACKSPACE:
 		a.backspaceInput()
 	}
+}
+
+func (a *App) handleInputModeBinding(token string) bool {
+	if !strings.HasPrefix(token, "<") {
+		return false
+	}
+	action, ok := a.sequenceLookup[normalizeBinding(token)]
+	if !ok {
+		return false
+	}
+	a.runAction(action)
+	return true
 }
 
 func (a *App) handleSDLKeyUp(e *sdl.KeyboardEvent) {
@@ -480,6 +506,17 @@ func (a *App) handleSDLTextInput(e *sdl.TextInputEvent) {
 }
 
 func (a *App) handleSDLMouseWheel(e *sdl.MouseWheelEvent) {
+	if a.outlineMenu.visible {
+		_, rows := a.outlineMenuGeometry()
+		if rows > 0 {
+			if e.Y < 0 {
+				a.scrollOutlineMenu(1)
+			} else if e.Y > 0 {
+				a.scrollOutlineMenu(-1)
+			}
+		}
+		return
+	}
 	wx, wy := e.PreciseX, e.PreciseY
 	if wx == 0 {
 		wx = float32(e.X)
@@ -546,6 +583,12 @@ func (a *App) handleSmoothWheel(wx, wy float32) bool {
 }
 
 func (a *App) handleSDLMouseButton(e *sdl.MouseButtonEvent) {
+	if a.outlineMenu.visible {
+		if e.Type == sdl.MOUSEBUTTONDOWN && e.Button == sdl.BUTTON_LEFT {
+			a.clickOutlineMenu(int(e.X), int(e.Y))
+		}
+		return
+	}
 	if e.Type == sdl.MOUSEBUTTONUP && a.panning && e.Button == a.panButton {
 		a.stopPan()
 		return
@@ -779,6 +822,7 @@ func (a *App) drawPageTexture(renderer *sdl.Renderer, x, y, width, height float6
 		W: float32(drawW),
 		H: float32(drawH),
 	}
+	_ = fillRect(renderer, dst, a.pageBackgroundColor())
 	if normalizeRotation(a.rotation) == 0 {
 		renderer.CopyF(rp.texture, nil, &dst)
 		return
@@ -1243,6 +1287,14 @@ func (a *App) runBuiltinAction(action string) error {
 	case "toggle_fullscreen":
 		a.fullscreen = !a.fullscreen
 		a.SetFullscreen(a.fullscreen)
+	case "outline":
+		a.toggleOutlineMenu()
+	case "confirm":
+		if a.outlineMenu.visible {
+			a.activateSelectedOutline()
+		} else if a.mode != modeNormal {
+			a.commitInputMode()
+		}
 	case "zoom_in":
 		a.setManualZoom(1.15)
 	case "zoom_out":
@@ -1270,17 +1322,8 @@ func (a *App) runBuiltinAction(action string) error {
 		a.alignPageTop(page)
 	case "quit":
 		a.quit = true
-	case "escape":
-		if a.mode == modeNormal {
-			if a.search.query != "" || len(a.search.order) > 0 || a.search.running {
-				a.clearSearch()
-			}
-			return nil
-		}
-		a.mode = modeNormal
-		a.input = ""
-		a.inputCursor = 0
-		a.ignoreText = ""
+	case "close":
+		a.closeActiveUI()
 	case "jump_forward":
 		a.jumpForward()
 	case "jump_backward":
@@ -1291,6 +1334,26 @@ func (a *App) runBuiltinAction(action string) error {
 		return fmt.Errorf("unknown action: %s", action)
 	}
 	return nil
+}
+
+func (a *App) closeActiveUI() {
+	if a.outlineMenu.visible {
+		a.outlineMenu.visible = false
+		return
+	}
+	if a.mode != modeNormal {
+		a.mode = modeNormal
+		a.input = ""
+		a.inputCursor = 0
+		a.ignoreText = ""
+		return
+	}
+	if a.search.query != "" || len(a.search.order) > 0 || a.search.running {
+		a.clearSearch()
+		return
+	}
+	a.sequence = nil
+	a.pendingCount = ""
 }
 
 func (a *App) ExecuteAction(action string) error {
@@ -2343,6 +2406,13 @@ func (a *App) backgroundColor() color.RGBA {
 	return rgb(a.config.Background)
 }
 
+func (a *App) pageBackgroundColor() color.RGBA {
+	if a.altColors {
+		return rgb(a.config.AltPageBackground)
+	}
+	return rgb(a.config.PageBackground)
+}
+
 func (a *App) foregroundColor() color.RGBA {
 	if a.altColors {
 		return rgb(a.config.AltForeground)
@@ -2421,6 +2491,9 @@ func normalizeAngleToken(token string) string {
 	if len(parts) == 1 && parts[0] == "space" {
 		return " "
 	}
+	if len(parts) == 1 && (parts[0] == "enter" || parts[0] == "return") {
+		return "<cr>"
+	}
 	return "<" + strings.Join(parts, "-") + ">"
 }
 
@@ -2486,7 +2559,7 @@ func printableKeyToken(key sdl.Keycode, shift bool) (string, bool) {
 func specialKeyToken(key sdl.Keycode) (string, bool) {
 	switch key {
 	case sdl.K_RETURN, sdl.K_KP_ENTER:
-		return "<Enter>", true
+		return "<CR>", true
 	case sdl.K_ESCAPE:
 		return "<Esc>", true
 	case sdl.K_BACKSPACE:
@@ -2588,6 +2661,7 @@ func boolWord(v bool, whenTrue, whenFalse string) string {
 func (a *App) applyConfig(cfg config.Config) {
 	currentPage := a.page
 	a.config = cfg
+	a.fontFace = loadFont(cfg.UIFontPath, cfg.UIFontSize)
 	a.renderMode = sanitizeRenderMode(cfg.RenderMode)
 	a.altColors = cfg.AltColors
 	a.dualPage = cfg.DualPage

@@ -71,6 +71,19 @@ typedef struct {
 } gopdf_link_result;
 
 typedef struct {
+	char *title;
+	int page_number;
+	int depth;
+	int parent;
+	int has_children;
+} gopdf_outline_item;
+
+typedef struct {
+	gopdf_outline_item *items;
+	int item_count;
+} gopdf_outline_result;
+
+typedef struct {
 	gopdf_search_hit *hits;
 	int hit_count;
 	int hit_cap;
@@ -396,6 +409,96 @@ static void gopdf_free_link_result(gopdf_link_result *result) {
 	result->link_count = 0;
 }
 
+static int gopdf_count_outline_items(fz_outline *outline) {
+	int count = 0;
+	for (fz_outline *node = outline; node != NULL; node = node->next) {
+		count++;
+		if (node->down != NULL) {
+			count += gopdf_count_outline_items(node->down);
+		}
+	}
+	return count;
+}
+
+static void gopdf_fill_outline_items(gopdf_doc *handle, fz_outline *outline, int depth, int parent, gopdf_outline_item *items, int *index) {
+	for (fz_outline *node = outline; node != NULL; node = node->next) {
+		int current = *index;
+		items[current].title = node->title ? gopdf_dup_string(node->title) : gopdf_dup_string("");
+		items[current].page_number = -1;
+		items[current].depth = depth;
+		items[current].parent = parent;
+		items[current].has_children = node->down != NULL;
+		if (node->uri != NULL) {
+			float xp = 0;
+			float yp = 0;
+			fz_location loc = fz_resolve_link(handle->ctx, handle->doc, node->uri, &xp, &yp);
+			items[current].page_number = fz_page_number_from_location(handle->ctx, handle->doc, loc);
+		} else if (node->page.page >= 0) {
+			items[current].page_number = fz_page_number_from_location(handle->ctx, handle->doc, node->page);
+		}
+		(*index)++;
+		if (node->down != NULL) {
+			gopdf_fill_outline_items(handle, node->down, depth + 1, current, items, index);
+		}
+	}
+}
+
+static int gopdf_load_outline(gopdf_doc *handle, gopdf_outline_result *out, char **err) {
+	fz_outline *outline = NULL;
+	gopdf_outline_item *items = NULL;
+	int count = 0;
+	int index = 0;
+	*err = NULL;
+	out->items = NULL;
+	out->item_count = 0;
+	fz_var(outline);
+	fz_var(items);
+	fz_try(handle->ctx) {
+		outline = fz_load_outline(handle->ctx, handle->doc);
+		count = gopdf_count_outline_items(outline);
+		if (count > 0) {
+			items = (gopdf_outline_item *)calloc(count, sizeof(gopdf_outline_item));
+			if (items == NULL) {
+				fz_throw(handle->ctx, FZ_ERROR_SYSTEM, "calloc failed");
+			}
+			gopdf_fill_outline_items(handle, outline, 0, -1, items, &index);
+		}
+		out->items = items;
+		out->item_count = count;
+	} fz_always(handle->ctx) {
+		if (outline != NULL) {
+			fz_drop_outline(handle->ctx, outline);
+		}
+	} fz_catch(handle->ctx) {
+		if (items != NULL) {
+			for (int i = 0; i < count; i++) {
+				if (items[i].title != NULL) {
+					free(items[i].title);
+				}
+			}
+			free(items);
+		}
+		*err = gopdf_dup_string(fz_caught_message(handle->ctx));
+		return 0;
+	}
+	return 1;
+}
+
+static void gopdf_free_outline_result(gopdf_outline_result *result) {
+	if (result == NULL || result->items == NULL) {
+		return;
+	}
+	for (int i = 0; i < result->item_count; i++) {
+		if (result->items[i].title != NULL) {
+			free(result->items[i].title);
+			result->items[i].title = NULL;
+		}
+	}
+	free(result->items);
+	result->items = NULL;
+	result->item_count = 0;
+}
+
 static int gopdf_extract_selection(gopdf_doc *handle, int page_number, float ax, float ay, float bx, float by, gopdf_selection *out, char **err) {
 	fz_page *page = NULL;
 	fz_stext_page *text = NULL;
@@ -530,6 +633,14 @@ type Link struct {
 	Page     int
 	X        float64
 	Y        float64
+}
+
+type OutlineItem struct {
+	Title       string
+	Page        int
+	Depth       int
+	Parent      int
+	HasChildren bool
 }
 
 func Open(path string) (*Document, error) {
@@ -674,6 +785,30 @@ func (d *Document) Links(page int) ([]Link, error) {
 		}
 	}
 	return links, nil
+}
+
+func (d *Document) Outline() ([]OutlineItem, error) {
+	var result C.gopdf_outline_result
+	var cerr *C.char
+	if ok := C.gopdf_load_outline(d.handle, &result, &cerr); ok == 0 {
+		return nil, consumeError("load outline", cerr)
+	}
+	defer C.gopdf_free_outline_result(&result)
+	if result.item_count == 0 || result.items == nil {
+		return nil, nil
+	}
+	raw := unsafe.Slice(result.items, int(result.item_count))
+	items := make([]OutlineItem, len(raw))
+	for i, item := range raw {
+		items[i] = OutlineItem{
+			Title:       C.GoString(item.title),
+			Page:        int(item.page_number),
+			Depth:       int(item.depth),
+			Parent:      int(item.parent),
+			HasChildren: item.has_children != 0,
+		}
+	}
+	return items, nil
 }
 
 func consumeError(prefix string, cerr *C.char) error {

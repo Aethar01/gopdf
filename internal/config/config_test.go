@@ -267,6 +267,33 @@ bind_mouse("right_down", gopdf.pan)
 	}
 }
 
+func TestOutlineConfig(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.lua")
+	if err := os.WriteFile(path, []byte(`
+options.outline_initial_depth = 2
+options.outline_width_percent = 60
+options.outline_height_percent = 75
+bind("O", gopdf.outline)
+`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	rt, err := Open(path, "/tmp/doc.pdf")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rt.Close()
+
+	cfg := rt.Config()
+	if cfg.OutlineInitialDepth != 2 || cfg.OutlineWidthPercent != 60 || cfg.OutlineHeightPercent != 75 {
+		t.Fatalf("unexpected outline config: %+v", cfg)
+	}
+	if got := cfg.KeyBindings["O"]; got != "outline" {
+		t.Fatalf("expected outline binding, got %q", got)
+	}
+}
+
 func TestCallingActionDuringConfigLoadFails(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "config.lua")

@@ -12,36 +12,41 @@ import (
 )
 
 type Config struct {
-	ConfigPath          string
-	StatusBarVisible    bool
-	RenderMode          string
-	DualPage            bool
-	FirstPageOffset     bool
-	FitMode             string
-	Background          [3]uint8
-	Foreground          [3]uint8
-	StatusBarColor      [3]uint8
-	AltBackground       [3]uint8
-	AltForeground       [3]uint8
-	AltStatusBarColor   [3]uint8
-	HighlightForeground [3]uint8
-	HighlightBackground [3]uint8
-	AltColors           bool
-	PageGap             int
-	SpreadGap           int
-	PageGapVertical     int
-	PageGapHorizontal   int
-	StatusBarHeight     int
-	StatusBarFontSize   int
-	StatusBarFontPath   string
-	StatusBarLeft       string
-	StatusBarRight      string
-	SequenceTimeoutMS   int
-	NormalMessage       string
-	KeyBindings         map[string]string
-	MouseBindings       map[string]string
-	MouseTextSelect     bool
-	NaturalScroll       bool
+	ConfigPath           string
+	StatusBarVisible     bool
+	RenderMode           string
+	DualPage             bool
+	FirstPageOffset      bool
+	FitMode              string
+	Background           [3]uint8
+	PageBackground       [3]uint8
+	Foreground           [3]uint8
+	StatusBarColor       [3]uint8
+	AltBackground        [3]uint8
+	AltPageBackground    [3]uint8
+	AltForeground        [3]uint8
+	AltStatusBarColor    [3]uint8
+	HighlightForeground  [3]uint8
+	HighlightBackground  [3]uint8
+	AltColors            bool
+	PageGap              int
+	SpreadGap            int
+	PageGapVertical      int
+	PageGapHorizontal    int
+	StatusBarHeight      int
+	UIFontSize           int
+	UIFontPath           string
+	StatusBarLeft        string
+	StatusBarRight       string
+	SequenceTimeoutMS    int
+	NormalMessage        string
+	KeyBindings          map[string]string
+	MouseBindings        map[string]string
+	MouseTextSelect      bool
+	NaturalScroll        bool
+	OutlineInitialDepth  int
+	OutlineWidthPercent  int
+	OutlineHeightPercent int
 }
 
 type Runtime struct {
@@ -109,9 +114,11 @@ func Default() Config {
 		FirstPageOffset:     true,
 		FitMode:             "page",
 		Background:          [3]uint8{0xff, 0xff, 0xff},
+		PageBackground:      [3]uint8{0xff, 0xff, 0xff},
 		Foreground:          [3]uint8{0x11, 0x11, 0x11},
 		StatusBarColor:      [3]uint8{0x11, 0x11, 0x11},
 		AltBackground:       [3]uint8{0x11, 0x11, 0x11},
+		AltPageBackground:   [3]uint8{0x11, 0x11, 0x11},
 		AltForeground:       [3]uint8{0xff, 0xff, 0xff},
 		AltStatusBarColor:   [3]uint8{0x11, 0x11, 0x11},
 		HighlightForeground: [3]uint8{0x00, 0x00, 0x00},
@@ -122,8 +129,8 @@ func Default() Config {
 		PageGapVertical:     0,
 		PageGapHorizontal:   0,
 		StatusBarHeight:     28,
-		StatusBarFontSize:   14,
-		StatusBarFontPath:   "",
+		UIFontSize:          14,
+		UIFontPath:          "",
 		StatusBarLeft:       "{gopdf.message}",
 		StatusBarRight:      "{page}/{total} {mode} fit={fit} rot={rot} {zoom}",
 		SequenceTimeoutMS:   700,
@@ -138,8 +145,11 @@ func Default() Config {
 			"<c-wheel_down>": "zoom_out",
 			"middle_down":    "pan",
 		},
-		MouseTextSelect: true,
-		NaturalScroll:   false,
+		MouseTextSelect:      true,
+		NaturalScroll:        false,
+		OutlineInitialDepth:  1,
+		OutlineWidthPercent:  70,
+		OutlineHeightPercent: 80,
 	}
 }
 
@@ -709,10 +719,6 @@ func newLuaStatusBarTable(L *lua.LState, rt *Runtime, cfg *Config) *lua.LTable {
 			cfg.StatusBarLeft = lua.LVAsString(value)
 		case "right":
 			cfg.StatusBarRight = lua.LVAsString(value)
-		case "font_size":
-			cfg.StatusBarFontSize = int(lua.LVAsNumber(value))
-		case "font_path":
-			cfg.StatusBarFontPath = lua.LVAsString(value)
 		case "height":
 			cfg.StatusBarHeight = int(lua.LVAsNumber(value))
 		case "visible":
@@ -732,10 +738,6 @@ func newLuaStatusBarTable(L *lua.LState, rt *Runtime, cfg *Config) *lua.LTable {
 			L.Push(lua.LString(cfg.StatusBarLeft))
 		case "right":
 			L.Push(lua.LString(cfg.StatusBarRight))
-		case "font_size":
-			L.Push(lua.LNumber(cfg.StatusBarFontSize))
-		case "font_path":
-			L.Push(lua.LString(cfg.StatusBarFontPath))
 		case "height":
 			L.Push(lua.LNumber(cfg.StatusBarHeight))
 		case "visible":
@@ -869,6 +871,12 @@ func luaSettingValue(L *lua.LState, name string, cfg *Config) (lua.LValue, error
 		return lua.LBool(cfg.MouseTextSelect), nil
 	case "natural_scroll":
 		return lua.LBool(cfg.NaturalScroll), nil
+	case "outline_initial_depth":
+		return lua.LNumber(cfg.OutlineInitialDepth), nil
+	case "outline_width_percent":
+		return lua.LNumber(cfg.OutlineWidthPercent), nil
+	case "outline_height_percent":
+		return lua.LNumber(cfg.OutlineHeightPercent), nil
 	case "alt_colors":
 		return lua.LBool(cfg.AltColors), nil
 	case "render_mode":
@@ -889,10 +897,10 @@ func luaSettingValue(L *lua.LState, name string, cfg *Config) (lua.LValue, error
 		return lua.LNumber(cfg.PageGapHorizontal), nil
 	case "status_bar_height":
 		return lua.LNumber(cfg.StatusBarHeight), nil
-	case "status_bar_font_size":
-		return lua.LNumber(cfg.StatusBarFontSize), nil
-	case "status_bar_font_path":
-		return lua.LString(cfg.StatusBarFontPath), nil
+	case "ui_font_size":
+		return lua.LNumber(cfg.UIFontSize), nil
+	case "ui_font_path":
+		return lua.LString(cfg.UIFontPath), nil
 	case "status_bar_left":
 		return lua.LString(cfg.StatusBarLeft), nil
 	case "status_bar_right":
@@ -902,6 +910,12 @@ func luaSettingValue(L *lua.LState, name string, cfg *Config) (lua.LValue, error
 	case "background":
 		tbl := L.NewTable()
 		for i, c := range cfg.Background {
+			tbl.RawSetInt(i+1, lua.LNumber(c))
+		}
+		return tbl, nil
+	case "page_background":
+		tbl := L.NewTable()
+		for i, c := range cfg.PageBackground {
 			tbl.RawSetInt(i+1, lua.LNumber(c))
 		}
 		return tbl, nil
@@ -920,6 +934,12 @@ func luaSettingValue(L *lua.LState, name string, cfg *Config) (lua.LValue, error
 	case "alt_background":
 		tbl := L.NewTable()
 		for i, c := range cfg.AltBackground {
+			tbl.RawSetInt(i+1, lua.LNumber(c))
+		}
+		return tbl, nil
+	case "alt_page_background":
+		tbl := L.NewTable()
+		for i, c := range cfg.AltPageBackground {
 			tbl.RawSetInt(i+1, lua.LNumber(c))
 		}
 		return tbl, nil
@@ -969,6 +989,21 @@ func applyLuaSetting(name string, value lua.LValue, cfg *Config) error {
 			return fmt.Errorf("expected boolean")
 		}
 		cfg.NaturalScroll = lua.LVAsBool(value)
+	case "outline_initial_depth":
+		if value.Type() != lua.LTNumber {
+			return fmt.Errorf("expected number")
+		}
+		cfg.OutlineInitialDepth = int(lua.LVAsNumber(value))
+	case "outline_width_percent":
+		if value.Type() != lua.LTNumber {
+			return fmt.Errorf("expected number")
+		}
+		cfg.OutlineWidthPercent = int(lua.LVAsNumber(value))
+	case "outline_height_percent":
+		if value.Type() != lua.LTNumber {
+			return fmt.Errorf("expected number")
+		}
+		cfg.OutlineHeightPercent = int(lua.LVAsNumber(value))
 	case "alt_colors":
 		if value.Type() != lua.LTBool {
 			return fmt.Errorf("expected boolean")
@@ -1023,16 +1058,16 @@ func applyLuaSetting(name string, value lua.LValue, cfg *Config) error {
 			return fmt.Errorf("expected number")
 		}
 		cfg.StatusBarHeight = int(lua.LVAsNumber(value))
-	case "status_bar_font_size":
+	case "ui_font_size":
 		if value.Type() != lua.LTNumber {
 			return fmt.Errorf("expected number")
 		}
-		cfg.StatusBarFontSize = int(lua.LVAsNumber(value))
-	case "status_bar_font_path":
+		cfg.UIFontSize = int(lua.LVAsNumber(value))
+	case "ui_font_path":
 		if value.Type() != lua.LTString {
 			return fmt.Errorf("expected string")
 		}
-		cfg.StatusBarFontPath = lua.LVAsString(value)
+		cfg.UIFontPath = lua.LVAsString(value)
 	case "status_bar_left":
 		if value.Type() != lua.LTString {
 			return fmt.Errorf("expected string")
@@ -1054,6 +1089,12 @@ func applyLuaSetting(name string, value lua.LValue, cfg *Config) error {
 			return fmt.Errorf("expected table")
 		}
 		cfg.Background = readColor(tbl, cfg.Background)
+	case "page_background":
+		tbl, ok := value.(*lua.LTable)
+		if !ok {
+			return fmt.Errorf("expected table")
+		}
+		cfg.PageBackground = readColor(tbl, cfg.PageBackground)
 	case "foreground":
 		tbl, ok := value.(*lua.LTable)
 		if !ok {
@@ -1072,6 +1113,12 @@ func applyLuaSetting(name string, value lua.LValue, cfg *Config) error {
 			return fmt.Errorf("expected table")
 		}
 		cfg.AltBackground = readColor(tbl, cfg.AltBackground)
+	case "alt_page_background":
+		tbl, ok := value.(*lua.LTable)
+		if !ok {
+			return fmt.Errorf("expected table")
+		}
+		cfg.AltPageBackground = readColor(tbl, cfg.AltPageBackground)
 	case "alt_foreground":
 		tbl, ok := value.(*lua.LTable)
 		if !ok {
@@ -1170,6 +1217,8 @@ func defaultBindings() map[string]string {
 		"co":     "toggle_first_page_offset",
 		"s":      "toggle_status_bar",
 		"f":      "toggle_fullscreen",
+		"o":      "outline",
+		"<CR>":   "confirm",
 		"+":      "zoom_in",
 		"=":      "zoom_in",
 		"-":      "zoom_out",
@@ -1180,7 +1229,7 @@ func defaultBindings() map[string]string {
 		"R":      "rotate_ccw",
 		"g":      "goto_page_prompt",
 		"q":      "quit",
-		"<Esc>":  "escape",
+		"<Esc>":  "close",
 		"<C-i>":  "jump_forward",
 		"<C-o>":  "jump_backward",
 	}
@@ -1209,6 +1258,8 @@ func allActions() []string {
 		"toggle_first_page_offset",
 		"toggle_status_bar",
 		"toggle_fullscreen",
+		"outline",
+		"confirm",
 		"zoom_in",
 		"zoom_out",
 		"reset_zoom",
@@ -1219,10 +1270,10 @@ func allActions() []string {
 		"rotate_ccw",
 		"goto_page_prompt",
 		"clear_search",
+		"close",
 		"jump_forward",
 		"jump_backward",
 		"pan",
 		"quit",
-		"escape",
 	}
 }
