@@ -99,7 +99,7 @@ func (a *App) ensureOutlineSelectionVisible() {
 	if row >= a.outlineMenu.scroll+rows {
 		a.outlineMenu.scroll = row - rows + 1
 	}
-	maxScroll := maxInt(0, len(visible)-rows)
+	maxScroll := max(0, len(visible)-rows)
 	a.outlineMenu.scroll = clampInt(a.outlineMenu.scroll, 0, maxScroll)
 }
 
@@ -116,7 +116,7 @@ func (a *App) moveOutlineSelection(delta int) {
 
 func (a *App) scrollOutlineMenu(delta int) {
 	_, rows := a.outlineMenuGeometry()
-	maxScroll := maxInt(0, len(a.visibleOutlineIndices())-rows)
+	maxScroll := max(0, len(a.visibleOutlineIndices())-rows)
 	a.outlineMenu.scroll = clampInt(a.outlineMenu.scroll+delta, 0, maxScroll)
 }
 
@@ -219,12 +219,12 @@ func (a *App) outlineMenuGeometry() (sdl.FRect, int) {
 	x := (viewportW - w) / 2
 	y := (viewportH - h) / 2
 	rowHeight := a.outlineMenuRowHeight()
-	rows := maxInt(1, (h-rowHeight-16)/rowHeight)
+	rows := max(1, (h-rowHeight-16)/rowHeight)
 	return sdl.FRect{X: float32(x), Y: float32(y), W: float32(w), H: float32(h)}, rows
 }
 
 func (a *App) outlineMenuRowHeight() int {
-	return maxInt(a.fontFace.Metrics().Height.Ceil()+4, a.config.StatusBarHeight)
+	return max(a.fontFace.Metrics().Height.Ceil()+4, a.config.StatusBarHeight)
 }
 
 func (a *App) drawOutlineMenu(renderer *sdl.Renderer) error {
@@ -251,7 +251,7 @@ func (a *App) drawOutlineMenu(renderer *sdl.Renderer) error {
 		}
 		return nil
 	}
-	maxScroll := maxInt(0, len(visible)-rows)
+	maxScroll := max(0, len(visible)-rows)
 	a.outlineMenu.scroll = clampInt(a.outlineMenu.scroll, 0, maxScroll)
 	for row := 0; row < rows; row++ {
 		visibleIndex := a.outlineMenu.scroll + row
