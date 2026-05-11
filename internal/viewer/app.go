@@ -822,12 +822,41 @@ func (a *App) drawPageTexture(renderer *sdl.Renderer, x, y, width, height float6
 		W: float32(drawW),
 		H: float32(drawH),
 	}
-	_ = fillRect(renderer, dst, a.pageBackgroundColor())
+	_ = a.drawPageBackground(renderer, x, y, rp.page)
 	if normalizeRotation(a.rotation) == 0 {
 		renderer.CopyF(rp.texture, nil, &dst)
 		return
 	}
 	renderer.CopyExF(rp.texture, nil, &dst, a.rotation, nil, sdl.FLIP_NONE)
+}
+
+func (a *App) drawPageBackground(renderer *sdl.Renderer, x, y float64, page int) error {
+	clr := a.pageBackgroundColor()
+	if normalizeRotation(a.rotation) == 0 {
+		m := a.pageMetrics[page]
+		return fillRect(renderer, sdl.FRect{X: float32(x), Y: float32(y), W: float32(m.width * a.scale), H: float32(m.height * a.scale)}, clr)
+	}
+	return renderer.RenderGeometry(nil, pageBackgroundVertices(x, y, a.pageMetrics[page].bounds, a.scale, a.rotation, clr), []int32{0, 1, 2, 1, 3, 2})
+}
+
+func pageBackgroundVertices(x, y float64, bounds mupdf.Rect, scale, rotation float64, clr color.RGBA) []sdl.Vertex {
+	originX, originY := rotatedBoundsOrigin(bounds, scale, rotation)
+	points := []mupdf.Point{
+		{X: float64(bounds.X0), Y: float64(bounds.Y0)},
+		{X: float64(bounds.X1), Y: float64(bounds.Y0)},
+		{X: float64(bounds.X0), Y: float64(bounds.Y1)},
+		{X: float64(bounds.X1), Y: float64(bounds.Y1)},
+	}
+	vertices := make([]sdl.Vertex, len(points))
+	color := sdl.Color{R: clr.R, G: clr.G, B: clr.B, A: clr.A}
+	for i, point := range points {
+		tx, ty := transformPoint(point.X, point.Y, scale, rotation)
+		vertices[i] = sdl.Vertex{
+			Position: sdl.FPoint{X: float32(x + tx - originX), Y: float32(y + ty - originY)},
+			Color:    color,
+		}
+	}
+	return vertices
 }
 
 func (a *App) cachedRenderPage(page int, scale float64) (*renderedPage, bool) {

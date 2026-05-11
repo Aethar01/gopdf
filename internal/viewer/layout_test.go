@@ -1,6 +1,7 @@
 package viewer
 
 import (
+	"image/color"
 	"math"
 	"testing"
 
@@ -70,6 +71,23 @@ func TestSetRenderModeKeepsCurrentPage(t *testing.T) {
 
 	if app.page != 3 {
 		t.Fatalf("expected render mode change to keep page 3, got %d", app.page)
+	}
+}
+
+func TestPageBackgroundVerticesUseRotatedPageCorners(t *testing.T) {
+	vertices := pageBackgroundVertices(10, 20, mupdf.Rect{X1: 100, Y1: 100}, 1, 45, color.RGBA{R: 1, G: 2, B: 3, A: 4})
+
+	assertClose(t, float64(vertices[0].Position.X), 80.711)
+	assertClose(t, float64(vertices[0].Position.Y), 20)
+	assertClose(t, float64(vertices[1].Position.X), 151.421)
+	assertClose(t, float64(vertices[1].Position.Y), 90.711)
+	assertClose(t, float64(vertices[2].Position.X), 10)
+	assertClose(t, float64(vertices[2].Position.Y), 90.711)
+	assertClose(t, float64(vertices[3].Position.X), 80.711)
+	assertClose(t, float64(vertices[3].Position.Y), 161.421)
+
+	if vertices[0].Color != (sdl.Color{R: 1, G: 2, B: 3, A: 4}) {
+		t.Fatalf("unexpected vertex color: %+v", vertices[0].Color)
 	}
 }
 
