@@ -37,19 +37,22 @@ func main() {
 		if err != nil {
 			log.Fatalf("load config: %v", err)
 		}
-		defer runtime.Close()
 
 		app, err := viewer.New(docPath, runtime, startPage-1)
 		if err != nil {
+			runtime.Close()
 			log.Fatalf("start viewer: %v", err)
 		}
 
 		if err := app.Run(); err != nil {
+			app.Close()
+			runtime.Close()
 			log.Fatal(err)
 		}
 
 		newPath := app.PendingOpen()
 		app.Close()
+		runtime.Close()
 
 		if newPath == "" {
 			break

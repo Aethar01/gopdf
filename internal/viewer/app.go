@@ -1719,65 +1719,84 @@ func (a *App) gotoPageInput(input string) {
 }
 
 func (a *App) runCommand(input string) {
-	if _, err := strconv.Atoi(input); err == nil {
-		a.gotoPageInput(input)
+	command := strings.TrimSpace(strings.TrimPrefix(input, ":"))
+	if _, err := strconv.Atoi(command); err == nil {
+		a.gotoPageInput(command)
 		return
 	}
-	fields := strings.Fields(strings.TrimPrefix(input, ":"))
-	if len(fields) == 0 {
+	name, args, _ := strings.Cut(command, " ")
+	args = strings.TrimSpace(args)
+	fields := strings.Fields(args)
+	if name == "" {
 		return
 	}
-	switch fields[0] {
+	switch name {
 	case "q", "quit":
 		a.quit = true
 	case "page", "p":
-		if len(fields) < 2 {
+		if len(fields) < 1 {
 			a.message = "usage: :page <n>"
 			return
 		}
-		a.gotoPageInput(fields[1])
+		a.gotoPageInput(fields[0])
 	case "set":
-		if len(fields) < 2 {
+		if len(fields) < 1 {
 			return
 		}
-		a.runSet(fields[1])
+		a.runSet(fields[0])
 	case "mode":
-		if len(fields) < 2 {
+		if len(fields) < 1 {
 			a.message = "usage: :mode continuous|single"
 			return
 		}
-		a.renderMode = sanitizeRenderMode(fields[1])
+		a.renderMode = sanitizeRenderMode(fields[0])
 		a.recomputeLayout(a.viewportSize())
 		a.alignPageTop(a.page)
 	case "colors":
-		if len(fields) < 2 {
+		if len(fields) < 1 {
 			a.message = "usage: :colors normal|alt"
 			return
 		}
-		a.altColors = strings.EqualFold(fields[1], "alt")
+		a.altColors = strings.EqualFold(fields[0], "alt")
 	case "fit":
-		if len(fields) < 2 {
+		if len(fields) < 1 {
 			return
 		}
-		a.setFitMode(sanitizeFitMode(fields[1]))
+		a.setFitMode(sanitizeFitMode(fields[0]))
 	case "reload-config":
 		a.reloadConfig()
 	case "search":
-		query := strings.TrimSpace(strings.TrimPrefix(strings.TrimPrefix(input, ":"), "search"))
-		a.startSearch(query, searchModeForward)
+		a.startSearch(args, searchModeForward)
 	case "open":
-		if len(fields) < 2 {
+		if args == "" {
 			a.message = "usage: :open <filename>"
 			return
 		}
-		if err := a.Open(fields[1]); err != nil {
+		if err := a.Open(unescapeCommandArg(args)); err != nil {
 			a.message = err.Error()
 		}
 	case "help":
 		a.message = commandHelpMessage()
 	default:
-		a.message = "unknown command: " + fields[0]
+		a.message = "unknown command: " + name
 	}
+}
+
+func unescapeCommandArg(arg string) string {
+	if !strings.Contains(arg, `\`) {
+		return arg
+	}
+	var b strings.Builder
+	b.Grow(len(arg))
+	for i := 0; i < len(arg); i++ {
+		if arg[i] == '\\' && i+1 < len(arg) && (arg[i+1] == ' ' || arg[i+1] == '\\') {
+			b.WriteByte(arg[i+1])
+			i++
+			continue
+		}
+		b.WriteByte(arg[i])
+	}
+	return b.String()
 }
 
 func (a *App) reloadConfig() {

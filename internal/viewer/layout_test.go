@@ -170,6 +170,23 @@ func TestPanCanBeHeldByKey(t *testing.T) {
 	}
 }
 
+func TestOpenCommandKeepsSpacesInPath(t *testing.T) {
+	app := &App{}
+	path := "/tmp/Lancer - Core Book.pdf"
+
+	app.runCommand(":open " + path)
+
+	if app.pendingOpen != path {
+		t.Fatalf("expected pending open path %q, got %q", path, app.pendingOpen)
+	}
+
+	app = &App{}
+	app.runCommand(`:open /tmp/Lancer\ -\ Core\ Book.pdf`)
+	if app.pendingOpen != path {
+		t.Fatalf("expected escaped pending open path %q, got %q", path, app.pendingOpen)
+	}
+}
+
 func TestRenderTargetOversamplesZoom(t *testing.T) {
 	app := testLayoutApp(1)
 	app.scale = 2

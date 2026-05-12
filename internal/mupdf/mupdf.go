@@ -523,6 +523,9 @@ static int gopdf_extract_selection(gopdf_doc *handle, int page_number, float ax,
 		text = fz_new_stext_page_from_page(handle->ctx, page, NULL);
 		copied = fz_copy_selection(handle->ctx, text, a, b, 0);
 		count = fz_highlight_selection(handle->ctx, text, a, b, stack_quads, 512);
+		if (count > 512) {
+			count = 512;
+		}
 		if (count > 0) {
 			heap_quads = (gopdf_quad *)malloc(sizeof(gopdf_quad) * count);
 			if (heap_quads == NULL) {

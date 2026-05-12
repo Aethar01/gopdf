@@ -118,6 +118,7 @@ func prefixedCommandCompletions(prefix string) []completionItem {
 }
 
 func (a *App) openPathCompletions(arg string) []completionItem {
+	arg = unescapeCommandArg(arg)
 	base, prefix, typedBase := splitCompletionPath(arg)
 	if arg == "." {
 		return []completionItem{{value: "." + string(os.PathSeparator), display: "." + string(os.PathSeparator)}}
@@ -141,7 +142,7 @@ func (a *App) openPathCompletions(arg string) []completionItem {
 		if !strings.HasPrefix(name, prefix) {
 			continue
 		}
-		value := typedBase + name
+		value := escapeCompletionPath(typedBase + name)
 		display := name
 		if entry.IsDir() {
 			value += string(os.PathSeparator)
@@ -158,6 +159,18 @@ func (a *App) openPathCompletions(arg string) []completionItem {
 		return strings.ToLower(items[i].display) < strings.ToLower(items[j].display)
 	})
 	return items
+}
+
+func escapeCompletionPath(path string) string {
+	var b strings.Builder
+	b.Grow(len(path))
+	for i := 0; i < len(path); i++ {
+		if path[i] == ' ' || path[i] == '\\' {
+			b.WriteByte('\\')
+		}
+		b.WriteByte(path[i])
+	}
+	return b.String()
 }
 
 func splitCompletionPath(arg string) (base, prefix, typedBase string) {

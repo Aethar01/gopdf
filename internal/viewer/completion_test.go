@@ -86,6 +86,25 @@ func TestOpenPathCompletionsPreserveRelativePrefixes(t *testing.T) {
 	}
 }
 
+func TestOpenPathCompletionsEscapeSpaces(t *testing.T) {
+	dir := t.TempDir()
+	mustWrite(t, filepath.Join(dir, "Lancer - Core Book.pdf"))
+
+	a := &App{docPath: filepath.Join(dir, "current.pdf")}
+	items := a.openPathCompletions("Lancer")
+	got := completionValues(items)
+	want := []string{`Lancer\ -\ Core\ Book.pdf`}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("expected %v, got %v", want, got)
+	}
+
+	items = a.openPathCompletions(`Lancer\ `)
+	got = completionValues(items)
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("expected escaped prefix to complete %v, got %v", want, got)
+	}
+}
+
 func TestDotPathCompletionsAddSeparator(t *testing.T) {
 	a := &App{}
 	if got := completionValues(a.openPathCompletions(".")); !reflect.DeepEqual(got, []string{"." + string(os.PathSeparator)}) {
