@@ -165,7 +165,7 @@ func escapeCompletionPath(path string) string {
 	var b strings.Builder
 	b.Grow(len(path))
 	for i := 0; i < len(path); i++ {
-		if path[i] == ' ' || path[i] == '\\' {
+		if path[i] == ' ' || (path[i] == '\\' && filepath.Separator != '\\') {
 			b.WriteByte('\\')
 		}
 		b.WriteByte(path[i])
