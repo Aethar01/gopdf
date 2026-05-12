@@ -5,11 +5,16 @@ import (
 	"fmt"
 	"log"
 
+	_ "embed"
+
 	"gopdf/internal/config"
 	"gopdf/internal/viewer"
 )
 
 const version = "0.1.10"
+
+//go:embed assets/gopdf.bmp
+var iconBMP []byte
 
 func main() {
 	if err := run(); err != nil {
@@ -44,7 +49,7 @@ func run() error {
 	}
 	defer runtime.Close()
 
-	app, err := viewer.New(docPath, runtime, startPage-1)
+	app, err := viewer.New(docPath, runtime, startPage-1, iconBMP)
 	if err != nil {
 		return fmt.Errorf("start viewer: %w", err)
 	}

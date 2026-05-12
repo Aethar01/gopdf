@@ -1,6 +1,7 @@
 package viewer
 
 import (
+	_ "embed"
 	"fmt"
 	"image/color"
 	"maps"
@@ -89,6 +90,7 @@ type App struct {
 	renderer    *sdl.Renderer
 	cursorHand  *sdl.Cursor
 	cursorArrow *sdl.Cursor
+	iconBytes   []byte
 
 	pageCount  int
 	page       int
@@ -199,7 +201,7 @@ func loadFont(path string, size int) font.Face {
 	return basicfont.Face7x13
 }
 
-func New(docPath string, runtime *config.Runtime, startPage int) (*App, error) {
+func New(docPath string, runtime *config.Runtime, startPage int, iconBytes []byte) (*App, error) {
 	cfg := runtime.Config()
 	if startPage < 0 {
 		startPage = 0
@@ -215,6 +217,7 @@ func New(docPath string, runtime *config.Runtime, startPage int) (*App, error) {
 		minRenderBaseScale: 0.25,
 		mouseBindings:      map[string]string{},
 		pageLinks:          map[int][]mupdf.Link{},
+		iconBytes:          iconBytes,
 		sequenceLookup:     map[string]string{},
 	}
 	runtime.AttachHost(app)
@@ -295,6 +298,11 @@ func (a *App) Run() error {
 	}
 	a.window = window
 	a.renderer = renderer
+	if rw, err := sdl.RWFromMem(a.iconBytes); err == nil {
+		if icon, err := sdl.LoadBMPRW(rw, true); err == nil {
+			window.SetIcon(icon)
+		}
+	}
 	a.cursorHand = sdl.CreateSystemCursor(sdl.SYSTEM_CURSOR_HAND)
 	a.cursorArrow = sdl.CreateSystemCursor(sdl.SYSTEM_CURSOR_ARROW)
 	a.setWindowTitle()
