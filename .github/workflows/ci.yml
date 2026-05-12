@@ -7,39 +7,15 @@ on:
 
 jobs:
   linux:
-    name: Linux
+    name: Arch Linux
     runs-on: ubuntu-latest
+    container: archlinux:base-devel
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version-file: go.mod
-          cache: true
-
       - name: Install native dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y pkg-config libsdl2-dev build-essential libfreetype-dev libharfbuzz-dev libjbig2dec0-dev libjpeg-dev libopenjp2-7-dev zlib1g-dev curl ca-certificates libglu1-mesa-dev
-          curl -L https://mupdf.com/downloads/archive/mupdf-1.25.6-source.tar.gz | tar xz
-          make -C mupdf-1.25.6-source HAVE_X11=no HAVE_GLUT=no build=release -j"$(nproc)"
-          sudo make -C mupdf-1.25.6-source prefix=/usr/local install
-          sudo mkdir -p /usr/local/lib/pkgconfig
-          sudo tee /usr/local/lib/pkgconfig/mupdf.pc >/dev/null <<EOF
-          prefix=/usr/local
-          exec_prefix=\${prefix}
-          libdir=\${exec_prefix}/lib
-          includedir=\${prefix}/include
-
-          Name: mupdf
-          Description: MuPDF PDF rendering library
-          Version: 1.25.6
-          Libs: -L\${libdir} -lmupdf -lmupdf-third -lm
-          Cflags: -I\${includedir}
-          EOF
-          sudo ldconfig
+        run: pacman -Syu --noconfirm git go pkgconf sdl2-compat libmupdf
 
       - name: Verify native dependencies
         run: pkg-config --cflags --libs mupdf sdl2
@@ -57,38 +33,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version-file: go.mod
-          cache: true
+      - name: Install with Homebrew formula
+        run: brew install --HEAD ./packaging/homebrew/gopdf.rb
 
-      - name: Install native dependencies
-        run: |
-          brew install pkg-config sdl2 mupdf
-          mkdir -p "$RUNNER_TEMP/pkgconfig"
-          cat > "$RUNNER_TEMP/pkgconfig/mupdf.pc" <<EOF
-          prefix=$(brew --prefix mupdf)
-          exec_prefix=\${prefix}
-          libdir=\${exec_prefix}/lib
-          includedir=\${prefix}/include
-
-          Name: mupdf
-          Description: MuPDF PDF rendering library
-          Version: $(brew list --versions mupdf | awk '{print $2}')
-          Libs: -L\${libdir} -lmupdf -lmupdf-third -lm
-          Cflags: -I\${includedir}
-          EOF
-          echo "PKG_CONFIG_PATH=$RUNNER_TEMP/pkgconfig:$(brew --prefix mupdf)/lib/pkgconfig:$(brew --prefix freetype)/lib/pkgconfig:$(brew --prefix harfbuzz)/lib/pkgconfig:${PKG_CONFIG_PATH}" >> "$GITHUB_ENV"
-
-      - name: Verify native dependencies
-        run: pkg-config --cflags --libs mupdf sdl2
-
-      - name: Test
-        run: go test ./...
-
-      - name: Build
-        run: go build ./...
+      - name: Test installed binary
+        run: gopdf -v
 
   windows:
     name: Windows

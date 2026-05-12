@@ -2,29 +2,59 @@
 
 MuPDF-backend PDF viewer written in Go with Lua configuration.
 
-## Requirements
-
-- [libmupdf](https://mupdf.com/)
-- [SDL2](https://libsdl.org/)
-- `pkg-config`
-- A C compiler supported by Go's CGO toolchain
-
 ## Installation
 
+<details open>
+<summary>Arch-based Linux</summary>
+
+Available in the AUR: [gopdf-git](https://aur.archlinux.org/packages/gopdf-git)
+
+```bash
+yay -S gopdf-git
+```
+
+</details>
+
+<details>
+<summary>macOS</summary>
+
+From a local checkout:
+
+```bash
+brew install --build-from-source ./packaging/homebrew/gopdf.rb
+```
+
+For the latest source instead of the pinned release:
+
+```bash
+brew install --HEAD ./packaging/homebrew/gopdf.rb
+```
+
+</details>
+
+<details>
+<summary>From Source</summary>
+
+Requirements:
+
+- Go 1.24+
+- MuPDF 1.25.6+
+- SDL2
+- `pkg-config`
+- C compiler
+
 ```bash
 go build
 ```
 
-This project uses CGO through MuPDF and SDL2, so the native development libraries must be installed for the target OS.
-
-On macOS with Homebrew:
+Windows with MSYS2 UCRT64:
 
 ```bash
-brew install go mupdf sdl2 pkg-config
-go build
+pacman -S --needed mingw-w64-ucrt-x86_64-go mingw-w64-ucrt-x86_64-gcc mingw-w64-ucrt-x86_64-pkgconf mingw-w64-ucrt-x86_64-SDL2 mingw-w64-ucrt-x86_64-mupdf
+go build -o gopdf.exe
 ```
 
-On Windows, use a native build environment such as MSYS2 or another toolchain that provides MuPDF, SDL2, `pkg-config`, and a C compiler visible to Go. Cross-compiling from Linux is not expected to work without a matching cross C toolchain and target native libraries.
+</details>
 
 ## Usage
 

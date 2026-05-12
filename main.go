@@ -9,7 +9,7 @@ import (
 	"gopdf/internal/viewer"
 )
 
-const version = "0.1.1"
+const version = "0.1.10"
 
 func main() {
 	if err := run(); err != nil {
