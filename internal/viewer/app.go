@@ -154,6 +154,7 @@ type App struct {
 	searchWorker *searchWorker
 	outline      []mupdf.OutlineItem
 	outlineMenu  outlineMenuState
+	luaUI        luaUIState
 
 	jumpBack  []jumpPosition
 	jumpAhead []jumpPosition
@@ -198,24 +199,33 @@ func loadFont(path string, size int) font.Face {
 
 func New(docPath string, runtime *config.Runtime, startPage int) (*App, error) {
 	cfg := runtime.Config()
-	doc, err := mupdf.Open(docPath)
-	if err != nil {
-		return nil, err
-	}
-	pages, err := doc.PageCount()
-	if err != nil {
-		doc.Close()
-		return nil, err
+	var doc *mupdf.Document
+	pages := 0
+	if docPath != "" {
+		var err error
+		doc, err = mupdf.Open(docPath)
+		if err != nil {
+			return nil, err
+		}
+		pages, err = doc.PageCount()
+		if err != nil {
+			doc.Close()
+			return nil, err
+		}
 	}
 	if startPage < 0 {
 		startPage = 0
 	}
-	if startPage >= pages {
+	if pages > 0 && startPage >= pages {
 		startPage = pages - 1
+	}
+	docName := ""
+	if docPath != "" {
+		docName = filepath.Base(docPath)
 	}
 	app := &App{
 		docPath:            docPath,
-		docName:            filepath.Base(docPath),
+		docName:            docName,
 		doc:                doc,
 		runtime:            runtime,
 		config:             cfg,
@@ -244,22 +254,26 @@ func New(docPath string, runtime *config.Runtime, startPage int) (*App, error) {
 		app.sequenceLookup[normalizeBinding(k)] = v
 	}
 	maps.Copy(app.mouseBindings, cfg.MouseBindings)
-	app.initRenderWorker()
-	app.initSearch()
-	if outline, err := doc.Outline(); err == nil {
-		app.outline = outline
-	} else {
-		app.message = err.Error()
-	}
-	if err := app.loadPageMetrics(); err != nil {
-		app.closeRenderWorker()
-		app.closeSearch()
-		doc.Close()
-		return nil, err
+	if doc != nil {
+		app.initRenderWorker()
+		app.initSearch()
+		if outline, err := doc.Outline(); err == nil {
+			app.outline = outline
+		} else {
+			app.message = err.Error()
+		}
+		if err := app.loadPageMetrics(); err != nil {
+			app.closeRenderWorker()
+			app.closeSearch()
+			doc.Close()
+			return nil, err
+		}
 	}
 	app.recomputeLayout(1400, 900-app.config.StatusBarHeight)
-	app.ensureRenderBaseScale()
-	app.alignPageTop(startPage)
+	if doc != nil {
+		app.ensureRenderBaseScale()
+		app.alignPageTop(startPage)
+	}
 	return app, nil
 }
 
@@ -310,7 +324,11 @@ func (a *App) Run() error {
 	a.renderer = renderer
 	a.cursorHand = sdl.CreateSystemCursor(sdl.SYSTEM_CURSOR_HAND)
 	a.cursorArrow = sdl.CreateSystemCursor(sdl.SYSTEM_CURSOR_ARROW)
-	a.window.SetTitle(a.docName + " - gopdf")
+	if a.docName == "" {
+		a.window.SetTitle("gopdf")
+	} else {
+		a.window.SetTitle(a.docName + " - gopdf")
+	}
 	a.renderer.SetDrawBlendMode(sdl.BLENDMODE_BLEND)
 	if w, h, err := a.renderer.GetOutputSize(); err == nil {
 		a.winW, a.winH = int(w), int(h)
@@ -421,11 +439,19 @@ func (a *App) drawFrame() error {
 			return err
 		}
 	}
+	if a.luaUI.visible {
+		if err := a.drawLuaUI(a.renderer); err != nil {
+			return err
+		}
+	}
 	a.renderer.Present()
 	return nil
 }
 
 func (a *App) handleSDLKeyDown(e *sdl.KeyboardEvent) {
+	if a.luaUI.visible && a.handleLuaUIKey(e) {
+		return
+	}
 	if a.outlineMenu.visible && a.handleOutlineMenuKey(e) {
 		return
 	}
@@ -503,6 +529,14 @@ func (a *App) handleSDLTextInput(e *sdl.TextInputEvent) {
 }
 
 func (a *App) handleSDLMouseWheel(e *sdl.MouseWheelEvent) {
+	if a.luaUI.visible {
+		if e.Y < 0 {
+			a.scrollLuaUI(1)
+		} else if e.Y > 0 {
+			a.scrollLuaUI(-1)
+		}
+		return
+	}
 	if a.outlineMenu.visible {
 		_, rows := a.outlineMenuGeometry()
 		if rows > 0 {
@@ -580,6 +614,12 @@ func (a *App) handleSmoothWheel(wx, wy float32) bool {
 }
 
 func (a *App) handleSDLMouseButton(e *sdl.MouseButtonEvent) {
+	if a.luaUI.visible {
+		if e.Type == sdl.MOUSEBUTTONDOWN && e.Button == sdl.BUTTON_LEFT {
+			a.clickLuaUI(int(e.X), int(e.Y))
+		}
+		return
+	}
 	if a.outlineMenu.visible {
 		if e.Type == sdl.MOUSEBUTTONDOWN && e.Button == sdl.BUTTON_LEFT {
 			a.clickOutlineMenu(int(e.X), int(e.Y))
@@ -1363,6 +1403,10 @@ func (a *App) runBuiltinAction(action string) error {
 }
 
 func (a *App) closeActiveUI() {
+	if a.luaUI.visible {
+		a.closeLuaUI(true)
+		return
+	}
 	if a.outlineMenu.visible {
 		a.outlineMenu.visible = false
 		return

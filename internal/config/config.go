@@ -64,6 +64,14 @@ type Runtime struct {
 	dirty        bool
 }
 
+type UIOverlay struct {
+	Title    string
+	Rows     []string
+	Selected int
+	OnSelect string
+	OnClose  string
+}
+
 type documentMeta struct {
 	exists    bool
 	sizeBytes int64
@@ -75,6 +83,11 @@ type documentMeta struct {
 type Host interface {
 	ExecuteAction(action string) error
 	Open(path string) error
+	ShowUI(overlay UIOverlay) error
+	CloseUI()
+	UIVisible() bool
+	SetUIRows(rows []string)
+	SetUISelected(selected int)
 	Page() int
 	PageCount() int
 	GotoPage(page int) error
@@ -314,6 +327,26 @@ func (r *Runtime) RunAction(action string) (bool, bool, error) {
 	return true, r.dirty, nil
 }
 
+func (r *Runtime) RunUISelect(callback string, index int, value string) error {
+	return r.runCallback(callback, lua.LNumber(index), lua.LString(value))
+}
+
+func (r *Runtime) RunUIClose(callback string) error {
+	return r.runCallback(callback)
+}
+
+func (r *Runtime) runCallback(callback string, args ...lua.LValue) error {
+	if r == nil || callback == "" {
+		return nil
+	}
+	fn, ok := r.callbacks[callback]
+	if !ok {
+		return fmt.Errorf("unknown lua callback: %s", callback)
+	}
+	params := lua.P{Fn: fn, NRet: 0, Protect: true}
+	return r.state.CallByParam(params, args...)
+}
+
 func (r *Runtime) applyLuaConfig(path string) error {
 	L := lua.NewState()
 	r.state = L
@@ -347,6 +380,7 @@ func newLuaModule(L *lua.LState, rt *Runtime, cfg *Config) *lua.LTable {
 	}
 	L.SetField(mod, "document", document)
 	L.SetField(mod, "cache", newLuaCacheTable(L, rt))
+	L.SetField(mod, "ui", newLuaUITable(L, rt))
 	L.SetFuncs(mod, map[string]lua.LGFunction{
 		"bind": func(L *lua.LState) int {
 			key := L.CheckString(1)
@@ -698,6 +732,79 @@ func newLuaCacheTable(L *lua.LState, rt *Runtime) *lua.LTable {
 		},
 	})
 	return tbl
+}
+
+func newLuaUITable(L *lua.LState, rt *Runtime) *lua.LTable {
+	tbl := L.NewTable()
+	show := func(L *lua.LState) int {
+		if rt.host == nil {
+			L.RaiseError("ui.show: viewer host unavailable")
+		}
+		spec, ok := L.CheckAny(1).(*lua.LTable)
+		if !ok {
+			L.RaiseError("ui.show: expected table")
+		}
+		overlay := UIOverlay{
+			Title:    lua.LVAsString(spec.RawGetString("title")),
+			Rows:     luaTableStrings(spec.RawGetString("rows")),
+			Selected: 1,
+		}
+		if selected := spec.RawGetString("selected"); selected.Type() == lua.LTNumber {
+			overlay.Selected = int(lua.LVAsNumber(selected))
+		}
+		if fn, ok := spec.RawGetString("on_select").(*lua.LFunction); ok {
+			overlay.OnSelect = rt.registerCallback(fn)
+		}
+		if fn, ok := spec.RawGetString("on_close").(*lua.LFunction); ok {
+			overlay.OnClose = rt.registerCallback(fn)
+		}
+		if err := rt.host.ShowUI(overlay); err != nil {
+			L.RaiseError("ui.show: %v", err)
+		}
+		return 0
+	}
+	L.SetFuncs(tbl, map[string]lua.LGFunction{
+		"show": show,
+		"menu": show,
+		"close": func(L *lua.LState) int {
+			if rt.host == nil {
+				L.RaiseError("ui.close: viewer host unavailable")
+			}
+			rt.host.CloseUI()
+			return 0
+		},
+		"visible": func(L *lua.LState) int {
+			L.Push(lua.LBool(rt.host != nil && rt.host.UIVisible()))
+			return 1
+		},
+		"set_rows": func(L *lua.LState) int {
+			if rt.host == nil {
+				L.RaiseError("ui.set_rows: viewer host unavailable")
+			}
+			rt.host.SetUIRows(luaTableStrings(L.CheckAny(1)))
+			return 0
+		},
+		"set_selected": func(L *lua.LState) int {
+			if rt.host == nil {
+				L.RaiseError("ui.set_selected: viewer host unavailable")
+			}
+			rt.host.SetUISelected(L.CheckInt(1))
+			return 0
+		},
+	})
+	return tbl
+}
+
+func luaTableStrings(value lua.LValue) []string {
+	tbl, ok := value.(*lua.LTable)
+	if !ok {
+		return nil
+	}
+	values := make([]string, 0, tbl.Len())
+	for i := 1; i <= tbl.Len(); i++ {
+		values = append(values, lua.LVAsString(tbl.RawGetInt(i)))
+	}
+	return values
 }
 
 func newLuaStatusBarTable(L *lua.LState, rt *Runtime, cfg *Config) *lua.LTable {

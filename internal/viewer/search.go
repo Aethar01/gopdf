@@ -222,16 +222,18 @@ func (a *App) startSearch(query string, mode searchMode) {
 		a.message = ""
 		return
 	}
+	if a.searchWorker == nil {
+		a.message = "no document open"
+		return
+	}
 	a.search.running = true
 	a.message = fmt.Sprintf("searching /%s", query)
-	if a.searchWorker != nil {
-		a.searchWorker.Start(searchRequest{
-			generation: a.search.generation,
-			query:      query,
-			startPage:  a.page,
-			pageCount:  a.pageCount,
-		})
-	}
+	a.searchWorker.Start(searchRequest{
+		generation: a.search.generation,
+		query:      query,
+		startPage:  a.page,
+		pageCount:  a.pageCount,
+	})
 }
 
 func (a *App) clearSearch() {

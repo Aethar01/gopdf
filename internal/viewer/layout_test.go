@@ -45,6 +45,30 @@ func TestRecomputeLayoutUsesRotatedPageDimensions(t *testing.T) {
 	assertClose(t, app.rows[1].x, 0)
 }
 
+func TestNewAllowsBlankViewerWithoutDocument(t *testing.T) {
+	rt, err := config.Open(t.TempDir()+"/missing.lua", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rt.Close()
+
+	app, err := New("", rt, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer app.Close()
+
+	if app.doc != nil || app.docPath != "" || app.docName != "" {
+		t.Fatalf("expected blank viewer without document, app=%+v", app)
+	}
+	if app.pageCount != 0 || len(app.pageMetrics) != 0 || len(app.rows) != 0 {
+		t.Fatalf("expected no document layout, pageCount=%d metrics=%d rows=%d", app.pageCount, len(app.pageMetrics), len(app.rows))
+	}
+	if app.renderWorker != nil || app.searchWorker != nil {
+		t.Fatalf("expected no document workers, render=%v search=%v", app.renderWorker, app.searchWorker)
+	}
+}
+
 func TestSetRotationKeepsCurrentPage(t *testing.T) {
 	app := testLayoutApp(5)
 	app.renderMode = "continuous"

@@ -28,9 +28,6 @@ func main() {
 	var docPath string
 	if flag.NArg() == 0 {
 		docPath = config.GetLastFile()
-		if docPath == "" {
-			return
-		}
 	} else {
 		docPath = flag.Arg(0)
 	}

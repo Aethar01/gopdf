@@ -9,6 +9,10 @@ import (
 
 type stubHost struct {
 	actions          []string
+	opened           string
+	ui               UIOverlay
+	uiVisible        bool
+	uiClosed         bool
 	page             int
 	pages            int
 	message          string
@@ -38,8 +42,26 @@ func (h *stubHost) ExecuteAction(action string) error {
 }
 
 func (h *stubHost) Open(path string) error {
+	h.opened = path
 	return nil
 }
+
+func (h *stubHost) ShowUI(overlay UIOverlay) error {
+	h.ui = overlay
+	h.uiVisible = true
+	return nil
+}
+
+func (h *stubHost) CloseUI() {
+	h.uiVisible = false
+	h.uiClosed = true
+}
+
+func (h *stubHost) UIVisible() bool { return h.uiVisible }
+
+func (h *stubHost) SetUIRows(rows []string) { h.ui.Rows = append([]string(nil), rows...) }
+
+func (h *stubHost) SetUISelected(selected int) { h.ui.Selected = selected }
 
 func (h *stubHost) Page() int {
 	return h.page
@@ -422,5 +444,115 @@ end)
 	}
 	if len(host.pendingKeys) != 0 || host.currentCount != "" {
 		t.Fatalf("expected pending input to clear, host=%+v", host)
+	}
+}
+
+func TestLuaUIShowsMenuAndRunsSelectionCallback(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.lua")
+	if err := os.WriteFile(path, []byte(`
+bind("u", function()
+  gopdf.ui.show({
+    title = "Open PDF",
+    rows = { "a.pdf", "b.pdf" },
+    selected = 2,
+    on_select = function(index, value)
+      gopdf.message(tostring(index) .. ":" .. value)
+      gopdf.open(value)
+    end,
+    on_close = function()
+      gopdf.message("closed")
+    end,
+  })
+end)
+`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	rt, err := Open(path, "/tmp/doc.pdf")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rt.Close()
+
+	host := &stubHost{}
+	rt.AttachHost(host)
+	if handled, dirty, err := rt.RunAction(rt.Config().KeyBindings["u"]); !handled || dirty || err != nil {
+		t.Fatalf("expected ui callback to run, handled=%v dirty=%v err=%v", handled, dirty, err)
+	}
+	if !host.uiVisible || host.ui.Title != "Open PDF" || host.ui.Selected != 2 {
+		t.Fatalf("unexpected ui state: %+v visible=%v", host.ui, host.uiVisible)
+	}
+	if got := strings.Join(host.ui.Rows, ","); got != "a.pdf,b.pdf" {
+		t.Fatalf("unexpected rows %q", got)
+	}
+	if host.ui.OnSelect == "" || host.ui.OnClose == "" {
+		t.Fatalf("expected ui callbacks, got %+v", host.ui)
+	}
+	if err := rt.RunUISelect(host.ui.OnSelect, 2, "b.pdf"); err != nil {
+		t.Fatal(err)
+	}
+	if host.message != "2:b.pdf" || host.opened != "b.pdf" {
+		t.Fatalf("expected selection callback to update host, host=%+v", host)
+	}
+	if err := rt.RunUIClose(host.ui.OnClose); err != nil {
+		t.Fatal(err)
+	}
+	if host.message != "closed" {
+		t.Fatalf("expected close callback, got %q", host.message)
+	}
+}
+
+func TestLuaUIHostControls(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.lua")
+	if err := os.WriteFile(path, []byte(`
+bind("u", function()
+  gopdf.ui.menu({ rows = { "old" } })
+  if gopdf.ui.visible() then
+    gopdf.ui.set_rows({ "new", "items" })
+    gopdf.ui.set_selected(2)
+    gopdf.ui.close()
+  end
+end)
+`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	rt, err := Open(path, "/tmp/doc.pdf")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rt.Close()
+
+	host := &stubHost{}
+	rt.AttachHost(host)
+	if handled, _, err := rt.RunAction(rt.Config().KeyBindings["u"]); !handled || err != nil {
+		t.Fatalf("expected ui controls to run, handled=%v err=%v", handled, err)
+	}
+	if !host.uiClosed || host.uiVisible {
+		t.Fatalf("expected ui to close, visible=%v closed=%v", host.uiVisible, host.uiClosed)
+	}
+	if got := strings.Join(host.ui.Rows, ","); got != "new,items" {
+		t.Fatalf("unexpected rows %q", got)
+	}
+	if host.ui.Selected != 2 {
+		t.Fatalf("unexpected selected %d", host.ui.Selected)
+	}
+}
+
+func TestLuaUIShowDuringConfigLoadFails(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.lua")
+	if err := os.WriteFile(path, []byte(`gopdf.ui.show({ rows = { "x" } })`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := Open(path, "/tmp/doc.pdf")
+	if err == nil {
+		t.Fatal("expected config load to fail")
+	}
+	if !strings.Contains(err.Error(), "viewer host unavailable") {
+		t.Fatalf("expected host unavailable error, got %v", err)
 	}
 }

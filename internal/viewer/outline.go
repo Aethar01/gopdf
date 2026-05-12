@@ -190,13 +190,12 @@ func (a *App) runOutlineMenuAction(action string) {
 
 func (a *App) clickOutlineMenu(x, y int) {
 	rect, rows := a.outlineMenuGeometry()
-	if float32(x) < rect.X || float32(x) > rect.X+rect.W || float32(y) < rect.Y || float32(y) > rect.Y+rect.H {
-		a.outlineMenu.visible = false
-		return
-	}
 	rowHeight := a.outlineMenuRowHeight()
-	row := (y - int(rect.Y) - rowHeight) / rowHeight
-	if row < 0 || row >= rows {
+	row, ok := a.modalListRowAt(rect, rows, rowHeight, x, y)
+	if !ok {
+		if float32(x) < rect.X || float32(x) > rect.X+rect.W || float32(y) < rect.Y || float32(y) > rect.Y+rect.H {
+			a.outlineMenu.visible = false
+		}
 		return
 	}
 	visible := a.visibleOutlineIndices()
@@ -209,38 +208,22 @@ func (a *App) clickOutlineMenu(x, y int) {
 }
 
 func (a *App) outlineMenuGeometry() (sdl.FRect, int) {
-	viewportW, viewportH := a.viewportSize()
-	widthPct := clampInt(a.config.OutlineWidthPercent, 20, 100)
-	heightPct := clampInt(a.config.OutlineHeightPercent, 20, 100)
-	w := int(float64(viewportW) * float64(widthPct) / 100)
-	h := int(float64(viewportH) * float64(heightPct) / 100)
-	w = clampInt(w, 260, viewportW)
-	h = clampInt(h, 160, viewportH)
-	x := (viewportW - w) / 2
-	y := (viewportH - h) / 2
-	rowHeight := a.outlineMenuRowHeight()
-	rows := max(1, (h-rowHeight-16)/rowHeight)
-	return sdl.FRect{X: float32(x), Y: float32(y), W: float32(w), H: float32(h)}, rows
+	return a.modalListGeometry(a.config.OutlineWidthPercent, a.config.OutlineHeightPercent)
 }
 
 func (a *App) outlineMenuRowHeight() int {
-	return max(a.fontFace.Metrics().Height.Ceil()+4, a.config.StatusBarHeight)
+	return a.modalListRowHeight()
 }
 
 func (a *App) drawOutlineMenu(renderer *sdl.Renderer) error {
 	rect, rows := a.outlineMenuGeometry()
-	bg := a.backgroundColor()
-	bg.A = 0xf2
-	if err := fillRect(renderer, rect, bg); err != nil {
-		return err
-	}
-	if err := strokeRect(renderer, rect, a.statusBarColor(), 2); err != nil {
+	if err := a.drawModalListFrame(renderer, rect); err != nil {
 		return err
 	}
 	rowHeight := a.outlineMenuRowHeight()
-	baselineOffset := (rowHeight + a.fontFace.Metrics().Ascent.Ceil() - a.fontFace.Metrics().Descent.Ceil()) / 2
+	baselineOffset := a.modalListBaselineOffset(rowHeight)
 	header := fmt.Sprintf(" Outline (%d)", len(a.outline))
-	if err := drawText(renderer, a.fontFace, a.truncateOutlineText(header, int(rect.W)-24), int(rect.X)+12, int(rect.Y)+baselineOffset, a.foregroundColor()); err != nil {
+	if err := drawText(renderer, a.fontFace, a.truncateModalListText(header, int(rect.W)-24), int(rect.X)+12, int(rect.Y)+baselineOffset, a.foregroundColor()); err != nil {
 		return err
 	}
 	visible := a.visibleOutlineIndices()
@@ -262,9 +245,7 @@ func (a *App) drawOutlineMenu(renderer *sdl.Renderer) error {
 		item := a.outline[outlineIndex]
 		y := int(rect.Y) + rowHeight + row*rowHeight
 		if outlineIndex == a.outlineMenu.selected {
-			hl := a.highlightBackgroundColor()
-			hl.A = 0xd8
-			if err := fillRect(renderer, sdl.FRect{X: rect.X + 6, Y: float32(y), W: rect.W - 12, H: float32(rowHeight)}, hl); err != nil {
+			if err := a.drawModalListSelection(renderer, rect, y, rowHeight); err != nil {
 				return err
 			}
 		}
@@ -286,7 +267,7 @@ func (a *App) drawOutlineMenu(renderer *sdl.Renderer) error {
 		}
 		pageW := measureText(a.fontFace, page)
 		maxTextW := int(rect.W) - 36 - pageW
-		text = a.truncateOutlineText(text, maxTextW)
+		text = a.truncateModalListText(text, maxTextW)
 		clr := a.foregroundColor()
 		if outlineIndex == a.outlineMenu.selected {
 			clr = a.highlightForegroundColor()
@@ -301,15 +282,4 @@ func (a *App) drawOutlineMenu(renderer *sdl.Renderer) error {
 		}
 	}
 	return nil
-}
-
-func (a *App) truncateOutlineText(s string, maxWidth int) string {
-	if maxWidth <= 0 || measureText(a.fontFace, s) <= maxWidth {
-		return s
-	}
-	runes := []rune(s)
-	for len(runes) > 1 && measureText(a.fontFace, string(runes)+"...") > maxWidth {
-		runes = runes[:len(runes)-1]
-	}
-	return string(runes) + "..."
 }

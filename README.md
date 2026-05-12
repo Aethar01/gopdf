@@ -289,6 +289,98 @@ Default mouse bindings:
 | `gopdf.bind_mouse(event, action)` / `gopdf.unbind_mouse(event)` | Bind/unbind mouse action |
 | `gopdf.set(name, value)` | Set config option |
 
+### Custom UI
+
+Lua callbacks can open a simple modal list overlay. The overlay uses the same navigation actions as the outline menu: `scroll_down`, `scroll_up`, `confirm`, and `close`.
+
+| Function | Description |
+|----------|-------------|
+| `gopdf.ui.show(spec)` | Show a modal list UI |
+| `gopdf.ui.menu(spec)` | Alias for `gopdf.ui.show(spec)` |
+| `gopdf.ui.close()` | Close the active Lua UI without running `on_close` |
+| `gopdf.ui.visible()` | Return whether a Lua UI is visible |
+| `gopdf.ui.set_rows(rows)` | Replace the current UI rows |
+| `gopdf.ui.set_selected(index)` | Set the selected row, 1-indexed |
+
+`show` and `menu` accept this table:
+
+| Field | Description |
+|-------|-------------|
+| `title` | Optional title shown in the header |
+| `rows` | Array of strings to show |
+| `selected` | Optional initial selected row, 1-indexed |
+| `on_select(index, value)` | Optional callback run when a row is confirmed or clicked |
+| `on_close()` | Optional callback run when the UI is closed by the viewer |
+
+Example file browser bound to `fo`. It starts in the user's home directory, shows directories first, lets you open `..`, and opens selected PDFs:
+
+```lua
+local function shell_quote(s)
+  return "'" .. s:gsub("'", "'\\''") .. "'"
+end
+
+local function list_dir(dir)
+  local rows = {}
+  local command = "find " .. shell_quote(dir) .. " -maxdepth 1 -mindepth 1 " ..
+    '\\( -type d -printf "d:%f\\n" -o -type f -iname "*.pdf" -printf "f:%f\\n" \\)'
+  local handle = io.popen(command)
+  if not handle then
+    return rows
+  end
+  for line in handle:lines() do
+    local kind, name = line:match("^([df]):(.*)$")
+    if kind == "d" then
+      rows[#rows + 1] = name .. "/"
+    elseif kind == "f" then
+      rows[#rows + 1] = name
+    end
+  end
+  handle:close()
+  table.sort(rows)
+  table.insert(rows, 1, "../")
+  return rows
+end
+
+local function join_path(dir, name)
+  if dir == "/" then
+    return "/" .. name
+  end
+  return dir .. "/" .. name
+end
+
+local function parent_dir(dir)
+  if dir == "/" then
+    return "/"
+  end
+  return dir:match("^(.*)/[^/]+/?$") or "/"
+end
+
+local function show_file_browser(dir)
+  gopdf.ui.menu({
+    title = "Open PDF: " .. dir,
+    rows = list_dir(dir),
+    on_select = function(_, name)
+      if name == "../" then
+        show_file_browser(parent_dir(dir))
+        return
+      end
+
+      if name:sub(-1) == "/" then
+        show_file_browser(join_path(dir, name:sub(1, -2)))
+        return
+      end
+
+      gopdf.ui.close()
+      gopdf.open(dir .. "/" .. name)
+    end,
+  })
+end
+
+gopdf.bind("fo", function()
+  show_file_browser(os.getenv("HOME") or ".")
+end)
+```
+
 ### Actions
 
 Actions can be bound directly, called from callbacks, or executed with `gopdf.command` where a matching command exists.
