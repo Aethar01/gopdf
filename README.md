@@ -18,16 +18,8 @@ yay -S gopdf-git
 <details>
 <summary>macOS</summary>
 
-From a local checkout:
-
 ```bash
-brew install --build-from-source ./packaging/homebrew/gopdf.rb
-```
-
-For the latest source instead of the pinned release:
-
-```bash
-brew install --HEAD ./packaging/homebrew/gopdf.rb
+brew install Aethar01/homebrew-gopdf/gopdf
 ```
 
 </details>

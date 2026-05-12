@@ -34,7 +34,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Install with Homebrew formula
-        run: brew install --HEAD ./packaging/homebrew/gopdf.rb
+        run: brew install --HEAD Aethar01/homebrew-gopdf/gopdf
 
       - name: Test installed binary
         run: gopdf -v
