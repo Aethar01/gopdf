@@ -9,6 +9,7 @@ gopdf.options.render_oversample = 1 -- >1 supersamples, <1 undersamples
 gopdf.options.outline_initial_depth = 1
 gopdf.options.outline_width_percent = 70
 gopdf.options.outline_height_percent = 80
+gopdf.options.completion_max_items = 10
 
 gopdf.options.render_mode = "continuous"
 gopdf.options.dual_page = false
@@ -65,6 +66,8 @@ gopdf.bind("s", gopdf.toggle_status_bar)
 gopdf.bind("f", gopdf.toggle_fullscreen)
 gopdf.bind("o", gopdf.outline)
 gopdf.bind("<CR>", gopdf.confirm)
+gopdf.bind("<Tab>", gopdf.show_completion)
+gopdf.bind("<S-Tab>", gopdf.prev_completion)
 gopdf.bind("+", gopdf.zoom_in)
 gopdf.bind("=", gopdf.zoom_in)
 gopdf.bind("-", gopdf.zoom_out)

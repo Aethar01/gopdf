@@ -49,6 +49,7 @@ type Config struct {
 	OutlineInitialDepth  int
 	OutlineWidthPercent  int
 	OutlineHeightPercent int
+	CompletionMaxItems   int
 }
 
 type Runtime struct {
@@ -167,6 +168,7 @@ func Default() Config {
 		OutlineInitialDepth:  1,
 		OutlineWidthPercent:  70,
 		OutlineHeightPercent: 80,
+		CompletionMaxItems:   10,
 	}
 }
 
@@ -978,6 +980,8 @@ func luaSettingValue(L *lua.LState, name string, cfg *Config) (lua.LValue, error
 		return lua.LNumber(cfg.OutlineWidthPercent), nil
 	case "outline_height_percent":
 		return lua.LNumber(cfg.OutlineHeightPercent), nil
+	case "completion_max_items":
+		return lua.LNumber(cfg.CompletionMaxItems), nil
 	case "alt_colors":
 		return lua.LBool(cfg.AltColors), nil
 	case "render_mode":
@@ -1112,6 +1116,11 @@ func applyLuaSetting(name string, value lua.LValue, cfg *Config) error {
 			return fmt.Errorf("expected number")
 		}
 		cfg.OutlineHeightPercent = int(lua.LVAsNumber(value))
+	case "completion_max_items":
+		if value.Type() != lua.LTNumber {
+			return fmt.Errorf("expected number")
+		}
+		cfg.CompletionMaxItems = max(1, int(lua.LVAsNumber(value)))
 	case "alt_colors":
 		if value.Type() != lua.LTBool {
 			return fmt.Errorf("expected boolean")
@@ -1308,43 +1317,45 @@ func normalizeMouseEvent(s string) string {
 
 func defaultBindings() map[string]string {
 	return map[string]string{
-		"j":      "scroll_down",
-		"k":      "scroll_up",
-		"h":      "scroll_left",
-		"l":      "scroll_right",
-		"J":      "next_page",
-		"K":      "prev_page",
-		" ":      "next_page",
-		"<PgDn>": "next_page",
-		"<PgUp>": "prev_page",
-		"gg":     "first_page",
-		"G":      "last_page",
-		":":      "command_mode",
-		"/":      "search_prompt",
-		"?":      "search_prompt_backward",
-		"n":      "search_next",
-		"N":      "search_prev",
-		"d":      "toggle_dual_page",
-		"m":      "toggle_render_mode",
-		"tb":     "toggle_alt_colors",
-		"co":     "toggle_first_page_offset",
-		"s":      "toggle_status_bar",
-		"f":      "toggle_fullscreen",
-		"o":      "outline",
-		"<CR>":   "confirm",
-		"+":      "zoom_in",
-		"=":      "zoom_in",
-		"-":      "zoom_out",
-		"0":      "reset_zoom",
-		"w":      "fit_width",
-		"z":      "fit_page",
-		"r":      "rotate_cw",
-		"R":      "rotate_ccw",
-		"g":      "goto_page_prompt",
-		"q":      "quit",
-		"<Esc>":  "close",
-		"<C-i>":  "jump_forward",
-		"<C-o>":  "jump_backward",
+		"j":       "scroll_down",
+		"k":       "scroll_up",
+		"h":       "scroll_left",
+		"l":       "scroll_right",
+		"J":       "next_page",
+		"K":       "prev_page",
+		" ":       "next_page",
+		"<PgDn>":  "next_page",
+		"<PgUp>":  "prev_page",
+		"gg":      "first_page",
+		"G":       "last_page",
+		":":       "command_mode",
+		"/":       "search_prompt",
+		"?":       "search_prompt_backward",
+		"n":       "search_next",
+		"N":       "search_prev",
+		"d":       "toggle_dual_page",
+		"m":       "toggle_render_mode",
+		"tb":      "toggle_alt_colors",
+		"co":      "toggle_first_page_offset",
+		"s":       "toggle_status_bar",
+		"f":       "toggle_fullscreen",
+		"o":       "outline",
+		"<CR>":    "confirm",
+		"<Tab>":   "show_completion",
+		"<S-Tab>": "prev_completion",
+		"+":       "zoom_in",
+		"=":       "zoom_in",
+		"-":       "zoom_out",
+		"0":       "reset_zoom",
+		"w":       "fit_width",
+		"z":       "fit_page",
+		"r":       "rotate_cw",
+		"R":       "rotate_ccw",
+		"g":       "goto_page_prompt",
+		"q":       "quit",
+		"<Esc>":   "close",
+		"<C-i>":   "jump_forward",
+		"<C-o>":   "jump_backward",
 	}
 }
 
@@ -1383,6 +1394,9 @@ func allActions() []string {
 		"rotate_ccw",
 		"goto_page_prompt",
 		"clear_search",
+		"show_completion",
+		"next_completion",
+		"prev_completion",
 		"close",
 		"jump_forward",
 		"jump_backward",

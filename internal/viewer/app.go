@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
 	"unicode/utf8"
 
 	"gopdf/internal/config"
@@ -155,6 +156,7 @@ type App struct {
 	outline      []mupdf.OutlineItem
 	outlineMenu  outlineMenuState
 	luaUI        luaUIState
+	completion   completionState
 
 	jumpBack  []jumpPosition
 	jumpAhead []jumpPosition
@@ -434,6 +436,11 @@ func (a *App) drawFrame() error {
 			return err
 		}
 	}
+	if a.completion.visible {
+		if err := a.drawCompletion(a.renderer); err != nil {
+			return err
+		}
+	}
 	if a.outlineMenu.visible {
 		if err := a.drawOutlineMenu(a.renderer); err != nil {
 			return err
@@ -456,6 +463,9 @@ func (a *App) handleSDLKeyDown(e *sdl.KeyboardEvent) {
 		return
 	}
 	if a.mode != modeNormal {
+		if a.handleInputEditKey(e) {
+			return
+		}
 		if token, ok := keyToken(e.Keysym.Sym, sdl.Keymod(e.Keysym.Mod)); ok && a.handleInputModeBinding(token) {
 			return
 		}
@@ -485,6 +495,20 @@ func (a *App) handleSDLKeyDown(e *sdl.KeyboardEvent) {
 	}
 }
 
+func (a *App) handleInputEditKey(e *sdl.KeyboardEvent) bool {
+	mod := sdl.Keymod(e.Keysym.Mod)
+	ctrl := mod&sdl.KMOD_CTRL != 0
+	if ctrl && e.Keysym.Sym == sdl.K_w {
+		a.deleteInputWord()
+		return true
+	}
+	if ctrl && e.Keysym.Sym == sdl.K_BACKSPACE {
+		a.deleteInputWord()
+		return true
+	}
+	return false
+}
+
 func (a *App) handleInputModeBinding(token string) bool {
 	if !strings.HasPrefix(token, "<") {
 		return false
@@ -492,6 +516,13 @@ func (a *App) handleInputModeBinding(token string) bool {
 	action, ok := a.sequenceLookup[normalizeBinding(token)]
 	if !ok {
 		return false
+	}
+	if a.completion.visible {
+		switch action {
+		case "confirm", "show_completion", "next_completion", "prev_completion", "close":
+		default:
+			a.closeCompletion()
+		}
 	}
 	a.runAction(action)
 	return true
@@ -741,11 +772,16 @@ func (a *App) runCountAction(token string) bool {
 }
 
 func (a *App) commitInputMode() {
+	if a.completion.visible {
+		a.acceptCompletion()
+		return
+	}
 	input := strings.TrimSpace(a.input)
 	currentMode := a.mode
 	a.mode = modeNormal
 	a.input = ""
 	a.inputCursor = 0
+	a.closeCompletion()
 	if input == "" {
 		return
 	}
@@ -760,12 +796,14 @@ func (a *App) commitInputMode() {
 }
 
 func (a *App) insertInputRune(r rune) {
+	a.closeCompletion()
 	left, right := splitAtRune(a.input, a.inputCursor)
 	a.input = left + string(r) + right
 	a.inputCursor++
 }
 
 func (a *App) backspaceInput() {
+	a.closeCompletion()
 	if a.inputCursor <= 0 || a.input == "" {
 		return
 	}
@@ -775,7 +813,26 @@ func (a *App) backspaceInput() {
 	a.inputCursor--
 }
 
+func (a *App) deleteInputWord() {
+	a.closeCompletion()
+	if a.inputCursor <= 0 || a.input == "" {
+		return
+	}
+	runes := []rune(a.input)
+	end := clampInt(a.inputCursor, 0, len(runes))
+	start := end
+	for start > 0 && unicode.IsSpace(runes[start-1]) {
+		start--
+	}
+	for start > 0 && !unicode.IsSpace(runes[start-1]) {
+		start--
+	}
+	a.input = string(runes[:start]) + string(runes[end:])
+	a.inputCursor = start
+}
+
 func (a *App) moveInputCursor(delta int) {
+	a.closeCompletion()
 	a.inputCursor = clampInt(a.inputCursor+delta, 0, utf8.RuneCountInString(a.input))
 }
 
@@ -1356,7 +1413,9 @@ func (a *App) runBuiltinAction(action string) error {
 	case "outline":
 		a.toggleOutlineMenu()
 	case "confirm":
-		if a.outlineMenu.visible {
+		if a.completion.visible {
+			a.acceptCompletion()
+		} else if a.outlineMenu.visible {
 			a.activateSelectedOutline()
 		} else if a.mode != modeNormal {
 			a.commitInputMode()
@@ -1390,6 +1449,12 @@ func (a *App) runBuiltinAction(action string) error {
 		a.quit = true
 	case "close":
 		a.closeActiveUI()
+	case "show_completion":
+		a.showCompletion()
+	case "next_completion":
+		a.moveCompletion(1)
+	case "prev_completion":
+		a.moveCompletion(-1)
 	case "jump_forward":
 		a.jumpForward()
 	case "jump_backward":
@@ -1412,6 +1477,10 @@ func (a *App) closeActiveUI() {
 		return
 	}
 	if a.mode != modeNormal {
+		if a.completion.visible {
+			a.closeCompletion()
+			return
+		}
 		a.mode = modeNormal
 		a.input = ""
 		a.inputCursor = 0
@@ -1463,6 +1532,7 @@ func (a *App) Open(path string) error {
 	if path == "" {
 		return fmt.Errorf("open: empty path")
 	}
+	path = expandHomePath(path)
 	if !filepath.IsAbs(path) {
 		if a.docPath != "" {
 			dir := filepath.Dir(a.docPath)
@@ -1721,7 +1791,7 @@ func (a *App) reloadConfig() {
 }
 
 func commandHelpMessage() string {
-	return ":page N | :search text | :mode continuous|single | :colors normal|alt | :set render_mode!|alt_colors!|dual_page!|first_page_offset!|status_bar! | :fit width|page | :reload-config | :quit"
+	return ":open file | :page N | :search text | :mode continuous|single | :colors normal|alt | :set render_mode!|alt_colors!|dual_page!|first_page_offset!|status_bar! | :fit width|page | :reload-config | :quit"
 }
 
 func (a *App) runSet(setting string) {

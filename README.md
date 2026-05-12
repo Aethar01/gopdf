@@ -68,6 +68,7 @@ gopdf.options.sequence_timeout_ms = 700
 gopdf.options.outline_initial_depth = 1
 gopdf.options.outline_width_percent = 70
 gopdf.options.outline_height_percent = 80
+gopdf.options.completion_max_items = 10
 
 -- Colors are { red, green, blue }, 0-255.
 gopdf.options.background = { 255, 255, 255 }
@@ -211,6 +212,7 @@ Supported mouse events:
 | `/` / `?` | Search forward / backward |
 | `n` / `N` | Next / previous search match |
 | `:` | Command prompt |
+| `<Tab>` / `<S-Tab>` | Show or cycle command completion / previous completion |
 | `<Esc>` | Close active UI, clear search, or clear pending keys/count |
 | `<C-i>` / `<C-o>` | Jump forward / backward in jump history |
 | `q` | Quit |
