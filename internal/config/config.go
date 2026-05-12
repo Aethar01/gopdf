@@ -281,6 +281,16 @@ func (r *Runtime) AttachHost(host Host) {
 	r.host = host
 }
 
+func (r *Runtime) SetDocument(path string) error {
+	r.docPath = path
+	r.docName = ""
+	if path != "" {
+		r.docName = filepath.Base(path)
+	}
+	r.docMeta = loadDocumentMeta(path)
+	return r.Reload()
+}
+
 func (r *Runtime) Reload() error {
 	if r.state != nil {
 		r.state.Close()

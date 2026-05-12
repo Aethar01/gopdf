@@ -12,6 +12,12 @@ import (
 const version = "0.1.1"
 
 func main() {
+	if err := run(); err != nil {
+		log.Fatal(err)
+	}
+}
+
+func run() error {
 	var cfgPath string
 	var startPage int
 	var printVersion bool
@@ -22,7 +28,7 @@ func main() {
 
 	if printVersion {
 		fmt.Println(version)
-		return
+		return nil
 	}
 
 	var docPath string
@@ -32,32 +38,17 @@ func main() {
 		docPath = flag.Arg(0)
 	}
 
-	for {
-		runtime, err := config.Open(cfgPath, docPath)
-		if err != nil {
-			log.Fatalf("load config: %v", err)
-		}
-
-		app, err := viewer.New(docPath, runtime, startPage-1)
-		if err != nil {
-			runtime.Close()
-			log.Fatalf("start viewer: %v", err)
-		}
-
-		if err := app.Run(); err != nil {
-			app.Close()
-			runtime.Close()
-			log.Fatal(err)
-		}
-
-		newPath := app.PendingOpen()
-		app.Close()
-		runtime.Close()
-
-		if newPath == "" {
-			break
-		}
-		docPath = newPath
-		startPage = 1
+	runtime, err := config.Open(cfgPath, docPath)
+	if err != nil {
+		return fmt.Errorf("load config: %w", err)
 	}
+	defer runtime.Close()
+
+	app, err := viewer.New(docPath, runtime, startPage-1)
+	if err != nil {
+		return fmt.Errorf("start viewer: %w", err)
+	}
+	defer app.Close()
+
+	return app.Run()
 }

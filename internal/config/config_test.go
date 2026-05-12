@@ -189,6 +189,37 @@ end
 	}
 }
 
+func TestSetDocumentReloadsDocumentSpecificLuaConfig(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.lua")
+	if err := os.WriteFile(path, []byte(`
+if gopdf.document.name == "first.pdf" then
+  options.page_gap_vertical = 11
+end
+if gopdf.document.name == "second.pdf" then
+  options.page_gap_vertical = 22
+end
+`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	rt, err := Open(path, "/tmp/first.pdf")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rt.Close()
+
+	if got := rt.Config().PageGapVertical; got != 11 {
+		t.Fatalf("expected first document config, got %d", got)
+	}
+	if err := rt.SetDocument("/tmp/second.pdf"); err != nil {
+		t.Fatal(err)
+	}
+	if got := rt.Config().PageGapVertical; got != 22 {
+		t.Fatalf("expected second document config, got %d", got)
+	}
+}
+
 func TestLuaFunctionBindingMutatesConfigAtRuntime(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "config.lua")

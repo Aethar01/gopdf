@@ -201,88 +201,52 @@ func loadFont(path string, size int) font.Face {
 
 func New(docPath string, runtime *config.Runtime, startPage int) (*App, error) {
 	cfg := runtime.Config()
-	var doc *mupdf.Document
-	pages := 0
-	if docPath != "" {
-		var err error
-		doc, err = mupdf.Open(docPath)
-		if err != nil {
-			return nil, err
-		}
-		pages, err = doc.PageCount()
-		if err != nil {
-			doc.Close()
-			return nil, err
-		}
-	}
 	if startPage < 0 {
 		startPage = 0
 	}
-	if pages > 0 && startPage >= pages {
-		startPage = pages - 1
-	}
-	docName := ""
-	if docPath != "" {
-		docName = filepath.Base(docPath)
-	}
 	app := &App{
-		docPath:            docPath,
-		docName:            docName,
-		doc:                doc,
 		runtime:            runtime,
-		config:             cfg,
-		pageCount:          pages,
 		page:               startPage,
 		zoom:               1,
-		fitMode:            sanitizeFitMode(cfg.FitMode),
-		renderMode:         sanitizeRenderMode(cfg.RenderMode),
 		scale:              1,
-		altColors:          cfg.AltColors,
-		dualPage:           cfg.DualPage,
-		firstPageOffset:    cfg.FirstPageOffset,
-		statusBarShown:     cfg.StatusBarVisible,
 		pageStep:           64,
 		renderCache:        map[string]*renderedPage{},
-		cacheLimit:         min(24, pages),
+		cacheLimit:         0,
 		minRenderBaseScale: 0.25,
-		fontFace:           loadFont(cfg.UIFontPath, cfg.UIFontSize),
-		message:            cfg.NormalMessage,
 		mouseBindings:      map[string]string{},
 		pageLinks:          map[int][]mupdf.Link{},
 		sequenceLookup:     map[string]string{},
 	}
 	runtime.AttachHost(app)
-	for k, v := range cfg.KeyBindings {
-		app.sequenceLookup[normalizeBinding(k)] = v
-	}
-	maps.Copy(app.mouseBindings, cfg.MouseBindings)
-	if doc != nil {
-		app.initRenderWorker()
-		app.initSearch()
-		if outline, err := doc.Outline(); err == nil {
-			app.outline = outline
-		} else {
-			app.message = err.Error()
-		}
-		if err := app.loadPageMetrics(); err != nil {
-			app.closeRenderWorker()
-			app.closeSearch()
-			doc.Close()
+	app.applyConfigState(cfg, false)
+	app.message = cfg.NormalMessage
+	if docPath != "" {
+		if err := app.openDocument(docPath, startPage, false); err != nil {
+			app.Close()
 			return nil, err
 		}
 	}
 	app.recomputeLayout(1400, 900-app.config.StatusBarHeight)
-	if doc != nil {
+	if app.doc != nil {
 		app.ensureRenderBaseScale()
 		app.alignPageTop(startPage)
 	}
 	return app, nil
 }
 
+func (a *App) setWindowTitle() {
+	if a.window == nil {
+		return
+	}
+	if a.docName == "" {
+		a.window.SetTitle("gopdf")
+		return
+	}
+	a.window.SetTitle(a.docName + " - gopdf")
+}
+
 func (a *App) Close() {
-	a.closeRenderWorker()
-	a.closeSearch()
-	a.clearCache()
+	a.closeDocumentResources()
 	if a.cursorHand != nil {
 		sdl.FreeCursor(a.cursorHand)
 		a.cursorHand = nil
@@ -300,11 +264,18 @@ func (a *App) Close() {
 		a.window = nil
 	}
 	sdl.Quit()
-	if a.doc != nil {
-		a.doc.Close()
-	}
 	if a.docPath != "" {
 		config.SetLastFile(a.docPath)
+	}
+}
+
+func (a *App) closeDocumentResources() {
+	a.closeRenderWorker()
+	a.closeSearch()
+	a.clearCache()
+	if a.doc != nil {
+		a.doc.Close()
+		a.doc = nil
 	}
 }
 
@@ -326,11 +297,7 @@ func (a *App) Run() error {
 	a.renderer = renderer
 	a.cursorHand = sdl.CreateSystemCursor(sdl.SYSTEM_CURSOR_HAND)
 	a.cursorArrow = sdl.CreateSystemCursor(sdl.SYSTEM_CURSOR_ARROW)
-	if a.docName == "" {
-		a.window.SetTitle("gopdf")
-	} else {
-		a.window.SetTitle(a.docName + " - gopdf")
-	}
+	a.setWindowTitle()
 	a.renderer.SetDrawBlendMode(sdl.BLENDMODE_BLEND)
 	if w, h, err := a.renderer.GetOutputSize(); err == nil {
 		a.winW, a.winH = int(w), int(h)
@@ -1532,6 +1499,16 @@ func (a *App) Open(path string) error {
 	if path == "" {
 		return fmt.Errorf("open: empty path")
 	}
+	path = a.resolveOpenPath(path)
+	if a.runtime == nil {
+		a.pendingOpen = path
+		a.quit = true
+		return nil
+	}
+	return a.openDocument(path, 0, true)
+}
+
+func (a *App) resolveOpenPath(path string) string {
 	path = expandHomePath(path)
 	if !filepath.IsAbs(path) {
 		if a.docPath != "" {
@@ -1539,10 +1516,114 @@ func (a *App) Open(path string) error {
 			path = filepath.Join(dir, path)
 		}
 	}
+	return path
+}
+
+func (a *App) openDocument(path string, startPage int, reloadConfig bool) error {
+	doc, err := mupdf.Open(path)
+	if err != nil {
+		return err
+	}
+	pages, err := doc.PageCount()
+	if err != nil {
+		doc.Close()
+		return err
+	}
+	if startPage < 0 {
+		startPage = 0
+	}
+	if pages > 0 && startPage >= pages {
+		startPage = pages - 1
+	}
+	metrics, err := pageMetricsForDocument(doc, pages, 0)
+	if err != nil {
+		doc.Close()
+		return err
+	}
+
+	a.closeDocumentResources()
+
+	a.docPath = path
+	a.docName = filepath.Base(path)
+	a.doc = doc
+	a.pageCount = pages
+	a.page = startPage
+	a.rotation = 0
+	a.zoom = 1
+	a.scale = 1
+	a.scrollX = 0
+	a.scrollY = 0
+	a.pageMetrics = metrics
+	a.rows = nil
+	a.pageToRow = nil
+	a.contentW = 0
+	a.contentH = 0
+	a.cacheLimit = min(24, pages)
+	a.renderBaseScale = 0
+	a.renderScaleTime = 0
+	a.pageLinks = map[int][]mupdf.Link{}
+	a.search = searchState{}
+	a.outline = nil
+	a.outlineMenu = outlineMenuState{}
+	a.luaUI = luaUIState{}
+	a.completion = completionState{}
+	a.selection = textSelection{}
+	a.mode = modeNormal
+	a.input = ""
+	a.inputCursor = 0
+	a.ignoreText = ""
+	a.sequence = nil
+	a.pendingCount = ""
+	a.jumpBack = nil
+	a.jumpAhead = nil
+	a.pendingOpen = ""
 	a.message = "opening " + path
-	a.quit = true
-	a.pendingOpen = path
+
+	var configErr error
+	if reloadConfig {
+		configErr = a.runtime.SetDocument(path)
+	}
+	a.applyConfigState(a.runtime.Config(), false)
+	a.message = a.config.NormalMessage
+
+	a.setWindowTitle()
+	a.initRenderWorker()
+	a.initSearch()
+	if outline, err := doc.Outline(); err == nil {
+		a.outline = outline
+	} else if configErr == nil {
+		a.message = err.Error()
+	}
+	a.recomputeLayout(a.viewportSize())
+	a.ensureRenderBaseScale()
+	a.alignPageTop(startPage)
+	a.pendingRedraw = true
+	if configErr != nil {
+		a.message = configErr.Error()
+		return configErr
+	}
 	return nil
+}
+
+func (a *App) applyConfigState(cfg config.Config, preserveManualFit bool) {
+	currentFitMode := a.fitMode
+	a.config = cfg
+	a.fitMode = sanitizeFitMode(cfg.FitMode)
+	if preserveManualFit && currentFitMode == "manual" {
+		a.fitMode = currentFitMode
+	}
+	a.renderMode = sanitizeRenderMode(cfg.RenderMode)
+	a.altColors = cfg.AltColors
+	a.dualPage = cfg.DualPage
+	a.firstPageOffset = cfg.FirstPageOffset
+	a.statusBarShown = cfg.StatusBarVisible
+	a.sequenceLookup = map[string]string{}
+	a.mouseBindings = map[string]string{}
+	for k, v := range cfg.KeyBindings {
+		a.sequenceLookup[normalizeBinding(k)] = v
+	}
+	maps.Copy(a.mouseBindings, cfg.MouseBindings)
+	a.fontFace = loadFont(cfg.UIFontPath, cfg.UIFontSize)
 }
 
 func (a *App) Mode() string {
@@ -1719,7 +1800,8 @@ func (a *App) gotoPageInput(input string) {
 }
 
 func (a *App) runCommand(input string) {
-	command := strings.TrimSpace(strings.TrimPrefix(input, ":"))
+	command := strings.TrimPrefix(strings.TrimSpace(input), ":")
+	command = strings.TrimSpace(command)
 	if _, err := strconv.Atoi(command); err == nil {
 		a.gotoPageInput(command)
 		return
@@ -1847,22 +1929,7 @@ func boolWord(v bool, whenTrue, whenFalse string) string {
 
 func (a *App) applyConfig(cfg config.Config) {
 	currentPage := a.page
-	a.config = cfg
-	a.fontFace = loadFont(cfg.UIFontPath, cfg.UIFontSize)
-	a.renderMode = sanitizeRenderMode(cfg.RenderMode)
-	a.altColors = cfg.AltColors
-	a.dualPage = cfg.DualPage
-	a.firstPageOffset = cfg.FirstPageOffset
-	a.statusBarShown = cfg.StatusBarVisible
-	a.sequenceLookup = map[string]string{}
-	a.mouseBindings = map[string]string{}
-	for k, v := range cfg.KeyBindings {
-		a.sequenceLookup[normalizeBinding(k)] = v
-	}
-	maps.Copy(a.mouseBindings, cfg.MouseBindings)
-	if a.fitMode != "manual" {
-		a.fitMode = sanitizeFitMode(cfg.FitMode)
-	}
+	a.applyConfigState(cfg, true)
 	a.clearCache()
 	a.recomputeLayout(a.viewportSize())
 	a.alignPageTop(clampInt(currentPage, 0, a.pageCount-1))

@@ -8,16 +8,25 @@ import (
 )
 
 func (a *App) loadPageMetrics() error {
-	a.pageMetrics = make([]pageMetrics, a.pageCount)
-	for i := 0; i < a.pageCount; i++ {
-		bounds, err := a.doc.Bounds(i)
-		if err != nil {
-			return err
-		}
-		w, h := rotatedBoundsSize(bounds, a.rotation)
-		a.pageMetrics[i] = pageMetrics{bounds: bounds, width: w, height: h}
+	metrics, err := pageMetricsForDocument(a.doc, a.pageCount, a.rotation)
+	if err != nil {
+		return err
 	}
+	a.pageMetrics = metrics
 	return nil
+}
+
+func pageMetricsForDocument(doc *mupdf.Document, pageCount int, rotation float64) ([]pageMetrics, error) {
+	metrics := make([]pageMetrics, pageCount)
+	for i := 0; i < pageCount; i++ {
+		bounds, err := doc.Bounds(i)
+		if err != nil {
+			return nil, err
+		}
+		w, h := rotatedBoundsSize(bounds, rotation)
+		metrics[i] = pageMetrics{bounds: bounds, width: w, height: h}
+	}
+	return metrics, nil
 }
 
 func (a *App) updatePageMetricSizes() {
