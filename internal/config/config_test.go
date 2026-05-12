@@ -178,7 +178,7 @@ end
 		t.Fatal(err)
 	}
 
-	rt, err := Open(path, "/tmp/special.pdf")
+	rt, err := Open(path, filepath.Join(dir, "special.pdf"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -203,7 +203,7 @@ end
 		t.Fatal(err)
 	}
 
-	rt, err := Open(path, "/tmp/first.pdf")
+	rt, err := Open(path, filepath.Join(dir, "first.pdf"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -212,7 +212,7 @@ end
 	if got := rt.Config().PageGapVertical; got != 11 {
 		t.Fatalf("expected first document config, got %d", got)
 	}
-	if err := rt.SetDocument("/tmp/second.pdf"); err != nil {
+	if err := rt.SetDocument(filepath.Join(dir, "second.pdf")); err != nil {
 		t.Fatal(err)
 	}
 	if got := rt.Config().PageGapVertical; got != 22 {
@@ -231,7 +231,7 @@ end)
 		t.Fatal(err)
 	}
 
-	rt, err := Open(path, "/tmp/doc.pdf")
+	rt, err := Open(path, filepath.Join(dir, "doc.pdf"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -266,7 +266,7 @@ end)
 		t.Fatal(err)
 	}
 
-	rt, err := Open(path, "/tmp/doc.pdf")
+	rt, err := Open(path, filepath.Join(dir, "doc.pdf"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -308,7 +308,7 @@ bind_mouse("right_down", gopdf.pan)
 		t.Fatal(err)
 	}
 
-	rt, err := Open(path, "/tmp/doc.pdf")
+	rt, err := Open(path, filepath.Join(dir, "doc.pdf"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -340,7 +340,7 @@ bind("O", gopdf.outline)
 		t.Fatal(err)
 	}
 
-	rt, err := Open(path, "/tmp/doc.pdf")
+	rt, err := Open(path, filepath.Join(dir, "doc.pdf"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -362,7 +362,7 @@ func TestCallingActionDuringConfigLoadFails(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, err := Open(path, "/tmp/doc.pdf")
+	_, err := Open(path, filepath.Join(dir, "doc.pdf"))
 	if err == nil {
 		t.Fatal("expected config load to fail")
 	}
@@ -432,7 +432,7 @@ end)
 		t.Fatal(err)
 	}
 
-	rt, err := Open(path, "/tmp/doc.pdf")
+	rt, err := Open(path, filepath.Join(dir, "doc.pdf"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -500,7 +500,7 @@ end)
 		t.Fatal(err)
 	}
 
-	rt, err := Open(path, "/tmp/doc.pdf")
+	rt, err := Open(path, filepath.Join(dir, "doc.pdf"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -550,7 +550,7 @@ end)
 		t.Fatal(err)
 	}
 
-	rt, err := Open(path, "/tmp/doc.pdf")
+	rt, err := Open(path, filepath.Join(dir, "doc.pdf"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -579,7 +579,7 @@ func TestLuaUIShowDuringConfigLoadFails(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, err := Open(path, "/tmp/doc.pdf")
+	_, err := Open(path, filepath.Join(dir, "doc.pdf"))
 	if err == nil {
 		t.Fatal("expected config load to fail")
 	}

@@ -6,12 +6,25 @@ MuPDF-backend PDF viewer written in Go with Lua configuration.
 
 - [libmupdf](https://mupdf.com/)
 - [SDL2](https://libsdl.org/)
+- `pkg-config`
+- A C compiler supported by Go's CGO toolchain
 
 ## Installation
 
 ```bash
 go build
 ```
+
+This project uses CGO through MuPDF and SDL2, so the native development libraries must be installed for the target OS.
+
+On macOS with Homebrew:
+
+```bash
+brew install go mupdf sdl2 pkg-config
+go build
+```
+
+On Windows, use a native build environment such as MSYS2 or another toolchain that provides MuPDF, SDL2, `pkg-config`, and a C compiler visible to Go. Cross-compiling from Linux is not expected to work without a matching cross C toolchain and target native libraries.
 
 ## Usage
 
@@ -30,15 +43,19 @@ Start from [`config.example.lua`](./config.example.lua). Config is Lua, loaded o
 
 ### Config File Locations
 
-The first existing file in this order is used:
+The first existing file for the current OS is used:
 
-| Priority | Path |
-|----------|------|
-| 1 | `--config <path>` argument |
-| 2 | `~/.config/gopdf/config.lua` |
-| 3 | `$XDG_CONFIG_HOME/gopdf/config.lua` |
-| 4 | Each `$XDG_CONFIG_DIRS/gopdf/config.lua` |
-| 5 | `/etc/xdg/gopdf/config.lua` |
+| OS | Path |
+|----|------|
+| Any | `--config <path>` argument |
+| Linux | `~/.config/gopdf/config.lua` |
+| Linux | `$XDG_CONFIG_HOME/gopdf/config.lua` |
+| Linux | Each `$XDG_CONFIG_DIRS/gopdf/config.lua` |
+| Linux | `/etc/xdg/gopdf/config.lua` |
+| macOS | `~/Library/Application Support/gopdf/config.lua` |
+| Windows | `%APPDATA%\gopdf\config.lua` |
+
+The last-opened file is saved in the matching per-user app data directory: `$XDG_DATA_HOME/gopdf/state` or `~/.local/share/gopdf/state` on Linux, `~/Library/Application Support/gopdf/state` on macOS, and `%APPDATA%\gopdf\state` on Windows.
 
 ### Options
 

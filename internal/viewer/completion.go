@@ -121,10 +121,10 @@ func (a *App) openPathCompletions(arg string) []completionItem {
 	arg = unescapeCommandArg(arg)
 	base, prefix, typedBase := splitCompletionPath(arg)
 	if arg == "." {
-		return []completionItem{{value: "." + string(os.PathSeparator), display: "." + string(os.PathSeparator)}}
+		return []completionItem{{value: "." + pathSeparator(), display: "." + pathSeparator()}}
 	}
 	if arg == ".." {
-		return []completionItem{{value: ".." + string(os.PathSeparator), display: ".." + string(os.PathSeparator)}}
+		return []completionItem{{value: ".." + pathSeparator(), display: ".." + pathSeparator()}}
 	}
 	readDir := base
 	if strings.HasPrefix(base, "~") {
@@ -145,14 +145,14 @@ func (a *App) openPathCompletions(arg string) []completionItem {
 		value := escapeCompletionPath(typedBase + name)
 		display := name
 		if entry.IsDir() {
-			value += string(os.PathSeparator)
-			display += string(os.PathSeparator)
+			value += pathSeparator()
+			display += pathSeparator()
 		}
 		items = append(items, completionItem{value: value, display: display})
 	}
 	sort.Slice(items, func(i, j int) bool {
-		iDir := strings.HasSuffix(items[i].value, string(os.PathSeparator))
-		jDir := strings.HasSuffix(items[j].value, string(os.PathSeparator))
+		iDir := strings.HasSuffix(items[i].value, pathSeparator())
+		jDir := strings.HasSuffix(items[j].value, pathSeparator())
 		if iDir != jDir {
 			return iDir
 		}
@@ -174,37 +174,35 @@ func escapeCompletionPath(path string) string {
 }
 
 func splitCompletionPath(arg string) (base, prefix, typedBase string) {
-	sep := string(os.PathSeparator)
+	arg = filepath.FromSlash(arg)
+	sep := pathSeparator()
 	if arg == "" {
 		return ".", "", ""
 	}
 	if arg == "~" {
-		return "~", "", "~/"
+		return "~", "", "~" + sep
 	}
-	if strings.HasPrefix(arg, "~/") {
-		idx := strings.LastIndex(arg, sep)
-		return arg[:idx], arg[idx+1:], arg[:idx+1]
+	if hasHomePathPrefix(arg) {
+		base, prefix = filepath.Split(arg)
+		return strings.TrimSuffix(base, sep), prefix, base
 	}
 	if strings.HasSuffix(arg, sep) {
-		base = strings.TrimSuffix(arg, sep)
-		if base == "" && filepath.IsAbs(arg) {
-			base = sep
-		}
-		return base, "", arg
+		return filepath.Clean(arg), "", arg
 	}
-	if strings.Contains(arg, sep) {
-		idx := strings.LastIndex(arg, sep)
-		base = arg[:idx]
-		if base == "" && filepath.IsAbs(arg) {
-			base = sep
-		}
-		return base, arg[idx+1:], arg[:idx+1]
+	base, prefix = filepath.Split(arg)
+	if base != "" {
+		return strings.TrimSuffix(base, sep), prefix, base
 	}
 	return ".", arg, ""
 }
 
+func pathSeparator() string {
+	return string(filepath.Separator)
+}
+
 func expandHomePath(path string) string {
-	if path != "~" && !strings.HasPrefix(path, "~/") {
+	path = filepath.FromSlash(path)
+	if path != "~" && !hasHomePathPrefix(path) {
 		return path
 	}
 	home, err := os.UserHomeDir()
@@ -214,7 +212,13 @@ func expandHomePath(path string) string {
 	if path == "~" {
 		return home
 	}
-	return filepath.Join(home, strings.TrimPrefix(path, "~/"))
+	rest := strings.TrimPrefix(path, "~"+pathSeparator())
+	return filepath.Join(home, rest)
+}
+
+func hasHomePathPrefix(path string) bool {
+	path = filepath.FromSlash(path)
+	return strings.HasPrefix(path, "~"+pathSeparator())
 }
 
 func (a *App) drawCompletion(renderer *sdl.Renderer) error {

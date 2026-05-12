@@ -3,6 +3,8 @@ package viewer
 import (
 	"image/color"
 	"math"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"gopdf/internal/config"
@@ -46,7 +48,7 @@ func TestRecomputeLayoutUsesRotatedPageDimensions(t *testing.T) {
 }
 
 func TestNewAllowsBlankViewerWithoutDocument(t *testing.T) {
-	rt, err := config.Open(t.TempDir()+"/missing.lua", "")
+	rt, err := config.Open(filepath.Join(t.TempDir(), "missing.lua"), "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -172,7 +174,7 @@ func TestPanCanBeHeldByKey(t *testing.T) {
 
 func TestOpenCommandKeepsSpacesInPath(t *testing.T) {
 	app := &App{}
-	path := "/tmp/Lancer - Core Book.pdf"
+	path := filepath.Join(t.TempDir(), "Lancer - Core Book.pdf")
 
 	app.runCommand(":open " + path)
 
@@ -181,10 +183,14 @@ func TestOpenCommandKeepsSpacesInPath(t *testing.T) {
 	}
 
 	app = &App{}
-	app.runCommand(`:open /tmp/Lancer\ -\ Core\ Book.pdf`)
+	app.runCommand(":open " + escapeCommandPath(path))
 	if app.pendingOpen != path {
 		t.Fatalf("expected escaped pending open path %q, got %q", path, app.pendingOpen)
 	}
+}
+
+func escapeCommandPath(path string) string {
+	return strings.ReplaceAll(strings.ReplaceAll(path, `\`, `\\`), " ", `\ `)
 }
 
 func TestRenderTargetOversamplesZoom(t *testing.T) {

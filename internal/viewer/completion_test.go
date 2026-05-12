@@ -50,12 +50,12 @@ func TestOpenPathCompletionsUseDocumentDirectory(t *testing.T) {
 	a := &App{docPath: filepath.Join(dir, "current.pdf")}
 	items := a.openPathCompletions("")
 	got := completionValues(items)
-	want := []string{"docs" + string(os.PathSeparator), "current.pdf", "notes.txt", "paper.pdf"}
+	want := []string{"docs" + pathSeparator(), "current.pdf", "notes.txt", "paper.pdf"}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("expected %v, got %v", want, got)
 	}
 
-	items = a.openPathCompletions("docs" + string(os.PathSeparator))
+	items = a.openPathCompletions("docs" + pathSeparator())
 	got = completionValues(items)
 	want = []string{filepath.Join("docs", "book.pdf")}
 	if !reflect.DeepEqual(got, want) {
@@ -71,16 +71,16 @@ func TestOpenPathCompletionsPreserveRelativePrefixes(t *testing.T) {
 	mustWrite(t, filepath.Join(dir, "parent", "paper.pdf"))
 
 	a := &App{docPath: filepath.Join(dir, "sub", "current.pdf")}
-	items := a.openPathCompletions("./")
+	items := a.openPathCompletions("." + pathSeparator())
 	got := completionValues(items)
-	want := []string{"./file.pdf"}
+	want := []string{"." + pathSeparator() + "file.pdf"}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("expected %v, got %v", want, got)
 	}
 
-	items = a.openPathCompletions("../")
+	items = a.openPathCompletions(".." + pathSeparator())
 	got = completionValues(items)
-	want = []string{"../parent" + string(os.PathSeparator), "../sub" + string(os.PathSeparator)}
+	want = []string{filepath.Join("..", "parent") + pathSeparator(), filepath.Join("..", "sub") + pathSeparator()}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("expected %v, got %v", want, got)
 	}
@@ -107,10 +107,10 @@ func TestOpenPathCompletionsEscapeSpaces(t *testing.T) {
 
 func TestDotPathCompletionsAddSeparator(t *testing.T) {
 	a := &App{}
-	if got := completionValues(a.openPathCompletions(".")); !reflect.DeepEqual(got, []string{"." + string(os.PathSeparator)}) {
+	if got := completionValues(a.openPathCompletions(".")); !reflect.DeepEqual(got, []string{"." + pathSeparator()}) {
 		t.Fatalf("expected ./ completion, got %v", got)
 	}
-	if got := completionValues(a.openPathCompletions("..")); !reflect.DeepEqual(got, []string{".." + string(os.PathSeparator)}) {
+	if got := completionValues(a.openPathCompletions("..")); !reflect.DeepEqual(got, []string{".." + pathSeparator()}) {
 		t.Fatalf("expected ../ completion, got %v", got)
 	}
 }
@@ -123,11 +123,22 @@ func TestExpandHomePath(t *testing.T) {
 	if got := expandHomePath("~"); got != home {
 		t.Fatalf("expected %q, got %q", home, got)
 	}
-	if got := expandHomePath("~/paper.pdf"); got != filepath.Join(home, "paper.pdf") {
+	if got := expandHomePath(filepath.Join("~", "paper.pdf")); got != filepath.Join(home, "paper.pdf") {
 		t.Fatalf("expected home-relative path, got %q", got)
 	}
-	if got := expandHomePath("/tmp/paper.pdf"); got != "/tmp/paper.pdf" {
+	abs := filepath.Join(string(filepath.Separator), "tmp", "paper.pdf")
+	if got := expandHomePath(abs); got != abs {
 		t.Fatalf("expected absolute path unchanged, got %q", got)
+	}
+}
+
+func TestExpandHomePathAcceptsSlashSeparator(t *testing.T) {
+	home, err := os.UserHomeDir()
+	if err != nil || home == "" {
+		t.Skip("home directory unavailable")
+	}
+	if got := expandHomePath(filepath.ToSlash(filepath.Join("~", "paper.pdf"))); got != filepath.Join(home, "paper.pdf") {
+		t.Fatalf("expected home-relative path, got %q", got)
 	}
 }
 
