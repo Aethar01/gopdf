@@ -49,7 +49,20 @@ jobs:
       - name: Install native dependencies
         run: |
           brew install pkg-config sdl2 mupdf
-          echo "PKG_CONFIG_PATH=$(brew --prefix mupdf)/lib/pkgconfig:$(brew --prefix freetype)/lib/pkgconfig:$(brew --prefix harfbuzz)/lib/pkgconfig:${PKG_CONFIG_PATH}" >> "$GITHUB_ENV"
+          mkdir -p "$RUNNER_TEMP/pkgconfig"
+          cat > "$RUNNER_TEMP/pkgconfig/mupdf.pc" <<EOF
+          prefix=$(brew --prefix mupdf)
+          exec_prefix=\${prefix}
+          libdir=\${exec_prefix}/lib
+          includedir=\${prefix}/include
+
+          Name: mupdf
+          Description: MuPDF PDF rendering library
+          Version: $(brew list --versions mupdf | awk '{print $2}')
+          Libs: -L\${libdir} -lmupdf -lmupdf-third
+          Cflags: -I\${includedir}
+          EOF
+          echo "PKG_CONFIG_PATH=$RUNNER_TEMP/pkgconfig:$(brew --prefix mupdf)/lib/pkgconfig:$(brew --prefix freetype)/lib/pkgconfig:$(brew --prefix harfbuzz)/lib/pkgconfig:${PKG_CONFIG_PATH}" >> "$GITHUB_ENV"
 
       - name: Verify native dependencies
         run: pkg-config --cflags --libs mupdf sdl2

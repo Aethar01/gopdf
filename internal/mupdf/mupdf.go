@@ -7,6 +7,14 @@ package mupdf
 #include <mupdf/fitz.h>
 #include <mupdf/fitz/util.h>
 
+#ifndef FZ_ERROR_SYSTEM
+#ifdef FZ_ERROR_GENERIC
+#define FZ_ERROR_SYSTEM FZ_ERROR_GENERIC
+#else
+#define FZ_ERROR_SYSTEM FZ_ERROR_SYNTAX
+#endif
+#endif
+
 typedef struct {
 	fz_context *ctx;
 	fz_document *doc;
