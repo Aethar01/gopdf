@@ -36,7 +36,7 @@ jobs:
           Name: mupdf
           Description: MuPDF PDF rendering library
           Version: 1.25.6
-          Libs: -L\${libdir} -lmupdf -lmupdf-third
+          Libs: -L\${libdir} -lmupdf -lmupdf-third -lm
           Cflags: -I\${includedir}
           EOF
           sudo ldconfig
@@ -76,7 +76,7 @@ jobs:
           Name: mupdf
           Description: MuPDF PDF rendering library
           Version: $(brew list --versions mupdf | awk '{print $2}')
-          Libs: -L\${libdir} -lmupdf -lmupdf-third
+          Libs: -L\${libdir} -lmupdf -lmupdf-third -lm
           Cflags: -I\${includedir}
           EOF
           echo "PKG_CONFIG_PATH=$RUNNER_TEMP/pkgconfig:$(brew --prefix mupdf)/lib/pkgconfig:$(brew --prefix freetype)/lib/pkgconfig:$(brew --prefix harfbuzz)/lib/pkgconfig:${PKG_CONFIG_PATH}" >> "$GITHUB_ENV"
