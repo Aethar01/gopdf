@@ -24,7 +24,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y pkg-config libsdl2-dev build-essential libfreetype-dev libharfbuzz-dev libjbig2dec0-dev libjpeg-dev libopenjp2-7-dev zlib1g-dev curl ca-certificates
           curl -L https://mupdf.com/downloads/archive/mupdf-1.25.6-source.tar.gz | tar xz
-          make -C mupdf-1.25.6-source HAVE_X11=no HAVE_GLUT=no HAVE_OBJCOPY=no build=release -j"$(nproc)"
+          make -C mupdf-1.25.6-source HAVE_X11=no HAVE_GLUT=no build=release -j"$(nproc)"
           sudo make -C mupdf-1.25.6-source prefix=/usr/local install
           sudo mkdir -p /usr/local/lib/pkgconfig
           sudo tee /usr/local/lib/pkgconfig/mupdf.pc >/dev/null <<EOF
