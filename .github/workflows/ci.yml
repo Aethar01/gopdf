@@ -34,7 +34,29 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Install native dependencies
-        run: brew install sdl3 mupdf go
+        run: brew install sdl3 mupdf go pkg-config
+
+      - name: Create MuPDF pkg-config file
+        run: |
+          mkdir -p "$PWD/pkgconfig"
+
+          MUPDF_PREFIX="$(brew --prefix mupdf)"
+          MUPDF_VERSION="$(brew list --versions mupdf | awk '{print $2}')"
+
+          cat > "$PWD/pkgconfig/mupdf.pc" <<EOF
+          prefix=${MUPDF_PREFIX}
+          exec_prefix=\${prefix}
+          libdir=\${exec_prefix}/lib
+          includedir=\${prefix}/include
+
+          Name: mupdf
+          Description: MuPDF PDF rendering library
+          Version: ${MUPDF_VERSION}
+          Libs: -L\${libdir} -lmupdf -lmupdf-third -lm
+          Cflags: -I\${includedir}
+          EOF
+
+          echo "PKG_CONFIG_PATH=$PWD/pkgconfig:$PKG_CONFIG_PATH" >> "$GITHUB_ENV"
 
       - name: Build
         run: go build ./...
