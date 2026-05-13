@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/veandco/go-sdl2/sdl"
+	"github.com/jupiterrider/purego-sdl3/sdl"
 )
 
 func (a *App) drawStatusBar(renderer *sdl.Renderer) error {
@@ -84,10 +84,10 @@ func (a *App) drawInputCursor(renderer *sdl.Renderer, barY int) error {
 	left, _ := splitAtRune(a.input, a.inputCursor)
 	x := 8 + measureText(a.fontFace, prefix+left)
 	fg := a.foregroundColor()
-	if err := renderer.SetDrawColor(fg.R, fg.G, fg.B, fg.A); err != nil {
-		return err
+	if !sdl.SetRenderDrawColor(renderer, fg.R, fg.G, fg.B, fg.A) {
+		return sdlError("set draw color")
 	}
-	return renderer.DrawLine(int32(x), int32(barY+6), int32(x), int32(barY+22))
+	return renderBool(sdl.RenderLine(renderer, float32(x), float32(barY+6), float32(x), float32(barY+22)), "draw line")
 }
 
 func (a *App) inputPrefix() string {

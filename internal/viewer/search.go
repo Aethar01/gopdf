@@ -7,7 +7,7 @@ import (
 
 	"gopdf/internal/mupdf"
 
-	"github.com/veandco/go-sdl2/sdl"
+	"github.com/jupiterrider/purego-sdl3/sdl"
 )
 
 type searchMode int

@@ -10,7 +10,7 @@ import (
 
 	"gopdf/internal/mupdf"
 
-	"github.com/veandco/go-sdl2/sdl"
+	"github.com/jupiterrider/purego-sdl3/sdl"
 )
 
 type pageHit struct {
@@ -156,7 +156,7 @@ func (a *App) copySelectionToClipboard() {
 	if strings.TrimSpace(a.selection.text) == "" {
 		return
 	}
-	if err := sdl.SetClipboardText(a.selection.text); err != nil {
+	if err := setSDLClipboardText(a.selection.text); err != nil {
 		a.message = "clipboard unavailable"
 		return
 	}

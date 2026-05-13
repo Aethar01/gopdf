@@ -5,6 +5,8 @@ import (
 	"math"
 
 	"gopdf/internal/mupdf"
+
+	"github.com/jupiterrider/purego-sdl3/sdl"
 )
 
 type renderRequest struct {
@@ -138,7 +140,7 @@ func (a *App) pollRenderUpdates() {
 			}
 			oldRP := a.renderCache[update.cacheKey]
 			if oldRP != nil {
-				oldRP.texture.Destroy()
+				sdl.DestroyTexture(oldRP.texture)
 			}
 			tex, err := textureFromImage(a.renderer, update.rendered.Image)
 			if err != nil {
@@ -168,7 +170,7 @@ func (a *App) pollRenderUpdates() {
 					continue
 				}
 				if oldRP := a.renderCache[oldest]; oldRP != nil {
-					oldRP.texture.Destroy()
+					sdl.DestroyTexture(oldRP.texture)
 				}
 				delete(a.renderCache, oldest)
 			}
@@ -193,7 +195,7 @@ func (a *App) evictRenderCacheEntry(key string) {
 		if k == key {
 			a.renderOrder = append(a.renderOrder[:i], a.renderOrder[i+1:]...)
 			if oldRP := a.renderCache[key]; oldRP != nil {
-				oldRP.texture.Destroy()
+				sdl.DestroyTexture(oldRP.texture)
 			}
 			delete(a.renderCache, key)
 			return

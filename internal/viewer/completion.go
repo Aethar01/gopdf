@@ -6,7 +6,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/veandco/go-sdl2/sdl"
+	"github.com/jupiterrider/purego-sdl3/sdl"
 )
 
 type completionState struct {

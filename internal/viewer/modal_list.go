@@ -1,6 +1,6 @@
 package viewer
 
-import "github.com/veandco/go-sdl2/sdl"
+import "github.com/jupiterrider/purego-sdl3/sdl"
 
 func (a *App) modalListGeometry(widthPct, heightPct int) (sdl.FRect, int) {
 	viewportW, viewportH := a.viewportSize()

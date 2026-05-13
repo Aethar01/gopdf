@@ -11,7 +11,7 @@ import (
 	"gopdf/internal/config"
 	"gopdf/internal/mupdf"
 
-	"github.com/veandco/go-sdl2/sdl"
+	"github.com/jupiterrider/purego-sdl3/sdl"
 	"golang.org/x/image/font/basicfont"
 )
 
@@ -155,10 +155,10 @@ func TestKeyTokenIncludesModifiedAndPrintableKeys(t *testing.T) {
 		mod  sdl.Keymod
 		want string
 	}{
-		{name: "ctrl letter", key: sdl.K_j, mod: sdl.KMOD_CTRL, want: "<c-j>"},
-		{name: "ctrl shift special", key: sdl.K_TAB, mod: sdl.KMOD_CTRL | sdl.KMOD_SHIFT, want: "<c-s-tab>"},
-		{name: "shift slash", key: sdl.K_SLASH, mod: sdl.KMOD_SHIFT, want: "?"},
-		{name: "shift return", key: sdl.K_RETURN, mod: sdl.KMOD_SHIFT, want: "<s-cr>"},
+		{name: "ctrl letter", key: sdl.KeycodeJ, mod: sdl.KeymodCtrl, want: "<c-j>"},
+		{name: "ctrl shift special", key: sdl.KeycodeTab, mod: sdl.KeymodCtrl | sdl.KeymodShift, want: "<c-s-tab>"},
+		{name: "shift slash", key: sdl.KeycodeSlash, mod: sdl.KeymodShift, want: "?"},
+		{name: "shift return", key: sdl.KeycodeReturn, mod: sdl.KeymodShift, want: "<s-cr>"},
 	}
 
 	for _, tt := range tests {
@@ -172,13 +172,13 @@ func TestKeyTokenIncludesModifiedAndPrintableKeys(t *testing.T) {
 }
 
 func TestMouseButtonHelpers(t *testing.T) {
-	if got, ok := mouseButtonEvent(sdl.BUTTON_X1, sdl.MOUSEBUTTONDOWN); !ok || got != "x1_down" {
+	if got, ok := mouseButtonEvent(uint8(sdl.ButtonX1), sdl.EventMouseButtonDown); !ok || got != "x1_down" {
 		t.Fatalf("expected x1_down event, got %q, %v", got, ok)
 	}
-	if got, ok := mouseButtonEvent(sdl.BUTTON_RIGHT, sdl.MOUSEBUTTONUP); !ok || got != "right_up" {
+	if got, ok := mouseButtonEvent(uint8(sdl.ButtonRight), sdl.EventMouseButtonUp); !ok || got != "right_up" {
 		t.Fatalf("expected right_up event, got %q, %v", got, ok)
 	}
-	if got, ok := mouseButtonEvent(99, sdl.MOUSEBUTTONDOWN); ok || got != "" {
+	if got, ok := mouseButtonEvent(99, sdl.EventMouseButtonDown); ok || got != "" {
 		t.Fatalf("expected unknown button to fail, got %q, %v", got, ok)
 	}
 	if got := buttonMask(99); got != 0 {

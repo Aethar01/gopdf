@@ -3,7 +3,7 @@ package viewer
 import (
 	"strings"
 
-	"github.com/veandco/go-sdl2/sdl"
+	"github.com/jupiterrider/purego-sdl3/sdl"
 )
 
 func isCountableAction(action string) bool {
@@ -51,8 +51,8 @@ func normalizeAngleToken(token string) string {
 }
 
 func keyToken(key sdl.Keycode, mod sdl.Keymod) (string, bool) {
-	ctrl := mod&sdl.KMOD_CTRL != 0
-	shift := mod&sdl.KMOD_SHIFT != 0
+	ctrl := mod&sdl.KeymodCtrl != 0
+	shift := mod&sdl.KeymodShift != 0
 	if ctrl {
 		if base, ok := baseKeyName(key); ok {
 			if shift {
@@ -74,35 +74,35 @@ func keyToken(key sdl.Keycode, mod sdl.Keymod) (string, bool) {
 }
 
 func printableKeyToken(key sdl.Keycode, shift bool) (string, bool) {
-	if key >= sdl.K_a && key <= sdl.K_z {
-		r := rune('a' + (key - sdl.K_a))
+	if key >= sdl.KeycodeA && key <= sdl.KeycodeZ {
+		r := rune('a' + (key - sdl.KeycodeA))
 		if shift {
 			r -= 'a' - 'A'
 		}
 		return string(r), true
 	}
-	if key >= sdl.K_0 && key <= sdl.K_9 {
-		return string(rune('0' + (key - sdl.K_0))), true
+	if key >= sdl.Keycode0 && key <= sdl.Keycode9 {
+		return string(rune('0' + (key - sdl.Keycode0))), true
 	}
 	switch key {
-	case sdl.K_SPACE:
+	case sdl.KeycodeSpace:
 		return " ", true
-	case sdl.K_SLASH:
+	case sdl.KeycodeSlash:
 		if shift {
 			return "?", true
 		}
 		return "/", true
-	case sdl.K_SEMICOLON:
+	case sdl.KeycodeSemicolon:
 		if shift {
 			return ":", true
 		}
 		return ";", true
-	case sdl.K_EQUALS:
+	case sdl.KeycodeEquals:
 		if shift {
 			return "+", true
 		}
 		return "=", true
-	case sdl.K_MINUS:
+	case sdl.KeycodeMinus:
 		return "-", true
 	default:
 		return "", false
@@ -111,32 +111,32 @@ func printableKeyToken(key sdl.Keycode, shift bool) (string, bool) {
 
 func specialKeyToken(key sdl.Keycode) (string, bool) {
 	switch key {
-	case sdl.K_RETURN, sdl.K_KP_ENTER:
+	case sdl.KeycodeReturn, sdl.KeycodeKpEnter:
 		return "<CR>", true
-	case sdl.K_ESCAPE:
+	case sdl.KeycodeEscape:
 		return "<Esc>", true
-	case sdl.K_BACKSPACE:
+	case sdl.KeycodeBackspace:
 		return "<BS>", true
-	case sdl.K_PAGEDOWN:
+	case sdl.KeycodePageDown:
 		return "<PgDn>", true
-	case sdl.K_PAGEUP:
+	case sdl.KeycodePageUp:
 		return "<PgUp>", true
-	case sdl.K_TAB:
+	case sdl.KeycodeTab:
 		return "<Tab>", true
 	default:
 		return "", false
 	}
 }
 
-func mouseButtonEvent(button uint8, eventType uint32) (string, bool) {
+func mouseButtonEvent(button uint8, eventType sdl.EventType) (string, bool) {
 	name, ok := mouseButtonName(button)
 	if !ok {
 		return "", false
 	}
 	switch eventType {
-	case sdl.MOUSEBUTTONDOWN:
+	case sdl.EventMouseButtonDown:
 		return name + "_down", true
-	case sdl.MOUSEBUTTONUP:
+	case sdl.EventMouseButtonUp:
 		return name + "_up", true
 	default:
 		return "", false
@@ -145,15 +145,15 @@ func mouseButtonEvent(button uint8, eventType uint32) (string, bool) {
 
 func mouseButtonName(button uint8) (string, bool) {
 	switch button {
-	case sdl.BUTTON_LEFT:
+	case uint8(sdl.ButtonLeft):
 		return "left", true
-	case sdl.BUTTON_MIDDLE:
+	case uint8(sdl.ButtonMiddle):
 		return "middle", true
-	case sdl.BUTTON_RIGHT:
+	case uint8(sdl.ButtonRight):
 		return "right", true
-	case sdl.BUTTON_X1:
+	case uint8(sdl.ButtonX1):
 		return "x1", true
-	case sdl.BUTTON_X2:
+	case uint8(sdl.ButtonX2):
 		return "x2", true
 	default:
 		return "", false
@@ -162,42 +162,42 @@ func mouseButtonName(button uint8) (string, bool) {
 
 func buttonMask(button uint8) uint32 {
 	switch button {
-	case sdl.BUTTON_LEFT:
-		return sdl.ButtonLMask()
-	case sdl.BUTTON_MIDDLE:
-		return sdl.ButtonMMask()
-	case sdl.BUTTON_RIGHT:
-		return sdl.ButtonRMask()
-	case sdl.BUTTON_X1:
-		return sdl.ButtonX1Mask()
-	case sdl.BUTTON_X2:
-		return sdl.ButtonX2Mask()
+	case uint8(sdl.ButtonLeft):
+		return uint32(sdl.ButtonLMask)
+	case uint8(sdl.ButtonMiddle):
+		return uint32(sdl.ButtonMMask)
+	case uint8(sdl.ButtonRight):
+		return uint32(sdl.ButtonRMask)
+	case uint8(sdl.ButtonX1):
+		return uint32(sdl.ButtonX1Mask)
+	case uint8(sdl.ButtonX2):
+		return uint32(sdl.ButtonX2Mask)
 	default:
 		return 0
 	}
 }
 
 func baseKeyName(key sdl.Keycode) (string, bool) {
-	if key >= sdl.K_a && key <= sdl.K_z {
-		return string(rune('a' + (key - sdl.K_a))), true
+	if key >= sdl.KeycodeA && key <= sdl.KeycodeZ {
+		return string(rune('a' + (key - sdl.KeycodeA))), true
 	}
-	if key >= sdl.K_0 && key <= sdl.K_9 {
-		return string(rune('0' + (key - sdl.K_0))), true
+	if key >= sdl.Keycode0 && key <= sdl.Keycode9 {
+		return string(rune('0' + (key - sdl.Keycode0))), true
 	}
 	switch key {
-	case sdl.K_SPACE:
+	case sdl.KeycodeSpace:
 		return "space", true
-	case sdl.K_TAB:
+	case sdl.KeycodeTab:
 		return "tab", true
-	case sdl.K_RETURN, sdl.K_KP_ENTER:
+	case sdl.KeycodeReturn, sdl.KeycodeKpEnter:
 		return "enter", true
-	case sdl.K_ESCAPE:
+	case sdl.KeycodeEscape:
 		return "esc", true
-	case sdl.K_BACKSPACE:
+	case sdl.KeycodeBackspace:
 		return "bs", true
-	case sdl.K_PAGEDOWN:
+	case sdl.KeycodePageDown:
 		return "pgdn", true
-	case sdl.K_PAGEUP:
+	case sdl.KeycodePageUp:
 		return "pgup", true
 	default:
 		return "", false

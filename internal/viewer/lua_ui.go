@@ -6,7 +6,7 @@ import (
 
 	"gopdf/internal/config"
 
-	"github.com/veandco/go-sdl2/sdl"
+	"github.com/jupiterrider/purego-sdl3/sdl"
 )
 
 type luaUIState struct {
@@ -61,15 +61,15 @@ func (a *App) SetUISelected(selected int) {
 }
 
 func (a *App) handleLuaUIKey(e *sdl.KeyboardEvent) bool {
-	switch e.Keysym.Sym {
-	case sdl.K_DOWN:
+	switch e.Key {
+	case sdl.KeycodeDown:
 		a.moveLuaUISelection(1)
 		return true
-	case sdl.K_UP:
+	case sdl.KeycodeUp:
 		a.moveLuaUISelection(-1)
 		return true
 	}
-	if token, ok := keyToken(e.Keysym.Sym, sdl.Keymod(e.Keysym.Mod)); ok {
+	if token, ok := keyToken(e.Key, e.Mod); ok {
 		if action, ok := a.sequenceLookup[normalizeBinding(token)]; ok {
 			a.runLuaUIAction(action)
 		}

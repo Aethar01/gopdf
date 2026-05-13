@@ -17,7 +17,7 @@ import (
 	"gopdf/internal/config"
 	"gopdf/internal/mupdf"
 
-	"github.com/veandco/go-sdl2/sdl"
+	"github.com/jupiterrider/purego-sdl3/sdl"
 	"golang.org/x/image/font"
 	"golang.org/x/image/font/basicfont"
 	"golang.org/x/image/font/opentype"
@@ -242,28 +242,28 @@ func (a *App) setWindowTitle() {
 		return
 	}
 	if a.docName == "" {
-		a.window.SetTitle("gopdf")
+		sdl.SetWindowTitle(a.window, "gopdf")
 		return
 	}
-	a.window.SetTitle(a.docName + " - gopdf")
+	sdl.SetWindowTitle(a.window, a.docName+" - gopdf")
 }
 
 func (a *App) Close() {
 	a.closeDocumentResources()
 	if a.cursorHand != nil {
-		sdl.FreeCursor(a.cursorHand)
+		sdl.DestroyCursor(a.cursorHand)
 		a.cursorHand = nil
 	}
 	if a.cursorArrow != nil {
-		sdl.FreeCursor(a.cursorArrow)
+		sdl.DestroyCursor(a.cursorArrow)
 		a.cursorArrow = nil
 	}
 	if a.renderer != nil {
-		a.renderer.Destroy()
+		sdl.DestroyRenderer(a.renderer)
 		a.renderer = nil
 	}
 	if a.window != nil {
-		a.window.Destroy()
+		sdl.DestroyWindow(a.window)
 		a.window = nil
 	}
 	sdl.Quit()
@@ -287,36 +287,42 @@ func (a *App) PendingOpen() string {
 }
 
 func (a *App) Run() error {
-	if err := sdl.Init(sdl.INIT_VIDEO); err != nil {
-		return err
+	if !sdl.Init(sdl.InitVideo) {
+		return fmt.Errorf("SDL init failed: %s", sdl.GetError())
 	}
-	sdl.SetHint(sdl.HINT_RENDER_SCALE_QUALITY, "2")
-	window, renderer, err := sdl.CreateWindowAndRenderer(1400, 900, sdl.WINDOW_RESIZABLE|sdl.WINDOW_ALLOW_HIGHDPI)
-	if err != nil {
+	sdl.SetHint("SDL_RENDER_SCALE_QUALITY", "2")
+	var window *sdl.Window
+	var renderer *sdl.Renderer
+	if !sdl.CreateWindowAndRenderer("gopdf", 1400, 900, sdl.WindowResizable|sdl.WindowHighPixelDensity, &window, &renderer) {
 		sdl.Quit()
-		return err
+		return fmt.Errorf("SDL window creation failed: %s", sdl.GetError())
 	}
 	a.window = window
 	a.renderer = renderer
-	if rw, err := sdl.RWFromMem(a.iconBytes); err == nil {
-		if icon, err := sdl.LoadBMPRW(rw, true); err == nil {
-			window.SetIcon(icon)
+	if rw := sdl.IOFromConstMem(a.iconBytes); rw != nil {
+		if icon := sdl.LoadBMPIO(rw, true); icon != nil {
+			sdl.SetWindowIcon(window, icon)
+			sdl.DestroySurface(icon)
 		}
 	}
-	a.cursorHand = sdl.CreateSystemCursor(sdl.SYSTEM_CURSOR_HAND)
-	a.cursorArrow = sdl.CreateSystemCursor(sdl.SYSTEM_CURSOR_ARROW)
+	a.cursorHand = sdl.CreateSystemCursor(sdl.SystemCursorPointer)
+	a.cursorArrow = sdl.CreateSystemCursor(sdl.SystemCursorDefault)
 	a.setWindowTitle()
-	a.renderer.SetDrawBlendMode(sdl.BLENDMODE_BLEND)
-	if w, h, err := a.renderer.GetOutputSize(); err == nil {
+	sdl.SetRenderDrawBlendMode(a.renderer, sdl.BlendModeBlend)
+	sdl.SetDefaultTextureScaleMode(a.renderer, sdl.ScaleModeLinear)
+	var outputW, outputH int32
+	if sdl.GetRenderOutputSize(a.renderer, &outputW, &outputH) {
+		w, h := outputW, outputH
 		a.winW, a.winH = int(w), int(h)
 	}
 	a.recomputeLayout(a.viewportSize())
 	a.pendingRedraw = true
-	sdl.StartTextInput()
-	defer sdl.StopTextInput()
+	sdl.StartTextInput(a.window)
+	defer sdl.StopTextInput(a.window)
 	for !a.quit {
-		for event := sdl.PollEvent(); event != nil; event = sdl.PollEvent() {
-			if err := a.handleSDLEvent(event); err != nil {
+		var event sdl.Event
+		for sdl.PollEvent(&event) {
+			if err := a.handleSDLEvent(&event); err != nil {
 				return err
 			}
 		}
@@ -331,8 +337,9 @@ func (a *App) Run() error {
 			}
 		}
 		if !a.quit {
-			if event := sdl.WaitEventTimeout(a.eventWaitTimeoutMS()); event != nil {
-				if err := a.handleSDLEvent(event); err != nil {
+			var event sdl.Event
+			if sdl.WaitEventTimeout(&event, int32(a.eventWaitTimeoutMS())) {
+				if err := a.handleSDLEvent(&event); err != nil {
 					return err
 				}
 			}
@@ -358,32 +365,38 @@ func (a *App) eventWaitTimeoutMS() int {
 	return 100
 }
 
-func (a *App) handleSDLEvent(event sdl.Event) error {
+func (a *App) handleSDLEvent(event *sdl.Event) error {
 	defer func() { a.pendingRedraw = true }()
-	switch e := event.(type) {
-	case *sdl.QuitEvent:
+	switch event.Type() {
+	case sdl.EventQuit:
 		a.quit = true
-	case *sdl.WindowEvent:
-		if e.Event == sdl.WINDOWEVENT_SIZE_CHANGED {
+	case sdl.EventWindowResized, sdl.EventWindowPixelSizeChanged:
+		e := event.Window()
+		{
 			a.winW = int(e.Data1)
 			a.winH = int(e.Data2)
 			a.recomputeLayout(a.viewportSize())
 		}
-	case *sdl.KeyboardEvent:
-		if e.Type == sdl.KEYUP {
-			a.handleSDLKeyUp(e)
+	case sdl.EventKeyUp:
+		e := event.Key()
+		a.handleSDLKeyUp(&e)
+	case sdl.EventKeyDown:
+		e := event.Key()
+		if !e.Repeat {
+			a.handleSDLKeyDown(&e)
 		}
-		if e.Type == sdl.KEYDOWN && e.Repeat == 0 {
-			a.handleSDLKeyDown(e)
-		}
-	case *sdl.TextInputEvent:
-		a.handleSDLTextInput(e)
-	case *sdl.MouseWheelEvent:
-		a.handleSDLMouseWheel(e)
-	case *sdl.MouseButtonEvent:
-		a.handleSDLMouseButton(e)
-	case *sdl.MouseMotionEvent:
-		a.handleSDLMouseMotion(e)
+	case sdl.EventTextInput:
+		e := event.Text()
+		a.handleSDLTextInput(&e)
+	case sdl.EventMouseWheel:
+		e := event.Wheel()
+		a.handleSDLMouseWheel(&e)
+	case sdl.EventMouseButtonDown, sdl.EventMouseButtonUp:
+		e := event.Button()
+		a.handleSDLMouseButton(&e)
+	case sdl.EventMouseMotion:
+		e := event.Motion()
+		a.handleSDLMouseMotion(&e)
 	}
 	return nil
 }
@@ -392,15 +405,16 @@ func (a *App) drawFrame() error {
 	if a.renderer == nil {
 		return nil
 	}
-	if w, h, err := a.renderer.GetOutputSize(); err == nil {
+	var w, h int32
+	if sdl.GetRenderOutputSize(a.renderer, &w, &h) {
 		a.winW, a.winH = int(w), int(h)
 	}
 	bg := a.backgroundColor()
-	if err := a.renderer.SetDrawColor(bg.R, bg.G, bg.B, bg.A); err != nil {
-		return err
+	if !sdl.SetRenderDrawColor(a.renderer, bg.R, bg.G, bg.B, bg.A) {
+		return fmt.Errorf("SDL draw color failed: %s", sdl.GetError())
 	}
-	if err := a.renderer.Clear(); err != nil {
-		return err
+	if !sdl.RenderClear(a.renderer) {
+		return fmt.Errorf("SDL clear failed: %s", sdl.GetError())
 	}
 	a.drawPages(a.renderer)
 	if a.pendingRedraw {
@@ -426,7 +440,7 @@ func (a *App) drawFrame() error {
 			return err
 		}
 	}
-	a.renderer.Present()
+	sdl.RenderPresent(a.renderer)
 	return nil
 }
 
@@ -441,12 +455,12 @@ func (a *App) handleSDLKeyDown(e *sdl.KeyboardEvent) {
 		if a.handleInputEditKey(e) {
 			return
 		}
-		if token, ok := keyToken(e.Keysym.Sym, sdl.Keymod(e.Keysym.Mod)); ok && a.handleInputModeBinding(token) {
+		if token, ok := keyToken(e.Key, e.Mod); ok && a.handleInputModeBinding(token) {
 			return
 		}
 	}
 	if a.mode == modeNormal {
-		if token, ok := keyToken(e.Keysym.Sym, sdl.Keymod(e.Keysym.Mod)); ok {
+		if token, ok := keyToken(e.Key, e.Mod); ok {
 			prevMode := a.mode
 			if a.handleCountToken(token) {
 				return
@@ -460,24 +474,23 @@ func (a *App) handleSDLKeyDown(e *sdl.KeyboardEvent) {
 		}
 		return
 	}
-	switch e.Keysym.Sym {
-	case sdl.K_LEFT:
+	switch e.Key {
+	case sdl.KeycodeLeft:
 		a.moveInputCursor(-1)
-	case sdl.K_RIGHT:
+	case sdl.KeycodeRight:
 		a.moveInputCursor(1)
-	case sdl.K_BACKSPACE:
+	case sdl.KeycodeBackspace:
 		a.backspaceInput()
 	}
 }
 
 func (a *App) handleInputEditKey(e *sdl.KeyboardEvent) bool {
-	mod := sdl.Keymod(e.Keysym.Mod)
-	ctrl := mod&sdl.KMOD_CTRL != 0
-	if ctrl && e.Keysym.Sym == sdl.K_w {
+	ctrl := e.Mod&sdl.KeymodCtrl != 0
+	if ctrl && e.Key == sdl.KeycodeW {
 		a.deleteInputWord()
 		return true
 	}
-	if ctrl && e.Keysym.Sym == sdl.K_BACKSPACE {
+	if ctrl && e.Key == sdl.KeycodeBackspace {
 		a.deleteInputWord()
 		return true
 	}
@@ -507,13 +520,13 @@ func (a *App) handleSDLKeyUp(e *sdl.KeyboardEvent) {
 	if !a.panning || a.panKey == "" {
 		return
 	}
-	if token, ok := keyToken(e.Keysym.Sym, sdl.Keymod(e.Keysym.Mod)); ok && token == a.panKey {
+	if token, ok := keyToken(e.Key, e.Mod); ok && token == a.panKey {
 		a.stopPan()
 	}
 }
 
 func (a *App) handleSDLTextInput(e *sdl.TextInputEvent) {
-	text := e.GetText()
+	text := e.Text()
 	if text == "" {
 		return
 	}
@@ -554,18 +567,18 @@ func (a *App) handleSDLMouseWheel(e *sdl.MouseWheelEvent) {
 		}
 		return
 	}
-	wx, wy := e.PreciseX, e.PreciseY
+	wx, wy := e.X, e.Y
 	if wx == 0 {
-		wx = float32(e.X)
+		wx = float32(e.IntegerX)
 	}
 	if wy == 0 {
-		wy = float32(e.Y)
+		wy = float32(e.IntegerY)
 	}
-	if e.Direction == sdl.MOUSEWHEEL_FLIPPED {
+	if e.Direction == sdl.MouseWheelFlipped {
 		wx = -wx
 		wy = -wy
 	}
-	ctrl := sdl.GetModState()&sdl.KMOD_CTRL != 0
+	ctrl := sdl.GetModState()&sdl.KeymodCtrl != 0
 	if ctrl {
 		if wy > 0 {
 			a.runMouseBinding("<c-wheel_up>")
@@ -621,18 +634,18 @@ func (a *App) handleSmoothWheel(wx, wy float32) bool {
 
 func (a *App) handleSDLMouseButton(e *sdl.MouseButtonEvent) {
 	if a.luaUI.visible {
-		if e.Type == sdl.MOUSEBUTTONDOWN && e.Button == sdl.BUTTON_LEFT {
+		if e.Type == sdl.EventMouseButtonDown && e.Button == uint8(sdl.ButtonLeft) {
 			a.clickLuaUI(int(e.X), int(e.Y))
 		}
 		return
 	}
 	if a.outlineMenu.visible {
-		if e.Type == sdl.MOUSEBUTTONDOWN && e.Button == sdl.BUTTON_LEFT {
+		if e.Type == sdl.EventMouseButtonDown && e.Button == uint8(sdl.ButtonLeft) {
 			a.clickOutlineMenu(int(e.X), int(e.Y))
 		}
 		return
 	}
-	if e.Type == sdl.MOUSEBUTTONUP && a.panning && e.Button == a.panButton {
+	if e.Type == sdl.EventMouseButtonUp && a.panning && e.Button == a.panButton {
 		a.stopPan()
 		return
 	}
@@ -647,13 +660,13 @@ func (a *App) handleSDLMouseButton(e *sdl.MouseButtonEvent) {
 	if a.panning {
 		return
 	}
-	if e.Button != sdl.BUTTON_LEFT || !a.config.MouseTextSelect {
-		if e.Button == sdl.BUTTON_LEFT && e.Type == sdl.MOUSEBUTTONDOWN {
+	if e.Button != uint8(sdl.ButtonLeft) || !a.config.MouseTextSelect {
+		if e.Button == uint8(sdl.ButtonLeft) && e.Type == sdl.EventMouseButtonDown {
 			a.tryActivateLinkAt(float64(e.X), float64(e.Y))
 		}
 		return
 	}
-	if e.Type == sdl.MOUSEBUTTONDOWN {
+	if e.Type == sdl.EventMouseButtonDown {
 		if a.tryActivateLinkAt(float64(e.X), float64(e.Y)) {
 			a.selection.active = false
 			a.selection.quads = nil
@@ -665,7 +678,7 @@ func (a *App) handleSDLMouseButton(e *sdl.MouseButtonEvent) {
 		}
 		return
 	}
-	if e.Type == sdl.MOUSEBUTTONUP && a.selection.active {
+	if e.Type == sdl.EventMouseButtonUp && a.selection.active {
 		a.copySelectionToClipboard()
 		a.selection.active = false
 		a.selection.quads = nil
@@ -673,8 +686,8 @@ func (a *App) handleSDLMouseButton(e *sdl.MouseButtonEvent) {
 }
 
 func (a *App) handleSDLMouseMotion(e *sdl.MouseMotionEvent) {
-	if a.panning && (a.panButton == 0 || e.State&buttonMask(a.panButton) != 0) {
-		a.scrollBy(-float64(e.XRel), -float64(e.YRel))
+	if a.panning && (a.panButton == 0 || uint32(e.State)&buttonMask(a.panButton) != 0) {
+		a.scrollBy(-float64(e.Xrel), -float64(e.Yrel))
 		return
 	}
 	a.stopPan()
@@ -689,7 +702,7 @@ func (a *App) handleSDLMouseMotion(e *sdl.MouseMotionEvent) {
 		}
 	}
 
-	if !a.selection.active || e.State&sdl.ButtonLMask() == 0 {
+	if !a.selection.active || uint32(e.State)&uint32(sdl.ButtonLMask) == 0 {
 		return
 	}
 	page, point, ok := a.pagePointAtScreen(float64(e.X), float64(e.Y))
@@ -893,10 +906,10 @@ func (a *App) drawPageTexture(renderer *sdl.Renderer, x, y, width, height float6
 	}
 	_ = a.drawPageBackground(renderer, x, y, rp.page)
 	if normalizeRotation(a.rotation) == 0 {
-		renderer.CopyF(rp.texture, nil, &dst)
+		sdl.RenderTexture(renderer, rp.texture, nil, &dst)
 		return
 	}
-	renderer.CopyExF(rp.texture, nil, &dst, a.rotation, nil, sdl.FLIP_NONE)
+	sdl.RenderTextureRotated(renderer, rp.texture, nil, &dst, a.rotation, nil, sdl.FlipNone)
 }
 
 func (a *App) drawPageBackground(renderer *sdl.Renderer, x, y float64, page int) error {
@@ -905,7 +918,7 @@ func (a *App) drawPageBackground(renderer *sdl.Renderer, x, y float64, page int)
 		m := a.pageMetrics[page]
 		return fillRect(renderer, sdl.FRect{X: float32(x), Y: float32(y), W: float32(m.width * a.scale), H: float32(m.height * a.scale)}, clr)
 	}
-	return renderer.RenderGeometry(nil, pageBackgroundVertices(x, y, a.pageMetrics[page].bounds, a.scale, a.rotation, clr), []int32{0, 1, 2, 1, 3, 2})
+	return renderBool(sdl.RenderGeometry(renderer, nil, pageBackgroundVertices(x, y, a.pageMetrics[page].bounds, a.scale, a.rotation, clr), []int32{0, 1, 2, 1, 3, 2}), "render geometry")
 }
 
 func pageBackgroundVertices(x, y float64, bounds mupdf.Rect, scale, rotation float64, clr color.RGBA) []sdl.Vertex {
@@ -917,7 +930,7 @@ func pageBackgroundVertices(x, y float64, bounds mupdf.Rect, scale, rotation flo
 		{X: float64(bounds.X1), Y: float64(bounds.Y1)},
 	}
 	vertices := make([]sdl.Vertex, len(points))
-	color := sdl.Color{R: clr.R, G: clr.G, B: clr.B, A: clr.A}
+	color := sdl.FColor{R: float32(clr.R) / 255, G: float32(clr.G) / 255, B: float32(clr.B) / 255, A: float32(clr.A) / 255}
 	for i, point := range points {
 		tx, ty := transformPoint(point.X, point.Y, scale, rotation)
 		vertices[i] = sdl.Vertex{
@@ -1224,7 +1237,7 @@ func (a *App) setFitMode(mode string) {
 
 func (a *App) clearCache() {
 	for _, rp := range a.renderCache {
-		rp.texture.Destroy()
+		sdl.DestroyTexture(rp.texture)
 	}
 	a.renderCache = map[string]*renderedPage{}
 	a.renderOrder = nil
@@ -1763,9 +1776,9 @@ func (a *App) SetFullscreen(fullscreen bool) error {
 		return nil
 	}
 	if fullscreen {
-		return a.window.SetFullscreen(sdl.WINDOW_FULLSCREEN_DESKTOP)
+		return boolError(sdl.SetWindowFullscreen(a.window, true), "set fullscreen")
 	}
-	return a.window.SetFullscreen(0)
+	return boolError(sdl.SetWindowFullscreen(a.window, false), "set fullscreen")
 }
 
 func (a *App) StatusBarVisible() bool {

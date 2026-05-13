@@ -10,7 +10,7 @@ import (
 	"gopdf/internal/config"
 	"gopdf/internal/mupdf"
 
-	"github.com/veandco/go-sdl2/sdl"
+	"github.com/jupiterrider/purego-sdl3/sdl"
 )
 
 func TestRecomputeLayoutUsesRotatedPageDimensions(t *testing.T) {
@@ -112,7 +112,7 @@ func TestPageBackgroundVerticesUseRotatedPageCorners(t *testing.T) {
 	assertClose(t, float64(vertices[3].Position.X), 80.711)
 	assertClose(t, float64(vertices[3].Position.Y), 161.421)
 
-	if vertices[0].Color != (sdl.Color{R: 1, G: 2, B: 3, A: 4}) {
+	if vertices[0].Color != (sdl.FColor{R: 1.0 / 255, G: 2.0 / 255, B: 3.0 / 255, A: 4.0 / 255}) {
 		t.Fatalf("unexpected vertex color: %+v", vertices[0].Color)
 	}
 }
@@ -166,7 +166,7 @@ func TestPanCanBeHeldByKey(t *testing.T) {
 	if !app.panning || app.panKey != " " || app.panButton != 0 {
 		t.Fatalf("expected key pan state, panning=%v panKey=%q panButton=%d", app.panning, app.panKey, app.panButton)
 	}
-	app.handleSDLKeyUp(&sdl.KeyboardEvent{Keysym: sdl.Keysym{Sym: sdl.K_SPACE}})
+	app.handleSDLKeyUp(&sdl.KeyboardEvent{Key: sdl.KeycodeSpace})
 	if app.panning {
 		t.Fatal("expected key release to stop panning")
 	}

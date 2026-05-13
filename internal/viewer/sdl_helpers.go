@@ -1,12 +1,13 @@
 package viewer
 
 import (
+	"fmt"
 	"image"
 	"image/color"
 	"image/draw"
 	"unsafe"
 
-	"github.com/veandco/go-sdl2/sdl"
+	"github.com/jupiterrider/purego-sdl3/sdl"
 	"golang.org/x/image/font"
 	"golang.org/x/image/math/fixed"
 )
@@ -23,19 +24,19 @@ func imageToRGBA(src image.Image) *image.RGBA {
 
 func textureFromImage(renderer *sdl.Renderer, src image.Image) (*sdl.Texture, error) {
 	rgba := imageToRGBA(src)
-	tex, err := renderer.CreateTexture(uint32(sdl.PIXELFORMAT_RGBA32), sdl.TEXTUREACCESS_STATIC, int32(rgba.Bounds().Dx()), int32(rgba.Bounds().Dy()))
-	if err != nil {
-		return nil, err
+	tex := sdl.CreateTexture(renderer, sdl.PixelFormatRGBA32, sdl.TextureAccessStatic, int32(rgba.Bounds().Dx()), int32(rgba.Bounds().Dy()))
+	if tex == nil {
+		return nil, sdlError("create texture")
 	}
 	if len(rgba.Pix) > 0 {
-		if err := tex.Update(nil, unsafe.Pointer(&rgba.Pix[0]), rgba.Stride); err != nil {
-			tex.Destroy()
-			return nil, err
+		if !sdl.UpdateTexture(tex, nil, unsafe.Pointer(&rgba.Pix[0]), int32(rgba.Stride)) {
+			sdl.DestroyTexture(tex)
+			return nil, sdlError("update texture")
 		}
 	}
-	if err := tex.SetBlendMode(sdl.BLENDMODE_BLEND); err != nil {
-		tex.Destroy()
-		return nil, err
+	if !sdl.SetTextureBlendMode(tex, sdl.BlendModeBlend) {
+		sdl.DestroyTexture(tex)
+		return nil, sdlError("set texture blend mode")
 	}
 	return tex, nil
 }
@@ -80,23 +81,24 @@ func drawText(renderer *sdl.Renderer, face font.Face, s string, x, baselineY int
 	if err != nil {
 		return err
 	}
-	defer tex.Destroy()
-	return renderer.Copy(tex, nil, &sdl.Rect{X: int32(x), Y: int32(baselineY - ascent), W: int32(w), H: int32(h)})
+	defer sdl.DestroyTexture(tex)
+	dst := sdl.FRect{X: float32(x), Y: float32(baselineY - ascent), W: float32(w), H: float32(h)}
+	return renderBool(sdl.RenderTexture(renderer, tex, nil, &dst), "render text")
 }
 
 func fillRect(renderer *sdl.Renderer, rect sdl.FRect, clr color.RGBA) error {
-	if err := renderer.SetDrawColor(clr.R, clr.G, clr.B, clr.A); err != nil {
-		return err
+	if !sdl.SetRenderDrawColor(renderer, clr.R, clr.G, clr.B, clr.A) {
+		return sdlError("set draw color")
 	}
-	return renderer.FillRectF(&rect)
+	return renderBool(sdl.RenderFillRect(renderer, &rect), "fill rect")
 }
 
 func strokeRect(renderer *sdl.Renderer, rect sdl.FRect, clr color.RGBA, width int) error {
 	if width < 1 {
 		width = 1
 	}
-	if err := renderer.SetDrawColor(clr.R, clr.G, clr.B, clr.A); err != nil {
-		return err
+	if !sdl.SetRenderDrawColor(renderer, clr.R, clr.G, clr.B, clr.A) {
+		return sdlError("set draw color")
 	}
 	for i := 0; i < width; i++ {
 		inset := float32(i)
@@ -104,9 +106,30 @@ func strokeRect(renderer *sdl.Renderer, rect sdl.FRect, clr color.RGBA, width in
 		if r.W <= 0 || r.H <= 0 {
 			break
 		}
-		if err := renderer.DrawRectF(&r); err != nil {
-			return err
+		if !sdl.RenderRect(renderer, &r) {
+			return sdlError("draw rect")
 		}
 	}
 	return nil
+}
+
+func renderBool(ok bool, op string) error {
+	if !ok {
+		return sdlError(op)
+	}
+	return nil
+}
+
+func boolError(ok bool, op string) error {
+	if !ok {
+		return sdlError(op)
+	}
+	return nil
+}
+
+func sdlError(op string) error {
+	if err := sdl.GetError(); err != "" {
+		return fmt.Errorf("SDL %s failed: %s", op, err)
+	}
+	return fmt.Errorf("SDL %s failed", op)
 }

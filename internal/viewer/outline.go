@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/veandco/go-sdl2/sdl"
+	"github.com/jupiterrider/purego-sdl3/sdl"
 )
 
 type outlineMenuState struct {
@@ -158,10 +158,10 @@ func (a *App) expandSelectedOutline() {
 }
 
 func (a *App) handleOutlineMenuKey(e *sdl.KeyboardEvent) bool {
-	if e.Type != sdl.KEYDOWN || e.Repeat != 0 {
+	if e.Type != sdl.EventKeyDown || e.Repeat {
 		return true
 	}
-	if token, ok := keyToken(e.Keysym.Sym, sdl.Keymod(e.Keysym.Mod)); ok {
+	if token, ok := keyToken(e.Key, e.Mod); ok {
 		if action, ok := a.sequenceLookup[normalizeBinding(token)]; ok {
 			a.runOutlineMenuAction(action)
 		}
