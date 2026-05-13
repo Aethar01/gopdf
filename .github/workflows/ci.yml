@@ -59,7 +59,7 @@ jobs:
             mingw-w64-ucrt-x86_64-go
             mingw-w64-ucrt-x86_64-gcc
             mingw-w64-ucrt-x86_64-pkgconf
-            mingw-w64-ucrt-x86_64-SDL3
+            mingw-w64-ucrt-x86_64-sdl3
             mingw-w64-ucrt-x86_64-mupdf
 
       - name: Verify native dependencies
