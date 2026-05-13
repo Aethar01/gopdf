@@ -116,7 +116,7 @@ jobs:
           CGO_ENABLED: 1
         run: |
           mkdir -p dist
-          go build -trimpath -ldflags "-s -w -X main.version=${GITHUB_REF_NAME}" -o dist/gopdf.exe .
+          go build -trimpath -ldflags "-s -w -H=windowsgui -X main.version=${GITHUB_REF_NAME}" -o dist/gopdf.exe .
 
       - name: Package
         run: |
@@ -128,7 +128,7 @@ jobs:
             | sort -u \
             | xargs -r cp -t "$name/"
           cp /ucrt64/bin/SDL3.dll "$name/"
-          PATH="$PWD/$name:/usr/bin:/bin" "$PWD/$name/gopdf.exe" -v
+          powershell -NoProfile -Command "\$env:PATH='${PWD}/${name};C:/msys64/ucrt64/bin;C:/msys64/usr/bin;' + \$env:PATH; \$p = Start-Process -FilePath '${PWD}/${name}/gopdf.exe' -ArgumentList '-v' -Wait -PassThru; exit \$p.ExitCode"
           powershell -NoProfile -Command "Compress-Archive -Path '${name}' -DestinationPath '${name}.zip'"
 
       - name: Upload artifact
