@@ -428,26 +428,24 @@ Windows example using the native file picker:
 ```lua
 local function open_with_windows_file_picker()
   local cmd = [[
-  mshta "javascript:var d=new ActiveXObject('UserAccounts.CommonDialog');d.Filter='All Files|*.*';if(d.ShowOpen())document.write(d.FileName);close();"
+powershell -NoProfile -STA -Command "Add-Type -AssemblyName System.Windows.Forms; $d = New-Object System.Windows.Forms.OpenFileDialog; $d.Filter = 'All Files (*.*)|*.*'; if ($d.ShowDialog() -eq 'OK') { [Console]::Out.Write($d.FileName) }"
   ]]
 
   local p = io.popen(cmd)
-  if not p then return nil end
+  if not p then
+    gopdf.message("file picker error")
+    return
+  end
 
   local path = p:read("*a")
   p:close()
 
-  path = path:gsub("^%s+", ""):gsub("%s+$", "")
+  path = (path or ""):gsub("^%s+", ""):gsub("%s+$", "")
 
-  if path then
-    path = path:match("^%s*(.-)%s*$") or ""
-    if path ~= "" then
-      gopdf.open(path)
-    else
-      gopdf.message("no file selected")
-    end
+  if path ~= "" then
+    gopdf.open(path)
   else
-    gopdf.message("file picker error")
+    gopdf.message("no file selected")
   end
 end
 
