@@ -587,3 +587,211 @@ func TestLuaUIShowDuringConfigLoadFails(t *testing.T) {
 		t.Fatalf("expected host unavailable error, got %v", err)
 	}
 }
+
+func TestLuaUnbindRemovesDefaultBindings(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.lua")
+	if err := os.WriteFile(path, []byte(`
+unbind("j")
+unbind_mouse("middle_down")
+unbind_mouse("ctrl_wheel_down")
+`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	rt, err := Open(path, filepath.Join(dir, "doc.pdf"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rt.Close()
+
+	cfg := rt.Config()
+	if _, ok := cfg.KeyBindings["j"]; ok {
+		t.Fatalf("expected j binding to be removed, got %q", cfg.KeyBindings["j"])
+	}
+	if _, ok := cfg.MouseBindings["middle_down"]; ok {
+		t.Fatalf("expected middle_down mouse binding to be removed, got %q", cfg.MouseBindings["middle_down"])
+	}
+	if _, ok := cfg.MouseBindings["<c-wheel_down>"]; ok {
+		t.Fatalf("expected ctrl_wheel_down alias to remove <c-wheel_down>, got %q", cfg.MouseBindings["<c-wheel_down>"])
+	}
+}
+
+func TestLuaOptionTypeErrorsIncludeSettingName(t *testing.T) {
+	tests := []struct {
+		name    string
+		lua     string
+		wantErr string
+	}{
+		{name: "boolean", lua: `options.natural_scroll = "yes"`, wantErr: "options.natural_scroll: expected boolean"},
+		{name: "number", lua: `options.page_gap = true`, wantErr: "options.page_gap: expected number"},
+		{name: "string", lua: `options.fit_mode = false`, wantErr: "options.fit_mode: expected string"},
+		{name: "table", lua: `options.background = 10`, wantErr: "options.background: expected table"},
+		{name: "unknown", lua: `options.no_such_setting = 1`, wantErr: "options.no_such_setting: unknown setting"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			path := filepath.Join(dir, "config.lua")
+			if err := os.WriteFile(path, []byte(tt.lua), 0o644); err != nil {
+				t.Fatal(err)
+			}
+
+			rt, err := Open(path, filepath.Join(dir, "doc.pdf"))
+			if rt != nil {
+				rt.Close()
+			}
+			if err == nil {
+				t.Fatal("expected config load to fail")
+			}
+			if !strings.Contains(err.Error(), tt.wantErr) {
+				t.Fatalf("expected error containing %q, got %v", tt.wantErr, err)
+			}
+		})
+	}
+}
+
+func TestLuaOptionNormalizationAndColorClamping(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.lua")
+	if err := os.WriteFile(path, []byte(`
+options.fit_mode = " WIDTH "
+options.render_mode = "SINGLE"
+options.completion_max_items = 0
+options.background = { -5, 128, 999 }
+`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	rt, err := Open(path, filepath.Join(dir, "doc.pdf"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rt.Close()
+
+	cfg := rt.Config()
+	if cfg.FitMode != "width" {
+		t.Fatalf("expected normalized fit mode width, got %q", cfg.FitMode)
+	}
+	if cfg.RenderMode != "single" {
+		t.Fatalf("expected normalized render mode single, got %q", cfg.RenderMode)
+	}
+	if cfg.CompletionMaxItems != 1 {
+		t.Fatalf("expected completion_max_items to clamp to 1, got %d", cfg.CompletionMaxItems)
+	}
+	if cfg.Background != [3]uint8{0, 128, 255} {
+		t.Fatalf("expected clamped background color, got %v", cfg.Background)
+	}
+}
+
+func TestLoadReturnsConfigFromExplicitPath(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.lua")
+	if err := os.WriteFile(path, []byte(`options.status_bar_visible = false`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.StatusBarVisible {
+		t.Fatal("expected explicit config to hide status bar")
+	}
+	if cfg.ConfigPath != path {
+		t.Fatalf("expected config path %q, got %q", path, cfg.ConfigPath)
+	}
+}
+
+func TestNormalizeMouseEventAliases(t *testing.T) {
+	tests := []struct {
+		input string
+		want  string
+	}{
+		{input: " wheel_down ", want: "wheel_down"},
+		{input: "CTRL_wheel_up", want: "<c-wheel_up>"},
+		{input: "<c-wheel_down>", want: "<c-wheel_down>"},
+		{input: "Middle_Down", want: "middle_down"},
+	}
+
+	for _, tt := range tests {
+		if got := normalizeMouseEvent(tt.input); got != tt.want {
+			t.Fatalf("normalizeMouseEvent(%q) = %q, want %q", tt.input, got, tt.want)
+		}
+	}
+}
+
+func TestLuaCanReadCurrentOptionValues(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.lua")
+	if err := os.WriteFile(path, []byte(`
+options.status_bar_visible = false
+options.page_gap = 14
+if options.status_bar_visible == false and options.page_gap == 14 then
+  options.status_bar_left = "read"
+end
+`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	rt, err := Open(path, filepath.Join(dir, "doc.pdf"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rt.Close()
+
+	cfg := rt.Config()
+	if cfg.StatusBarVisible || cfg.PageGap != 14 || cfg.StatusBarLeft != "read" {
+		t.Fatalf("expected Lua to read option values and default message, got %+v", cfg)
+	}
+}
+
+func TestLuaColorOptionsClampEveryColorField(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.lua")
+	if err := os.WriteFile(path, []byte(`
+options.background = { -1, 10, 300 }
+options.page_background = { 1, 2, 3 }
+options.foreground = { 4, 5, 6 }
+options.status_bar_color = { 7, 8, 9 }
+options.alt_background = { 10, 11, 12 }
+options.alt_page_background = { 13, 14, 15 }
+options.alt_foreground = { 16, 17, 18 }
+options.alt_status_bar_color = { 19, 20, 21 }
+options.highlight_foreground = { 22, 23, 24 }
+options.highlight_background = { 25, 26, 27 }
+`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	rt, err := Open(path, filepath.Join(dir, "doc.pdf"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rt.Close()
+
+	cfg := rt.Config()
+	checks := []struct {
+		name string
+		got  [3]uint8
+		want [3]uint8
+	}{
+		{name: "background", got: cfg.Background, want: [3]uint8{0, 10, 255}},
+		{name: "page background", got: cfg.PageBackground, want: [3]uint8{1, 2, 3}},
+		{name: "foreground", got: cfg.Foreground, want: [3]uint8{4, 5, 6}},
+		{name: "status bar", got: cfg.StatusBarColor, want: [3]uint8{7, 8, 9}},
+		{name: "alt background", got: cfg.AltBackground, want: [3]uint8{10, 11, 12}},
+		{name: "alt page background", got: cfg.AltPageBackground, want: [3]uint8{13, 14, 15}},
+		{name: "alt foreground", got: cfg.AltForeground, want: [3]uint8{16, 17, 18}},
+		{name: "alt status bar", got: cfg.AltStatusBarColor, want: [3]uint8{19, 20, 21}},
+		{name: "highlight foreground", got: cfg.HighlightForeground, want: [3]uint8{22, 23, 24}},
+		{name: "highlight background", got: cfg.HighlightBackground, want: [3]uint8{25, 26, 27}},
+	}
+
+	for _, check := range checks {
+		if check.got != check.want {
+			t.Fatalf("%s = %v, want %v", check.name, check.got, check.want)
+		}
+	}
+}

@@ -2,6 +2,7 @@ package mupdf
 
 /*
 #cgo pkg-config: mupdf
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <mupdf/fitz.h>
@@ -98,10 +99,21 @@ static char *gopdf_dup_string(const char *src) {
 	return dst;
 }
 
+static char *gopdf_missing_handler_error(const char *path) {
+	const char *prefix = "cannot find document handler for file: ";
+	size_t n = strlen(prefix) + strlen(path) + 1;
+	char *dst = (char *)malloc(n);
+	if (dst != NULL) {
+		snprintf(dst, n, "%s%s", prefix, path);
+	}
+	return dst;
+}
+
 static gopdf_doc *gopdf_open_document(const char *path, char **err) {
 	gopdf_doc *handle = NULL;
 	fz_context *ctx = NULL;
 	fz_document *doc = NULL;
+	const fz_document_handler *handler = NULL;
 	*err = NULL;
 	ctx = fz_new_context(NULL, NULL, FZ_STORE_DEFAULT);
 	if (ctx == NULL) {
@@ -110,9 +122,15 @@ static gopdf_doc *gopdf_open_document(const char *path, char **err) {
 	}
 	fz_try(ctx) {
 		fz_register_document_handlers(ctx);
-		doc = fz_open_document(ctx, path);
+		handler = fz_recognize_document_content(ctx, path);
+		if (handler != NULL) {
+			doc = fz_open_document(ctx, path);
+		}
 	} fz_catch(ctx) {
 		*err = gopdf_dup_string(fz_caught_message(ctx));
+	}
+	if (*err == NULL && handler == NULL) {
+		*err = gopdf_missing_handler_error(path);
 	}
 	if (*err != NULL) {
 		if (doc != NULL) {

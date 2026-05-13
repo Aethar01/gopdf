@@ -44,6 +44,9 @@ func (a *App) modalListRowAt(rect sdl.FRect, rows, rowHeight, x, y int) (int, bo
 	if float32(x) < rect.X || float32(x) > rect.X+rect.W || float32(y) < rect.Y || float32(y) > rect.Y+rect.H {
 		return 0, false
 	}
+	if float32(y) < rect.Y+float32(rowHeight) {
+		return 0, false
+	}
 	row := (y - int(rect.Y) - rowHeight) / rowHeight
 	if row < 0 || row >= rows {
 		return 0, false

@@ -1839,9 +1839,10 @@ func (a *App) runCommand(input string) {
 			a.message = "usage: :mode continuous|single"
 			return
 		}
+		page := a.page
 		a.renderMode = sanitizeRenderMode(fields[0])
 		a.recomputeLayout(a.viewportSize())
-		a.alignPageTop(a.page)
+		a.alignPageTop(page)
 	case "colors":
 		if len(fields) < 1 {
 			a.message = "usage: :colors normal|alt"
