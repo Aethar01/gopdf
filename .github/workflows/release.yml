@@ -1,0 +1,183 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "[0-9]+.[0-9]+.[0-9]+"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  linux:
+    name: Build Linux x86_64
+    runs-on: ubuntu-latest
+    container: archlinux:base-devel
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install native dependencies
+        run: pacman -Syu --noconfirm git go pkgconf sdl3 libmupdf
+
+      - name: Verify native dependencies
+        run: pkg-config --cflags --libs mupdf sdl3
+
+      - name: Build
+        env:
+          CGO_ENABLED: 1
+        run: |
+          mkdir -p dist
+          go build -trimpath -ldflags "-s -w -X main.version=${GITHUB_REF_NAME}" -o dist/gopdf .
+
+      - name: Package
+        run: |
+          name="gopdf-${GITHUB_REF_NAME}-linux-amd64"
+          mkdir -p "$name"
+          cp dist/gopdf "$name/"
+          tar -czf "${name}.tar.gz" "$name"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: gopdf-${{ github.ref_name }}-linux-amd64
+          path: gopdf-${{ github.ref_name }}-linux-amd64.tar.gz
+          if-no-files-found: error
+
+  macos:
+    name: Build macOS ${{ matrix.goarch }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-13
+            goarch: amd64
+          - runner: macos-14
+            goarch: arm64
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install native dependencies
+        run: brew install sdl3 mupdf go pkg-config
+
+      - name: Set up environment
+        run: |
+          echo "DYLD_LIBRARY_PATH=$(brew --prefix sdl3)/lib:$DYLD_LIBRARY_PATH" >> "$GITHUB_ENV"
+
+      - name: Create MuPDF pkg-config file
+        run: |
+          mkdir -p "$PWD/pkgconfig"
+
+          MUPDF_PREFIX="$(brew --prefix mupdf)"
+          MUPDF_VERSION="$(brew list --versions mupdf | awk '{print $2}')"
+
+          cat > "$PWD/pkgconfig/mupdf.pc" <<EOF
+          prefix=${MUPDF_PREFIX}
+          exec_prefix=\${prefix}
+          libdir=\${exec_prefix}/lib
+          includedir=\${prefix}/include
+
+          Name: mupdf
+          Description: MuPDF PDF rendering library
+          Version: ${MUPDF_VERSION}
+          Libs: -L\${libdir} -lmupdf -lmupdf-third -lm
+          Cflags: -I\${includedir}
+          EOF
+
+          echo "PKG_CONFIG_PATH=$PWD/pkgconfig:$PKG_CONFIG_PATH" >> "$GITHUB_ENV"
+
+      - name: Verify native dependencies
+        run: pkg-config --cflags --libs mupdf sdl3
+
+      - name: Build
+        env:
+          CGO_ENABLED: 1
+          GOOS: darwin
+          GOARCH: ${{ matrix.goarch }}
+        run: |
+          mkdir -p dist
+          go build -trimpath -ldflags "-s -w -X main.version=${GITHUB_REF_NAME}" -o dist/gopdf .
+
+      - name: Package
+        run: |
+          name="gopdf-${GITHUB_REF_NAME}-darwin-${{ matrix.goarch }}"
+          mkdir -p "$name"
+          cp dist/gopdf "$name/"
+          tar -czf "${name}.tar.gz" "$name"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: gopdf-${{ github.ref_name }}-darwin-${{ matrix.goarch }}
+          path: gopdf-${{ github.ref_name }}-darwin-${{ matrix.goarch }}.tar.gz
+          if-no-files-found: error
+
+  windows:
+    name: Build Windows x86_64
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: msys2 {0}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up MSYS2
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: UCRT64
+          update: true
+          path-type: inherit
+          install: >-
+            mingw-w64-ucrt-x86_64-go
+            mingw-w64-ucrt-x86_64-gcc
+            mingw-w64-ucrt-x86_64-pkgconf
+            mingw-w64-ucrt-x86_64-sdl3
+            mingw-w64-ucrt-x86_64-mupdf
+
+      - name: Verify native dependencies
+        run: pkg-config --cflags --libs mupdf sdl3
+
+      - name: Build
+        env:
+          CGO_ENABLED: 1
+        run: |
+          mkdir -p dist
+          go build -trimpath -ldflags "-s -w -X main.version=${GITHUB_REF_NAME}" -o dist/gopdf.exe .
+
+      - name: Package
+        run: |
+          name="gopdf-${GITHUB_REF_NAME}-windows-amd64"
+          mkdir -p "$name"
+          cp dist/gopdf.exe "$name/"
+          powershell -NoProfile -Command "Compress-Archive -Path '${name}' -DestinationPath '${name}.zip'"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: gopdf-${{ github.ref_name }}-windows-amd64
+          path: gopdf-${{ github.ref_name }}-windows-amd64.zip
+          if-no-files-found: error
+
+  release:
+    name: Create GitHub release
+    runs-on: ubuntu-latest
+    needs:
+      - linux
+      - macos
+      - windows
+    if: startsWith(github.ref, 'refs/tags/')
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" dist/* --title "$GITHUB_REF_NAME" --generate-notes

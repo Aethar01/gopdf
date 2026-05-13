@@ -11,7 +11,7 @@ import (
 	"gopdf/internal/viewer"
 )
 
-const version = "0.1.13"
+var version = "0.1.13"
 
 //go:embed assets/gopdf.bmp
 var iconBMP []byte
