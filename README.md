@@ -427,30 +427,17 @@ Windows example using the native file picker:
 
 ```lua
 local function open_with_windows_file_picker()
-  local temp_dir = os.getenv("TEMP") or os.getenv("TMP") or "."
-  local script_path = temp_dir .. "\\gopdf_picker.vbs"
+  local cmd = [[
+  mshta "javascript:var d=new ActiveXObject('UserAccounts.CommonDialog');d.Filter='All Files|*.*';if(d.ShowOpen())document.write(d.FileName);close();"
+  ]]
 
-  local vbscript = [[
-Set shell = CreateObject("Shell.Application")
-Set folder = shell.BrowseForFolder(0, "Select a PDF file:", 0, 0)
-If Not folder Is Nothing Then
-  path = folder.Self.Path
-  Set fso = CreateObject("Scripting.FileSystemObject")
-  ' Show file picker dialog
-  Set objDialog = CreateObject("Shell.BrowseForFolder")
-End If
-]]
+  local p = io.popen(cmd)
+  if not p then return nil end
 
-  local command = [[powershell.exe -WindowStyle Hidden -NoProfile -STA -Command "Add-Type -AssemblyName System.Windows.Forms; $dialog = New-Object System.Windows.Forms.OpenFileDialog; $dialog.Filter = 'PDF files (*.pdf)|*.pdf|All files (*.*)|*.*'; $result = $dialog.ShowDialog(); if ($result -eq 'OK') { Write-Output $dialog.FileName }"]]
+  local path = p:read("*a")
+  p:close()
 
-  local handle = io.popen(command)
-  if not handle then
-    gopdf.message("could not open file picker")
-    return
-  end
-
-  local path = handle:read("*a")
-  local exit_code = handle:close()
+  path = path:gsub("^%s+", ""):gsub("%s+$", "")
 
   if path then
     path = path:match("^%s*(.-)%s*$") or ""
