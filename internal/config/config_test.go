@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -217,6 +218,35 @@ end
 	}
 	if got := rt.Config().PageGapVertical; got != 22 {
 		t.Fatalf("expected second document config, got %d", got)
+	}
+}
+
+func TestOpenStoresAbsoluteDocumentPath(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.lua")
+	want, err := filepath.Abs("doc.pdf")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte(`
+if gopdf.document.path == `+strconv.Quote(want)+` then
+  options.page_gap_vertical = 12
+end
+`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	rt, err := Open(path, "doc.pdf")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rt.Close()
+
+	if rt.docPath != want {
+		t.Fatalf("expected absolute document path %q, got %q", want, rt.docPath)
+	}
+	if got := rt.Config().PageGapVertical; got != 12 {
+		t.Fatalf("expected lua config to see absolute document path, got page_gap_vertical=%d", got)
 	}
 }
 

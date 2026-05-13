@@ -1524,10 +1524,11 @@ func (a *App) resolveOpenPath(path string) string {
 			path = filepath.Join(dir, path)
 		}
 	}
-	return path
+	return absoluteOpenPath(path)
 }
 
 func (a *App) openDocument(path string, startPage int, reloadConfig bool) error {
+	path = absoluteOpenPath(path)
 	doc, err := mupdf.Open(path)
 	if err != nil {
 		return err
@@ -1611,6 +1612,16 @@ func (a *App) openDocument(path string, startPage int, reloadConfig bool) error 
 		return configErr
 	}
 	return nil
+}
+
+func absoluteOpenPath(path string) string {
+	if path == "" || filepath.IsAbs(path) {
+		return path
+	}
+	if abs, err := filepath.Abs(path); err == nil {
+		return abs
+	}
+	return path
 }
 
 func (a *App) applyConfigState(cfg config.Config, preserveManualFit bool) {

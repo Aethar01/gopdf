@@ -182,6 +182,7 @@ func Load(explicitPath string) (Config, error) {
 }
 
 func Open(explicitPath, docPath string) (*Runtime, error) {
+	docPath = absoluteDocumentPath(docPath)
 	docName := ""
 	if docPath != "" {
 		docName = filepath.Base(docPath)
@@ -219,11 +220,22 @@ func SetLastFile(path string) error {
 	if statePath == "" {
 		return nil
 	}
+	path = absoluteDocumentPath(path)
 	dir := filepath.Dir(statePath)
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return err
 	}
 	return os.WriteFile(statePath, []byte(path), 0644)
+}
+
+func absoluteDocumentPath(path string) string {
+	if path == "" || filepath.IsAbs(path) {
+		return path
+	}
+	if abs, err := filepath.Abs(path); err == nil {
+		return abs
+	}
+	return path
 }
 
 func candidatePaths(explicitPath string) []string {
@@ -262,6 +274,7 @@ func (r *Runtime) AttachHost(host Host) {
 }
 
 func (r *Runtime) SetDocument(path string) error {
+	path = absoluteDocumentPath(path)
 	r.docPath = path
 	r.docName = ""
 	if path != "" {

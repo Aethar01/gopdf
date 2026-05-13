@@ -4,6 +4,7 @@ import (
 	"image"
 	"image/color"
 	"math"
+	"path/filepath"
 	"reflect"
 	"testing"
 
@@ -323,6 +324,28 @@ func TestRunCommandSearchAndOpenMessages(t *testing.T) {
 	app.runCommand(":help")
 	if app.message != commandHelpMessage() {
 		t.Fatalf("expected help command to show command help, got %q", app.message)
+	}
+}
+
+func TestResolveOpenPathReturnsAbsolutePath(t *testing.T) {
+	want, err := filepath.Abs("test.txt")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	app := &App{}
+	if got := app.resolveOpenPath("test.txt"); got != want {
+		t.Fatalf("expected absolute path %q, got %q", want, got)
+	}
+}
+
+func TestResolveOpenPathUsesCurrentDocumentDirectory(t *testing.T) {
+	dir := t.TempDir()
+	app := &App{docPath: filepath.Join(dir, "paper.pdf")}
+	want := filepath.Join(dir, "other.pdf")
+
+	if got := app.resolveOpenPath("other.pdf"); got != want {
+		t.Fatalf("expected path relative to document directory %q, got %q", want, got)
 	}
 }
 
