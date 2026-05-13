@@ -34,7 +34,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Install native dependencies
-        run: brew install sdl3 mupdf
+        run: brew install sdl3 mupdf go
 
       - name: Build
         run: go build ./...
