@@ -423,6 +423,29 @@ gopdf.bind("fo", function()
 end)
 ```
 
+Windows example using the native file picker:
+
+```lua
+local function open_with_windows_file_picker()
+  local command = [[powershell.exe -NoProfile -STA -Command "Add-Type -AssemblyName System.Windows.Forms; $dialog = New-Object System.Windows.Forms.OpenFileDialog; $dialog.Filter = 'PDF files (*.pdf)|*.pdf|All files (*.*)|*.*'; if ($dialog.ShowDialog() -eq 'OK') { Write-Output $dialog.FileName }"]]
+
+  local handle = io.popen(command)
+  if not handle then
+    gopdf.message("could not open file picker")
+    return
+  end
+
+  local path = handle:read("*l")
+  handle:close()
+
+  if path and path ~= "" then
+    gopdf.open(path)
+  end
+end
+
+gopdf.bind("fo", open_with_windows_file_picker)
+```
+
 ### Actions
 
 Actions can be bound directly, called from callbacks, or executed with `gopdf.command` where a matching command exists.
