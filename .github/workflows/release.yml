@@ -10,41 +10,6 @@ permissions:
   contents: write
 
 jobs:
-  linux:
-    name: Build Linux x86_64
-    runs-on: ubuntu-latest
-    container: archlinux:base-devel
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Install native dependencies
-        run: pacman -Syu --noconfirm git go pkgconf sdl3 libmupdf
-
-      - name: Verify native dependencies
-        run: pkg-config --cflags --libs mupdf sdl3
-
-      - name: Build
-        env:
-          CGO_ENABLED: 1
-        run: |
-          mkdir -p dist
-          go build -trimpath -ldflags "-s -w -X main.version=${GITHUB_REF_NAME}" -o dist/gopdf .
-
-      - name: Package
-        run: |
-          name="gopdf-${GITHUB_REF_NAME}-linux-amd64"
-          mkdir -p "$name"
-          cp dist/gopdf "$name/"
-          tar -czf "${name}.tar.gz" "$name"
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: gopdf-${{ github.ref_name }}-linux-amd64
-          path: gopdf-${{ github.ref_name }}-linux-amd64.tar.gz
-          if-no-files-found: error
-
   macos:
     name: Build macOS ${{ matrix.goarch }}
     runs-on: ${{ matrix.runner }}
@@ -61,7 +26,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Install native dependencies
-        run: brew install sdl3 mupdf go pkg-config
+        run: brew install sdl3 mupdf go pkg-config dylibbundler
 
       - name: Set up environment
         run: |
@@ -106,6 +71,11 @@ jobs:
           name="gopdf-${GITHUB_REF_NAME}-darwin-${{ matrix.goarch }}"
           mkdir -p "$name"
           cp dist/gopdf "$name/"
+          dylibbundler -od -b -x "$name/gopdf" -d "$name/lib" -p "@executable_path/lib"
+          if otool -L "$name/gopdf" "$name"/lib/*.dylib | grep -E '(/opt/homebrew|/usr/local)/'; then
+            exit 1
+          fi
+          "$name/gopdf" -v
           tar -czf "${name}.tar.gz" "$name"
 
       - name: Upload artifact
@@ -153,6 +123,11 @@ jobs:
           name="gopdf-${GITHUB_REF_NAME}-windows-amd64"
           mkdir -p "$name"
           cp dist/gopdf.exe "$name/"
+          ldd dist/gopdf.exe \
+            | awk '/\/ucrt64\/bin\// { print $3 }' \
+            | sort -u \
+            | xargs -r cp -t "$name/"
+          PATH="$PWD/$name:/usr/bin:/bin" "$PWD/$name/gopdf.exe" -v
           powershell -NoProfile -Command "Compress-Archive -Path '${name}' -DestinationPath '${name}.zip'"
 
       - name: Upload artifact
@@ -166,7 +141,6 @@ jobs:
     name: Create GitHub release
     runs-on: ubuntu-latest
     needs:
-      - linux
       - macos
       - windows
     if: startsWith(github.ref, 'refs/tags/')
