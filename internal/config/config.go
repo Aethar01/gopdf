@@ -1312,8 +1312,8 @@ func normalizeMouseEvent(s string) string {
 	if strings.HasPrefix(s, "<c-") && strings.HasSuffix(s, ">") {
 		return s
 	}
-	if strings.HasPrefix(s, "ctrl_") {
-		return "<c-" + strings.TrimPrefix(s, "ctrl_") + ">"
+	if after, ok :=strings.CutPrefix(s, "ctrl_"); ok  {
+		return "<c-" + after + ">"
 	}
 	return s
 }
@@ -1321,9 +1321,13 @@ func normalizeMouseEvent(s string) string {
 func defaultBindings() map[string]string {
 	return map[string]string{
 		"j":       "scroll_down",
+		"<Down>":  "scroll_down",
 		"k":       "scroll_up",
+		"<Up>":    "scroll_up",
 		"h":       "scroll_left",
+		"<Left>":  "scroll_left",
 		"l":       "scroll_right",
+		"<Right>": "scroll_right",
 		"J":       "next_page",
 		"K":       "prev_page",
 		" ":       "next_page",

@@ -207,6 +207,7 @@ Key names are case-sensitive for printable letters and normalized for angle-brac
 | Printable punctuation | `/`, `?`, `;`, `:`, `=`, `+`, `-` |
 | Space | `" "` or `<Space>` |
 | Special keys | `<CR>`, `<Enter>`, `<Return>`, `<Esc>`, `<BS>`, `<PgDn>`, `<PgUp>`, `<Tab>` |
+| Arrow keys | `<Up>`, `<Down>`, `<Left>`, `<Right>` |
 | Ctrl keys | `<C-a>`, `<C-S-a>`, `<C-1>`, `<C-S-1>`, `<C-Space>`, `<C-Tab>`, `<C-Enter>`, `<C-Esc>`, `<C-BS>`, `<C-PgDn>`, `<C-PgUp>` |
 | Shift special keys | `<S-CR>`, `<S-Esc>`, `<S-BS>`, `<S-PgDn>`, `<S-PgUp>`, `<S-Tab>` |
 | Sequences | `gg`, `tb`, `co`, `<C-x>g` |
@@ -228,8 +229,8 @@ Supported mouse events:
 
 | Key | Action |
 |-----|--------|
-| `j` / `k` | Scroll down / up |
-| `h` / `l` | Scroll left / right |
+| `j`, `<Down>` / `k`, `<Up>` | Scroll down / up |
+| `h`, `<Left>` / `l`, `<Right>` | Scroll left / right |
 | `J` / `K` | Next / previous page |
 | `Space` / `<PgDn>` / `<PgUp>` | Next page / next page / previous page |
 | `gg` / `G` | First / last page |

@@ -111,6 +111,14 @@ func printableKeyToken(key sdl.Keycode, shift bool) (string, bool) {
 
 func specialKeyToken(key sdl.Keycode) (string, bool) {
 	switch key {
+	case sdl.KeycodeUp:
+		return "<Up>", true
+	case sdl.KeycodeDown:
+		return "<Down>", true
+	case sdl.KeycodeLeft:
+		return "<Left>", true
+	case sdl.KeycodeRight:
+		return "<Right>", true
 	case sdl.KeycodeReturn, sdl.KeycodeKpEnter:
 		return "<CR>", true
 	case sdl.KeycodeEscape:
