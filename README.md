@@ -423,35 +423,6 @@ gopdf.bind("<C-o>", function()
 end)
 ```
 
-Windows example using the native file picker:
-
-```lua
-local function open_with_windows_file_picker()
-  local cmd = [[
-powershell -NoProfile -STA -Command "Add-Type -AssemblyName System.Windows.Forms; $d = New-Object System.Windows.Forms.OpenFileDialog; $d.Filter = 'All Files (*.*)|*.*'; if ($d.ShowDialog() -eq 'OK') { [Console]::Out.Write($d.FileName) }"
-  ]]
-
-  local p = io.popen(cmd)
-  if not p then
-    gopdf.message("file picker error")
-    return
-  end
-
-  local path = p:read("*a")
-  p:close()
-
-  path = (path or ""):gsub("^%s+", ""):gsub("%s+$", "")
-
-  if path ~= "" then
-    gopdf.open(path)
-  else
-    gopdf.message("no file selected")
-  end
-end
-
-gopdf.bind("<C-o>", open_with_windows_file_picker)
-```
-
 ### Actions
 
 Actions can be bound directly, called from callbacks, or executed with `gopdf.command` where a matching command exists.
