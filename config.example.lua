@@ -29,14 +29,14 @@ gopdf.options.sequence_timeout_ms = 700
 gopdf.status_bar.left = "{message}"
 gopdf.status_bar.right = "{page}/{total} {mode} fit={fit} rot={rot} {zoom}"
 
-gopdf.options.background = { 255, 255, 255 }
+gopdf.options.background = { 220, 220, 220 }
 gopdf.options.page_background = { 255, 255, 255 }
-gopdf.options.foreground = { 17, 17, 17 }
-gopdf.options.status_bar_color = { 17, 17, 17 }
-gopdf.options.alt_background = { 17, 17, 17 }
+gopdf.options.foreground = { 20, 20, 20 }
+gopdf.options.status_bar_color = { 220, 220, 220 }
+gopdf.options.alt_background = { 20, 20, 20 }
 gopdf.options.alt_page_background = { 17, 17, 17 }
 gopdf.options.alt_foreground = { 255, 255, 255 }
-gopdf.options.alt_status_bar_color = { 17, 17, 17 }
+gopdf.options.alt_status_bar_color = { 20, 20, 20 }
 gopdf.options.highlight_foreground = { 0, 0, 0 }
 gopdf.options.highlight_background = { 255, 224, 102 }
 
