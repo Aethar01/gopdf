@@ -33,11 +33,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install with Homebrew formula
+      - name: Build
         run: brew install --HEAD Aethar01/homebrew-gopdf/gopdf
 
-      - name: Test installed binary
-        run: gopdf -v
+      - name: Test
+        run: brew test Aethar01/homebrew-gopdf/gopdf
 
   windows:
     name: Windows
