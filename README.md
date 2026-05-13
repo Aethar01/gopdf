@@ -418,7 +418,7 @@ local function show_file_browser(dir)
   })
 end
 
-gopdf.bind("fo", function()
+gopdf.bind("<C-o>", function()
   show_file_browser(os.getenv("HOME") or ".")
 end)
 ```
@@ -427,7 +427,21 @@ Windows example using the native file picker:
 
 ```lua
 local function open_with_windows_file_picker()
-  local command = [[powershell.exe -NoProfile -STA -Command "Add-Type -AssemblyName System.Windows.Forms; $dialog = New-Object System.Windows.Forms.OpenFileDialog; $dialog.Filter = 'PDF files (*.pdf)|*.pdf|All files (*.*)|*.*'; if ($dialog.ShowDialog() -eq 'OK') { Write-Output $dialog.FileName }"]]
+  local temp_dir = os.getenv("TEMP") or os.getenv("TMP") or "."
+  local script_path = temp_dir .. "\\gopdf_picker.vbs"
+
+  local vbscript = [[
+Set shell = CreateObject("Shell.Application")
+Set folder = shell.BrowseForFolder(0, "Select a PDF file:", 0, 0)
+If Not folder Is Nothing Then
+  path = folder.Self.Path
+  Set fso = CreateObject("Scripting.FileSystemObject")
+  ' Show file picker dialog
+  Set objDialog = CreateObject("Shell.BrowseForFolder")
+End If
+]]
+
+  local command = [[powershell.exe -WindowStyle Hidden -NoProfile -STA -Command "Add-Type -AssemblyName System.Windows.Forms; $dialog = New-Object System.Windows.Forms.OpenFileDialog; $dialog.Filter = 'PDF files (*.pdf)|*.pdf|All files (*.*)|*.*'; $result = $dialog.ShowDialog(); if ($result -eq 'OK') { Write-Output $dialog.FileName }"]]
 
   local handle = io.popen(command)
   if not handle then
@@ -435,15 +449,22 @@ local function open_with_windows_file_picker()
     return
   end
 
-  local path = handle:read("*l")
-  handle:close()
+  local path = handle:read("*a")
+  local exit_code = handle:close()
 
-  if path and path ~= "" then
-    gopdf.open(path)
+  if path then
+    path = path:match("^%s*(.-)%s*$") or ""
+    if path ~= "" then
+      gopdf.open(path)
+    else
+      gopdf.message("no file selected")
+    end
+  else
+    gopdf.message("file picker error")
   end
 end
 
-gopdf.bind("fo", open_with_windows_file_picker)
+gopdf.bind("<C-o>", open_with_windows_file_picker)
 ```
 
 ### Actions
