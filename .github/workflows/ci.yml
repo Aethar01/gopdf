@@ -36,6 +36,11 @@ jobs:
       - name: Install native dependencies
         run: brew install sdl3 mupdf go pkg-config
 
+      - name: Set up environment
+        run: |
+          echo "DYLD_LIBRARY_PATH=$(brew --prefix sdl3)/lib:$DYLD_LIBRARY_PATH" >> "$GITHUB_ENV"
+
+
       - name: Create MuPDF pkg-config file
         run: |
           mkdir -p "$PWD/pkgconfig"
