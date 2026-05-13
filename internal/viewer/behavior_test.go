@@ -349,6 +349,21 @@ func TestResolveOpenPathUsesCurrentDocumentDirectory(t *testing.T) {
 	}
 }
 
+func TestHandleDroppedFileQueuesOpenWithoutRuntime(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "dropped.pdf")
+	app := &App{}
+
+	app.handleDroppedFile(path)
+
+	if app.pendingOpen != path {
+		t.Fatalf("expected dropped path %q to be queued, got %q", path, app.pendingOpen)
+	}
+	if !app.quit {
+		t.Fatal("expected drop open without runtime to quit for restart")
+	}
+}
+
 func TestMoveSearchReportsExpectedState(t *testing.T) {
 	app := testLayoutApp(3)
 	app.recomputeLayout(800, 600)

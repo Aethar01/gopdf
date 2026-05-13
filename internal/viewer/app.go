@@ -307,6 +307,7 @@ func (a *App) Run() error {
 	}
 	a.cursorHand = sdl.CreateSystemCursor(sdl.SystemCursorPointer)
 	a.cursorArrow = sdl.CreateSystemCursor(sdl.SystemCursorDefault)
+	sdl.SetEventEnabled(sdl.EventDropFile, true)
 	a.setWindowTitle()
 	sdl.SetRenderDrawBlendMode(a.renderer, sdl.BlendModeBlend)
 	sdl.SetDefaultTextureScaleMode(a.renderer, sdl.ScaleModeLinear)
@@ -397,8 +398,20 @@ func (a *App) handleSDLEvent(event *sdl.Event) error {
 	case sdl.EventMouseMotion:
 		e := event.Motion()
 		a.handleSDLMouseMotion(&e)
+	case sdl.EventDropFile:
+		e := event.Drop()
+		a.handleDroppedFile(e.Data())
 	}
 	return nil
+}
+
+func (a *App) handleDroppedFile(path string) {
+	if path == "" {
+		return
+	}
+	if err := a.Open(path); err != nil {
+		a.message = err.Error()
+	}
 }
 
 func (a *App) drawFrame() error {
