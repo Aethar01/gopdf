@@ -127,6 +127,7 @@ jobs:
             | awk '/\/ucrt64\/bin\// { print $3 }' \
             | sort -u \
             | xargs -r cp -t "$name/"
+          cp /ucrt64/bin/SDL3.dll "$name/"
           PATH="$PWD/$name:/usr/bin:/bin" "$PWD/$name/gopdf.exe" -v
           powershell -NoProfile -Command "Compress-Archive -Path '${name}' -DestinationPath '${name}.zip'"
 
