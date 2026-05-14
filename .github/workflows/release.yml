@@ -261,13 +261,20 @@ jobs:
           choco install innosetup -y --no-progress
           & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" assets\windows\gopdf.iss
 
+      - name: Collect Windows release files
+        shell: pwsh
+        run: |
+          Copy-Item `
+            "dist/installer/gopdf-${{ github.ref_name }}-windows-amd64-installer.exe" `
+            "gopdf-${{ github.ref_name }}-windows-amd64-installer.exe"
+
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: gopdf-${{ github.ref_name }}-windows-amd64
           path: |
             gopdf-${{ github.ref_name }}-windows-amd64.zip
-            dist/installer/gopdf-${{ github.ref_name }}-windows-amd64-installer.exe
+            gopdf-${{ github.ref_name }}-windows-amd64-installer.exe
           if-no-files-found: error
 
   release:
