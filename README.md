@@ -30,7 +30,7 @@ brew install Aethar01/homebrew-gopdf/gopdf
 <details>
 <summary>Windows</summary>
 
-Install from the [latest release](https://github.com/Aethar01/gopdf/releases/latest). Download the zip, unzip and run using the exe.
+Install from the [latest release](https://github.com/Aethar01/gopdf/releases/latest). Use the installer for Start Menu shortcuts and optional PDF file association, or download the zip, unzip, and run the exe directly.
 
 </details>
 
@@ -74,7 +74,7 @@ Start from [`config.example.lua`](./config.example.lua). Config is Lua, loaded o
 
 ### Config File Locations
 
-The first existing file for the current OS is used:
+Generated keybind edits are loaded from `autogen.lua` before `config.lua`, so explicit user config always wins. The first existing user config file for the current OS is used:
 
 | OS | Path |
 |----|------|
@@ -85,6 +85,8 @@ The first existing file for the current OS is used:
 | Linux | `/etc/xdg/gopdf/config.lua` |
 | macOS | `~/Library/Application Support/gopdf/config.lua` |
 | Windows | `%APPDATA%\gopdf\config.lua` |
+
+Generated keybind edits are written to `autogen.lua` next to the normal per-user config file.
 
 The last-opened file is saved in the matching per-user app data directory: `$XDG_DATA_HOME/gopdf/state` or `~/.local/share/gopdf/state` on Linux, `~/Library/Application Support/gopdf/state` on macOS, and `%APPDATA%\gopdf\state` on Windows.
 
@@ -207,7 +209,7 @@ gopdf.unbind_mouse("wheel_down")
 
 ### Supported Keys
 
-Key names are case-sensitive for printable letters and normalized for angle-bracket names.
+Key names are case-sensitive for printable letters and normalized for angle-bracket names. SDL-named keys can be bound using their normalized angle-bracket names, for example `<F13>`, `<Home>`, `<AudioMute>`, or keypad key names reported by SDL.
 
 | Form | Examples |
 |------|----------|
@@ -216,10 +218,13 @@ Key names are case-sensitive for printable letters and normalized for angle-brac
 | Printable punctuation | `/`, `?`, `;`, `:`, `=`, `+`, `-` |
 | Space | `" "` or `<Space>` |
 | Special keys | `<CR>`, `<Enter>`, `<Return>`, `<Esc>`, `<BS>`, `<PgDn>`, `<PgUp>`, `<Tab>` |
+| Function keys | `<F1>` |
 | Arrow keys | `<Up>`, `<Down>`, `<Left>`, `<Right>` |
 | Ctrl keys | `<C-a>`, `<C-S-a>`, `<C-1>`, `<C-S-1>`, `<C-Space>`, `<C-Tab>`, `<C-Enter>`, `<C-Esc>`, `<C-BS>`, `<C-PgDn>`, `<C-PgUp>` |
 | Shift special keys | `<S-CR>`, `<S-Esc>`, `<S-BS>`, `<S-PgDn>`, `<S-PgUp>`, `<S-Tab>` |
 | Sequences | `gg`, `tb`, `co`, `<C-x>g` |
+
+Multiple keys can map to the same action. The `<F1>` keybinds menu adds an additional key for the selected action and writes generated edits to `autogen.lua`. Press `<Del>` or `<BS>` on a selected keybind row to delete it.
 
 Supported mouse events:
 
@@ -254,6 +259,8 @@ Supported mouse events:
 | `s` | Toggle status bar |
 | `f` | Toggle fullscreen |
 | `o` | Open/close outline menu |
+| `<F1>` | Open keybinds menu |
+| `<C-S-o>` | Open PDF file picker |
 | `<CR>` | Confirm input or selected outline item |
 | `+` / `=` / `-` / `0` | Zoom in / zoom in / zoom out / reset zoom |
 | `w` / `z` | Fit width / fit page |

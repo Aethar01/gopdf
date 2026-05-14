@@ -15,6 +15,7 @@ import (
 	"unicode/utf8"
 
 	"gopdf/internal/config"
+	"gopdf/internal/filepicker"
 	"gopdf/internal/mupdf"
 
 	"github.com/jupiterrider/purego-sdl3/sdl"
@@ -157,6 +158,7 @@ type App struct {
 	searchWorker *searchWorker
 	outline      []mupdf.OutlineItem
 	outlineMenu  outlineMenuState
+	keybindMenu  keybindMenuState
 	luaUI        luaUIState
 	completion   completionState
 
@@ -443,6 +445,11 @@ func (a *App) drawFrame() error {
 			return err
 		}
 	}
+	if a.keybindMenu.visible {
+		if err := a.drawKeybindMenu(a.renderer); err != nil {
+			return err
+		}
+	}
 	if a.outlineMenu.visible {
 		if err := a.drawOutlineMenu(a.renderer); err != nil {
 			return err
@@ -459,6 +466,9 @@ func (a *App) drawFrame() error {
 
 func (a *App) handleSDLKeyDown(e *sdl.KeyboardEvent) {
 	if a.luaUI.visible && a.handleLuaUIKey(e) {
+		return
+	}
+	if a.keybindMenu.visible && a.handleKeybindMenuKey(e) {
 		return
 	}
 	if a.outlineMenu.visible && a.handleOutlineMenuKey(e) {
@@ -543,15 +553,19 @@ func (a *App) handleSDLTextInput(e *sdl.TextInputEvent) {
 	if text == "" {
 		return
 	}
-	if a.mode == modeNormal {
-		return
-	}
 	if a.ignoreText != "" {
 		text, _ = strings.CutPrefix(text, a.ignoreText)
 		a.ignoreText = ""
 		if text == "" {
 			return
 		}
+	}
+	if a.outlineMenu.visible && a.outlineMenu.searching {
+		a.insertOutlineSearchText(text)
+		return
+	}
+	if a.mode == modeNormal {
+		return
 	}
 	for _, r := range text {
 		if r >= 0x20 && r != 0x7f {
@@ -566,6 +580,14 @@ func (a *App) handleSDLMouseWheel(e *sdl.MouseWheelEvent) {
 			a.scrollLuaUI(1)
 		} else if e.Y > 0 {
 			a.scrollLuaUI(-1)
+		}
+		return
+	}
+	if a.keybindMenu.visible {
+		if e.Y < 0 {
+			a.scrollKeybindMenu(1)
+		} else if e.Y > 0 {
+			a.scrollKeybindMenu(-1)
 		}
 		return
 	}
@@ -652,7 +674,17 @@ func (a *App) handleSDLMouseButton(e *sdl.MouseButtonEvent) {
 		}
 		return
 	}
+	if a.keybindMenu.visible {
+		if e.Type == sdl.EventMouseButtonDown && e.Button == uint8(sdl.ButtonLeft) {
+			a.clickKeybindMenu(int(e.X), int(e.Y))
+		}
+		return
+	}
 	if a.outlineMenu.visible {
+		if e.Type == sdl.EventMouseButtonUp && e.Button == uint8(sdl.ButtonLeft) {
+			a.outlineMenu.draggingScrollbar = false
+			return
+		}
 		if e.Type == sdl.EventMouseButtonDown && e.Button == uint8(sdl.ButtonLeft) {
 			a.clickOutlineMenu(int(e.X), int(e.Y))
 		}
@@ -699,6 +731,22 @@ func (a *App) handleSDLMouseButton(e *sdl.MouseButtonEvent) {
 }
 
 func (a *App) handleSDLMouseMotion(e *sdl.MouseMotionEvent) {
+	if a.luaUI.visible {
+		a.hoverLuaUI(int(e.X), int(e.Y))
+		return
+	}
+	if a.keybindMenu.visible {
+		a.hoverKeybindMenu(int(e.X), int(e.Y))
+		return
+	}
+	if a.outlineMenu.visible && a.outlineMenu.draggingScrollbar {
+		a.dragOutlineScrollbar(int(e.Y))
+		return
+	}
+	if a.outlineMenu.visible {
+		a.hoverOutlineMenu(int(e.X), int(e.Y))
+		return
+	}
 	if a.panning && (a.panButton == 0 || uint32(e.State)&buttonMask(a.panButton) != 0) {
 		a.scrollBy(-float64(e.Xrel), -float64(e.Yrel))
 		return
@@ -1421,6 +1469,8 @@ func (a *App) runBuiltinAction(action string) error {
 		a.SetFullscreen(a.fullscreen)
 	case "outline":
 		a.toggleOutlineMenu()
+	case "keybinds":
+		a.toggleKeybindMenu()
 	case "confirm":
 		if a.completion.visible {
 			a.acceptCompletion()
@@ -1468,6 +1518,14 @@ func (a *App) runBuiltinAction(action string) error {
 		a.jumpForward()
 	case "jump_backward":
 		a.jumpBackward()
+	case "open_file_picker":
+		path, err := filepicker.PickPDF()
+		if err != nil {
+			return err
+		}
+		if path != "" {
+			return a.Open(path)
+		}
 	case "clear_search":
 		a.clearSearch()
 	default:
@@ -1479,6 +1537,10 @@ func (a *App) runBuiltinAction(action string) error {
 func (a *App) closeActiveUI() {
 	if a.luaUI.visible {
 		a.closeLuaUI(true)
+		return
+	}
+	if a.keybindMenu.visible {
+		a.keybindMenu = keybindMenuState{}
 		return
 	}
 	if a.outlineMenu.visible {
@@ -1608,6 +1670,7 @@ func (a *App) openDocument(path string, startPage int, reloadConfig bool) error 
 	a.search = searchState{}
 	a.outline = nil
 	a.outlineMenu = outlineMenuState{}
+	a.keybindMenu = keybindMenuState{}
 	a.luaUI = luaUIState{}
 	a.completion = completionState{}
 	a.selection = textSelection{}
@@ -1901,6 +1964,8 @@ func (a *App) runCommand(input string) {
 		a.setFitMode(sanitizeFitMode(fields[0]))
 	case "reload-config":
 		a.reloadConfig()
+	case "keybinds":
+		a.toggleKeybindMenu()
 	case "search":
 		a.startSearch(args, searchModeForward)
 	case "open":
@@ -1946,7 +2011,7 @@ func (a *App) reloadConfig() {
 }
 
 func commandHelpMessage() string {
-	return ":open file | :page N | :search text | :mode continuous|single | :colors normal|alt | :set render_mode!|alt_colors!|dual_page!|first_page_offset!|status_bar! | :fit width|page | :reload-config | :quit"
+	return ":open file | :page N | :search text | :mode continuous|single | :colors normal|alt | :keybinds | :set render_mode!|alt_colors!|dual_page!|first_page_offset!|status_bar! | :fit width|page | :reload-config | :quit"
 }
 
 func (a *App) runSet(setting string) {

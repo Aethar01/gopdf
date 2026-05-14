@@ -248,14 +248,26 @@ jobs:
             | sort -u \
             | xargs -r cp -t "$name/"
           cp /ucrt64/bin/SDL3.dll "$name/"
+          rm -rf dist/gopdf-package
+          cp -R "$name" dist/gopdf-package
           powershell -NoProfile -Command "\$env:PATH='${PWD}/${name};C:/msys64/ucrt64/bin;C:/msys64/usr/bin;' + \$env:PATH; \$p = Start-Process -FilePath '${PWD}/${name}/gopdf.exe' -ArgumentList '-v' -Wait -PassThru; exit \$p.ExitCode"
           powershell -NoProfile -Command "Compress-Archive -Path '${name}' -DestinationPath '${name}.zip'"
+
+      - name: Build installer
+        shell: pwsh
+        env:
+          GOPDF_VERSION: ${{ github.ref_name }}
+        run: |
+          choco install innosetup -y --no-progress
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" assets\windows\gopdf.iss
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: gopdf-${{ github.ref_name }}-windows-amd64
-          path: gopdf-${{ github.ref_name }}-windows-amd64.zip
+          path: |
+            gopdf-${{ github.ref_name }}-windows-amd64.zip
+            dist/installer/gopdf-${{ github.ref_name }}-windows-amd64-installer.exe
           if-no-files-found: error
 
   release:

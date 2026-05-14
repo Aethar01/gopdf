@@ -20,3 +20,10 @@ func platformConfigPaths() []string {
 	}
 	return nil
 }
+
+func platformAutogenPath() string {
+	if home, err := os.UserHomeDir(); err == nil {
+		return filepath.Join(home, "Library", "Application Support", "gopdf", "autogen.lua")
+	}
+	return ""
+}

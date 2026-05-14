@@ -81,6 +81,8 @@ gopdf.bind("q", gopdf.quit)
 gopdf.bind("<Esc>", gopdf.close)
 gopdf.bind("<C-i>", gopdf.jump_forward)
 gopdf.bind("<C-o>", gopdf.jump_backward)
+gopdf.bind("<C-S-o>", gopdf.open_file_picker)
+gopdf.bind("<F1>", gopdf.keybinds)
 
 -- Default mouse bindings.
 

@@ -21,6 +21,13 @@ func platformConfigPaths() []string {
 	return nil
 }
 
+func platformAutogenPath() string {
+	if dir := appDataDir(); dir != "" {
+		return filepath.Join(dir, "gopdf", "autogen.lua")
+	}
+	return ""
+}
+
 func appDataDir() string {
 	if dir := os.Getenv("APPDATA"); dir != "" {
 		return dir

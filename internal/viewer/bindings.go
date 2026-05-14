@@ -1,6 +1,7 @@
 package viewer
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/jupiterrider/purego-sdl3/sdl"
@@ -51,6 +52,9 @@ func normalizeAngleToken(token string) string {
 }
 
 func keyToken(key sdl.Keycode, mod sdl.Keymod) (string, bool) {
+	if isModifierKey(key) {
+		return "", false
+	}
 	ctrl := mod&sdl.KeymodCtrl != 0
 	shift := mod&sdl.KeymodShift != 0
 	if ctrl {
@@ -63,7 +67,8 @@ func keyToken(key sdl.Keycode, mod sdl.Keymod) (string, bool) {
 	}
 	if token, ok := specialKeyToken(key); ok {
 		if shift {
-			return "<s-" + strings.TrimSuffix(strings.TrimPrefix(strings.ToLower(token), "<"), ">") + ">", true
+			inner := strings.TrimSuffix(strings.TrimPrefix(token, "<"), ">")
+			return normalizeAngleToken("<s-" + inner + ">"), true
 		}
 		return normalizeAngleToken(token), true
 	}
@@ -71,6 +76,15 @@ func keyToken(key sdl.Keycode, mod sdl.Keymod) (string, bool) {
 		return token, true
 	}
 	return "", false
+}
+
+func isModifierKey(key sdl.Keycode) bool {
+	switch key {
+	case sdl.KeycodeLCtrl, sdl.KeycodeRCtrl, sdl.KeycodeLShift, sdl.KeycodeRShift, sdl.KeycodeLAlt, sdl.KeycodeRAlt, sdl.KeycodeLGui, sdl.KeycodeRGui, sdl.KeycodeMode, sdl.KeycodeLevel5Shift:
+		return true
+	default:
+		return false
+	}
 }
 
 func printableKeyToken(key sdl.Keycode, shift bool) (string, bool) {
@@ -104,6 +118,8 @@ func printableKeyToken(key sdl.Keycode, shift bool) (string, bool) {
 		return "=", true
 	case sdl.KeycodeMinus:
 		return "-", true
+	case sdl.KeycodeApostrophe, sdl.KeycodeDblApostrophe, sdl.KeycodeComma, sdl.KeycodePeriod, sdl.KeycodeBackslash, sdl.KeycodeLeftBracket, sdl.KeycodeRightBracket, sdl.KeycodeGrave, sdl.KeycodeExclaim, sdl.KeycodeHash, sdl.KeycodeDollar, sdl.KeycodePercent, sdl.KeycodeAmpersand, sdl.KeycodeLeftParen, sdl.KeycodeRightParen, sdl.KeycodeAsterisk, sdl.KeycodePlus, sdl.KeycodeColon, sdl.KeycodeLess, sdl.KeycodeGreater, sdl.KeycodeQuestion, sdl.KeycodeAt, sdl.KeycodeCaret, sdl.KeycodeUnderscore, sdl.KeycodePipe, sdl.KeycodeTilde:
+		return string(rune(key)), true
 	default:
 		return "", false
 	}
@@ -131,9 +147,29 @@ func specialKeyToken(key sdl.Keycode) (string, bool) {
 		return "<PgUp>", true
 	case sdl.KeycodeTab:
 		return "<Tab>", true
+	case sdl.KeycodeDelete:
+		return "<Del>", true
+	case sdl.KeycodeInsert:
+		return "<Ins>", true
+	case sdl.KeycodeHome:
+		return "<Home>", true
+	case sdl.KeycodeEnd:
+		return "<End>", true
 	default:
+		return fallbackSpecialKeyToken(key)
+	}
+}
+
+func fallbackSpecialKeyToken(key sdl.Keycode) (string, bool) {
+	if key < 0x80 {
 		return "", false
 	}
+	name := strings.TrimSpace(sdl.GetKeyName(key))
+	if name == "" {
+		return "", false
+	}
+	name = strings.ReplaceAll(name, " ", "-")
+	return "<" + name + ">", true
 }
 
 func mouseButtonEvent(button uint8, eventType sdl.EventType) (string, bool) {
@@ -208,6 +244,9 @@ func baseKeyName(key sdl.Keycode) (string, bool) {
 	case sdl.KeycodePageUp:
 		return "pgup", true
 	default:
-		return "", false
+		if token, ok := fallbackSpecialKeyToken(key); ok {
+			return strings.TrimSuffix(strings.TrimPrefix(normalizeAngleToken(token), "<"), ">"), true
+		}
+		return fmt.Sprintf("keycode-%d", key), true
 	}
 }

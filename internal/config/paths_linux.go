@@ -35,3 +35,13 @@ func platformConfigPaths() []string {
 	paths = append(paths, filepath.Join(string(filepath.Separator), "etc", "xdg", "gopdf", "config.lua"))
 	return paths
 }
+
+func platformAutogenPath() string {
+	if xdg := os.Getenv("XDG_CONFIG_HOME"); xdg != "" {
+		return filepath.Join(xdg, "gopdf", "autogen.lua")
+	}
+	if home, err := os.UserHomeDir(); err == nil {
+		return filepath.Join(home, ".config", "gopdf", "autogen.lua")
+	}
+	return ""
+}

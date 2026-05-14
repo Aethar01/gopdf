@@ -156,6 +156,7 @@ func TestKeyTokenIncludesModifiedAndPrintableKeys(t *testing.T) {
 		want string
 	}{
 		{name: "ctrl letter", key: sdl.KeycodeJ, mod: sdl.KeymodCtrl, want: "<c-j>"},
+		{name: "ctrl d", key: sdl.KeycodeD, mod: sdl.KeymodCtrl, want: "<c-d>"},
 		{name: "ctrl shift special", key: sdl.KeycodeTab, mod: sdl.KeymodCtrl | sdl.KeymodShift, want: "<c-s-tab>"},
 		{name: "shift slash", key: sdl.KeycodeSlash, mod: sdl.KeymodShift, want: "?"},
 		{name: "shift return", key: sdl.KeycodeReturn, mod: sdl.KeymodShift, want: "<s-cr>"},
@@ -168,6 +169,14 @@ func TestKeyTokenIncludesModifiedAndPrintableKeys(t *testing.T) {
 				t.Fatalf("keyToken(%v, %v) = %q, %v; want %q, true", tt.key, tt.mod, got, ok, tt.want)
 			}
 		})
+	}
+}
+
+func TestKeyTokenIgnoresStandaloneModifiers(t *testing.T) {
+	for _, key := range []sdl.Keycode{sdl.KeycodeLCtrl, sdl.KeycodeRCtrl, sdl.KeycodeLShift, sdl.KeycodeRShift, sdl.KeycodeLAlt, sdl.KeycodeRAlt, sdl.KeycodeLGui, sdl.KeycodeRGui} {
+		if got, ok := keyToken(key, sdl.KeymodCtrl); ok || got != "" {
+			t.Fatalf("expected modifier key %v to be ignored, got %q, %v", key, got, ok)
+		}
 	}
 }
 

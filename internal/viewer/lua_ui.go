@@ -71,7 +71,11 @@ func (a *App) handleLuaUIKey(e *sdl.KeyboardEvent) bool {
 	}
 	if token, ok := keyToken(e.Key, e.Mod); ok {
 		if action, ok := a.sequenceLookup[normalizeBinding(token)]; ok {
+			prevMode := a.mode
 			a.runLuaUIAction(action)
+			if prevMode == modeNormal && a.mode != modeNormal && len([]rune(token)) == 1 {
+				a.ignoreText = token
+			}
 		}
 	}
 	return true
@@ -166,6 +170,20 @@ func (a *App) clickLuaUI(x, y int) {
 	}
 	a.luaUI.selected = index
 	a.activateLuaUISelection()
+}
+
+func (a *App) hoverLuaUI(x, y int) {
+	rect, rows := a.luaUIGeometry()
+	rowHeight := a.luaUIRowHeight()
+	row, ok := a.modalListRowAt(rect, rows, rowHeight, x, y)
+	if !ok {
+		return
+	}
+	index := a.luaUI.scroll + row
+	if index < 0 || index >= len(a.luaUI.rows) {
+		return
+	}
+	a.luaUI.selected = index
 }
 
 func (a *App) luaUIGeometry() (sdl.FRect, int) {
