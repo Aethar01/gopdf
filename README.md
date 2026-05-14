@@ -18,9 +18,19 @@ yay -S gopdf-git
 <details>
 <summary>macOS</summary>
 
+Install from the [latest release](https://github.com/Aethar01/gopdf/releases/latest), amd64 for intel macs or arm64 for apple silicon macs.
+
+Or install using homebrew:
 ```bash
 brew install Aethar01/homebrew-gopdf/gopdf
 ```
+
+</details>
+
+<details>
+<summary>Windows</summary>
+
+Install from the [latest release](https://github.com/Aethar01/gopdf/releases/latest). Download the zip, unzip and run using the exe.
 
 </details>
 
@@ -31,9 +41,8 @@ Requirements:
 
 - Go 1.24+
 - MuPDF 1.25.6+
-- SDL2
-- `pkg-config`
-- C compiler
+- SDL3
+- C compiler that works with CGO
 
 ```bash
 go build
