@@ -21,7 +21,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Install native dependencies
-        run: pacman -Syu --noconfirm git go pkgconf sdl3 libmupdf
+        run: pacman -Syu --noconfirm git go pkgconf sdl3 libmupdf gtk3
 
       - name: Verify native dependencies
         run: pkg-config --cflags --libs mupdf sdl3
