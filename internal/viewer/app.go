@@ -675,6 +675,10 @@ func (a *App) handleSDLMouseButton(e *sdl.MouseButtonEvent) {
 		return
 	}
 	if a.keybindMenu.visible {
+		if e.Type == sdl.EventMouseButtonUp && e.Button == uint8(sdl.ButtonLeft) {
+			a.keybindMenu.draggingScrollbar = false
+			return
+		}
 		if e.Type == sdl.EventMouseButtonDown && e.Button == uint8(sdl.ButtonLeft) {
 			a.clickKeybindMenu(int(e.X), int(e.Y))
 		}
@@ -736,6 +740,10 @@ func (a *App) handleSDLMouseMotion(e *sdl.MouseMotionEvent) {
 		return
 	}
 	if a.keybindMenu.visible {
+		if a.keybindMenu.draggingScrollbar {
+			a.dragKeybindScrollbar(int(e.Y))
+			return
+		}
 		a.hoverKeybindMenu(int(e.X), int(e.Y))
 		return
 	}
