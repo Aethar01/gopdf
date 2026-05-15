@@ -21,8 +21,6 @@ jobs:
             goarch: amd64
           - runner: macos-latest
             goarch: arm64
-          - runner: self-hosted
-            goarch: amd64
     steps:
       - name: Checkout
         uses: actions/checkout@v4
