@@ -16,8 +16,8 @@ gopdf.options.dual_page = false
 gopdf.options.first_page_offset = true
 gopdf.options.fit_mode = "page"
 
-gopdf.options.page_gap = 0 -- sets page_gap_vertical too
-gopdf.options.spread_gap = 0 -- sets page_gap_horizontal too
+gopdf.options.page_gap = 0
+gopdf.options.spread_gap = 0
 gopdf.options.page_gap_vertical = 0
 gopdf.options.page_gap_horizontal = 0
 gopdf.options.status_bar_height = 28
@@ -43,13 +43,9 @@ gopdf.options.highlight_background = { 255, 224, 102 }
 -- Default key bindings.
 
 gopdf.bind("j", gopdf.scroll_down)
-gopdf.bind("<Down>", gopdf.scroll_down)
 gopdf.bind("k", gopdf.scroll_up)
-gopdf.bind("<Up>", gopdf.scroll_up)
 gopdf.bind("h", gopdf.scroll_left)
-gopdf.bind("<Left>", gopdf.scroll_left)
 gopdf.bind("l", gopdf.scroll_right)
-gopdf.bind("<Right>", gopdf.scroll_right)
 gopdf.bind("J", gopdf.next_page)
 gopdf.bind("K", gopdf.prev_page)
 gopdf.bind(" ", gopdf.next_page)
@@ -64,9 +60,9 @@ gopdf.bind("n", gopdf.search_next)
 gopdf.bind("N", gopdf.search_prev)
 gopdf.bind("d", gopdf.toggle_dual_page)
 gopdf.bind("m", gopdf.toggle_render_mode)
-gopdf.bind("<C-r>", gopdf.toggle_alt_colors)
+gopdf.bind("tb", gopdf.toggle_alt_colors)
 gopdf.bind("co", gopdf.toggle_first_page_offset)
-gopdf.bind("<C-n>", gopdf.toggle_status_bar)
+gopdf.bind("s", gopdf.toggle_status_bar)
 gopdf.bind("f", gopdf.toggle_fullscreen)
 gopdf.bind("o", gopdf.outline)
 gopdf.bind("<CR>", gopdf.confirm)
@@ -87,7 +83,6 @@ gopdf.bind("<C-i>", gopdf.jump_forward)
 gopdf.bind("<C-o>", gopdf.jump_backward)
 gopdf.bind("<C-S-o>", gopdf.open_file_picker)
 gopdf.bind("<F1>", gopdf.keybinds)
-gopdf.bind("<C-S-r>", gopdf.reload_config)
 
 -- Default mouse bindings.
 

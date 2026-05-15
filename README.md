@@ -86,7 +86,7 @@ Generated keybind edits are loaded from `autogen.lua` before `config.lua`, so ex
 | macOS | `~/Library/Application Support/gopdf/config.lua` |
 | Windows | `%APPDATA%\gopdf\config.lua` |
 
-Generated keybind edits are written to `autogen.lua` next to the normal per-user config file, or next to the file passed with `--config`.
+Generated keybind edits are written to `autogen.lua` next to the normal per-user config file.
 
 The last-opened file is saved in the matching per-user app data directory: `$XDG_DATA_HOME/gopdf/state` or `~/.local/share/gopdf/state` on Linux, `~/Library/Application Support/gopdf/state` on macOS, and `%APPDATA%\gopdf\state` on Windows.
 
@@ -121,14 +121,14 @@ gopdf.options.outline_height_percent = 80
 gopdf.options.completion_max_items = 10
 
 -- Colors are { red, green, blue }, 0-255.
-gopdf.options.background = { 220, 220, 220 }
+gopdf.options.background = { 255, 255, 255 }
 gopdf.options.page_background = { 255, 255, 255 }
-gopdf.options.foreground = { 20, 20, 20 }
-gopdf.options.status_bar_color = { 220, 220, 220 }
-gopdf.options.alt_background = { 20, 20, 20 }
+gopdf.options.foreground = { 17, 17, 17 }
+gopdf.options.status_bar_color = { 17, 17, 17 }
+gopdf.options.alt_background = { 17, 17, 17 }
 gopdf.options.alt_page_background = { 17, 17, 17 }
 gopdf.options.alt_foreground = { 255, 255, 255 }
-gopdf.options.alt_status_bar_color = { 20, 20, 20 }
+gopdf.options.alt_status_bar_color = { 17, 17, 17 }
 gopdf.options.highlight_foreground = { 0, 0, 0 }
 gopdf.options.highlight_background = { 255, 224, 102 }
 ```
@@ -224,9 +224,7 @@ Key names are case-sensitive for printable letters and normalized for angle-brac
 | Shift special keys | `<S-CR>`, `<S-Esc>`, `<S-BS>`, `<S-PgDn>`, `<S-PgUp>`, `<S-Tab>` |
 | Sequences | `gg`, `tb`, `co`, `<C-x>g` |
 
-Multiple keys can map to the same action. The `<F1>` keybinds menu opens a generated keybind editor. Select an existing row and press `<CR>` or click it, then press a key to add that key for the selected action. Select `+ New keybind...` to choose a builtin action first, then press the key to bind. Press `<Del>` or `<BS>` on a selected keybind row to delete it.
-
-Keybind menu changes are written to `autogen.lua`. This file is regenerated and may overwrite manual edits. It stores only differences from the compiled defaults: added or changed builtin bindings are written as `gopdf.bind(...)`, deleted default bindings are written as `gopdf.unbind(...)`, and unchanged defaults are omitted. Callback bindings from `config.lua` cannot be persisted by the menu. Because `autogen.lua` loads before `config.lua`, explicit bindings or unbindings in `config.lua` take precedence after reload.
+Multiple keys can map to the same action. The `<F1>` keybinds menu adds an additional key for the selected action and writes generated edits to `autogen.lua`. Press `<Del>` or `<BS>` on a selected keybind row to delete it.
 
 Supported mouse events:
 
@@ -256,14 +254,13 @@ Supported mouse events:
 | `NJ` / `NK` | Jump N pages/spreads forward / backward |
 | `d` | Toggle dual-page mode |
 | `m` | Toggle continuous/single render mode |
-| `<C-r>` | Toggle alternate colors |
+| `tb` | Toggle alternate colors |
 | `co` | Toggle first-page offset |
-| `<C-n>` | Toggle status bar |
+| `s` | Toggle status bar |
 | `f` | Toggle fullscreen |
 | `o` | Open/close outline menu |
 | `<F1>` | Open keybinds menu |
 | `<C-S-o>` | Open PDF file picker |
-| `<C-S-r>` | Reload config |
 | `<CR>` | Confirm input or selected outline item |
 | `+` / `=` / `-` / `0` | Zoom in / zoom in / zoom out / reset zoom |
 | `w` / `z` | Fit width / fit page |
@@ -301,7 +298,6 @@ Default mouse bindings:
 | `:set first_page_offset!` | Toggle first-page offset |
 | `:set status_bar!` | Toggle status bar |
 | `:open <filename>` | Open another PDF, relative to the current document directory |
-| `:keybinds` | Open keybinds menu |
 | `:reload-config` | Reload config file |
 | `:help` | Show command help in the status bar |
 | `:quit`, `:q` | Exit |
@@ -462,15 +458,12 @@ gopdf.toggle_alt_colors()
 gopdf.toggle_first_page_offset()
 gopdf.toggle_status_bar()
 gopdf.toggle_fullscreen()
-gopdf.outline()          gopdf.keybinds()
-gopdf.confirm()          gopdf.open_file_picker()
+gopdf.outline()          gopdf.confirm()
 gopdf.zoom_in()          gopdf.zoom_out()
 gopdf.reset_zoom()
 gopdf.fit_width()        gopdf.fit_page()
 gopdf.rotate_cw()        gopdf.rotate_ccw()
 gopdf.jump_forward()     gopdf.jump_backward()
-gopdf.show_completion()  gopdf.next_completion()
-gopdf.prev_completion()
 gopdf.pan()              gopdf.reload_config()
 gopdf.quit()
 ```

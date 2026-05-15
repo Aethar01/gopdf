@@ -6,11 +6,9 @@ on:
       - "**"
     paths-ignore:
       - README.md
-      - config.example.lua
   pull_request:
     paths-ignore:
       - README.md
-      - config.example.lua
   workflow_dispatch:
 
 jobs:
