@@ -1049,17 +1049,36 @@ func (a *App) prefetchVisiblePages() {
 	if len(a.rows) == 0 {
 		return
 	}
+	visible := []int{}
 	prefetch := []int{}
+	seen := map[int]bool{}
 	if a.renderMode == "single" {
 		if a.page < 0 || a.page >= len(a.pageToRow) {
 			return
 		}
 		row := a.rows[a.pageToRow[a.page]]
 		for _, page := range row.pages {
-			prefetch = append(prefetch, page)
+			visible = append(visible, page)
+			seen[page] = true
 		}
 	} else {
-		_, viewportH := a.viewportSize()
+		viewportW, viewportH := a.viewportSize()
+		offsetX, offsetY := a.contentViewportOffset()
+		for _, row := range a.rows {
+			rowY := row.y - a.scrollY + offsetY
+			if rowY+row.height < 0 || rowY > float64(viewportH) {
+				continue
+			}
+			for i, page := range row.pages {
+				x := row.pageX[i] - a.scrollX + offsetX
+				y := row.pageY[i] - a.scrollY + offsetY
+				if x+row.pageW[i] < 0 || x > float64(viewportW) || y+row.pageH[i] < 0 || y > float64(viewportH) {
+					continue
+				}
+				visible = append(visible, page)
+				seen[page] = true
+			}
+		}
 		margin := math.Max(a.renderMargin()*2, float64(viewportH))
 		minY := a.scrollY - margin
 		maxY := a.scrollY + float64(viewportH) + margin
@@ -1068,12 +1087,20 @@ func (a *App) prefetchVisiblePages() {
 				continue
 			}
 			for _, page := range row.pages {
+				if seen[page] {
+					continue
+				}
 				prefetch = append(prefetch, page)
+				seen[page] = true
 			}
 		}
 	}
-	if len(prefetch)*2 > a.cacheLimit {
-		a.cacheLimit = min(a.pageCount*2, len(prefetch)*2)
+	totalPrefetch := len(visible) + len(prefetch)
+	if totalPrefetch*2 > a.cacheLimit {
+		a.cacheLimit = min(a.pageCount*2, totalPrefetch*2)
+	}
+	for _, page := range visible {
+		a.requestRender(page, a.scale)
 	}
 	for _, page := range prefetch {
 		a.requestRender(page, a.scale)

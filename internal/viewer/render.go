@@ -30,10 +30,11 @@ type renderUpdate struct {
 }
 
 type renderWorker struct {
-	requests chan renderRequest
-	updates  chan renderUpdate
-	closing  chan struct{}
-	done     chan struct{}
+	requests   chan renderRequest
+	updates    chan renderUpdate
+	closing    chan struct{}
+	done       chan struct{}
+	generation int
 }
 
 func newRenderWorker(docPath string) *renderWorker {
@@ -52,6 +53,10 @@ func (w *renderWorker) Close() {
 	<-w.done
 }
 
+func (w *renderWorker) SetGeneration(generation int) {
+	w.generation = generation
+}
+
 func (w *renderWorker) Enqueue(req renderRequest) bool {
 	select {
 	case <-w.closing:
@@ -60,6 +65,24 @@ func (w *renderWorker) Enqueue(req renderRequest) bool {
 		return true
 	default:
 		return false
+	}
+}
+
+func (w *renderWorker) DrainStale() {
+	gen := w.generation
+	var keep []renderRequest
+	for {
+		select {
+		case req := <-w.requests:
+			if req.generation == gen {
+				keep = append(keep, req)
+			}
+		default:
+			for _, req := range keep {
+				w.requests <- req
+			}
+			return
+		}
 	}
 }
 
@@ -76,6 +99,9 @@ func (w *renderWorker) run(docPath string) {
 		case <-w.closing:
 			return
 		case req := <-w.requests:
+			if req.generation != w.generation {
+				continue
+			}
 			rendered, err := doc.Render(req.page, req.scale, 0, req.aaLevel)
 			w.send(renderUpdate{
 				generation: req.generation,
@@ -106,6 +132,7 @@ func renderCacheKey(page int, scale float64, altColors bool, aaLevel int) string
 func (a *App) initRenderWorker() {
 	a.renderPending = map[string]renderRequest{}
 	a.renderWorker = newRenderWorker(a.docPath)
+	a.renderWorker.SetGeneration(a.renderGeneration)
 }
 
 func (a *App) closeRenderWorker() {
@@ -131,13 +158,14 @@ func (a *App) pollRenderUpdates() {
 				delete(a.renderPending, update.cacheKey)
 				continue
 			}
-			delete(a.renderPending, update.cacheKey)
 			if update.rendered == nil {
+				delete(a.renderPending, update.cacheKey)
 				continue
 			}
 			if update.altColors {
 				remapPageColors(update.rendered.Image, a.config.AltBackground, a.config.AltForeground)
 			}
+			delete(a.renderPending, update.cacheKey)
 			oldRP := a.renderCache[update.cacheKey]
 			if oldRP != nil {
 				sdl.DestroyTexture(oldRP.texture)
@@ -233,6 +261,10 @@ func (a *App) requestRender(page int, scale float64) {
 func (a *App) invalidateRenderRequests() {
 	a.renderGeneration++
 	a.renderPending = map[string]renderRequest{}
+	if a.renderWorker != nil {
+		a.renderWorker.SetGeneration(a.renderGeneration)
+		a.renderWorker.DrainStale()
+	}
 }
 
 func (a *App) renderScaleFor(layoutScale float64) float64 {
