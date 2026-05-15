@@ -385,9 +385,7 @@ func (a *App) handleSDLEvent(event *sdl.Event) error {
 		a.handleSDLKeyUp(&e)
 	case sdl.EventKeyDown:
 		e := event.Key()
-		if !e.Repeat {
-			a.handleSDLKeyDown(&e)
-		}
+		a.handleSDLKeyDown(&e)
 	case sdl.EventTextInput:
 		e := event.Text()
 		a.handleSDLTextInput(&e)
