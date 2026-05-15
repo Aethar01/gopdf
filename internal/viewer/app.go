@@ -486,9 +486,11 @@ func (a *App) handleSDLKeyDown(e *sdl.KeyboardEvent) {
 			if a.handleCountToken(token) {
 				return
 			}
-			a.actionKey = token
-			a.pushToken(token)
-			a.actionKey = ""
+			if !e.Repeat {
+				a.actionKey = token
+				a.pushToken(token)
+				a.actionKey = ""
+			}
 			if prevMode == modeNormal && a.mode != modeNormal && utf8.RuneCountInString(token) == 1 {
 				a.ignoreText = token
 			}
