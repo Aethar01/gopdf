@@ -62,18 +62,37 @@ jobs:
           CGO_ENABLED: 1
           GOOS: darwin
           GOARCH: ${{ matrix.goarch }}
-          MACOSX_DEPLOYMENT_TARGET: 12.0
+          MACOSX_DEPLOYMENT_TARGET: "12.0"
+          CGO_CFLAGS: "-mmacosx-version-min=12.0"
+          CGO_LDFLAGS: "-mmacosx-version-min=12.0"
         run: |
           mkdir -p dist
-          go build -trimpath -ldflags "-s -w -X main.version=${GITHUB_REF_NAME}" -o dist/gopdf .
+
+          go build -x \
+            -trimpath \
+            -ldflags "-s -w -X main.version=${GITHUB_REF_NAME}" \
+            -o dist/gopdf \
+            .
+
+          echo "Built binary:"
+          file dist/gopdf
+
+          echo "Deployment target for built binary:"
+          vtool -show-build dist/gopdf || true
+          otool -l dist/gopdf | grep -A5 -E 'LC_BUILD_VERSION|LC_VERSION_MIN_MACOSX' || true
 
       - name: Package
+        env:
+          MACOSX_DEPLOYMENT_TARGET: "12.0"
         run: |
           name="gopdf-${GITHUB_REF_NAME}-darwin-${{ matrix.goarch }}"
           app="GoPDF.app"
 
+          rm -rf "$app" "${name}.dmgroot" "${name}.dmg" gopdf.iconset
+
           mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources" "$app/Contents/Frameworks"
           cp dist/gopdf "$app/Contents/MacOS/GoPDF"
+          chmod +x "$app/Contents/MacOS/GoPDF"
 
           cat > "$app/Contents/Info.plist" <<EOF
           <?xml version="1.0" encoding="UTF-8"?>
@@ -82,18 +101,43 @@ jobs:
           <dict>
             <key>CFBundleDevelopmentRegion</key>
             <string>en</string>
+
             <key>CFBundleDisplayName</key>
             <string>GoPDF</string>
+
             <key>CFBundleExecutable</key>
             <string>GoPDF</string>
+
             <key>CFBundleIconFile</key>
             <string>gopdf</string>
+
             <key>CFBundleIdentifier</key>
             <string>app.gopdf.viewer</string>
+
             <key>CFBundleInfoDictionaryVersion</key>
             <string>6.0</string>
+
             <key>CFBundleName</key>
             <string>GoPDF</string>
+
+            <key>CFBundlePackageType</key>
+            <string>APPL</string>
+
+            <key>CFBundleShortVersionString</key>
+            <string>${GITHUB_REF_NAME#v}</string>
+
+            <key>CFBundleVersion</key>
+            <string>${GITHUB_RUN_NUMBER}</string>
+
+            <key>LSApplicationCategoryType</key>
+            <string>public.app-category.productivity</string>
+
+            <key>LSMinimumSystemVersion</key>
+            <string>12.0</string>
+
+            <key>NSHighResolutionCapable</key>
+            <true/>
+
             <key>CFBundleDocumentTypes</key>
             <array>
               <dict>
@@ -101,53 +145,92 @@ jobs:
                 <array>
                   <string>pdf</string>
                 </array>
+
                 <key>CFBundleTypeIconFile</key>
                 <string>gopdf</string>
+
                 <key>CFBundleTypeName</key>
                 <string>PDF Document</string>
+
                 <key>CFBundleTypeRole</key>
                 <string>Viewer</string>
+
                 <key>LSItemContentTypes</key>
                 <array>
                   <string>com.adobe.pdf</string>
                 </array>
               </dict>
             </array>
-            <key>LSApplicationCategoryType</key>
-            <string>public.app-category.productivity</string>
-            <key>CFBundlePackageType</key>
-            <string>APPL</string>
-            <key>CFBundleShortVersionString</key>
-            <string>${GITHUB_REF_NAME#v}</string>
-            <key>CFBundleVersion</key>
-            <string>${GITHUB_RUN_NUMBER}</string>
-            <key>LSMinimumSystemVersion</key>
-            <string>14.0</string>
-            <key>NSHighResolutionCapable</key>
-            <true/>
           </dict>
           </plist>
           EOF
 
+          echo "Checking Info.plist minimum system version..."
+          min_version=$(/usr/libexec/PlistBuddy -c 'Print :LSMinimumSystemVersion' "$app/Contents/Info.plist")
+          if [ "$min_version" != "12.0" ]; then
+            echo "Bad LSMinimumSystemVersion: $min_version"
+            exit 1
+          fi
+
           iconset="gopdf.iconset"
           mkdir -p "$iconset"
+
           for size in 16 32 128 256 512; do
             sips -z "$size" "$size" assets/gopdf.png --out "$iconset/icon_${size}x${size}.png"
             sips -z "$((size * 2))" "$((size * 2))" assets/gopdf.png --out "$iconset/icon_${size}x${size}@2x.png"
           done
+
           iconutil -c icns "$iconset" -o "$app/Contents/Resources/gopdf.icns"
 
-          dylibbundler -od -b -x "$app/Contents/MacOS/GoPDF" -d "$app/Contents/Frameworks" -p "@executable_path/../Frameworks"
-          if otool -L "$app/Contents/MacOS/GoPDF" "$app"/Contents/Frameworks/*.dylib | grep -E '(/opt/homebrew|/usr/local)/'; then
+          dylibbundler \
+            -od \
+            -b \
+            -x "$app/Contents/MacOS/GoPDF" \
+            -d "$app/Contents/Frameworks" \
+            -p "@executable_path/../Frameworks"
+
+          echo "Checking for unbundled Homebrew dylib references..."
+          if otool -L "$app/Contents/MacOS/GoPDF" "$app"/Contents/Frameworks/*.dylib 2>/dev/null | grep -E '(/opt/homebrew|/usr/local)/'; then
+            echo "Found unbundled Homebrew dylib reference"
             exit 1
           fi
+
+          echo "Checking main executable deployment target..."
+          vtool -show-build "$app/Contents/MacOS/GoPDF" || true
+          otool -l "$app/Contents/MacOS/GoPDF" | grep -A5 -E 'LC_BUILD_VERSION|LC_VERSION_MIN_MACOSX' || true
+
+          echo "Checking bundled dylib deployment targets..."
+          shopt -s nullglob
+          dylibs=("$app"/Contents/Frameworks/*.dylib)
+
+          for dylib in "${dylibs[@]}"; do
+            echo "== $dylib =="
+            vtool -show-build "$dylib" || true
+            otool -l "$dylib" | grep -A5 -E 'LC_BUILD_VERSION|LC_VERSION_MIN_MACOSX' || true
+          done
+
+          echo "Failing if any bundled dylib appears to require macOS 13+..."
+          for macho in "$app/Contents/MacOS/GoPDF" "${dylibs[@]}"; do
+            if vtool -show-build "$macho" 2>/dev/null | grep -E 'minos (13|14|15|16|17|18|19|2[0-9])\.'; then
+              echo "Bad deployment target in: $macho"
+              exit 1
+            fi
+          done
+
           "$app/Contents/MacOS/GoPDF" -v
+
           codesign --force --deep --sign - "$app"
 
           mkdir -p "${name}.dmgroot"
           cp -R "$app" "${name}.dmgroot/"
           ln -s /Applications "${name}.dmgroot/Applications"
-          hdiutil create -volname "GoPDF" -srcfolder "${name}.dmgroot" -ov -format UDZO "${name}.dmg"
+
+          hdiutil create \
+            -volname "GoPDF" \
+            -srcfolder "${name}.dmgroot" \
+            -ov \
+            -format UDZO \
+            "${name}.dmg"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
