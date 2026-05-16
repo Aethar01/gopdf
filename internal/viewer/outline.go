@@ -23,6 +23,7 @@ func (a *App) toggleOutlineMenu() {
 		a.outlineMenu.visible = false
 		return
 	}
+	a.closeAllUI()
 	a.outlineMenu.visible = true
 	a.outlineMenu.selected = -1
 	a.outlineMenu.scroll = 0
@@ -285,7 +286,7 @@ func (a *App) runOutlineMenuAction(action string) {
 		if a.closeOutlineSearch() {
 			return
 		}
-		a.outlineMenu.visible = false
+		a.closeActiveUI()
 	default:
 		a.runAction(action)
 	}

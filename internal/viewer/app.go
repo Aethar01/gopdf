@@ -1533,20 +1533,24 @@ func (a *App) runBuiltinAction(action string) error {
 	case "last_page":
 		a.alignPageTop(a.pageCount - 1)
 	case "command_mode":
+		a.closeAllUI()
 		a.mode = modeCommand
 		a.input = ""
 		a.inputCursor = 0
 	case "search_prompt":
+		a.closeAllUI()
 		a.mode = modeSearch
 		a.searchInput = searchModeForward
 		a.input = ""
 		a.inputCursor = 0
 	case "search_prompt_backward":
+		a.closeAllUI()
 		a.mode = modeSearch
 		a.searchInput = searchModeBackward
 		a.input = ""
 		a.inputCursor = 0
 	case "goto_page_prompt":
+		a.closeAllUI()
 		a.mode = modeGotoPage
 		a.input = ""
 		a.inputCursor = 0
@@ -1650,6 +1654,22 @@ func (a *App) runBuiltinAction(action string) error {
 		return fmt.Errorf("unknown action: %s", action)
 	}
 	return nil
+}
+
+func (a *App) closeAllUI() {
+	a.luaUI.visible = false
+	a.keybindMenu.visible = false
+	a.outlineMenu.visible = false
+	if a.mode != modeNormal {
+		a.closeCompletion()
+		a.mode = modeNormal
+		a.input = ""
+		a.inputCursor = 0
+		a.ignoreText = ""
+	}
+	if a.search.query != "" || len(a.search.order) > 0 || a.search.running {
+		a.clearSearch()
+	}
 }
 
 func (a *App) closeActiveUI() {

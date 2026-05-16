@@ -1493,7 +1493,7 @@ func defaultBindings() map[string]string {
 		"z":       "fit_page",
 		"r":       "rotate_cw",
 		"R":       "rotate_ccw",
-		"g":       "goto_page_prompt",
+		"<C-g>":   "goto_page_prompt",
 		"q":       "quit",
 		"<Esc>":   "close",
 		"<C-i>":   "jump_forward",

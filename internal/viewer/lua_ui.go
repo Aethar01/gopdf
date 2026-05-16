@@ -20,7 +20,7 @@ type luaUIState struct {
 }
 
 func (a *App) ShowUI(overlay config.UIOverlay) error {
-	a.outlineMenu.visible = false
+	a.closeAllUI()
 	a.luaUI = luaUIState{
 		visible:  true,
 		title:    strings.TrimSpace(overlay.Title),
@@ -90,7 +90,7 @@ func (a *App) runLuaUIAction(action string) {
 	case "confirm":
 		a.activateLuaUISelection()
 	case "close":
-		a.closeLuaUI(true)
+		a.closeActiveUI()
 	default:
 		a.runAction(action)
 	}

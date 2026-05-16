@@ -34,8 +34,7 @@ func (a *App) toggleKeybindMenu() {
 		a.keybindMenu = keybindMenuState{}
 		return
 	}
-	a.outlineMenu.visible = false
-	a.luaUI.visible = false
+	a.closeAllUI()
 	a.keybindMenu.selected = -1
 	a.refreshKeybindRows()
 	a.keybindMenu.visible = true
@@ -135,7 +134,7 @@ func (a *App) runKeybindMenuAction(action string) {
 			a.refreshKeybindRows()
 			return
 		}
-		a.keybindMenu = keybindMenuState{}
+		a.closeActiveUI()
 	default:
 		a.runAction(action)
 	}
