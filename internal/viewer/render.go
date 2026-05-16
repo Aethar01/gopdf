@@ -3,6 +3,7 @@ package viewer
 import (
 	"fmt"
 	"math"
+	"sync/atomic"
 
 	"gopdf/internal/mupdf"
 
@@ -34,7 +35,7 @@ type renderWorker struct {
 	updates    chan renderUpdate
 	closing    chan struct{}
 	done       chan struct{}
-	generation int
+	generation atomic.Int32
 }
 
 func newRenderWorker(docPath string) *renderWorker {
@@ -54,7 +55,7 @@ func (w *renderWorker) Close() {
 }
 
 func (w *renderWorker) SetGeneration(generation int) {
-	w.generation = generation
+	w.generation.Store(int32(generation))
 }
 
 func (w *renderWorker) Enqueue(req renderRequest) bool {
@@ -69,7 +70,7 @@ func (w *renderWorker) Enqueue(req renderRequest) bool {
 }
 
 func (w *renderWorker) DrainStale() {
-	gen := w.generation
+	gen := int(w.generation.Load())
 	var keep []renderRequest
 	for {
 		select {
@@ -108,6 +109,7 @@ func (w *renderWorker) run(docPath string) {
 	doc, err := mupdf.Open(docPath)
 	if err != nil {
 		w.send(renderUpdate{err: err})
+		close(w.closing)
 		return
 	}
 	defer doc.Close()
@@ -116,7 +118,7 @@ func (w *renderWorker) run(docPath string) {
 		case <-w.closing:
 			return
 		case req := <-w.requests:
-			if req.generation != w.generation {
+			if req.generation != int(w.generation.Load()) {
 				continue
 			}
 			rendered, err := doc.Render(req.page, req.scale, 0, req.aaLevel)

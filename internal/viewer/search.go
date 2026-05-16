@@ -87,6 +87,7 @@ func (w *searchWorker) run(docPath string) {
 	doc, err := mupdf.Open(docPath)
 	if err != nil {
 		w.send(searchUpdate{done: true, err: err})
+		close(w.closing)
 		return
 	}
 	defer doc.Close()
