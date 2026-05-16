@@ -27,6 +27,7 @@ typedef struct {
 	int x;
 	int y;
 	unsigned char *samples;
+	fz_pixmap *pixmap;
 } gopdf_pixmap;
 
 typedef struct {
@@ -203,9 +204,7 @@ static int gopdf_render_page(gopdf_doc *handle, int page_number, float scale, fl
 	fz_page *page = NULL;
 	fz_pixmap *pix = NULL;
 	fz_matrix ctm;
-	int size = 0;
 	int old_aa = 0;
-	unsigned char *samples = NULL;
 	*err = NULL;
 	out->width = 0;
 	out->height = 0;
@@ -213,6 +212,7 @@ static int gopdf_render_page(gopdf_doc *handle, int page_number, float scale, fl
 	out->x = 0;
 	out->y = 0;
 	out->samples = NULL;
+	out->pixmap = NULL;
 	fz_var(page);
 	fz_var(pix);
 	fz_try(handle->ctx) {
@@ -226,13 +226,9 @@ static int gopdf_render_page(gopdf_doc *handle, int page_number, float scale, fl
 		out->stride = fz_pixmap_stride(handle->ctx, pix);
 		out->x = fz_pixmap_x(handle->ctx, pix);
 		out->y = fz_pixmap_y(handle->ctx, pix);
-		size = out->stride * out->height;
-		samples = (unsigned char *)malloc(size);
-		if (samples == NULL) {
-			fz_throw(handle->ctx, FZ_ERROR_SYSTEM, "malloc failed");
-		}
-		memcpy(samples, fz_pixmap_samples(handle->ctx, pix), size);
-		out->samples = samples;
+		out->samples = fz_pixmap_samples(handle->ctx, pix);
+		out->pixmap = pix;
+		pix = NULL;
 	} fz_always(handle->ctx) {
 		fz_set_aa_level(handle->ctx, old_aa);
 		if (pix != NULL) {
@@ -242,18 +238,16 @@ static int gopdf_render_page(gopdf_doc *handle, int page_number, float scale, fl
 			fz_drop_page(handle->ctx, page);
 		}
 	} fz_catch(handle->ctx) {
-		if (samples != NULL) {
-			free(samples);
-		}
 		*err = gopdf_dup_string(fz_caught_message(handle->ctx));
 		return 0;
 	}
 	return 1;
 }
 
-static void gopdf_free_pixmap(gopdf_pixmap *pix) {
-	if (pix->samples != NULL) {
-		free(pix->samples);
+static void gopdf_free_pixmap(gopdf_doc *handle, gopdf_pixmap *pix) {
+	if (pix != NULL && pix->pixmap != NULL) {
+		fz_drop_pixmap(handle->ctx, pix->pixmap);
+		pix->pixmap = NULL;
 		pix->samples = NULL;
 	}
 }
@@ -718,7 +712,7 @@ func (d *Document) Render(page int, scale float64, rotation float64, aaLevel int
 	if ok := C.gopdf_render_page(d.handle, C.int(page), C.float(scale), C.float(rotation), C.int(aaLevel), &pix, &cerr); ok == 0 {
 		return nil, consumeError("render page", cerr)
 	}
-	defer C.gopdf_free_pixmap(&pix)
+	defer C.gopdf_free_pixmap(d.handle, &pix)
 	size := int(pix.stride) * int(pix.height)
 	buf := C.GoBytes(unsafe.Pointer(pix.samples), C.int(size))
 	img := &image.RGBA{
