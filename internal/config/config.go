@@ -446,6 +446,13 @@ func (r *Runtime) RunAction(action string) (bool, bool, error) {
 	return true, r.dirty, nil
 }
 
+func (r *Runtime) Eval(code string) error {
+	if r == nil || r.state == nil {
+		return fmt.Errorf("no Lua state")
+	}
+	return r.state.DoString(code)
+}
+
 func (r *Runtime) RunUISelect(callback string, index int, value string) error {
 	return r.runCallback(callback, lua.LNumber(index), lua.LString(value))
 }

@@ -152,8 +152,10 @@ type App struct {
 	panButton    uint8
 	panKey       string
 	mouseButton  uint8
-	actionKey    string
-	pageLinks    map[int][]mupdf.Link
+	actionKey     string
+	lastKeyUpCode sdl.Keycode
+	lastKeyUpAt   time.Time
+	pageLinks     map[int][]mupdf.Link
 	search       searchState
 	searchWorker *searchWorker
 	outline      []mupdf.OutlineItem
@@ -463,6 +465,14 @@ func (a *App) drawFrame() error {
 }
 
 func (a *App) handleSDLKeyDown(e *sdl.KeyboardEvent) {
+	if e.Repeat && e.Key == a.lastKeyUpCode && time.Since(a.lastKeyUpAt) < 100*time.Millisecond {
+		if a.ignoreText == "" {
+			if token, ok := keyToken(e.Key, e.Mod); ok && utf8.RuneCountInString(token) == 1 {
+				a.ignoreText = token
+			}
+		}
+		return
+	}
 	if a.luaUI.visible && a.handleLuaUIKey(e) {
 		return
 	}
@@ -474,6 +484,28 @@ func (a *App) handleSDLKeyDown(e *sdl.KeyboardEvent) {
 	}
 	if a.mode != modeNormal {
 		if a.handleInputEditKey(e) {
+			return
+		}
+		switch e.Key {
+		case sdl.KeycodeLeft:
+			if e.Mod&sdl.KeymodCtrl != 0 {
+				a.moveInputCursorLeftWord()
+			} else {
+				a.moveInputCursor(-1)
+			}
+			return
+		case sdl.KeycodeRight:
+			if e.Mod&sdl.KeymodCtrl != 0 {
+				a.moveInputCursorRightWord()
+			} else {
+				a.moveInputCursor(1)
+			}
+			return
+		case sdl.KeycodeBackspace:
+			a.backspaceInput()
+			return
+		case sdl.KeycodeDelete:
+			a.deleteInput()
 			return
 		}
 		if token, ok := keyToken(e.Key, e.Mod); ok && a.handleInputModeBinding(token) {
@@ -496,14 +528,6 @@ func (a *App) handleSDLKeyDown(e *sdl.KeyboardEvent) {
 			}
 		}
 		return
-	}
-	switch e.Key {
-	case sdl.KeycodeLeft:
-		a.moveInputCursor(-1)
-	case sdl.KeycodeRight:
-		a.moveInputCursor(1)
-	case sdl.KeycodeBackspace:
-		a.backspaceInput()
 	}
 }
 
@@ -540,6 +564,8 @@ func (a *App) handleInputModeBinding(token string) bool {
 }
 
 func (a *App) handleSDLKeyUp(e *sdl.KeyboardEvent) {
+	a.lastKeyUpCode = e.Key
+	a.lastKeyUpAt = time.Now()
 	if !a.panning || a.panKey == "" {
 		return
 	}
@@ -562,6 +588,12 @@ func (a *App) handleSDLTextInput(e *sdl.TextInputEvent) {
 	}
 	if a.outlineMenu.visible && a.outlineMenu.searching {
 		a.insertOutlineSearchText(text)
+		return
+	}
+	if a.keybindMenu.visible || a.luaUI.visible {
+		return
+	}
+	if a.outlineMenu.visible && !a.outlineMenu.searching {
 		return
 	}
 	if a.mode == modeNormal {
@@ -891,6 +923,49 @@ func (a *App) deleteInputWord() {
 func (a *App) moveInputCursor(delta int) {
 	a.closeCompletion()
 	a.inputCursor = clampInt(a.inputCursor+delta, 0, utf8.RuneCountInString(a.input))
+}
+
+func (a *App) deleteInput() {
+	a.closeCompletion()
+	runes := []rune(a.input)
+	if a.inputCursor >= len(runes) {
+		return
+	}
+	left, right := splitAtRune(a.input, a.inputCursor)
+	_, after := splitAtRune(right, 1)
+	a.input = left + after
+}
+
+func (a *App) moveInputCursorLeftWord() {
+	a.closeCompletion()
+	if a.inputCursor <= 0 || a.input == "" {
+		return
+	}
+	runes := []rune(a.input)
+	pos := clampInt(a.inputCursor, 0, len(runes))
+	for pos > 0 && unicode.IsSpace(runes[pos-1]) {
+		pos--
+	}
+	for pos > 0 && !unicode.IsSpace(runes[pos-1]) {
+		pos--
+	}
+	a.inputCursor = pos
+}
+
+func (a *App) moveInputCursorRightWord() {
+	a.closeCompletion()
+	runes := []rune(a.input)
+	if a.inputCursor >= len(runes) {
+		return
+	}
+	pos := clampInt(a.inputCursor, 0, len(runes))
+	for pos < len(runes) && unicode.IsSpace(runes[pos]) {
+		pos++
+	}
+	for pos < len(runes) && !unicode.IsSpace(runes[pos]) {
+		pos++
+	}
+	a.inputCursor = pos
 }
 
 func (a *App) drawPages(renderer *sdl.Renderer) {
@@ -2019,6 +2094,14 @@ func (a *App) runCommand(input string) {
 		if err := a.Open(unescapeCommandArg(args)); err != nil {
 			a.message = err.Error()
 		}
+	case "lua":
+		if a.runtime == nil {
+			a.message = "no Lua runtime"
+			return
+		}
+		if err := a.runtime.Eval(args); err != nil {
+			a.message = err.Error()
+		}
 	case "help":
 		a.message = commandHelpMessage()
 	default:
@@ -2054,7 +2137,7 @@ func (a *App) reloadConfig() {
 }
 
 func commandHelpMessage() string {
-	return ":open file | :page N | :search text | :mode continuous|single | :colors normal|alt | :keybinds | :set render_mode!|alt_colors!|dual_page!|first_page_offset!|status_bar! | :fit width|page | :reload-config | :quit"
+	return ":open file | :page N | :search text | :mode continuous|single | :colors normal|alt | :keybinds | :set render_mode!|alt_colors!|dual_page!|first_page_offset!|status_bar! | :fit width|page | :lua <code> | :reload-config | :quit"
 }
 
 func (a *App) runSet(setting string) {

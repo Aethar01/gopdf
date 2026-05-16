@@ -26,6 +26,8 @@ var commandCompletionNames = []string{
 	"colors",
 	"fit",
 	"help",
+	"keybinds",
+	"lua",
 	"mode",
 	"open",
 	"page",
@@ -33,6 +35,13 @@ var commandCompletionNames = []string{
 	"reload-config",
 	"search",
 	"set",
+}
+
+var commandArgCompletions = map[string][]string{
+	"set":    {"alt_colors!", "dual_page!", "first_page_offset!", "render_mode!", "status_bar!"},
+	"colors": {"alt", "normal"},
+	"mode":   {"continuous", "single"},
+	"fit":    {"manual", "page", "width"},
 }
 
 func (a *App) showCompletion() {
@@ -95,16 +104,27 @@ func (a *App) commandCompletions() ([]completionItem, int, int) {
 		return prefixedCommandCompletions(prefix), cmdStart, cmdEnd
 	}
 	cmd := strings.TrimSpace(sliceRunes(a.input, cmdStart, cmdEnd))
-	if cmd != "open" {
-		return nil, 0, 0
-	}
 	argStart := nextNonSpaceRune(a.input, cmdEnd)
 	if a.inputCursor < argStart {
 		argStart = a.inputCursor
 	}
 	argEnd := nextSpaceRune(a.input, argStart)
 	arg := sliceRunes(a.input, argStart, a.inputCursor)
-	return a.openPathCompletions(arg), argStart, argEnd
+	if cmd == "open" {
+		return a.openPathCompletions(arg), argStart, argEnd
+	}
+	if validArgs, ok := commandArgCompletions[cmd]; ok {
+		items := []completionItem{}
+		for _, v := range validArgs {
+			if strings.HasPrefix(v, arg) {
+				items = append(items, completionItem{value: v, display: v})
+			}
+		}
+		if len(items) > 0 {
+			return items, argStart, argEnd
+		}
+	}
+	return nil, 0, 0
 }
 
 func prefixedCommandCompletions(prefix string) []completionItem {
