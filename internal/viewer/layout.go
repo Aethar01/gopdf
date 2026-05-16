@@ -7,30 +7,11 @@ import (
 	"gopdf/internal/mupdf"
 )
 
-func (a *App) loadPageMetrics() error {
-	metrics, err := pageMetricsForDocument(a.doc, a.pageCount, a.rotation)
-	if err != nil {
-		return err
-	}
-	a.pageMetrics = metrics
-	return nil
-}
-
-func pageMetricsForDocument(doc *mupdf.Document, pageCount int, rotation float64) ([]pageMetrics, error) {
-	metrics := make([]pageMetrics, pageCount)
-	for i := 0; i < pageCount; i++ {
-		bounds, err := doc.Bounds(i)
-		if err != nil {
-			return nil, err
-		}
-		w, h := rotatedBoundsSize(bounds, rotation)
-		metrics[i] = pageMetrics{bounds: bounds, width: w, height: h}
-	}
-	return metrics, nil
-}
-
 func (a *App) updatePageMetricSizes() {
 	for i := range a.pageMetrics {
+		if !a.pageMetrics[i].loaded {
+			continue
+		}
 		a.pageMetrics[i].width, a.pageMetrics[i].height = rotatedBoundsSize(a.pageMetrics[i].bounds, a.rotation)
 	}
 }

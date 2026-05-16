@@ -47,6 +47,21 @@ type pageMetrics struct {
 	bounds mupdf.Rect
 	width  float64
 	height float64
+	loaded bool
+}
+
+type pageMetricUpdate struct {
+	page   int
+	bounds mupdf.Rect
+	width  float64
+	height float64
+	err    error
+}
+
+type metricLoader struct {
+	updates chan pageMetricUpdate
+	closing chan struct{}
+	done    chan struct{}
 }
 
 type textSelection struct {
@@ -124,6 +139,7 @@ type App struct {
 	renderGeneration   int
 	renderPending      map[string]renderRequest
 	renderWorker       *renderWorker
+	metricLoader       *metricLoader
 	renderScaleTime    float64
 	pendingRedraw      bool
 
@@ -244,6 +260,7 @@ func (a *App) Close() {
 
 func (a *App) closeDocumentResources() {
 	a.closeRenderWorker()
+	a.closeMetricLoader()
 	a.closeSearch()
 	a.clearCache()
 	if a.doc != nil {
@@ -298,6 +315,7 @@ func (a *App) Run() error {
 			}
 		}
 		a.pollRenderUpdates()
+		a.pollMetricUpdates()
 		a.pollSearchUpdates()
 		a.expireSequence()
 		a.prefetchVisiblePages()
@@ -1727,6 +1745,83 @@ func (a *App) resolveOpenPath(path string) string {
 	return config.AbsoluteDocumentPath(path)
 }
 
+func (a *App) initMetricLoader(docPath string, pageCount int, startPage int) {
+	l := &metricLoader{
+		updates: make(chan pageMetricUpdate, 128),
+		closing: make(chan struct{}),
+		done:    make(chan struct{}),
+	}
+	a.metricLoader = l
+	go l.run(docPath, pageCount, startPage)
+}
+
+func (l *metricLoader) run(docPath string, pageCount int, startPage int) {
+	defer close(l.done)
+	doc, err := mupdf.Open(docPath)
+	if err != nil {
+		return
+	}
+	defer doc.Close()
+	for i := startPage; i < pageCount; i++ {
+		select {
+		case <-l.closing:
+			return
+		default:
+		}
+		bounds, err := doc.Bounds(i)
+		if err != nil {
+			continue
+		}
+		w, h := rotatedBoundsSize(bounds, 0)
+		select {
+		case l.updates <- pageMetricUpdate{page: i, bounds: bounds, width: w, height: h}:
+		case <-l.closing:
+			return
+		}
+	}
+}
+
+func (l *metricLoader) Close() {
+	close(l.closing)
+	<-l.done
+}
+
+func (a *App) closeMetricLoader() {
+	if a.metricLoader != nil {
+		a.metricLoader.Close()
+		a.metricLoader = nil
+	}
+}
+
+func (a *App) pollMetricUpdates() {
+	if a.metricLoader == nil {
+		return
+	}
+	changed := false
+	for {
+		select {
+		case update, ok := <-a.metricLoader.updates:
+			if !ok {
+				return
+			}
+			if update.page >= len(a.pageMetrics) {
+				continue
+			}
+			a.pageMetrics[update.page].bounds = update.bounds
+			a.pageMetrics[update.page].width = update.width
+			a.pageMetrics[update.page].height = update.height
+			a.pageMetrics[update.page].loaded = true
+			changed = true
+		default:
+			if changed {
+				a.recomputeLayout(a.viewportSize())
+				a.pendingRedraw = true
+			}
+			return
+		}
+	}
+}
+
 func (a *App) openDocument(path string, startPage int, reloadConfig bool) error {
 	a.message = "opening " + path
 
@@ -1749,12 +1844,6 @@ func (a *App) openDocument(path string, startPage int, reloadConfig bool) error 
 
 	a.runtime.SetPageCount(pages)
 
-	metrics, err := pageMetricsForDocument(doc, pages, 0)
-	if err != nil {
-		doc.Close()
-		return err
-	}
-
 	a.closeDocumentResources()
 
 	a.docPath = path
@@ -1767,7 +1856,7 @@ func (a *App) openDocument(path string, startPage int, reloadConfig bool) error 
 	a.scale = 1
 	a.scrollX = 0
 	a.scrollY = 0
-	a.pageMetrics = metrics
+	a.pageMetrics = make([]pageMetrics, pages)
 	a.rows = nil
 	a.pageToRow = nil
 	a.contentW = 0
@@ -1792,6 +1881,30 @@ func (a *App) openDocument(path string, startPage int, reloadConfig bool) error 
 	a.jumpBack = nil
 	a.jumpAhead = nil
 	a.pendingOpen = ""
+
+	// Load first page metrics synchronously and use its size as default
+	defaultW, defaultH := 612.0, 792.0
+	if pages > 0 {
+		if bounds, err := doc.Bounds(0); err == nil {
+			w, h := rotatedBoundsSize(bounds, 0)
+			a.pageMetrics[0] = pageMetrics{bounds: bounds, width: w, height: h, loaded: true}
+			defaultW, defaultH = w, h
+		}
+	}
+	if defaultW == 0 || defaultH == 0 {
+		defaultW, defaultH = 612.0, 792.0
+	}
+	for i := range a.pageMetrics {
+		if !a.pageMetrics[i].loaded {
+			a.pageMetrics[i].width = defaultW
+			a.pageMetrics[i].height = defaultH
+		}
+	}
+
+	// Load remaining metrics in background
+	if pages > 1 {
+		a.initMetricLoader(path, pages, 1)
+	}
 
 	var configErr error
 	if reloadConfig {
