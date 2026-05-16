@@ -84,7 +84,7 @@ func (a *App) acceptCompletion() {
 	left, _ := splitAtRune(a.input, a.completion.start)
 	_, after := splitAtRune(a.input, a.completion.end)
 	a.input = left + item.value + after
-	a.inputCursor = a.completion.start + utf8RuneCount(item.value)
+	a.inputCursor = a.completion.start + len([]rune(item.value))
 	a.closeCompletion()
 }
 
@@ -251,7 +251,7 @@ func (a *App) drawCompletion(renderer *sdl.Renderer) error {
 	for _, row := range rows {
 		width = max(width, measureText(a.fontFace, row.text))
 	}
-	width = min(max(width+24, 120), max(120, a.winW-16))
+	width = clampInt(width+24, 120, max(120, a.winW-16))
 	left, _ := splitAtRune(a.input, a.inputCursor)
 	x := 8 + measureText(a.fontFace, a.inputPrefix()+left)
 	x = clampInt(x, 8, max(8, a.winW-width-8))
@@ -327,7 +327,7 @@ func firstNonSpaceRune(s string) int {
 			return i
 		}
 	}
-	return utf8RuneCount(s)
+	return len([]rune(s))
 }
 
 func commandNameEndRune(s string, start int) int {
@@ -365,8 +365,4 @@ func sliceRunes(s string, start, end int) string {
 	start = clampInt(start, 0, len(runes))
 	end = clampInt(end, start, len(runes))
 	return string(runes[start:end])
-}
-
-func utf8RuneCount(s string) int {
-	return len([]rune(s))
 }

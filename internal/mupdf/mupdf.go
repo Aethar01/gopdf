@@ -100,6 +100,11 @@ static char *gopdf_dup_string(const char *src) {
 	return dst;
 }
 
+static void gopdf_silent_callback(void *user, const char *message) {
+	(void)user;
+	(void)message;
+}
+
 static char *gopdf_missing_handler_error(const char *path) {
 	const char *prefix = "cannot find document handler for file: ";
 	size_t n = strlen(prefix) + strlen(path) + 1;
@@ -121,6 +126,8 @@ static gopdf_doc *gopdf_open_document(const char *path, char **err) {
 		*err = gopdf_dup_string("fz_new_context failed");
 		return NULL;
 	}
+	fz_set_warning_callback(ctx, gopdf_silent_callback, NULL);
+	fz_set_error_callback(ctx, gopdf_silent_callback, NULL);
 	fz_try(ctx) {
 		fz_register_document_handlers(ctx);
 		handler = fz_recognize_document_content(ctx, path);

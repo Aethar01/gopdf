@@ -6,7 +6,6 @@ import (
 	"image/color"
 	"maps"
 	"math"
-	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -20,8 +19,6 @@ import (
 
 	"github.com/jupiterrider/purego-sdl3/sdl"
 	"golang.org/x/image/font"
-	"golang.org/x/image/font/basicfont"
-	"golang.org/x/image/font/opentype"
 )
 
 type mode int
@@ -144,25 +141,25 @@ type App struct {
 	sequenceLookup map[string]string
 	pendingCount   string
 
-	lastErr      error
-	quit         bool
-	pendingOpen  string
-	selection    textSelection
-	panning      bool
-	panButton    uint8
-	panKey       string
-	mouseButton  uint8
+	lastErr       error
+	quit          bool
+	pendingOpen   string
+	selection     textSelection
+	panning       bool
+	panButton     uint8
+	panKey        string
+	mouseButton   uint8
 	actionKey     string
 	lastKeyUpCode sdl.Keycode
 	lastKeyUpAt   time.Time
 	pageLinks     map[int][]mupdf.Link
-	search       searchState
-	searchWorker *searchWorker
-	outline      []mupdf.OutlineItem
-	outlineMenu  outlineMenuState
-	keybindMenu  keybindMenuState
-	luaUI        luaUIState
-	completion   completionState
+	search        searchState
+	searchWorker  *searchWorker
+	outline       []mupdf.OutlineItem
+	outlineMenu   outlineMenuState
+	keybindMenu   keybindMenuState
+	luaUI         luaUIState
+	completion    completionState
 
 	jumpBack  []jumpPosition
 	jumpAhead []jumpPosition
@@ -172,37 +169,6 @@ type jumpPosition struct {
 	page    int
 	scrollX float64
 	scrollY float64
-}
-
-func loadFont(path string, size int) font.Face {
-	if path != "" {
-		data, err := os.ReadFile(path)
-		if err == nil {
-			if col, err := opentype.ParseCollection(data); err == nil {
-				if col.NumFonts() > 0 {
-					fnt, err := col.Font(0)
-					if err == nil {
-						face, err := opentype.NewFace(fnt, &opentype.FaceOptions{
-							Size: float64(size),
-							DPI:  72,
-						})
-						if err == nil {
-							return face
-						}
-					}
-				}
-			} else if fnt, err := opentype.Parse(data); err == nil {
-				face, err := opentype.NewFace(fnt, &opentype.FaceOptions{
-					Size: float64(size),
-					DPI:  72,
-				})
-				if err == nil {
-					return face
-				}
-			}
-		}
-	}
-	return basicfont.Face7x13
 }
 
 func New(docPath string, runtime *config.Runtime, startPage int, iconBytes []byte) (*App, error) {
@@ -1758,11 +1724,11 @@ func (a *App) resolveOpenPath(path string) string {
 			path = filepath.Join(dir, path)
 		}
 	}
-	return absoluteOpenPath(path)
+	return config.AbsoluteDocumentPath(path)
 }
 
 func (a *App) openDocument(path string, startPage int, reloadConfig bool) error {
-	path = absoluteOpenPath(path)
+	path = config.AbsoluteDocumentPath(path)
 	doc, err := mupdf.Open(path)
 	if err != nil {
 		return err
@@ -1849,16 +1815,6 @@ func (a *App) openDocument(path string, startPage int, reloadConfig bool) error 
 	return nil
 }
 
-func absoluteOpenPath(path string) string {
-	if path == "" || filepath.IsAbs(path) {
-		return path
-	}
-	if abs, err := filepath.Abs(path); err == nil {
-		return abs
-	}
-	return path
-}
-
 func (a *App) applyConfigState(cfg config.Config, preserveManualFit bool) {
 	currentFitMode := a.fitMode
 	a.config = cfg
@@ -1877,6 +1833,7 @@ func (a *App) applyConfigState(cfg config.Config, preserveManualFit bool) {
 		a.sequenceLookup[normalizeBinding(k)] = v
 	}
 	maps.Copy(a.mouseBindings, cfg.MouseBindings)
+	a.pageStep = float64(cfg.ScrollStep)
 	a.fontFace = loadFont(cfg.UIFontPath, cfg.UIFontSize)
 }
 
@@ -1998,9 +1955,9 @@ func (a *App) SetFullscreen(fullscreen bool) error {
 		return nil
 	}
 	if fullscreen {
-		return boolError(sdl.SetWindowFullscreen(a.window, true), "set fullscreen")
+		return renderBool(sdl.SetWindowFullscreen(a.window, true), "set fullscreen")
 	}
-	return boolError(sdl.SetWindowFullscreen(a.window, false), "set fullscreen")
+	return renderBool(sdl.SetWindowFullscreen(a.window, false), "set fullscreen")
 }
 
 func (a *App) StatusBarVisible() bool {
@@ -2185,13 +2142,6 @@ func (a *App) runMouseBinding(event string) bool {
 	return false
 }
 
-func boolWord(v bool, whenTrue, whenFalse string) string {
-	if v {
-		return whenTrue
-	}
-	return whenFalse
-}
-
 func (a *App) applyConfig(cfg config.Config) {
 	currentPage := a.page
 	a.applyConfigState(cfg, true)
@@ -2201,57 +2151,9 @@ func (a *App) applyConfig(cfg config.Config) {
 }
 
 func sanitizeFitMode(mode string) string {
-	mode = strings.ToLower(strings.TrimSpace(mode))
-	if mode == "width" || mode == "manual" {
-		return mode
-	}
-	return "page"
+	return config.NormalizeFitMode(mode)
 }
 
 func sanitizeRenderMode(mode string) string {
-	mode = strings.ToLower(strings.TrimSpace(mode))
-	if mode == "single" {
-		return mode
-	}
-	return "continuous"
-}
-
-func lastRune(s string) (rune, int) {
-	for i := len(s) - 1; i >= 0; i-- {
-		if s[i]&0xc0 != 0x80 {
-			return []rune(s[i:])[0], len(s) - i
-		}
-	}
-	return 0, 0
-}
-
-func splitAtRune(s string, pos int) (string, string) {
-	if pos <= 0 {
-		return "", s
-	}
-	runes := []rune(s)
-	if pos >= len(runes) {
-		return s, ""
-	}
-	return string(runes[:pos]), string(runes[pos:])
-}
-
-func clampInt(v, lo, hi int) int {
-	if v < lo {
-		return lo
-	}
-	if v > hi {
-		return hi
-	}
-	return v
-}
-
-func clampFloat(v, lo, hi float64) float64 {
-	if v < lo {
-		return lo
-	}
-	if v > hi {
-		return hi
-	}
-	return v
+	return config.NormalizeRenderMode(mode)
 }

@@ -5,12 +5,46 @@ import (
 	"image"
 	"image/color"
 	"image/draw"
+	"os"
 	"unsafe"
 
 	"github.com/jupiterrider/purego-sdl3/sdl"
 	"golang.org/x/image/font"
+	"golang.org/x/image/font/basicfont"
+	"golang.org/x/image/font/opentype"
 	"golang.org/x/image/math/fixed"
 )
+
+func loadFont(path string, size int) font.Face {
+	if path != "" {
+		data, err := os.ReadFile(path)
+		if err == nil {
+			if col, err := opentype.ParseCollection(data); err == nil {
+				if col.NumFonts() > 0 {
+					fnt, err := col.Font(0)
+					if err == nil {
+						face, err := opentype.NewFace(fnt, &opentype.FaceOptions{
+							Size: float64(size),
+							DPI:  72,
+						})
+						if err == nil {
+							return face
+						}
+					}
+				}
+			} else if fnt, err := opentype.Parse(data); err == nil {
+				face, err := opentype.NewFace(fnt, &opentype.FaceOptions{
+					Size: float64(size),
+					DPI:  72,
+				})
+				if err == nil {
+					return face
+				}
+			}
+		}
+	}
+	return basicfont.Face7x13
+}
 
 func imageToRGBA(src image.Image) *image.RGBA {
 	if rgba, ok := src.(*image.RGBA); ok {
@@ -114,13 +148,6 @@ func strokeRect(renderer *sdl.Renderer, rect sdl.FRect, clr color.RGBA, width in
 }
 
 func renderBool(ok bool, op string) error {
-	if !ok {
-		return sdlError(op)
-	}
-	return nil
-}
-
-func boolError(ok bool, op string) error {
 	if !ok {
 		return sdlError(op)
 	}

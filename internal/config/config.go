@@ -37,7 +37,9 @@ type Config struct {
 	SpreadGap            int
 	PageGapVertical      int
 	PageGapHorizontal    int
+	ScrollStep           int
 	StatusBarHeight      int
+	StatusBarPadding     int
 	UIFontSize           int
 	UIFontPath           string
 	StatusBarLeft        string
@@ -148,7 +150,9 @@ func Default() Config {
 		SpreadGap:           0,
 		PageGapVertical:     0,
 		PageGapHorizontal:   0,
+		ScrollStep:          64,
 		StatusBarHeight:     28,
+		StatusBarPadding:    8,
 		UIFontSize:          14,
 		UIFontPath:          "",
 		StatusBarLeft:       "{message}",
@@ -185,7 +189,7 @@ func Load(explicitPath string) (Config, error) {
 }
 
 func Open(explicitPath, docPath string) (*Runtime, error) {
-	docPath = absoluteDocumentPath(docPath)
+	docPath = AbsoluteDocumentPath(docPath)
 	docName := ""
 	if docPath != "" {
 		docName = filepath.Base(docPath)
@@ -223,7 +227,7 @@ func SetLastFile(path string) error {
 	if statePath == "" {
 		return nil
 	}
-	path = absoluteDocumentPath(path)
+	path = AbsoluteDocumentPath(path)
 	dir := filepath.Dir(statePath)
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return err
@@ -231,7 +235,7 @@ func SetLastFile(path string) error {
 	return os.WriteFile(statePath, []byte(path), 0644)
 }
 
-func absoluteDocumentPath(path string) string {
+func AbsoluteDocumentPath(path string) string {
 	if path == "" || filepath.IsAbs(path) {
 		return path
 	}
@@ -277,7 +281,7 @@ func (r *Runtime) AttachHost(host Host) {
 }
 
 func (r *Runtime) SetDocument(path string) error {
-	path = absoluteDocumentPath(path)
+	path = AbsoluteDocumentPath(path)
 	r.docPath = path
 	r.docName = ""
 	if path != "" {
@@ -1126,6 +1130,8 @@ func luaSettingValue(L *lua.LState, name string, cfg *Config) (lua.LValue, error
 		return lua.LString(cfg.RenderMode), nil
 	case "render_oversample":
 		return lua.LNumber(cfg.RenderOversample), nil
+	case "scroll_step":
+		return lua.LNumber(cfg.ScrollStep), nil
 	case "dual_page":
 		return lua.LBool(cfg.DualPage), nil
 	case "first_page_offset":
@@ -1142,6 +1148,8 @@ func luaSettingValue(L *lua.LState, name string, cfg *Config) (lua.LValue, error
 		return lua.LNumber(cfg.PageGapHorizontal), nil
 	case "status_bar_height":
 		return lua.LNumber(cfg.StatusBarHeight), nil
+	case "status_bar_padding":
+		return lua.LNumber(cfg.StatusBarPadding), nil
 	case "ui_font_size":
 		return lua.LNumber(cfg.UIFontSize), nil
 	case "ui_font_path":
@@ -1268,12 +1276,17 @@ func applyLuaSetting(name string, value lua.LValue, cfg *Config) error {
 		if value.Type() != lua.LTString {
 			return fmt.Errorf("expected string")
 		}
-		cfg.RenderMode = normalizeRenderMode(value.String())
+		cfg.RenderMode = NormalizeRenderMode(value.String())
 	case "render_oversample":
 		if value.Type() != lua.LTNumber {
 			return fmt.Errorf("expected number")
 		}
 		cfg.RenderOversample = float64(lua.LVAsNumber(value))
+	case "scroll_step":
+		if value.Type() != lua.LTNumber {
+			return fmt.Errorf("expected number")
+		}
+		cfg.ScrollStep = int(lua.LVAsNumber(value))
 	case "dual_page":
 		if value.Type() != lua.LTBool {
 			return fmt.Errorf("expected boolean")
@@ -1288,7 +1301,7 @@ func applyLuaSetting(name string, value lua.LValue, cfg *Config) error {
 		if value.Type() != lua.LTString {
 			return fmt.Errorf("expected string")
 		}
-		cfg.FitMode = normalizeFitMode(value.String())
+		cfg.FitMode = NormalizeFitMode(value.String())
 	case "page_gap":
 		if value.Type() != lua.LTNumber {
 			return fmt.Errorf("expected number")
@@ -1318,6 +1331,11 @@ func applyLuaSetting(name string, value lua.LValue, cfg *Config) error {
 			return fmt.Errorf("expected number")
 		}
 		cfg.StatusBarHeight = int(lua.LVAsNumber(value))
+	case "status_bar_padding":
+		if value.Type() != lua.LTNumber {
+			return fmt.Errorf("expected number")
+		}
+		cfg.StatusBarPadding = int(lua.LVAsNumber(value))
 	case "ui_font_size":
 		if value.Type() != lua.LTNumber {
 			return fmt.Errorf("expected number")
@@ -1426,7 +1444,7 @@ func readColor(tbl *lua.LTable, fallback [3]uint8) [3]uint8 {
 	return out
 }
 
-func normalizeFitMode(s string) string {
+func NormalizeFitMode(s string) string {
 	s = strings.ToLower(strings.TrimSpace(s))
 	if s == "width" || s == "manual" {
 		return s
@@ -1434,7 +1452,7 @@ func normalizeFitMode(s string) string {
 	return "page"
 }
 
-func normalizeRenderMode(s string) string {
+func NormalizeRenderMode(s string) string {
 	s = strings.ToLower(strings.TrimSpace(s))
 	if s == "single" {
 		return s

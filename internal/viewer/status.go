@@ -15,15 +15,16 @@ func (a *App) drawStatusBar(renderer *sdl.Renderer) error {
 	}
 	left := a.formatStatusBar(a.config.StatusBarLeft)
 	right := a.formatStatusBar(a.config.StatusBarRight)
+	pad := a.config.StatusBarPadding
 	vertOffset := (h + a.fontFace.Metrics().Ascent.Ceil() - a.fontFace.Metrics().Descent.Ceil()) / 2
-	if err := drawText(renderer, a.fontFace, left, 8, y+vertOffset, a.foregroundColor()); err != nil {
+	if err := drawText(renderer, a.fontFace, left, pad, y+vertOffset, a.foregroundColor()); err != nil {
 		return err
 	}
-	if err := a.drawInputCursor(renderer, y); err != nil {
+	if err := a.drawInputCursor(renderer, y, pad, vertOffset); err != nil {
 		return err
 	}
 	rw := measureText(a.fontFace, right)
-	if err := drawText(renderer, a.fontFace, right, a.winW-rw-8, y+vertOffset, a.foregroundColor()); err != nil {
+	if err := drawText(renderer, a.fontFace, right, a.winW-rw-pad, y+vertOffset, a.foregroundColor()); err != nil {
 		return err
 	}
 	return nil
@@ -76,18 +77,21 @@ func (a *App) formatStatusBar(template string) string {
 	return strings.ReplaceAll(result, "\x00", "$")
 }
 
-func (a *App) drawInputCursor(renderer *sdl.Renderer, barY int) error {
+func (a *App) drawInputCursor(renderer *sdl.Renderer, barY, pad, vertOffset int) error {
 	if a.mode == modeNormal {
 		return nil
 	}
 	prefix := a.inputPrefix()
 	left, _ := splitAtRune(a.input, a.inputCursor)
-	x := 8 + measureText(a.fontFace, prefix+left)
+	x := pad + measureText(a.fontFace, prefix+left)
 	fg := a.foregroundColor()
 	if !sdl.SetRenderDrawColor(renderer, fg.R, fg.G, fg.B, fg.A) {
 		return sdlError("set draw color")
 	}
-	return renderBool(sdl.RenderLine(renderer, float32(x), float32(barY+6), float32(x), float32(barY+22)), "draw line")
+	mt := a.fontFace.Metrics()
+	cursorTop := barY + vertOffset - mt.Ascent.Ceil()
+	cursorBot := barY + vertOffset + mt.Descent.Ceil()
+	return renderBool(sdl.RenderLine(renderer, float32(x), float32(cursorTop), float32(x), float32(cursorBot)), "draw line")
 }
 
 func (a *App) inputPrefix() string {
