@@ -1099,6 +1099,14 @@ func (a *App) prefetchVisiblePages() {
 	if totalPrefetch*2 > a.cacheLimit {
 		a.cacheLimit = min(a.pageCount*2, totalPrefetch*2)
 	}
+	if a.renderWorker != nil {
+		a.renderWorker.DrainNotIn(seen, a.renderGeneration)
+	}
+	for key, req := range a.renderPending {
+		if req.generation == a.renderGeneration && !seen[req.page] {
+			delete(a.renderPending, key)
+		}
+	}
 	for _, page := range visible {
 		a.requestRender(page, a.scale)
 	}

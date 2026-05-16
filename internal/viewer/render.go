@@ -86,6 +86,23 @@ func (w *renderWorker) DrainStale() {
 	}
 }
 
+func (w *renderWorker) DrainNotIn(keepPages map[int]bool, gen int) {
+	var keep []renderRequest
+	for {
+		select {
+		case req := <-w.requests:
+			if req.generation == gen && keepPages[req.page] {
+				keep = append(keep, req)
+			}
+		default:
+			for _, req := range keep {
+				w.requests <- req
+			}
+			return
+		}
+	}
+}
+
 func (w *renderWorker) run(docPath string) {
 	defer close(w.done)
 	doc, err := mupdf.Open(docPath)
