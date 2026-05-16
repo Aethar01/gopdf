@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	"gopdf/internal/filepicker"
-	"gopdf/internal/mupdf"
 
 	lua "github.com/yuin/gopher-lua"
 )
@@ -289,6 +288,11 @@ func (r *Runtime) SetDocument(path string) error {
 	}
 	r.docMeta = loadDocumentMeta(path)
 	return r.Reload()
+}
+
+func (r *Runtime) SetPageCount(pages int) {
+	r.docMeta.pageCount = pages
+	r.docMeta.hasPages = true
 }
 
 func (r *Runtime) Reload() error {
@@ -1092,16 +1096,6 @@ func loadDocumentMeta(docPath string) documentMeta {
 	if err == nil && !info.IsDir() {
 		meta.exists = true
 		meta.sizeBytes = info.Size()
-	}
-	doc, err := mupdf.Open(docPath)
-	if err != nil {
-		return meta
-	}
-	defer doc.Close()
-	pages, err := doc.PageCount()
-	if err == nil {
-		meta.pageCount = pages
-		meta.hasPages = true
 	}
 	return meta
 }

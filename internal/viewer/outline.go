@@ -24,6 +24,12 @@ func (a *App) toggleOutlineMenu() {
 		return
 	}
 	a.closeAllUI()
+	if a.outline == nil && a.doc != nil {
+		outline, err := a.doc.Outline()
+		if err == nil {
+			a.outline = outline
+		}
+	}
 	a.outlineMenu.visible = true
 	a.outlineMenu.selected = -1
 	a.outlineMenu.scroll = 0

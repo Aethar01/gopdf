@@ -1728,6 +1728,8 @@ func (a *App) resolveOpenPath(path string) string {
 }
 
 func (a *App) openDocument(path string, startPage int, reloadConfig bool) error {
+	a.message = "opening " + path
+
 	path = config.AbsoluteDocumentPath(path)
 	doc, err := mupdf.Open(path)
 	if err != nil {
@@ -1744,6 +1746,9 @@ func (a *App) openDocument(path string, startPage int, reloadConfig bool) error 
 	if pages > 0 && startPage >= pages {
 		startPage = pages - 1
 	}
+
+	a.runtime.SetPageCount(pages)
+
 	metrics, err := pageMetricsForDocument(doc, pages, 0)
 	if err != nil {
 		doc.Close()
@@ -1787,7 +1792,6 @@ func (a *App) openDocument(path string, startPage int, reloadConfig bool) error 
 	a.jumpBack = nil
 	a.jumpAhead = nil
 	a.pendingOpen = ""
-	a.message = "opening " + path
 
 	var configErr error
 	if reloadConfig {
@@ -1799,11 +1803,6 @@ func (a *App) openDocument(path string, startPage int, reloadConfig bool) error 
 	a.setWindowTitle()
 	a.initRenderWorker()
 	a.initSearch()
-	if outline, err := doc.Outline(); err == nil {
-		a.outline = outline
-	} else if configErr == nil {
-		a.message = err.Error()
-	}
 	a.recomputeLayout(a.viewportSize())
 	a.ensureRenderBaseScale()
 	a.alignPageTop(startPage)
