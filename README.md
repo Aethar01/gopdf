@@ -39,7 +39,7 @@ Install from the [latest release](https://github.com/Aethar01/gopdf/releases/lat
 
 Requirements:
 
-- Go 1.24+
+- Go 1.25+
 - MuPDF 1.25.6+
 - SDL3
 - C compiler that works with CGO
@@ -51,7 +51,7 @@ go build
 Windows with MSYS2 UCRT64:
 
 ```bash
-pacman -S --needed mingw-w64-ucrt-x86_64-go mingw-w64-ucrt-x86_64-gcc mingw-w64-ucrt-x86_64-pkgconf mingw-w64-ucrt-x86_64-SDL2 mingw-w64-ucrt-x86_64-mupdf
+pacman -S --needed mingw-w64-ucrt-x86_64-go mingw-w64-ucrt-x86_64-gcc mingw-w64-ucrt-x86_64-pkgconf mingw-w64-ucrt-x86_64-sdl3 mingw-w64-ucrt-x86_64-mupdf
 go build -o gopdf.exe
 ```
 
@@ -110,7 +110,9 @@ gopdf.options.spread_gap = 0                    -- sets horizontal gap too
 gopdf.options.page_gap_vertical = 0
 gopdf.options.page_gap_horizontal = 0
 
+gopdf.options.scroll_step = 64
 gopdf.options.status_bar_height = 28
+gopdf.options.status_bar_padding = 8
 gopdf.options.ui_font_size = 14
 gopdf.options.ui_font_path = ""                 -- empty = default font
 gopdf.options.sequence_timeout_ms = 700
@@ -248,19 +250,20 @@ Supported mouse events:
 | `J` / `K` | Next / previous page |
 | `Space` / `<PgDn>` / `<PgUp>` | Next page / next page / previous page |
 | `gg` / `G` | First / last page |
-| `g` | Page prompt |
+| `<C-g>` | Page prompt |
 | `Ng` | Jump to page N |
 | `Nj`, `Nk`, `Nh`, `Nl` | Repeat scroll action N times |
 | `NJ` / `NK` | Jump N pages/spreads forward / backward |
 | `d` | Toggle dual-page mode |
 | `m` | Toggle continuous/single render mode |
-| `tb` | Toggle alternate colors |
+| `<C-r>` | Toggle alternate colors |
 | `co` | Toggle first-page offset |
-| `s` | Toggle status bar |
+| `<C-n>` | Toggle status bar |
 | `f` | Toggle fullscreen |
 | `o` | Open/close outline menu |
 | `<F1>` | Open keybinds menu |
 | `<C-S-o>` | Open PDF file picker |
+| `<C-S-r>` | Reload config |
 | `<CR>` | Confirm input or selected outline item |
 | `+` / `=` / `-` / `0` | Zoom in / zoom in / zoom out / reset zoom |
 | `w` / `z` | Fit width / fit page |
@@ -299,6 +302,8 @@ Default mouse bindings:
 | `:set status_bar!` | Toggle status bar |
 | `:open <filename>` | Open another PDF, relative to the current document directory |
 | `:reload-config` | Reload config file |
+| `:keybinds` | Toggle keybinds menu |
+| `:lua <code>` | Execute Lua code inline |
 | `:help` | Show command help in the status bar |
 | `:quit`, `:q` | Exit |
 
@@ -343,9 +348,9 @@ Default mouse bindings:
 | `gopdf.message()` / `gopdf.message("text")` | Get/set status message |
 | `gopdf.command(":fit width")` | Execute command |
 | `gopdf.open(path)` | Open another PDF |
+| `gopdf.pick_file([callback])` | Open native file picker; optional callback receives path |
 | `gopdf.bind(key, action)` / `gopdf.unbind(key)` | Bind/unbind keyboard action |
 | `gopdf.bind_mouse(event, action)` / `gopdf.unbind_mouse(event)` | Bind/unbind mouse action |
-| `gopdf.set(name, value)` | Set config option |
 
 ### Custom UI
 
@@ -465,6 +470,9 @@ gopdf.fit_width()        gopdf.fit_page()
 gopdf.rotate_cw()        gopdf.rotate_ccw()
 gopdf.jump_forward()     gopdf.jump_backward()
 gopdf.pan()              gopdf.reload_config()
+gopdf.show_completion()  gopdf.next_completion()
+gopdf.prev_completion()
+gopdf.open_file_picker() gopdf.keybinds()
 gopdf.quit()
 ```
 

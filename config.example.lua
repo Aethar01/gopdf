@@ -20,7 +20,9 @@ gopdf.options.page_gap = 0
 gopdf.options.spread_gap = 0
 gopdf.options.page_gap_vertical = 0
 gopdf.options.page_gap_horizontal = 0
+gopdf.options.scroll_step = 64
 gopdf.options.status_bar_height = 28
+gopdf.options.status_bar_padding = 8
 gopdf.options.ui_font_size = 14
 gopdf.options.ui_font_path = ""
 gopdf.options.sequence_timeout_ms = 700
@@ -82,6 +84,7 @@ gopdf.bind("<Esc>", gopdf.close)
 gopdf.bind("<C-i>", gopdf.jump_forward)
 gopdf.bind("<C-o>", gopdf.jump_backward)
 gopdf.bind("<C-S-o>", gopdf.open_file_picker)
+gopdf.bind("<C-S-r>", gopdf.reload_config)
 gopdf.bind("<F1>", gopdf.keybinds)
 
 -- Default mouse bindings.
