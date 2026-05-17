@@ -211,6 +211,7 @@ func (a *App) setWindowTitle() {
 }
 
 func (a *App) Close() {
+	a.document.Close()
 	a.closeDocumentResources()
 	if a.cursorHand != nil {
 		sdl.DestroyCursor(a.cursorHand)

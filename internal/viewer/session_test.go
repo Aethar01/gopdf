@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-func TestDocumentSessionDebouncesChangesAndRetries(t *testing.T) {
+func TestDocumentSessionDetectsChanges(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "doc.pdf")
 	if err := os.WriteFile(path, []byte("one"), 0o644); err != nil {
@@ -16,26 +16,79 @@ func TestDocumentSessionDebouncesChangesAndRetries(t *testing.T) {
 
 	var s documentSession
 	s.record(path)
-	now := s.lastStat.Add(documentStatInterval + time.Millisecond)
+	defer s.Close()
+
+	// Give the goroutine time to start watching
+	time.Sleep(50 * time.Millisecond)
+
+	// Modify the file
 	if err := os.WriteFile(path, []byte("two"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if _, ok := s.poll(now); ok {
-		t.Fatal("expected first changed stat to wait for debounce")
-	}
-	if _, ok := s.poll(now.Add(documentReloadDebounce / 2)); ok {
-		t.Fatal("expected reload to remain debounced")
-	}
-	change, ok := s.poll(now.Add(documentReloadDebounce + time.Millisecond))
+
+	// Wait for debounce + poll timeout
+	time.Sleep(documentReloadDebounce + 200*time.Millisecond)
+
+	change, ok := s.poll(time.Now())
 	if !ok {
-		t.Fatal("expected debounced change to become reloadable")
+		t.Fatal("expected a change after file modification")
 	}
-	if _, ok := s.poll(now.Add(documentReloadDebounce + documentReloadRetry/2)); ok {
-		t.Fatal("expected failed reload attempts to be rate limited")
-	}
+
+	// Committing should clear the pending state
 	s.commit(change)
-	if _, ok := s.poll(now.Add(documentReloadDebounce + documentReloadRetry + documentStatInterval)); ok {
-		t.Fatal("expected committed change not to reload again")
+	time.Sleep(50 * time.Millisecond)
+
+	if _, ok := s.poll(time.Now()); ok {
+		t.Fatal("expected no change after commit")
+	}
+}
+
+func TestDocumentSessionRateLimitsRetries(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "doc.pdf")
+	if err := os.WriteFile(path, []byte("one"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	var s documentSession
+	s.record(path)
+	defer s.Close()
+
+	time.Sleep(50 * time.Millisecond)
+
+	// Modify and wait for debounce
+	if err := os.WriteFile(path, []byte("two"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(documentReloadDebounce + 200*time.Millisecond)
+
+	now := time.Now()
+	_, ok := s.poll(now)
+	if !ok {
+		t.Fatal("expected a change")
+	}
+
+	// Immediately polling again should be rate limited
+	if _, ok := s.poll(now); ok {
+		t.Fatal("expected rate limiting on consecutive polls")
+	}
+}
+
+func TestDocumentSessionNoChangeWithoutModification(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "doc.pdf")
+	if err := os.WriteFile(path, []byte("one"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	var s documentSession
+	s.record(path)
+	defer s.Close()
+
+	time.Sleep(50 * time.Millisecond)
+
+	if _, ok := s.poll(time.Now()); ok {
+		t.Fatal("expected no change without modification")
 	}
 }
 

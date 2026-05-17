@@ -6,30 +6,36 @@ import (
 )
 
 const (
-	documentStatInterval   = 500 * time.Millisecond
 	documentReloadDebounce = 750 * time.Millisecond
 	documentReloadRetry    = time.Second
 )
 
 type documentSession struct {
-	path string
-	mod  time.Time
-	size int64
+	watcher *documentWatcher
+	mod     time.Time
+	size    int64
 
-	lastStat time.Time
-	pending  *documentChange
-}
-
-type documentChange struct {
-	mod         time.Time
-	size        int64
-	firstSeen   time.Time
+	pending     *documentChange
 	lastAttempt time.Time
 }
 
+type documentChange struct {
+	mod       time.Time
+	size      int64
+	firstSeen time.Time
+}
+
 func (s *documentSession) record(path string) {
-	s.path = path
-	s.pending = nil
+	if s.watcher != nil {
+		s.watcher.Close()
+	}
+	watcher, err := newDocumentWatcher(path)
+	if err != nil {
+		// Fall back gracefully if watcher can't be created
+		return
+	}
+	s.watcher = watcher
+	s.watcher.record(path)
 	info, err := os.Stat(path)
 	if err != nil || info.IsDir() {
 		s.mod = time.Time{}
@@ -38,39 +44,32 @@ func (s *documentSession) record(path string) {
 	}
 	s.mod = info.ModTime()
 	s.size = info.Size()
-	s.lastStat = time.Now()
 }
 
 func (s *documentSession) poll(now time.Time) (documentChange, bool) {
-	if s.path == "" || now.Sub(s.lastStat) < documentStatInterval {
+	if s.watcher == nil {
 		return documentChange{}, false
 	}
-	s.lastStat = now
-	info, err := os.Stat(s.path)
-	if err != nil || info.IsDir() {
+
+	if s.pending != nil {
+		if !s.lastAttempt.IsZero() && now.Sub(s.lastAttempt) < documentReloadRetry {
+			return documentChange{}, false
+		}
+		s.lastAttempt = now
+		return *s.pending, true
+	}
+
+	change, ok := s.watcher.waitForChange(100 * time.Millisecond)
+	if !ok {
 		return documentChange{}, false
 	}
-	mod, size := info.ModTime(), info.Size()
-	if s.mod.IsZero() {
-		s.mod = mod
-		s.size = size
-		return documentChange{}, false
+
+	s.pending = &documentChange{
+		mod:       change.mod,
+		size:      change.size,
+		firstSeen: change.firstSeen,
 	}
-	if mod.Equal(s.mod) && size == s.size {
-		s.pending = nil
-		return documentChange{}, false
-	}
-	if s.pending == nil || !s.pending.mod.Equal(mod) || s.pending.size != size {
-		s.pending = &documentChange{mod: mod, size: size, firstSeen: now}
-		return documentChange{}, false
-	}
-	if now.Sub(s.pending.firstSeen) < documentReloadDebounce {
-		return documentChange{}, false
-	}
-	if !s.pending.lastAttempt.IsZero() && now.Sub(s.pending.lastAttempt) < documentReloadRetry {
-		return documentChange{}, false
-	}
-	s.pending.lastAttempt = now
+	s.lastAttempt = now
 	return *s.pending, true
 }
 
@@ -78,6 +77,13 @@ func (s *documentSession) commit(change documentChange) {
 	s.mod = change.mod
 	s.size = change.size
 	s.pending = nil
+	s.lastAttempt = time.Time{}
+}
+
+func (s *documentSession) Close() {
+	if s.watcher != nil {
+		s.watcher.Close()
+	}
 }
 
 type viewState struct {

@@ -11,6 +11,8 @@ require (
 
 require (
 	github.com/TheTitanrain/w32 v0.0.0-20180517000239-4f5cfb03fabf // indirect
+	github.com/fsnotify/fsnotify v1.7.0 // indirect
 	github.com/sqweek/dialog v0.0.0-20260123140253-64c163d53aac // indirect
+	golang.org/x/sys v0.4.0 // indirect
 	golang.org/x/text v0.37.0 // indirect
 )
