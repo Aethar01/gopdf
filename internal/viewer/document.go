@@ -84,6 +84,11 @@ func (a *App) pollMetricUpdates() {
 			if !ok {
 				return
 			}
+			if update.err != nil {
+				a.message = update.err.Error()
+				a.pendingRedraw = true
+				continue
+			}
 			if update.page >= len(a.pageMetrics) {
 				continue
 			}

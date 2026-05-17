@@ -1,6 +1,7 @@
 package viewer
 
 import (
+	"fmt"
 	"sync"
 
 	"gopdf/internal/mupdf"
@@ -33,6 +34,7 @@ func (l *metricLoader) run(docPath string, pageCount int, startPage int) {
 	defer close(l.done)
 	doc, err := mupdf.Open(docPath)
 	if err != nil {
+		l.send(pageMetricUpdate{err: fmt.Errorf("load page metrics: %w", err)})
 		return
 	}
 	defer doc.Close()
@@ -44,15 +46,10 @@ func (l *metricLoader) run(docPath string, pageCount int, startPage int) {
 		}
 		bounds, err := doc.Bounds(i)
 		if err != nil {
-			return true
+			return l.send(pageMetricUpdate{page: i, err: fmt.Errorf("load page %d metrics: %w", i+1, err)})
 		}
 		w, h := rotatedBoundsSize(bounds, 0)
-		select {
-		case l.updates <- pageMetricUpdate{page: i, bounds: bounds, width: w, height: h}:
-		case <-l.closing:
-			return false
-		}
-		return true
+		return l.send(pageMetricUpdate{page: i, bounds: bounds, width: w, height: h})
 	}
 	startPage = clampInt(startPage, 0, max(0, pageCount-1))
 	for i := startPage + 1; i < pageCount; i++ {
@@ -67,7 +64,15 @@ func (l *metricLoader) run(docPath string, pageCount int, startPage int) {
 	}
 }
 
-func (l *metricLoader) Close() {
-	l.closeOnce.Do(func() { close(l.closing) })
-	<-l.done
+func (l *metricLoader) Close() bool {
+	return closeWorker(l.closing, l.done, &l.closeOnce)
+}
+
+func (l *metricLoader) send(update pageMetricUpdate) bool {
+	select {
+	case l.updates <- update:
+		return true
+	case <-l.closing:
+		return false
+	}
 }
