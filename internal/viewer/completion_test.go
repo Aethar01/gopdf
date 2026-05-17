@@ -10,7 +10,7 @@ import (
 )
 
 func TestShowCompletionAcceptsUniqueCommand(t *testing.T) {
-	a := &App{mode: modeCommand, input: "op", inputCursor: 2, config: config.Default()}
+	a := &App{inputState: inputState{mode: modeCommand, input: "op", inputCursor: 2}, config: config.Default()}
 	a.showCompletion()
 
 	if a.input != "open" {
@@ -22,7 +22,7 @@ func TestShowCompletionAcceptsUniqueCommand(t *testing.T) {
 }
 
 func TestShowCompletionCyclesCommandMenu(t *testing.T) {
-	a := &App{mode: modeCommand, input: "", inputCursor: 0, config: config.Default()}
+	a := &App{inputState: inputState{mode: modeCommand, input: "", inputCursor: 0}, config: config.Default()}
 	a.showCompletion()
 
 	if !a.completion.visible {
@@ -47,7 +47,7 @@ func TestOpenPathCompletionsUseDocumentDirectory(t *testing.T) {
 	mustWrite(t, filepath.Join(dir, "paper.pdf"))
 	mustWrite(t, filepath.Join(dir, "notes.txt"))
 
-	a := &App{docPath: filepath.Join(dir, "current.pdf")}
+	a := &App{documentState: documentState{docPath: filepath.Join(dir, "current.pdf")}}
 	items := a.openPathCompletions("")
 	got := completionValues(items)
 	want := []string{"docs" + pathSeparator(), "current.pdf", "notes.txt", "paper.pdf"}
@@ -70,7 +70,7 @@ func TestOpenPathCompletionsPreserveRelativePrefixes(t *testing.T) {
 	mustWrite(t, filepath.Join(dir, "sub", "file.pdf"))
 	mustWrite(t, filepath.Join(dir, "parent", "paper.pdf"))
 
-	a := &App{docPath: filepath.Join(dir, "sub", "current.pdf")}
+	a := &App{documentState: documentState{docPath: filepath.Join(dir, "sub", "current.pdf")}}
 	items := a.openPathCompletions("." + pathSeparator())
 	got := completionValues(items)
 	want := []string{"." + pathSeparator() + "file.pdf"}
@@ -90,7 +90,7 @@ func TestOpenPathCompletionsEscapeSpaces(t *testing.T) {
 	dir := t.TempDir()
 	mustWrite(t, filepath.Join(dir, "Lancer - Core Book.pdf"))
 
-	a := &App{docPath: filepath.Join(dir, "current.pdf")}
+	a := &App{documentState: documentState{docPath: filepath.Join(dir, "current.pdf")}}
 	items := a.openPathCompletions("Lancer")
 	got := completionValues(items)
 	want := []string{`Lancer\ -\ Core\ Book.pdf`}
@@ -143,7 +143,7 @@ func TestExpandHomePathAcceptsSlashSeparator(t *testing.T) {
 }
 
 func TestDeleteInputWord(t *testing.T) {
-	a := &App{input: "open ../some file.pdf", inputCursor: len([]rune("open ../some file"))}
+	a := &App{inputState: inputState{input: "open ../some file.pdf", inputCursor: len([]rune("open ../some file"))}}
 	a.deleteInputWord()
 	if a.input != "open ../some .pdf" || a.inputCursor != len([]rune("open ../some ")) {
 		t.Fatalf("expected previous word deleted, input=%q cursor=%d", a.input, a.inputCursor)

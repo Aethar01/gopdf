@@ -65,16 +65,15 @@ func TestSearchStatusStrings(t *testing.T) {
 
 func TestFormatStatusBarReplacesTemplateTokens(t *testing.T) {
 	app := &App{
-		config:     config.Default(),
-		message:    "ready",
-		page:       2,
-		pageCount:  9,
-		renderMode: "continuous",
-		fitMode:    "width",
-		rotation:   90,
-		zoom:       1.25,
-		docName:    "paper.pdf",
-		search:     searchState{query: "term", current: 0, order: []searchHitRef{{page: 2}}},
+		config: config.Default(),
+		documentState: documentState{
+			page:      2,
+			pageCount: 9,
+			docName:   "paper.pdf",
+		},
+		viewStateFields: viewStateFields{renderMode: "continuous", fitMode: "width", rotation: 90, zoom: 1.25},
+		inputState:      inputState{message: "ready"},
+		uiState:         uiState{search: searchState{query: "term", current: 0, order: []searchHitRef{{page: 2}}}},
 	}
 
 	got := app.formatStatusBar("{document} {message} {page}/{total} {mode} {fit} {rot} {zoom} {dual} {cover} {search} $$")
@@ -101,7 +100,7 @@ func TestFormatStatusBarUsesInputModeMessage(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			app := &App{mode: tt.mode, input: tt.input}
+			app := &App{inputState: inputState{mode: tt.mode, input: tt.input}}
 			if tt.back {
 				app.searchInput = searchModeBackward
 			}
@@ -114,15 +113,14 @@ func TestFormatStatusBarUsesInputModeMessage(t *testing.T) {
 
 func TestFormatStatusBarShowsDualPageSpread(t *testing.T) {
 	app := &App{
-		page:      1,
-		pageCount: 4,
-		dualPage:  true,
-		rows: []rowLayout{
+		documentState:   documentState{page: 1, pageCount: 4},
+		viewStateFields: viewStateFields{dualPage: true},
+		layoutState: layoutState{rows: []rowLayout{
 			{pages: []int{0}},
 			{pages: []int{1, 2}},
 			{pages: []int{3}},
 		},
-		pageToRow: []int{0, 1, 1, 2},
+			pageToRow: []int{0, 1, 1, 2}},
 	}
 
 	if got := app.formatStatusBar("{page}/{total}"); got != "2-3/4" {
@@ -197,13 +195,13 @@ func TestMouseButtonHelpers(t *testing.T) {
 
 func TestVisibleOutlineIndicesRespectExpandedAncestors(t *testing.T) {
 	app := &App{
-		outline: []mupdf.OutlineItem{
+		documentState: documentState{outline: []mupdf.OutlineItem{
 			{Title: "Chapter 1", Page: 0, Parent: -1, HasChildren: true},
 			{Title: "Section 1.1", Page: 1, Parent: 0, HasChildren: true},
 			{Title: "Topic 1.1.1", Page: 2, Parent: 1},
 			{Title: "Chapter 2", Page: 5, Parent: -1},
-		},
-		outlineMenu: outlineMenuState{expanded: map[int]bool{}},
+		}},
+		uiState: uiState{outlineMenu: outlineMenuState{expanded: map[int]bool{}}},
 	}
 
 	if got, want := app.visibleOutlineIndices(), []int{0, 3}; !reflect.DeepEqual(got, want) {
@@ -220,11 +218,11 @@ func TestVisibleOutlineIndicesRespectExpandedAncestors(t *testing.T) {
 }
 
 func TestOutlineIndexForPageUsesNearestPreviousDestination(t *testing.T) {
-	app := &App{outline: []mupdf.OutlineItem{
+	app := &App{documentState: documentState{outline: []mupdf.OutlineItem{
 		{Title: "Intro", Page: 0},
 		{Title: "Chapter", Page: 5},
 		{Title: "Appendix", Page: 10},
-	}}
+	}}}
 
 	tests := []struct {
 		page int
@@ -350,7 +348,7 @@ func TestResolveOpenPathReturnsAbsolutePath(t *testing.T) {
 
 func TestResolveOpenPathUsesCurrentDocumentDirectory(t *testing.T) {
 	dir := t.TempDir()
-	app := &App{docPath: filepath.Join(dir, "paper.pdf")}
+	app := &App{documentState: documentState{docPath: filepath.Join(dir, "paper.pdf")}}
 	want := filepath.Join(dir, "other.pdf")
 
 	if got := app.resolveOpenPath("other.pdf"); got != want {
@@ -423,7 +421,7 @@ func TestRepeatSearchHonorsOriginalSearchDirection(t *testing.T) {
 }
 
 func TestClearSearchResetsSearchState(t *testing.T) {
-	app := &App{message: "match 1/2 /needle"}
+	app := &App{inputState: inputState{message: "match 1/2 /needle"}}
 	app.search = searchState{
 		query:      "needle",
 		matches:    map[int][]mupdf.SearchHit{0: {{}}},
@@ -446,16 +444,15 @@ func TestClearSearchResetsSearchState(t *testing.T) {
 
 func TestOutlineSelectionMovementAndExpandCollapse(t *testing.T) {
 	app := &App{
-		winW:     800,
-		winH:     600,
-		fontFace: basicfont.Face7x13,
-		config:   config.Default(),
-		outline: []mupdf.OutlineItem{
+		layoutState: layoutState{winW: 800, winH: 600},
+		sdlState:    sdlState{fontFace: basicfont.Face7x13},
+		config:      config.Default(),
+		documentState: documentState{outline: []mupdf.OutlineItem{
 			{Title: "Chapter 1", Page: 0, Parent: -1, HasChildren: true},
 			{Title: "Section 1.1", Page: 1, Parent: 0},
 			{Title: "Chapter 2", Page: 5, Parent: -1},
-		},
-		outlineMenu: outlineMenuState{selected: 0, expanded: map[int]bool{}},
+		}},
+		uiState: uiState{outlineMenu: outlineMenuState{selected: 0, expanded: map[int]bool{}}},
 	}
 
 	app.moveOutlineSelection(1)
@@ -498,7 +495,7 @@ func TestRenderScalePolicy(t *testing.T) {
 	assertClose(t, app.renderOversampleFactor(), defaultRenderOversample)
 	assertClose(t, app.oversampledRenderScale(math.NaN()), 1)
 
-	app = &App{scale: 1, zoom: 1, fitMode: "manual", config: config.Config{RenderOversample: 1}, renderService: renderService{minRenderBaseScale: 0.25, renderBaseScale: 2, renderPending: map[string]renderRequest{"old": {page: 1}}}}
+	app = &App{viewStateFields: viewStateFields{scale: 1, zoom: 1, fitMode: "manual"}, config: config.Config{RenderOversample: 1}, renderService: renderService{minRenderBaseScale: 0.25, renderBaseScale: 2, renderPending: map[string]renderRequest{"old": {page: 1}}}}
 	if !app.maybeUpgradeRenderScale(4) {
 		t.Fatal("expected target above tolerance to upgrade render base scale")
 	}
@@ -565,7 +562,7 @@ func TestRenderWorkerSkipsUnwantedRequests(t *testing.T) {
 }
 
 func TestViewportAndContentOffsets(t *testing.T) {
-	app := &App{winW: 800, winH: 600, config: config.Config{StatusBarHeight: 28}, statusBarShown: true}
+	app := &App{layoutState: layoutState{winW: 800, winH: 600}, config: config.Config{StatusBarHeight: 28}, viewStateFields: viewStateFields{statusBarShown: true}}
 	w, h := app.viewportSize()
 	if w != 800 || h != 572 {
 		t.Fatalf("expected status bar to reduce viewport height, got %dx%d", w, h)
@@ -636,7 +633,7 @@ func TestBuiltinPromptActionsEnterExpectedModes(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.action, func(t *testing.T) {
-			app := &App{input: "stale", inputCursor: 5, searchInput: searchModeBackward}
+			app := &App{inputState: inputState{input: "stale", inputCursor: 5, searchInput: searchModeBackward}}
 			if err := app.runBuiltinAction(tt.action); err != nil {
 				t.Fatal(err)
 			}
@@ -662,7 +659,7 @@ func TestBuiltinPromptActionsEnterExpectedModes(t *testing.T) {
 }
 
 func TestInputEditingKeepsRuneCursorPositions(t *testing.T) {
-	app := &App{input: "ab", inputCursor: 1}
+	app := &App{inputState: inputState{input: "ab", inputCursor: 1}}
 	app.insertInputRune('界')
 	if app.input != "a界b" || app.inputCursor != 2 {
 		t.Fatalf("expected rune inserted at cursor, input=%q cursor=%d", app.input, app.inputCursor)
@@ -699,13 +696,13 @@ func TestCommitInputModeExecutesModeSpecificBehavior(t *testing.T) {
 		t.Fatalf("expected goto input to navigate and clear input, mode=%v input=%q cursor=%d page=%d", app.mode, app.input, app.inputCursor, app.page)
 	}
 
-	app = &App{mode: modeCommand, input: "quit", inputCursor: 4}
+	app = &App{inputState: inputState{mode: modeCommand, input: "quit", inputCursor: 4}}
 	app.commitInputMode()
 	if app.mode != modeNormal || !app.quit {
 		t.Fatalf("expected command input to run quit and return to normal, mode=%v quit=%v", app.mode, app.quit)
 	}
 
-	app = &App{mode: modeSearch, input: "needle", inputCursor: 6, searchInput: searchModeBackward}
+	app = &App{inputState: inputState{mode: modeSearch, input: "needle", inputCursor: 6, searchInput: searchModeBackward}}
 	app.commitInputMode()
 	if app.mode != modeNormal || app.search.query != "needle" || app.search.mode != searchModeBackward || app.message != "no document open" {
 		t.Fatalf("expected search input to start backward search, mode=%v search=%+v message=%q", app.mode, app.search, app.message)
@@ -795,10 +792,9 @@ func TestCurrentRowIndexAndCurrentPageFollowScroll(t *testing.T) {
 
 func TestCompletionAcceptCloseAndVisibleRows(t *testing.T) {
 	app := &App{
-		input:       "open par",
-		inputCursor: 8,
-		config:      config.Config{CompletionMaxItems: 3},
-		completion: completionState{
+		inputState: inputState{input: "open par", inputCursor: 8},
+		config:     config.Config{CompletionMaxItems: 3},
+		uiState: uiState{completion: completionState{
 			visible:  true,
 			selected: 1,
 			start:    5,
@@ -807,7 +803,7 @@ func TestCompletionAcceptCloseAndVisibleRows(t *testing.T) {
 				{display: "one", value: "one"},
 				{display: "paper.pdf", value: "paper.pdf"},
 			},
-		},
+		}},
 	}
 	app.acceptCompletion()
 	if app.input != "open paper.pdf" || app.inputCursor != len([]rune("open paper.pdf")) || app.completion.visible || !app.pendingRedraw {

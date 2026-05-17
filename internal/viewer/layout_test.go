@@ -23,13 +23,8 @@ func TestRecomputeLayoutUsesRotatedPageDimensions(t *testing.T) {
 	}
 
 	app := &App{
-		pageCount:       5,
-		page:            0,
-		zoom:            1,
-		fitMode:         "manual",
-		renderMode:      "continuous",
-		dualPage:        true,
-		firstPageOffset: true,
+		documentState:   documentState{pageCount: 5, page: 0},
+		viewStateFields: viewStateFields{zoom: 1, fitMode: "manual", renderMode: "continuous", dualPage: true, firstPageOffset: true},
 		config:          config.Config{PageGap: -1, PageGapHorizontal: -1, PageGapVertical: -1, SpreadGap: -1},
 		metricsService:  metricsService{pageMetrics: metrics},
 	}
@@ -219,11 +214,8 @@ func testLayoutApp(pageCount int) *App {
 		metrics[i] = pageMetrics{bounds: mupdf.Rect{X1: 100, Y1: 200}, width: 100, height: 200}
 	}
 	return &App{
-		pageCount:       pageCount,
-		zoom:            1,
-		fitMode:         "manual",
-		renderMode:      "continuous",
-		firstPageOffset: true,
+		documentState:   documentState{pageCount: pageCount},
+		viewStateFields: viewStateFields{zoom: 1, fitMode: "manual", renderMode: "continuous", firstPageOffset: true},
 		config:          config.Config{PageGap: -1, PageGapHorizontal: -1, PageGapVertical: -1, SpreadGap: -1},
 		metricsService:  metricsService{pageMetrics: metrics},
 	}

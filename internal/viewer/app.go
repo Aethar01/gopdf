@@ -75,25 +75,42 @@ type rowLayout struct {
 }
 
 type App struct {
-	docPath     string
-	docName     string
-	doc         *mupdf.Document
-	runtime     *config.Runtime
-	config      config.Config
-	window      *sdl.Window
-	renderer    *sdl.Renderer
-	cursorHand  *sdl.Cursor
-	cursorArrow *sdl.Cursor
-	iconBytes   []byte
+	runtime *config.Runtime
+	config  config.Config
 
-	pageCount  int
-	page       int
-	rotation   float64
-	zoom       float64
-	fitMode    string
-	renderMode string
-	scale      float64
+	documentState
+	viewStateFields
+	layoutState
+	sdlState
+	renderService
+	metricsService
+	inputState
+	interactionState
+	uiState
+	navigationState
+}
 
+type documentState struct {
+	docPath string
+	docName string
+	doc     *mupdf.Document
+
+	pageCount int
+	page      int
+	pageLinks map[int][]mupdf.Link
+	outline   []mupdf.OutlineItem
+
+	initialDocPath   string
+	initialStartPage int
+	document         documentSession
+}
+
+type viewStateFields struct {
+	rotation        float64
+	zoom            float64
+	fitMode         string
+	renderMode      string
+	scale           float64
 	dualPage        bool
 	firstPageOffset bool
 	statusBarShown  bool
@@ -102,35 +119,41 @@ type App struct {
 	scrollY         float64
 	pageStep        float64
 	altColors       bool
+}
 
+type layoutState struct {
 	rows      []rowLayout
 	pageToRow []int
 	contentW  float64
 	contentH  float64
+	winW      int
+	winH      int
+}
 
-	winW int
-	winH int
+type sdlState struct {
+	window      *sdl.Window
+	renderer    *sdl.Renderer
+	cursorHand  *sdl.Cursor
+	cursorArrow *sdl.Cursor
+	iconBytes   []byte
+	fontFace    font.Face
+}
 
-	renderService
-	metricsService
-	pendingRedraw bool
-
-	fontFace      font.Face
-	mode          mode
-	input         string
-	inputCursor   int
-	ignoreText    string
-	message       string
-	mouseBindings map[string]string
-	searchInput   searchMode
-
+type inputState struct {
+	mode           mode
+	input          string
+	inputCursor    int
+	ignoreText     string
+	message        string
+	mouseBindings  map[string]string
+	searchInput    searchMode
 	sequence       []string
 	sequenceAt     time.Time
 	sequenceLookup map[string]string
 	pendingCount   string
+}
 
-	quit          bool
-	pendingOpen   string
+type interactionState struct {
 	selection     textSelection
 	panning       bool
 	panButton     uint8
@@ -139,21 +162,23 @@ type App struct {
 	actionKey     string
 	lastKeyUpCode sdl.Keycode
 	lastKeyUpAt   time.Time
-	pageLinks     map[int][]mupdf.Link
+}
+
+type uiState struct {
+	pendingRedraw bool
 	search        searchState
 	searchWorker  *searchWorker
-	outline       []mupdf.OutlineItem
 	outlineMenu   outlineMenuState
 	keybindMenu   keybindMenuState
 	luaUI         luaUIState
 	completion    completionState
+}
 
-	jumpBack  []jumpPosition
-	jumpAhead []jumpPosition
-
-	initialDocPath   string
-	initialStartPage int
-	document         documentSession
+type navigationState struct {
+	quit        bool
+	pendingOpen string
+	jumpBack    []jumpPosition
+	jumpAhead   []jumpPosition
 }
 
 type jumpPosition struct {
@@ -168,21 +193,29 @@ func New(docPath string, runtime *config.Runtime, startPage int, iconBytes []byt
 		startPage = 0
 	}
 	app := &App{
-		runtime:  runtime,
-		page:     startPage,
-		zoom:     1,
-		scale:    1,
-		pageStep: 64,
+		runtime: runtime,
+		documentState: documentState{
+			page:      startPage,
+			pageLinks: map[int][]mupdf.Link{},
+		},
+		viewStateFields: viewStateFields{
+			zoom:     1,
+			scale:    1,
+			pageStep: 64,
+		},
+		sdlState: sdlState{
+			iconBytes: iconBytes,
+		},
 		renderService: renderService{
 			renderCache:        map[string]*renderedPage{},
 			cacheLimit:         0,
 			minRenderBaseScale: 0.25,
 		},
 		metricsService: metricsService{},
-		mouseBindings:  map[string]string{},
-		pageLinks:      map[int][]mupdf.Link{},
-		iconBytes:      iconBytes,
-		sequenceLookup: map[string]string{},
+		inputState: inputState{
+			mouseBindings:  map[string]string{},
+			sequenceLookup: map[string]string{},
+		},
 	}
 	runtime.AttachHost(app)
 	app.applyConfigState(cfg, false)

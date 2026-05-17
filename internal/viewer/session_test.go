@@ -113,7 +113,7 @@ func TestDocumentSessionNoChangeWithoutModification(t *testing.T) {
 }
 
 func TestViewStateRoundTrip(t *testing.T) {
-	app := &App{page: 3, scrollX: 12, scrollY: 34, zoom: 1.5, fitMode: "manual", renderMode: "single", dualPage: true, firstPageOffset: false, statusBarShown: true, altColors: true}
+	app := &App{documentState: documentState{page: 3}, viewStateFields: viewStateFields{scrollX: 12, scrollY: 34, zoom: 1.5, fitMode: "manual", renderMode: "single", dualPage: true, firstPageOffset: false, statusBarShown: true, altColors: true}}
 	state := app.captureViewState()
 
 	if state.page != 3 || state.scrollX != 12 || state.scrollY != 34 || state.zoom != 1.5 || state.fitMode != "manual" || state.renderMode != "single" || !state.dualPage || state.firstPageOffset || !state.statusBarShown || !state.altColors {
