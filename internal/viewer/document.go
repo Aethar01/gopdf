@@ -159,29 +159,7 @@ func (a *App) openDocument(path string, opts openDocumentOptions) error {
 	a.jumpAhead = nil
 	a.pendingOpen = ""
 
-	defaultW, defaultH := 612.0, 792.0
-	if pages > 0 {
-		if bounds, err := doc.Bounds(startPage); err == nil {
-			w, h := rotatedBoundsSize(bounds, 0)
-			a.pageMetrics[startPage] = pageMetrics{bounds: bounds, width: w, height: h, loaded: true}
-			defaultW, defaultH = w, h
-		}
-	}
-	if defaultW == 0 || defaultH == 0 {
-		defaultW, defaultH = 612.0, 792.0
-	}
-	for i := range a.pageMetrics {
-		if !a.pageMetrics[i].loaded {
-			a.pageMetrics[i].width = defaultW
-			a.pageMetrics[i].height = defaultH
-		}
-	}
-
-	if pages > 1 {
-		a.pendingPath = path
-		a.pendingPages = pages
-		a.pendingStart = startPage
-	}
+	a.initDocumentMetrics(doc, path, pages, startPage)
 
 	var configErr error
 	if opts.reloadConfig {
@@ -208,6 +186,32 @@ func (a *App) openDocument(path string, opts openDocumentOptions) error {
 	return nil
 }
 
+func (a *App) initDocumentMetrics(doc *mupdf.Document, path string, pages int, startPage int) {
+	defaultW, defaultH := 612.0, 792.0
+	if pages > 0 {
+		if bounds, err := doc.Bounds(startPage); err == nil {
+			w, h := rotatedBoundsSize(bounds, 0)
+			a.pageMetrics[startPage] = pageMetrics{bounds: bounds, width: w, height: h, loaded: true}
+			defaultW, defaultH = w, h
+		}
+	}
+	if defaultW == 0 || defaultH == 0 {
+		defaultW, defaultH = 612.0, 792.0
+	}
+	for i := range a.pageMetrics {
+		if !a.pageMetrics[i].loaded {
+			a.pageMetrics[i].width = defaultW
+			a.pageMetrics[i].height = defaultH
+		}
+	}
+
+	if pages > 1 {
+		a.pendingPath = path
+		a.pendingPages = pages
+		a.pendingStart = startPage
+	}
+}
+
 func (a *App) pollDocumentUpdate() {
 	change, ok := a.document.poll(time.Now())
 	if !ok {
@@ -221,11 +225,52 @@ func (a *App) pollDocumentUpdate() {
 func (a *App) reloadUpdatedDocument(change documentChange) error {
 	path := a.docPath
 	state := a.captureViewState()
-	if err := a.openDocument(path, openDocumentOptions{startPage: state.page, reloadConfig: true, preserveView: &state}); err != nil {
+	if err := a.softReloadDocument(path, state); err != nil {
 		return err
 	}
 	a.document.commit(change)
 	a.message = "reloaded " + a.docName
+	a.pendingRedraw = true
+	return nil
+}
+
+func (a *App) softReloadDocument(path string, state viewState) error {
+	path = config.AbsoluteDocumentPath(path)
+	doc, err := mupdf.Open(path)
+	if err != nil {
+		return err
+	}
+	pages := doc.CachedPageCount()
+	startPage := clampInt(state.page, 0, max(0, pages-1))
+
+	if a.runtime != nil {
+		a.runtime.SetPageCount(pages)
+	}
+	a.closeDocumentResources()
+
+	a.docPath = path
+	a.docName = filepath.Base(path)
+	a.doc = doc
+	a.pageCount = pages
+	a.page = startPage
+	a.pageMetrics = make([]pageMetrics, pages)
+	a.rows = nil
+	a.pageToRow = nil
+	a.contentW = 0
+	a.contentH = 0
+	a.cacheLimit = min(24, pages)
+	a.renderBaseScale = 0
+	a.pageLinks = map[int][]mupdf.Link{}
+	a.outline = nil
+	a.selection = textSelection{}
+
+	a.initDocumentMetrics(doc, path, pages, startPage)
+	a.setWindowTitle()
+	a.initRenderWorker()
+	a.initSearch()
+	a.recomputeLayout(a.viewportSize())
+	a.ensureRenderBaseScale()
+	a.restoreViewState(state)
 	a.pendingRedraw = true
 	return nil
 }

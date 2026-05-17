@@ -7,6 +7,7 @@ import (
 	"sort"
 	"strings"
 
+	"gopdf/internal/actions"
 	"gopdf/internal/filepicker"
 
 	lua "github.com/yuin/gopher-lua"
@@ -430,17 +431,11 @@ func generatedKeybindLua(bindings map[string]string) string {
 }
 
 func isBuiltinAction(action string) bool {
-	for _, candidate := range allActions() {
-		if action == candidate {
-			return true
-		}
-	}
-	return false
+	return actions.IsBuiltin(action)
 }
 
 func Actions() []string {
-	actions := allActions()
-	return append([]string(nil), actions...)
+	return actions.Names()
 }
 
 func (r *Runtime) RunAction(action string) (bool, bool, error) {
@@ -812,7 +807,7 @@ func newLuaModule(L *lua.LState, rt *Runtime, cfg *Config) *lua.LTable {
 		},
 	})
 	L.SetField(mod, "options", newLuaOptionsTable(L, rt, cfg))
-	for _, action := range allActions() {
+	for _, action := range actions.Names() {
 		name := action
 		L.SetField(mod, name, newLuaActionValue(L, rt, name))
 	}
@@ -1052,7 +1047,7 @@ func luaActionName(rt *Runtime, value lua.LValue) (string, error) {
 		return "", fmt.Errorf("expected action string, action value, or function")
 	}
 	action := value.String()
-	for _, candidate := range allActions() {
+	for _, candidate := range actions.Names() {
 		if action == candidate {
 			return action, nil
 		}
@@ -1187,18 +1182,18 @@ func colorOption(get func(*Config) [3]uint8, set func(*Config, [3]uint8)) option
 }
 
 var configOptions = map[string]optionDesc{
-	"status_bar_visible":    boolOption(func(c *Config) bool { return c.StatusBarVisible }, func(c *Config, v bool) { c.StatusBarVisible = v }),
-	"mouse_text_select":     boolOption(func(c *Config) bool { return c.MouseTextSelect }, func(c *Config, v bool) { c.MouseTextSelect = v }),
-	"natural_scroll":        boolOption(func(c *Config) bool { return c.NaturalScroll }, func(c *Config, v bool) { c.NaturalScroll = v }),
-	"alt_colors":            boolOption(func(c *Config) bool { return c.AltColors }, func(c *Config, v bool) { c.AltColors = v }),
-	"dual_page":             boolOption(func(c *Config) bool { return c.DualPage }, func(c *Config, v bool) { c.DualPage = v }),
-	"first_page_offset":     boolOption(func(c *Config) bool { return c.FirstPageOffset }, func(c *Config, v bool) { c.FirstPageOffset = v }),
-	"anti_aliasing":         intOption(func(c *Config) int { return c.AntiAliasing }, func(c *Config, v int) { c.AntiAliasing = v }),
+	"status_bar_visible":     boolOption(func(c *Config) bool { return c.StatusBarVisible }, func(c *Config, v bool) { c.StatusBarVisible = v }),
+	"mouse_text_select":      boolOption(func(c *Config) bool { return c.MouseTextSelect }, func(c *Config, v bool) { c.MouseTextSelect = v }),
+	"natural_scroll":         boolOption(func(c *Config) bool { return c.NaturalScroll }, func(c *Config, v bool) { c.NaturalScroll = v }),
+	"alt_colors":             boolOption(func(c *Config) bool { return c.AltColors }, func(c *Config, v bool) { c.AltColors = v }),
+	"dual_page":              boolOption(func(c *Config) bool { return c.DualPage }, func(c *Config, v bool) { c.DualPage = v }),
+	"first_page_offset":      boolOption(func(c *Config) bool { return c.FirstPageOffset }, func(c *Config, v bool) { c.FirstPageOffset = v }),
+	"anti_aliasing":          intOption(func(c *Config) int { return c.AntiAliasing }, func(c *Config, v int) { c.AntiAliasing = v }),
 	"outline_initial_depth":  intOption(func(c *Config) int { return c.OutlineInitialDepth }, func(c *Config, v int) { c.OutlineInitialDepth = v }),
 	"outline_width_percent":  intOption(func(c *Config) int { return c.OutlineWidthPercent }, func(c *Config, v int) { c.OutlineWidthPercent = v }),
 	"outline_height_percent": intOption(func(c *Config) int { return c.OutlineHeightPercent }, func(c *Config, v int) { c.OutlineHeightPercent = v }),
-	"completion_max_items": intOption(func(c *Config) int { return c.CompletionMaxItems }, func(c *Config, v int) { c.CompletionMaxItems = max(1, v) }),
-	"scroll_step":           intOption(func(c *Config) int { return c.ScrollStep }, func(c *Config, v int) { c.ScrollStep = v }),
+	"completion_max_items":   intOption(func(c *Config) int { return c.CompletionMaxItems }, func(c *Config, v int) { c.CompletionMaxItems = max(1, v) }),
+	"scroll_step":            intOption(func(c *Config) int { return c.ScrollStep }, func(c *Config, v int) { c.ScrollStep = v }),
 	"page_gap": intOption(func(c *Config) int { return c.PageGap }, func(c *Config, v int) {
 		c.PageGap = v
 		c.PageGapVertical = v
@@ -1215,26 +1210,26 @@ var configOptions = map[string]optionDesc{
 		c.PageGapHorizontal = v
 		c.SpreadGap = v
 	}),
-	"status_bar_height":     intOption(func(c *Config) int { return c.StatusBarHeight }, func(c *Config, v int) { c.StatusBarHeight = v }),
-	"status_bar_padding":    intOption(func(c *Config) int { return c.StatusBarPadding }, func(c *Config, v int) { c.StatusBarPadding = v }),
-	"ui_font_size":          intOption(func(c *Config) int { return c.UIFontSize }, func(c *Config, v int) { c.UIFontSize = v }),
-	"sequence_timeout_ms":   intOption(func(c *Config) int { return c.SequenceTimeoutMS }, func(c *Config, v int) { c.SequenceTimeoutMS = v }),
-	"render_oversample":     floatOption(func(c *Config) float64 { return c.RenderOversample }, func(c *Config, v float64) { c.RenderOversample = v }),
-	"render_mode":           stringOption(func(c *Config) string { return c.RenderMode }, func(c *Config, v string) { c.RenderMode = NormalizeRenderMode(v) }),
-	"fit_mode":              stringOption(func(c *Config) string { return c.FitMode }, func(c *Config, v string) { c.FitMode = NormalizeFitMode(v) }),
-	"ui_font_path":          stringOption(func(c *Config) string { return c.UIFontPath }, func(c *Config, v string) { c.UIFontPath = v }),
-	"status_bar_left":       stringOption(func(c *Config) string { return c.StatusBarLeft }, func(c *Config, v string) { c.StatusBarLeft = v }),
-	"status_bar_right":      stringOption(func(c *Config) string { return c.StatusBarRight }, func(c *Config, v string) { c.StatusBarRight = v }),
-	"background":             colorOption(func(c *Config) [3]uint8 { return c.Background }, func(c *Config, v [3]uint8) { c.Background = v }),
-	"page_background":        colorOption(func(c *Config) [3]uint8 { return c.PageBackground }, func(c *Config, v [3]uint8) { c.PageBackground = v }),
-	"foreground":             colorOption(func(c *Config) [3]uint8 { return c.Foreground }, func(c *Config, v [3]uint8) { c.Foreground = v }),
-	"status_bar_color":       colorOption(func(c *Config) [3]uint8 { return c.StatusBarColor }, func(c *Config, v [3]uint8) { c.StatusBarColor = v }),
-	"alt_background":         colorOption(func(c *Config) [3]uint8 { return c.AltBackground }, func(c *Config, v [3]uint8) { c.AltBackground = v }),
-	"alt_page_background":    colorOption(func(c *Config) [3]uint8 { return c.AltPageBackground }, func(c *Config, v [3]uint8) { c.AltPageBackground = v }),
-	"alt_foreground":         colorOption(func(c *Config) [3]uint8 { return c.AltForeground }, func(c *Config, v [3]uint8) { c.AltForeground = v }),
-	"alt_status_bar_color":   colorOption(func(c *Config) [3]uint8 { return c.AltStatusBarColor }, func(c *Config, v [3]uint8) { c.AltStatusBarColor = v }),
-	"highlight_foreground":   colorOption(func(c *Config) [3]uint8 { return c.HighlightForeground }, func(c *Config, v [3]uint8) { c.HighlightForeground = v }),
-	"highlight_background":   colorOption(func(c *Config) [3]uint8 { return c.HighlightBackground }, func(c *Config, v [3]uint8) { c.HighlightBackground = v }),
+	"status_bar_height":    intOption(func(c *Config) int { return c.StatusBarHeight }, func(c *Config, v int) { c.StatusBarHeight = v }),
+	"status_bar_padding":   intOption(func(c *Config) int { return c.StatusBarPadding }, func(c *Config, v int) { c.StatusBarPadding = v }),
+	"ui_font_size":         intOption(func(c *Config) int { return c.UIFontSize }, func(c *Config, v int) { c.UIFontSize = v }),
+	"sequence_timeout_ms":  intOption(func(c *Config) int { return c.SequenceTimeoutMS }, func(c *Config, v int) { c.SequenceTimeoutMS = v }),
+	"render_oversample":    floatOption(func(c *Config) float64 { return c.RenderOversample }, func(c *Config, v float64) { c.RenderOversample = v }),
+	"render_mode":          stringOption(func(c *Config) string { return c.RenderMode }, func(c *Config, v string) { c.RenderMode = NormalizeRenderMode(v) }),
+	"fit_mode":             stringOption(func(c *Config) string { return c.FitMode }, func(c *Config, v string) { c.FitMode = NormalizeFitMode(v) }),
+	"ui_font_path":         stringOption(func(c *Config) string { return c.UIFontPath }, func(c *Config, v string) { c.UIFontPath = v }),
+	"status_bar_left":      stringOption(func(c *Config) string { return c.StatusBarLeft }, func(c *Config, v string) { c.StatusBarLeft = v }),
+	"status_bar_right":     stringOption(func(c *Config) string { return c.StatusBarRight }, func(c *Config, v string) { c.StatusBarRight = v }),
+	"background":           colorOption(func(c *Config) [3]uint8 { return c.Background }, func(c *Config, v [3]uint8) { c.Background = v }),
+	"page_background":      colorOption(func(c *Config) [3]uint8 { return c.PageBackground }, func(c *Config, v [3]uint8) { c.PageBackground = v }),
+	"foreground":           colorOption(func(c *Config) [3]uint8 { return c.Foreground }, func(c *Config, v [3]uint8) { c.Foreground = v }),
+	"status_bar_color":     colorOption(func(c *Config) [3]uint8 { return c.StatusBarColor }, func(c *Config, v [3]uint8) { c.StatusBarColor = v }),
+	"alt_background":       colorOption(func(c *Config) [3]uint8 { return c.AltBackground }, func(c *Config, v [3]uint8) { c.AltBackground = v }),
+	"alt_page_background":  colorOption(func(c *Config) [3]uint8 { return c.AltPageBackground }, func(c *Config, v [3]uint8) { c.AltPageBackground = v }),
+	"alt_foreground":       colorOption(func(c *Config) [3]uint8 { return c.AltForeground }, func(c *Config, v [3]uint8) { c.AltForeground = v }),
+	"alt_status_bar_color": colorOption(func(c *Config) [3]uint8 { return c.AltStatusBarColor }, func(c *Config, v [3]uint8) { c.AltStatusBarColor = v }),
+	"highlight_foreground": colorOption(func(c *Config) [3]uint8 { return c.HighlightForeground }, func(c *Config, v [3]uint8) { c.HighlightForeground = v }),
+	"highlight_background": colorOption(func(c *Config) [3]uint8 { return c.HighlightBackground }, func(c *Config, v [3]uint8) { c.HighlightBackground = v }),
 }
 
 func luaSettingValue(L *lua.LState, name string, cfg *Config) (lua.LValue, error) {
@@ -1345,53 +1340,5 @@ func defaultBindings() map[string]string {
 		"<C-S-o>": "open_file_picker",
 		"<F1>":    "keybinds",
 		"<C-S-r>": "reload_config",
-	}
-}
-
-func allActions() []string {
-	return []string{
-		"next_page",
-		"prev_page",
-		"scroll_down",
-		"scroll_up",
-		"scroll_left",
-		"scroll_right",
-		"next_spread",
-		"prev_spread",
-		"first_page",
-		"last_page",
-		"command_mode",
-		"search_prompt",
-		"search_prompt_backward",
-		"search_next",
-		"search_prev",
-		"toggle_dual_page",
-		"toggle_render_mode",
-		"toggle_alt_colors",
-		"toggle_first_page_offset",
-		"toggle_status_bar",
-		"toggle_fullscreen",
-		"outline",
-		"confirm",
-		"zoom_in",
-		"zoom_out",
-		"reset_zoom",
-		"fit_width",
-		"fit_page",
-		"reload_config",
-		"rotate_cw",
-		"rotate_ccw",
-		"goto_page_prompt",
-		"clear_search",
-		"show_completion",
-		"next_completion",
-		"prev_completion",
-		"close",
-		"jump_forward",
-		"jump_backward",
-		"open_file_picker",
-		"keybinds",
-		"pan",
-		"quit",
 	}
 }
