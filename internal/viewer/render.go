@@ -3,6 +3,7 @@ package viewer
 import (
 	"fmt"
 	"math"
+	"sync"
 	"sync/atomic"
 
 	"gopdf/internal/mupdf"
@@ -35,6 +36,7 @@ type renderWorker struct {
 	updates    chan renderUpdate
 	closing    chan struct{}
 	done       chan struct{}
+	closeOnce  sync.Once
 	generation atomic.Int32
 }
 
@@ -50,7 +52,7 @@ func newRenderWorker(docPath string) *renderWorker {
 }
 
 func (w *renderWorker) Close() {
-	close(w.closing)
+	w.closeOnce.Do(func() { close(w.closing) })
 	<-w.done
 }
 
@@ -109,7 +111,7 @@ func (w *renderWorker) run(docPath string) {
 	doc, err := mupdf.Open(docPath)
 	if err != nil {
 		w.send(renderUpdate{err: err})
-		close(w.closing)
+		w.closeOnce.Do(func() { close(w.closing) })
 		return
 	}
 	defer doc.Close()
@@ -209,6 +211,7 @@ func (a *App) pollRenderUpdates() {
 			}
 			a.renderCache[update.cacheKey] = rp
 			a.renderOrder = append(a.renderOrder, update.cacheKey)
+			a.startPendingMetricLoader()
 			a.pendingRedraw = true
 			for len(a.renderOrder) > a.cacheLimit {
 				oldest := a.renderOrder[0]
@@ -361,8 +364,7 @@ func (a *App) ensureRenderBaseScale() {
 		}
 		return
 	}
-	base := math.Max(2, a.currentRenderTarget())
-	a.renderBaseScale = math.Max(base, floor)
+	a.renderBaseScale = math.Max(math.Max(2, a.currentRenderTarget()), floor)
 }
 
 func (a *App) maybeUpgradeRenderScale(target float64) bool {

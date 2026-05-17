@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"strings"
+	"sync"
 
 	"gopdf/internal/mupdf"
 
@@ -48,10 +49,11 @@ type searchUpdate struct {
 }
 
 type searchWorker struct {
-	requests chan searchRequest
-	updates  chan searchUpdate
-	closing  chan struct{}
-	done     chan struct{}
+	requests  chan searchRequest
+	updates   chan searchUpdate
+	closing   chan struct{}
+	done      chan struct{}
+	closeOnce sync.Once
 }
 
 func newSearchWorker(docPath string) *searchWorker {
@@ -66,19 +68,29 @@ func newSearchWorker(docPath string) *searchWorker {
 }
 
 func (w *searchWorker) Close() {
-	close(w.closing)
+	w.closeOnce.Do(func() { close(w.closing) })
 	<-w.done
 }
 
-func (w *searchWorker) Start(req searchRequest) {
+func (w *searchWorker) Start(req searchRequest) bool {
 	select {
+	case <-w.closing:
+		return false
 	case w.requests <- req:
+		return true
 	default:
-		select {
-		case <-w.requests:
-		default:
-		}
-		w.requests <- req
+	}
+	select {
+	case <-w.closing:
+		return false
+	case <-w.requests:
+	default:
+	}
+	select {
+	case <-w.closing:
+		return false
+	case w.requests <- req:
+		return true
 	}
 }
 
@@ -87,7 +99,7 @@ func (w *searchWorker) run(docPath string) {
 	doc, err := mupdf.Open(docPath)
 	if err != nil {
 		w.send(searchUpdate{done: true, err: err})
-		close(w.closing)
+		w.closeOnce.Do(func() { close(w.closing) })
 		return
 	}
 	defer doc.Close()
@@ -158,7 +170,6 @@ func searchPageOrder(start, count int) []int {
 
 func (a *App) initSearch() {
 	a.search = searchState{matches: map[int][]mupdf.SearchHit{}, current: -1, mode: searchModeForward}
-	a.searchWorker = newSearchWorker(a.docPath)
 }
 
 func (a *App) closeSearch() {
@@ -175,6 +186,11 @@ func (a *App) pollSearchUpdates() {
 	for {
 		select {
 		case update := <-a.searchWorker.updates:
+			if update.generation == 0 && update.err != nil {
+				a.search.running = false
+				a.message = update.err.Error()
+				continue
+			}
 			if update.generation != a.search.generation {
 				continue
 			}
@@ -223,18 +239,24 @@ func (a *App) startSearch(query string, mode searchMode) {
 		a.message = ""
 		return
 	}
+	if a.searchWorker == nil && a.docPath != "" {
+		a.searchWorker = newSearchWorker(a.docPath)
+	}
 	if a.searchWorker == nil {
 		a.message = "no document open"
 		return
 	}
 	a.search.running = true
 	a.message = fmt.Sprintf("searching /%s", query)
-	a.searchWorker.Start(searchRequest{
+	if !a.searchWorker.Start(searchRequest{
 		generation: a.search.generation,
 		query:      query,
 		startPage:  a.page,
 		pageCount:  a.pageCount,
-	})
+	}) {
+		a.search.running = false
+		a.message = "search unavailable"
+	}
 }
 
 func (a *App) clearSearch() {

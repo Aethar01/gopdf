@@ -669,6 +669,23 @@ type OutlineItem struct {
 	HasChildren bool
 }
 
+func (d *Document) ensureOpen() error {
+	if d == nil || d.handle == nil {
+		return fmt.Errorf("document is closed")
+	}
+	return nil
+}
+
+func (d *Document) validatePage(page int) error {
+	if err := d.ensureOpen(); err != nil {
+		return err
+	}
+	if page < 0 || page >= d.pages {
+		return fmt.Errorf("page %d out of range [0,%d)", page, d.pages)
+	}
+	return nil
+}
+
 func Open(path string) (*Document, error) {
 	cpath := C.CString(path)
 	defer C.free(unsafe.Pointer(cpath))
@@ -688,7 +705,7 @@ func Open(path string) (*Document, error) {
 }
 
 func (d *Document) Close() {
-	if d.handle == nil {
+	if d == nil || d.handle == nil {
 		return
 	}
 	C.gopdf_close_document(d.handle)
@@ -696,6 +713,9 @@ func (d *Document) Close() {
 }
 
 func (d *Document) PageCount() (int, error) {
+	if err := d.ensureOpen(); err != nil {
+		return 0, err
+	}
 	var count C.int
 	var cerr *C.char
 	if ok := C.gopdf_count_pages(d.handle, &count, &cerr); ok == 0 {
@@ -704,7 +724,14 @@ func (d *Document) PageCount() (int, error) {
 	return int(count), nil
 }
 
+func (d *Document) CachedPageCount() int {
+	return d.pages
+}
+
 func (d *Document) Bounds(page int) (Rect, error) {
+	if err := d.validatePage(page); err != nil {
+		return Rect{}, err
+	}
 	var rect C.gopdf_rect
 	var cerr *C.char
 	if ok := C.gopdf_page_bounds(d.handle, C.int(page), &rect, &cerr); ok == 0 {
@@ -714,6 +741,9 @@ func (d *Document) Bounds(page int) (Rect, error) {
 }
 
 func (d *Document) Render(page int, scale float64, rotation float64, aaLevel int) (*RenderedPage, error) {
+	if err := d.validatePage(page); err != nil {
+		return nil, err
+	}
 	var pix C.gopdf_pixmap
 	var cerr *C.char
 	if ok := C.gopdf_render_page(d.handle, C.int(page), C.float(scale), C.float(rotation), C.int(aaLevel), &pix, &cerr); ok == 0 {
@@ -731,6 +761,9 @@ func (d *Document) Render(page int, scale float64, rotation float64, aaLevel int
 }
 
 func (d *Document) ExtractSelection(page int, a, b Point) (*Selection, error) {
+	if err := d.validatePage(page); err != nil {
+		return nil, err
+	}
 	var sel C.gopdf_selection
 	var cerr *C.char
 	if ok := C.gopdf_extract_selection(d.handle, C.int(page), C.float(a.X), C.float(a.Y), C.float(b.X), C.float(b.Y), &sel, &cerr); ok == 0 {
@@ -754,6 +787,9 @@ func (d *Document) ExtractSelection(page int, a, b Point) (*Selection, error) {
 }
 
 func (d *Document) SearchPage(page int, needle string) ([]SearchHit, error) {
+	if err := d.validatePage(page); err != nil {
+		return nil, err
+	}
 	if needle == "" {
 		return nil, nil
 	}
@@ -789,6 +825,9 @@ func (d *Document) SearchPage(page int, needle string) ([]SearchHit, error) {
 }
 
 func (d *Document) Links(page int) ([]Link, error) {
+	if err := d.validatePage(page); err != nil {
+		return nil, err
+	}
 	var result C.gopdf_link_result
 	var cerr *C.char
 	if ok := C.gopdf_load_links(d.handle, C.int(page), &result, &cerr); ok == 0 {
@@ -814,6 +853,9 @@ func (d *Document) Links(page int) ([]Link, error) {
 }
 
 func (d *Document) Outline() ([]OutlineItem, error) {
+	if err := d.ensureOpen(); err != nil {
+		return nil, err
+	}
 	var result C.gopdf_outline_result
 	var cerr *C.char
 	if ok := C.gopdf_load_outline(d.handle, &result, &cerr); ok == 0 {

@@ -221,6 +221,31 @@ end
 	}
 }
 
+func TestSetDocumentPageCountIsAvailableDuringReload(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.lua")
+	if err := os.WriteFile(path, []byte(`
+if gopdf.document.page_count == 42 then
+  options.page_gap_vertical = 42
+end
+`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	rt, err := Open(path, filepath.Join(dir, "first.pdf"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rt.Close()
+
+	if err := rt.SetDocument(filepath.Join(dir, "second.pdf"), 42); err != nil {
+		t.Fatal(err)
+	}
+	if got := rt.Config().PageGapVertical; got != 42 {
+		t.Fatalf("expected Lua reload to see page_count, got %d", got)
+	}
+}
+
 func TestOpenStoresAbsoluteDocumentPath(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "config.lua")

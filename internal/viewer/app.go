@@ -6,6 +6,7 @@ import (
 	"image/color"
 	"maps"
 	"math"
+	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -179,6 +180,15 @@ type App struct {
 
 	jumpBack  []jumpPosition
 	jumpAhead []jumpPosition
+
+	initialDocPath     string
+	initialStartPage   int
+	pendingMetricPath  string
+	pendingMetricPages int
+	pendingMetricStart int
+	docModTime         time.Time
+	docSize            int64
+	lastDocStat        time.Time
 }
 
 type jumpPosition struct {
@@ -210,10 +220,8 @@ func New(docPath string, runtime *config.Runtime, startPage int, iconBytes []byt
 	app.applyConfigState(cfg, false)
 	app.message = cfg.NormalMessage
 	if docPath != "" {
-		if err := app.openDocument(docPath, startPage, false); err != nil {
-			app.Close()
-			return nil, err
-		}
+		app.initialDocPath = docPath
+		app.initialStartPage = startPage
 	}
 	app.recomputeLayout(1400, 900-app.config.StatusBarHeight)
 	if app.doc != nil {
@@ -303,6 +311,19 @@ func (a *App) Run() error {
 		w, h := outputW, outputH
 		a.winW, a.winH = int(w), int(h)
 	}
+	if a.initialDocPath != "" {
+		a.message = "opening " + a.initialDocPath
+		a.pendingRedraw = true
+		if err := a.drawFrame(); err != nil {
+			return err
+		}
+		path := a.initialDocPath
+		startPage := a.initialStartPage
+		a.initialDocPath = ""
+		if err := a.openDocument(path, startPage, false); err != nil {
+			return err
+		}
+	}
 	a.recomputeLayout(a.viewportSize())
 	a.pendingRedraw = true
 	sdl.StartTextInput(a.window)
@@ -317,6 +338,7 @@ func (a *App) Run() error {
 		a.pollRenderUpdates()
 		a.pollMetricUpdates()
 		a.pollSearchUpdates()
+		a.pollDocumentUpdate()
 		a.expireSequence()
 		a.prefetchVisiblePages()
 		a.adjustRenderBaseScaleForExtremeZoom(a.scale)
@@ -352,6 +374,65 @@ func (a *App) eventWaitTimeoutMS() int {
 		}
 	}
 	return 100
+}
+
+const documentStatInterval = 500 * time.Millisecond
+
+func (a *App) pollDocumentUpdate() {
+	if a.docPath == "" || time.Since(a.lastDocStat) < documentStatInterval {
+		return
+	}
+	a.lastDocStat = time.Now()
+	info, err := os.Stat(a.docPath)
+	if err != nil || info.IsDir() {
+		return
+	}
+	modTime := info.ModTime()
+	size := info.Size()
+	if a.docModTime.IsZero() {
+		a.docModTime = modTime
+		a.docSize = size
+		return
+	}
+	if modTime.Equal(a.docModTime) && size == a.docSize {
+		return
+	}
+	if err := a.reloadUpdatedDocument(modTime, size); err != nil {
+		a.message = err.Error()
+	}
+}
+
+func (a *App) reloadUpdatedDocument(modTime time.Time, size int64) error {
+	path := a.docPath
+	page := a.page
+	scrollX, scrollY := a.scrollX, a.scrollY
+	zoom, fitMode := a.zoom, a.fitMode
+	renderMode := a.renderMode
+	dualPage, firstPageOffset := a.dualPage, a.firstPageOffset
+	statusBarShown, altColors := a.statusBarShown, a.altColors
+	if err := a.openDocument(path, page, true); err != nil {
+		return err
+	}
+	a.zoom = zoom
+	a.fitMode = fitMode
+	a.renderMode = renderMode
+	a.dualPage = dualPage
+	a.firstPageOffset = firstPageOffset
+	a.statusBarShown = statusBarShown
+	a.altColors = altColors
+	a.page = clampInt(page, 0, max(0, a.pageCount-1))
+	a.recomputeLayout(a.viewportSize())
+	a.scrollX = scrollX
+	a.scrollY = scrollY
+	a.clampScroll()
+	if a.renderMode == "continuous" {
+		a.updateCurrentPageFromScroll()
+	}
+	a.docModTime = modTime
+	a.docSize = size
+	a.message = "reloaded " + a.docName
+	a.pendingRedraw = true
+	return nil
 }
 
 func (a *App) handleSDLEvent(event *sdl.Event) error {
@@ -1762,20 +1843,32 @@ func (l *metricLoader) run(docPath string, pageCount int, startPage int) {
 		return
 	}
 	defer doc.Close()
-	for i := startPage; i < pageCount; i++ {
+	loadPage := func(i int) bool {
 		select {
 		case <-l.closing:
-			return
+			return false
 		default:
 		}
 		bounds, err := doc.Bounds(i)
 		if err != nil {
-			continue
+			return true
 		}
 		w, h := rotatedBoundsSize(bounds, 0)
 		select {
 		case l.updates <- pageMetricUpdate{page: i, bounds: bounds, width: w, height: h}:
 		case <-l.closing:
+			return false
+		}
+		return true
+	}
+	startPage = clampInt(startPage, 0, max(0, pageCount-1))
+	for i := startPage + 1; i < pageCount; i++ {
+		if !loadPage(i) {
+			return
+		}
+	}
+	for i := 0; i < startPage; i++ {
+		if !loadPage(i) {
 			return
 		}
 	}
@@ -1791,6 +1884,22 @@ func (a *App) closeMetricLoader() {
 		a.metricLoader.Close()
 		a.metricLoader = nil
 	}
+	a.pendingMetricPath = ""
+	a.pendingMetricPages = 0
+	a.pendingMetricStart = 0
+}
+
+func (a *App) startPendingMetricLoader() {
+	if a.metricLoader != nil || a.pendingMetricPath == "" || a.pendingMetricPages <= 1 {
+		return
+	}
+	path := a.pendingMetricPath
+	pages := a.pendingMetricPages
+	start := a.pendingMetricStart
+	a.pendingMetricPath = ""
+	a.pendingMetricPages = 0
+	a.pendingMetricStart = 0
+	a.initMetricLoader(path, pages, start)
 }
 
 func (a *App) pollMetricUpdates() {
@@ -1830,11 +1939,7 @@ func (a *App) openDocument(path string, startPage int, reloadConfig bool) error 
 	if err != nil {
 		return err
 	}
-	pages, err := doc.PageCount()
-	if err != nil {
-		doc.Close()
-		return err
-	}
+	pages := doc.CachedPageCount()
 	if startPage < 0 {
 		startPage = 0
 	}
@@ -1848,6 +1953,7 @@ func (a *App) openDocument(path string, startPage int, reloadConfig bool) error 
 
 	a.docPath = path
 	a.docName = filepath.Base(path)
+	a.recordDocumentStat(path)
 	a.doc = doc
 	a.pageCount = pages
 	a.page = startPage
@@ -1882,12 +1988,12 @@ func (a *App) openDocument(path string, startPage int, reloadConfig bool) error 
 	a.jumpAhead = nil
 	a.pendingOpen = ""
 
-	// Load first page metrics synchronously and use its size as default
+	// Load the requested page metrics synchronously and use its size as default.
 	defaultW, defaultH := 612.0, 792.0
 	if pages > 0 {
-		if bounds, err := doc.Bounds(0); err == nil {
+		if bounds, err := doc.Bounds(startPage); err == nil {
 			w, h := rotatedBoundsSize(bounds, 0)
-			a.pageMetrics[0] = pageMetrics{bounds: bounds, width: w, height: h, loaded: true}
+			a.pageMetrics[startPage] = pageMetrics{bounds: bounds, width: w, height: h, loaded: true}
 			defaultW, defaultH = w, h
 		}
 	}
@@ -1901,14 +2007,16 @@ func (a *App) openDocument(path string, startPage int, reloadConfig bool) error 
 		}
 	}
 
-	// Load remaining metrics in background
+	// Load remaining metrics after the first rendered page appears.
 	if pages > 1 {
-		a.initMetricLoader(path, pages, 1)
+		a.pendingMetricPath = path
+		a.pendingMetricPages = pages
+		a.pendingMetricStart = startPage
 	}
 
 	var configErr error
 	if reloadConfig {
-		configErr = a.runtime.SetDocument(path)
+		configErr = a.runtime.SetDocument(path, pages)
 	}
 	a.applyConfigState(a.runtime.Config(), false)
 	a.message = a.config.NormalMessage
@@ -1925,6 +2033,18 @@ func (a *App) openDocument(path string, startPage int, reloadConfig bool) error 
 		return configErr
 	}
 	return nil
+}
+
+func (a *App) recordDocumentStat(path string) {
+	info, err := os.Stat(path)
+	if err != nil || info.IsDir() {
+		a.docModTime = time.Time{}
+		a.docSize = 0
+		return
+	}
+	a.docModTime = info.ModTime()
+	a.docSize = info.Size()
+	a.lastDocStat = time.Now()
 }
 
 func (a *App) applyConfigState(cfg config.Config, preserveManualFit bool) {

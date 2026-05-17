@@ -279,7 +279,7 @@ func (r *Runtime) AttachHost(host Host) {
 	r.host = host
 }
 
-func (r *Runtime) SetDocument(path string) error {
+func (r *Runtime) SetDocument(path string, pageCount ...int) error {
 	path = AbsoluteDocumentPath(path)
 	r.docPath = path
 	r.docName = ""
@@ -287,6 +287,10 @@ func (r *Runtime) SetDocument(path string) error {
 		r.docName = filepath.Base(path)
 	}
 	r.docMeta = loadDocumentMeta(path)
+	if len(pageCount) > 0 {
+		r.docMeta.pageCount = pageCount[0]
+		r.docMeta.hasPages = true
+	}
 	return r.Reload()
 }
 
@@ -482,6 +486,10 @@ func (r *Runtime) runCallback(callback string, args ...lua.LValue) error {
 }
 
 func (r *Runtime) applyLuaConfig(path string) error {
+	if r.state != nil {
+		r.state.Close()
+		r.state = nil
+	}
 	L := lua.NewState()
 	r.state = L
 	mod := newLuaModule(L, r, &r.cfg)
