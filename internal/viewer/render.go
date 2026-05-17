@@ -32,6 +32,17 @@ type renderUpdate struct {
 	err        error
 }
 
+type renderService struct {
+	renderCache        map[string]*renderedPage
+	renderOrder        []string
+	cacheLimit         int
+	renderBaseScale    float64
+	minRenderBaseScale float64
+	renderGeneration   int
+	renderPending      map[string]renderRequest
+	renderWorker       *renderWorker
+}
+
 type renderWorker struct {
 	requests   chan renderRequest
 	updates    chan renderUpdate
@@ -39,6 +50,7 @@ type renderWorker struct {
 	done       chan struct{}
 	closeOnce  sync.Once
 	generation atomic.Int32
+	wanted     atomic.Value
 }
 
 func newRenderWorker(docPath string) *renderWorker {
@@ -61,6 +73,16 @@ func (w *renderWorker) SetGeneration(generation int) {
 	w.generation.Store(int32(generation))
 }
 
+func (w *renderWorker) SetWantedPages(pages map[int]bool) {
+	keep := make(map[int]bool, len(pages))
+	for page, ok := range pages {
+		if ok {
+			keep[page] = true
+		}
+	}
+	w.wanted.Store(keep)
+}
+
 func (w *renderWorker) Enqueue(req renderRequest) bool {
 	select {
 	case <-w.closing:
@@ -70,6 +92,39 @@ func (w *renderWorker) Enqueue(req renderRequest) bool {
 	default:
 		return false
 	}
+}
+
+func (w *renderWorker) DrainUnwanted(gen int) {
+	var keep []renderRequest
+	for {
+		select {
+		case req := <-w.requests:
+			if w.requestWanted(req, gen) {
+				keep = append(keep, req)
+			}
+		default:
+			for _, req := range keep {
+				select {
+				case <-w.closing:
+					return
+				case w.requests <- req:
+				}
+			}
+			return
+		}
+	}
+}
+
+func (w *renderWorker) requestWanted(req renderRequest, gen int) bool {
+	if req.generation != gen {
+		return false
+	}
+	value := w.wanted.Load()
+	if value == nil {
+		return true
+	}
+	wanted, ok := value.(map[int]bool)
+	return !ok || wanted[req.page]
 }
 
 func (w *renderWorker) run(docPath string) {
@@ -123,7 +178,7 @@ func (w *renderWorker) popNextRequest(queue []renderRequest) (renderRequest, []r
 	gen := int(w.generation.Load())
 	best := -1
 	for i, req := range queue {
-		if req.generation != gen {
+		if !w.requestWanted(req, gen) {
 			continue
 		}
 		if best < 0 || req.priority < queue[best].priority {
@@ -157,10 +212,10 @@ func (a *App) initRenderWorker() {
 	a.renderWorker.SetGeneration(a.renderGeneration)
 }
 
-func (a *App) closeRenderWorker() {
-	if a.renderWorker != nil {
-		a.renderWorker.Close()
-		a.renderWorker = nil
+func (rs *renderService) closeRenderWorker() {
+	if rs.renderWorker != nil {
+		rs.renderWorker.Close()
+		rs.renderWorker = nil
 	}
 }
 
@@ -232,24 +287,24 @@ func (a *App) pollRenderUpdates() {
 	}
 }
 
-func (a *App) touchRenderCacheEntry(key string) {
-	for i, k := range a.renderOrder {
+func (rs *renderService) touchRenderCacheEntry(key string) {
+	for i, k := range rs.renderOrder {
 		if k == key {
-			a.renderOrder = append(a.renderOrder[:i], a.renderOrder[i+1:]...)
-			a.renderOrder = append(a.renderOrder, key)
+			rs.renderOrder = append(rs.renderOrder[:i], rs.renderOrder[i+1:]...)
+			rs.renderOrder = append(rs.renderOrder, key)
 			return
 		}
 	}
 }
 
-func (a *App) evictRenderCacheEntry(key string) {
-	for i, k := range a.renderOrder {
+func (rs *renderService) evictRenderCacheEntry(key string) {
+	for i, k := range rs.renderOrder {
 		if k == key {
-			a.renderOrder = append(a.renderOrder[:i], a.renderOrder[i+1:]...)
-			if oldRP := a.renderCache[key]; oldRP != nil {
+			rs.renderOrder = append(rs.renderOrder[:i], rs.renderOrder[i+1:]...)
+			if oldRP := rs.renderCache[key]; oldRP != nil {
 				sdl.DestroyTexture(oldRP.texture)
 			}
-			delete(a.renderCache, key)
+			delete(rs.renderCache, key)
 			return
 		}
 	}
@@ -285,11 +340,11 @@ func (a *App) requestRender(page int, scale float64, priority ...int) {
 	a.renderPending[cacheKey] = req
 }
 
-func (a *App) invalidateRenderRequests() {
-	a.renderGeneration++
-	a.renderPending = map[string]renderRequest{}
-	if a.renderWorker != nil {
-		a.renderWorker.SetGeneration(a.renderGeneration)
+func (rs *renderService) invalidateRenderRequests() {
+	rs.renderGeneration++
+	rs.renderPending = map[string]renderRequest{}
+	if rs.renderWorker != nil {
+		rs.renderWorker.SetGeneration(rs.renderGeneration)
 	}
 }
 
@@ -309,7 +364,16 @@ func (a *App) renderScaleFor(layoutScale float64) float64 {
 	return a.renderBaseScale
 }
 
-func (a *App) renderDrawScale(rp *renderedPage, layoutScale float64) float64 {
+func (rs *renderService) clearCache() {
+	for _, rp := range rs.renderCache {
+		sdl.DestroyTexture(rp.texture)
+	}
+	rs.renderCache = map[string]*renderedPage{}
+	rs.renderOrder = nil
+	rs.invalidateRenderRequests()
+}
+
+func (rs *renderService) renderDrawScale(rp *renderedPage, layoutScale float64) float64 {
 	if rp == nil || rp.scale <= 0 {
 		return 1
 	}
@@ -328,9 +392,9 @@ func validRenderScale(v float64) bool {
 	return v > 0 && !math.IsNaN(v) && !math.IsInf(v, 0)
 }
 
-func (a *App) renderScaleFloor() float64 {
-	if validRenderScale(a.minRenderBaseScale) {
-		return a.minRenderBaseScale
+func (rs *renderService) renderScaleFloor() float64 {
+	if validRenderScale(rs.minRenderBaseScale) {
+		return rs.minRenderBaseScale
 	}
 	return defaultMinRenderBaseScale
 }

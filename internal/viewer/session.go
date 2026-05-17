@@ -125,3 +125,10 @@ func (a *App) restoreViewState(state viewState) {
 		a.updateCurrentPageFromScroll()
 	}
 }
+
+func (state viewState) atDocumentStart() viewState {
+	state.page = 0
+	state.scrollX = 0
+	state.scrollY = 0
+	return state
+}

@@ -31,7 +31,7 @@ func TestRecomputeLayoutUsesRotatedPageDimensions(t *testing.T) {
 		dualPage:        true,
 		firstPageOffset: true,
 		config:          config.Config{PageGap: -1, PageGapHorizontal: -1, PageGapVertical: -1, SpreadGap: -1},
-		pageMetrics:     metrics,
+		metricsService:  metricsService{pageMetrics: metrics},
 	}
 
 	app.recomputeLayout(1000, 1000)
@@ -225,7 +225,7 @@ func testLayoutApp(pageCount int) *App {
 		renderMode:      "continuous",
 		firstPageOffset: true,
 		config:          config.Config{PageGap: -1, PageGapHorizontal: -1, PageGapVertical: -1, SpreadGap: -1},
-		pageMetrics:     metrics,
+		metricsService:  metricsService{pageMetrics: metrics},
 	}
 }
 

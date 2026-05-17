@@ -47,3 +47,15 @@ func TestViewStateRoundTrip(t *testing.T) {
 		t.Fatalf("unexpected captured view state: %#v", state)
 	}
 }
+
+func TestViewStateAtDocumentStartPreservesPreferencesOnly(t *testing.T) {
+	state := viewState{page: 7, scrollX: 12, scrollY: 34, zoom: 1.5, fitMode: "manual", renderMode: "single", dualPage: true, firstPageOffset: true, statusBarShown: true, altColors: true}
+	state = state.atDocumentStart()
+
+	if state.page != 0 || state.scrollX != 0 || state.scrollY != 0 {
+		t.Fatalf("expected document start location, got %#v", state)
+	}
+	if state.zoom != 1.5 || state.fitMode != "manual" || state.renderMode != "single" || !state.dualPage || !state.firstPageOffset || !state.statusBarShown || !state.altColors {
+		t.Fatalf("expected viewer preferences to be preserved, got %#v", state)
+	}
+}

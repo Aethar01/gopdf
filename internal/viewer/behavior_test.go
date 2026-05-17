@@ -493,12 +493,12 @@ func TestRenderScalePolicy(t *testing.T) {
 		t.Fatal("expected positive finite scale to be valid")
 	}
 
-	app := &App{config: config.Config{RenderOversample: math.NaN()}, minRenderBaseScale: math.NaN()}
+	app := &App{config: config.Config{RenderOversample: math.NaN()}, renderService: renderService{minRenderBaseScale: math.NaN()}}
 	assertClose(t, app.renderScaleFloor(), defaultMinRenderBaseScale)
 	assertClose(t, app.renderOversampleFactor(), defaultRenderOversample)
 	assertClose(t, app.oversampledRenderScale(math.NaN()), 1)
 
-	app = &App{scale: 1, zoom: 1, fitMode: "manual", config: config.Config{RenderOversample: 1}, minRenderBaseScale: 0.25, renderBaseScale: 2, renderPending: map[string]renderRequest{"old": {page: 1}}}
+	app = &App{scale: 1, zoom: 1, fitMode: "manual", config: config.Config{RenderOversample: 1}, renderService: renderService{minRenderBaseScale: 0.25, renderBaseScale: 2, renderPending: map[string]renderRequest{"old": {page: 1}}}}
 	if !app.maybeUpgradeRenderScale(4) {
 		t.Fatal("expected target above tolerance to upgrade render base scale")
 	}
@@ -515,7 +515,7 @@ func TestRenderScalePolicy(t *testing.T) {
 }
 
 func TestRenderScaleForAllowsLowZoomUndersampling(t *testing.T) {
-	app := &App{config: config.Config{RenderOversample: 1}, minRenderBaseScale: 0.25, renderBaseScale: 2}
+	app := &App{config: config.Config{RenderOversample: 1}, renderService: renderService{minRenderBaseScale: 0.25, renderBaseScale: 2}}
 
 	assertClose(t, app.renderScaleFor(1), 2)
 	assertClose(t, app.renderScaleFor(0.2), 0.4)
@@ -542,6 +542,25 @@ func TestRenderWorkerPrioritizesVisibleRequests(t *testing.T) {
 	_, _, ok = w.popNextRequest(queue)
 	if ok {
 		t.Fatal("expected stale-only queue to have no request")
+	}
+}
+
+func TestRenderWorkerSkipsUnwantedRequests(t *testing.T) {
+	w := &renderWorker{}
+	w.generation.Store(2)
+	w.SetWantedPages(map[int]bool{5: true})
+	queue := []renderRequest{
+		{generation: 2, page: 3, priority: 0},
+		{generation: 2, page: 5, priority: 10},
+	}
+
+	req, queue, ok := w.popNextRequest(queue)
+	if !ok || req.page != 5 {
+		t.Fatalf("expected only wanted page to render, got %#v ok=%v", req, ok)
+	}
+	_, _, ok = w.popNextRequest(queue)
+	if ok {
+		t.Fatal("expected unwanted page to be skipped")
 	}
 }
 

@@ -1108,325 +1108,149 @@ func loadDocumentMeta(docPath string) documentMeta {
 	return meta
 }
 
-func luaSettingValue(L *lua.LState, name string, cfg *Config) (lua.LValue, error) {
-	switch name {
-	case "status_bar_visible":
-		return lua.LBool(cfg.StatusBarVisible), nil
-	case "mouse_text_select":
-		return lua.LBool(cfg.MouseTextSelect), nil
-	case "natural_scroll":
-		return lua.LBool(cfg.NaturalScroll), nil
-	case "anti_aliasing":
-		return lua.LNumber(cfg.AntiAliasing), nil
-	case "outline_initial_depth":
-		return lua.LNumber(cfg.OutlineInitialDepth), nil
-	case "outline_width_percent":
-		return lua.LNumber(cfg.OutlineWidthPercent), nil
-	case "outline_height_percent":
-		return lua.LNumber(cfg.OutlineHeightPercent), nil
-	case "completion_max_items":
-		return lua.LNumber(cfg.CompletionMaxItems), nil
-	case "alt_colors":
-		return lua.LBool(cfg.AltColors), nil
-	case "render_mode":
-		return lua.LString(cfg.RenderMode), nil
-	case "render_oversample":
-		return lua.LNumber(cfg.RenderOversample), nil
-	case "scroll_step":
-		return lua.LNumber(cfg.ScrollStep), nil
-	case "dual_page":
-		return lua.LBool(cfg.DualPage), nil
-	case "first_page_offset":
-		return lua.LBool(cfg.FirstPageOffset), nil
-	case "fit_mode":
-		return lua.LString(cfg.FitMode), nil
-	case "page_gap":
-		return lua.LNumber(cfg.PageGap), nil
-	case "spread_gap":
-		return lua.LNumber(cfg.SpreadGap), nil
-	case "page_gap_vertical":
-		return lua.LNumber(cfg.PageGapVertical), nil
-	case "page_gap_horizontal":
-		return lua.LNumber(cfg.PageGapHorizontal), nil
-	case "status_bar_height":
-		return lua.LNumber(cfg.StatusBarHeight), nil
-	case "status_bar_padding":
-		return lua.LNumber(cfg.StatusBarPadding), nil
-	case "ui_font_size":
-		return lua.LNumber(cfg.UIFontSize), nil
-	case "ui_font_path":
-		return lua.LString(cfg.UIFontPath), nil
-	case "status_bar_left":
-		return lua.LString(cfg.StatusBarLeft), nil
-	case "status_bar_right":
-		return lua.LString(cfg.StatusBarRight), nil
-	case "sequence_timeout_ms":
-		return lua.LNumber(cfg.SequenceTimeoutMS), nil
-	case "background":
-		tbl := L.NewTable()
-		for i, c := range cfg.Background {
-			tbl.RawSetInt(i+1, lua.LNumber(c))
-		}
-		return tbl, nil
-	case "page_background":
-		tbl := L.NewTable()
-		for i, c := range cfg.PageBackground {
-			tbl.RawSetInt(i+1, lua.LNumber(c))
-		}
-		return tbl, nil
-	case "foreground":
-		tbl := L.NewTable()
-		for i, c := range cfg.Foreground {
-			tbl.RawSetInt(i+1, lua.LNumber(c))
-		}
-		return tbl, nil
-	case "status_bar_color":
-		tbl := L.NewTable()
-		for i, c := range cfg.StatusBarColor {
-			tbl.RawSetInt(i+1, lua.LNumber(c))
-		}
-		return tbl, nil
-	case "alt_background":
-		tbl := L.NewTable()
-		for i, c := range cfg.AltBackground {
-			tbl.RawSetInt(i+1, lua.LNumber(c))
-		}
-		return tbl, nil
-	case "alt_page_background":
-		tbl := L.NewTable()
-		for i, c := range cfg.AltPageBackground {
-			tbl.RawSetInt(i+1, lua.LNumber(c))
-		}
-		return tbl, nil
-	case "alt_foreground":
-		tbl := L.NewTable()
-		for i, c := range cfg.AltForeground {
-			tbl.RawSetInt(i+1, lua.LNumber(c))
-		}
-		return tbl, nil
-	case "alt_status_bar_color":
-		tbl := L.NewTable()
-		for i, c := range cfg.AltStatusBarColor {
-			tbl.RawSetInt(i+1, lua.LNumber(c))
-		}
-		return tbl, nil
-	case "highlight_foreground":
-		tbl := L.NewTable()
-		for i, c := range cfg.HighlightForeground {
-			tbl.RawSetInt(i+1, lua.LNumber(c))
-		}
-		return tbl, nil
-	case "highlight_background":
-		tbl := L.NewTable()
-		for i, c := range cfg.HighlightBackground {
-			tbl.RawSetInt(i+1, lua.LNumber(c))
-		}
-		return tbl, nil
-	default:
-		return lua.LNil, fmt.Errorf("unknown setting")
+type optionDesc struct {
+	get   func(L *lua.LState, cfg *Config) lua.LValue
+	apply func(cfg *Config, value lua.LValue) error
+}
+
+func boolOption(get func(*Config) bool, set func(*Config, bool)) optionDesc {
+	return optionDesc{
+		get: func(L *lua.LState, cfg *Config) lua.LValue { return lua.LBool(get(cfg)) },
+		apply: func(cfg *Config, value lua.LValue) error {
+			if value.Type() != lua.LTBool {
+				return fmt.Errorf("expected boolean")
+			}
+			set(cfg, lua.LVAsBool(value))
+			return nil
+		},
 	}
 }
 
+func intOption(get func(*Config) int, set func(*Config, int)) optionDesc {
+	return optionDesc{
+		get: func(L *lua.LState, cfg *Config) lua.LValue { return lua.LNumber(get(cfg)) },
+		apply: func(cfg *Config, value lua.LValue) error {
+			if value.Type() != lua.LTNumber {
+				return fmt.Errorf("expected number")
+			}
+			set(cfg, int(lua.LVAsNumber(value)))
+			return nil
+		},
+	}
+}
+
+func floatOption(get func(*Config) float64, set func(*Config, float64)) optionDesc {
+	return optionDesc{
+		get: func(L *lua.LState, cfg *Config) lua.LValue { return lua.LNumber(get(cfg)) },
+		apply: func(cfg *Config, value lua.LValue) error {
+			if value.Type() != lua.LTNumber {
+				return fmt.Errorf("expected number")
+			}
+			set(cfg, float64(lua.LVAsNumber(value)))
+			return nil
+		},
+	}
+}
+
+func stringOption(get func(*Config) string, set func(*Config, string)) optionDesc {
+	return optionDesc{
+		get: func(L *lua.LState, cfg *Config) lua.LValue { return lua.LString(get(cfg)) },
+		apply: func(cfg *Config, value lua.LValue) error {
+			if value.Type() != lua.LTString {
+				return fmt.Errorf("expected string")
+			}
+			set(cfg, value.String())
+			return nil
+		},
+	}
+}
+
+func colorOption(get func(*Config) [3]uint8, set func(*Config, [3]uint8)) optionDesc {
+	return optionDesc{
+		get: func(L *lua.LState, cfg *Config) lua.LValue {
+			tbl := L.NewTable()
+			c := get(cfg)
+			for i := range 3 {
+				tbl.RawSetInt(i+1, lua.LNumber(c[i]))
+			}
+			return tbl
+		},
+		apply: func(cfg *Config, value lua.LValue) error {
+			tbl, ok := value.(*lua.LTable)
+			if !ok {
+				return fmt.Errorf("expected table")
+			}
+			set(cfg, readColor(tbl, get(cfg)))
+			return nil
+		},
+	}
+}
+
+var configOptions = map[string]optionDesc{
+	"status_bar_visible":    boolOption(func(c *Config) bool { return c.StatusBarVisible }, func(c *Config, v bool) { c.StatusBarVisible = v }),
+	"mouse_text_select":     boolOption(func(c *Config) bool { return c.MouseTextSelect }, func(c *Config, v bool) { c.MouseTextSelect = v }),
+	"natural_scroll":        boolOption(func(c *Config) bool { return c.NaturalScroll }, func(c *Config, v bool) { c.NaturalScroll = v }),
+	"alt_colors":            boolOption(func(c *Config) bool { return c.AltColors }, func(c *Config, v bool) { c.AltColors = v }),
+	"dual_page":             boolOption(func(c *Config) bool { return c.DualPage }, func(c *Config, v bool) { c.DualPage = v }),
+	"first_page_offset":     boolOption(func(c *Config) bool { return c.FirstPageOffset }, func(c *Config, v bool) { c.FirstPageOffset = v }),
+	"anti_aliasing":         intOption(func(c *Config) int { return c.AntiAliasing }, func(c *Config, v int) { c.AntiAliasing = v }),
+	"outline_initial_depth":  intOption(func(c *Config) int { return c.OutlineInitialDepth }, func(c *Config, v int) { c.OutlineInitialDepth = v }),
+	"outline_width_percent":  intOption(func(c *Config) int { return c.OutlineWidthPercent }, func(c *Config, v int) { c.OutlineWidthPercent = v }),
+	"outline_height_percent": intOption(func(c *Config) int { return c.OutlineHeightPercent }, func(c *Config, v int) { c.OutlineHeightPercent = v }),
+	"completion_max_items": intOption(func(c *Config) int { return c.CompletionMaxItems }, func(c *Config, v int) { c.CompletionMaxItems = max(1, v) }),
+	"scroll_step":           intOption(func(c *Config) int { return c.ScrollStep }, func(c *Config, v int) { c.ScrollStep = v }),
+	"page_gap": intOption(func(c *Config) int { return c.PageGap }, func(c *Config, v int) {
+		c.PageGap = v
+		c.PageGapVertical = v
+	}),
+	"spread_gap": intOption(func(c *Config) int { return c.SpreadGap }, func(c *Config, v int) {
+		c.SpreadGap = v
+		c.PageGapHorizontal = v
+	}),
+	"page_gap_vertical": intOption(func(c *Config) int { return c.PageGapVertical }, func(c *Config, v int) {
+		c.PageGapVertical = v
+		c.PageGap = v
+	}),
+	"page_gap_horizontal": intOption(func(c *Config) int { return c.PageGapHorizontal }, func(c *Config, v int) {
+		c.PageGapHorizontal = v
+		c.SpreadGap = v
+	}),
+	"status_bar_height":     intOption(func(c *Config) int { return c.StatusBarHeight }, func(c *Config, v int) { c.StatusBarHeight = v }),
+	"status_bar_padding":    intOption(func(c *Config) int { return c.StatusBarPadding }, func(c *Config, v int) { c.StatusBarPadding = v }),
+	"ui_font_size":          intOption(func(c *Config) int { return c.UIFontSize }, func(c *Config, v int) { c.UIFontSize = v }),
+	"sequence_timeout_ms":   intOption(func(c *Config) int { return c.SequenceTimeoutMS }, func(c *Config, v int) { c.SequenceTimeoutMS = v }),
+	"render_oversample":     floatOption(func(c *Config) float64 { return c.RenderOversample }, func(c *Config, v float64) { c.RenderOversample = v }),
+	"render_mode":           stringOption(func(c *Config) string { return c.RenderMode }, func(c *Config, v string) { c.RenderMode = NormalizeRenderMode(v) }),
+	"fit_mode":              stringOption(func(c *Config) string { return c.FitMode }, func(c *Config, v string) { c.FitMode = NormalizeFitMode(v) }),
+	"ui_font_path":          stringOption(func(c *Config) string { return c.UIFontPath }, func(c *Config, v string) { c.UIFontPath = v }),
+	"status_bar_left":       stringOption(func(c *Config) string { return c.StatusBarLeft }, func(c *Config, v string) { c.StatusBarLeft = v }),
+	"status_bar_right":      stringOption(func(c *Config) string { return c.StatusBarRight }, func(c *Config, v string) { c.StatusBarRight = v }),
+	"background":             colorOption(func(c *Config) [3]uint8 { return c.Background }, func(c *Config, v [3]uint8) { c.Background = v }),
+	"page_background":        colorOption(func(c *Config) [3]uint8 { return c.PageBackground }, func(c *Config, v [3]uint8) { c.PageBackground = v }),
+	"foreground":             colorOption(func(c *Config) [3]uint8 { return c.Foreground }, func(c *Config, v [3]uint8) { c.Foreground = v }),
+	"status_bar_color":       colorOption(func(c *Config) [3]uint8 { return c.StatusBarColor }, func(c *Config, v [3]uint8) { c.StatusBarColor = v }),
+	"alt_background":         colorOption(func(c *Config) [3]uint8 { return c.AltBackground }, func(c *Config, v [3]uint8) { c.AltBackground = v }),
+	"alt_page_background":    colorOption(func(c *Config) [3]uint8 { return c.AltPageBackground }, func(c *Config, v [3]uint8) { c.AltPageBackground = v }),
+	"alt_foreground":         colorOption(func(c *Config) [3]uint8 { return c.AltForeground }, func(c *Config, v [3]uint8) { c.AltForeground = v }),
+	"alt_status_bar_color":   colorOption(func(c *Config) [3]uint8 { return c.AltStatusBarColor }, func(c *Config, v [3]uint8) { c.AltStatusBarColor = v }),
+	"highlight_foreground":   colorOption(func(c *Config) [3]uint8 { return c.HighlightForeground }, func(c *Config, v [3]uint8) { c.HighlightForeground = v }),
+	"highlight_background":   colorOption(func(c *Config) [3]uint8 { return c.HighlightBackground }, func(c *Config, v [3]uint8) { c.HighlightBackground = v }),
+}
+
+func luaSettingValue(L *lua.LState, name string, cfg *Config) (lua.LValue, error) {
+	desc, ok := configOptions[name]
+	if !ok {
+		return lua.LNil, fmt.Errorf("unknown setting")
+	}
+	return desc.get(L, cfg), nil
+}
+
 func applyLuaSetting(name string, value lua.LValue, cfg *Config) error {
-	switch name {
-	case "status_bar_visible":
-		if value.Type() != lua.LTBool {
-			return fmt.Errorf("expected boolean")
-		}
-		cfg.StatusBarVisible = lua.LVAsBool(value)
-	case "mouse_text_select":
-		if value.Type() != lua.LTBool {
-			return fmt.Errorf("expected boolean")
-		}
-		cfg.MouseTextSelect = lua.LVAsBool(value)
-	case "natural_scroll":
-		if value.Type() != lua.LTBool {
-			return fmt.Errorf("expected boolean")
-		}
-		cfg.NaturalScroll = lua.LVAsBool(value)
-	case "anti_aliasing":
-		if value.Type() != lua.LTNumber {
-			return fmt.Errorf("expected number")
-		}
-		cfg.AntiAliasing = int(lua.LVAsNumber(value))
-	case "outline_initial_depth":
-		if value.Type() != lua.LTNumber {
-			return fmt.Errorf("expected number")
-		}
-		cfg.OutlineInitialDepth = int(lua.LVAsNumber(value))
-	case "outline_width_percent":
-		if value.Type() != lua.LTNumber {
-			return fmt.Errorf("expected number")
-		}
-		cfg.OutlineWidthPercent = int(lua.LVAsNumber(value))
-	case "outline_height_percent":
-		if value.Type() != lua.LTNumber {
-			return fmt.Errorf("expected number")
-		}
-		cfg.OutlineHeightPercent = int(lua.LVAsNumber(value))
-	case "completion_max_items":
-		if value.Type() != lua.LTNumber {
-			return fmt.Errorf("expected number")
-		}
-		cfg.CompletionMaxItems = max(1, int(lua.LVAsNumber(value)))
-	case "alt_colors":
-		if value.Type() != lua.LTBool {
-			return fmt.Errorf("expected boolean")
-		}
-		cfg.AltColors = lua.LVAsBool(value)
-	case "render_mode":
-		if value.Type() != lua.LTString {
-			return fmt.Errorf("expected string")
-		}
-		cfg.RenderMode = NormalizeRenderMode(value.String())
-	case "render_oversample":
-		if value.Type() != lua.LTNumber {
-			return fmt.Errorf("expected number")
-		}
-		cfg.RenderOversample = float64(lua.LVAsNumber(value))
-	case "scroll_step":
-		if value.Type() != lua.LTNumber {
-			return fmt.Errorf("expected number")
-		}
-		cfg.ScrollStep = int(lua.LVAsNumber(value))
-	case "dual_page":
-		if value.Type() != lua.LTBool {
-			return fmt.Errorf("expected boolean")
-		}
-		cfg.DualPage = lua.LVAsBool(value)
-	case "first_page_offset":
-		if value.Type() != lua.LTBool {
-			return fmt.Errorf("expected boolean")
-		}
-		cfg.FirstPageOffset = lua.LVAsBool(value)
-	case "fit_mode":
-		if value.Type() != lua.LTString {
-			return fmt.Errorf("expected string")
-		}
-		cfg.FitMode = NormalizeFitMode(value.String())
-	case "page_gap":
-		if value.Type() != lua.LTNumber {
-			return fmt.Errorf("expected number")
-		}
-		cfg.PageGap = int(lua.LVAsNumber(value))
-		cfg.PageGapVertical = cfg.PageGap
-	case "spread_gap":
-		if value.Type() != lua.LTNumber {
-			return fmt.Errorf("expected number")
-		}
-		cfg.SpreadGap = int(lua.LVAsNumber(value))
-		cfg.PageGapHorizontal = cfg.SpreadGap
-	case "page_gap_vertical":
-		if value.Type() != lua.LTNumber {
-			return fmt.Errorf("expected number")
-		}
-		cfg.PageGapVertical = int(lua.LVAsNumber(value))
-		cfg.PageGap = cfg.PageGapVertical
-	case "page_gap_horizontal":
-		if value.Type() != lua.LTNumber {
-			return fmt.Errorf("expected number")
-		}
-		cfg.PageGapHorizontal = int(lua.LVAsNumber(value))
-		cfg.SpreadGap = cfg.PageGapHorizontal
-	case "status_bar_height":
-		if value.Type() != lua.LTNumber {
-			return fmt.Errorf("expected number")
-		}
-		cfg.StatusBarHeight = int(lua.LVAsNumber(value))
-	case "status_bar_padding":
-		if value.Type() != lua.LTNumber {
-			return fmt.Errorf("expected number")
-		}
-		cfg.StatusBarPadding = int(lua.LVAsNumber(value))
-	case "ui_font_size":
-		if value.Type() != lua.LTNumber {
-			return fmt.Errorf("expected number")
-		}
-		cfg.UIFontSize = int(lua.LVAsNumber(value))
-	case "ui_font_path":
-		if value.Type() != lua.LTString {
-			return fmt.Errorf("expected string")
-		}
-		cfg.UIFontPath = lua.LVAsString(value)
-	case "status_bar_left":
-		if value.Type() != lua.LTString {
-			return fmt.Errorf("expected string")
-		}
-		cfg.StatusBarLeft = lua.LVAsString(value)
-	case "status_bar_right":
-		if value.Type() != lua.LTString {
-			return fmt.Errorf("expected string")
-		}
-		cfg.StatusBarRight = lua.LVAsString(value)
-	case "sequence_timeout_ms":
-		if value.Type() != lua.LTNumber {
-			return fmt.Errorf("expected number")
-		}
-		cfg.SequenceTimeoutMS = int(lua.LVAsNumber(value))
-	case "background":
-		tbl, ok := value.(*lua.LTable)
-		if !ok {
-			return fmt.Errorf("expected table")
-		}
-		cfg.Background = readColor(tbl, cfg.Background)
-	case "page_background":
-		tbl, ok := value.(*lua.LTable)
-		if !ok {
-			return fmt.Errorf("expected table")
-		}
-		cfg.PageBackground = readColor(tbl, cfg.PageBackground)
-	case "foreground":
-		tbl, ok := value.(*lua.LTable)
-		if !ok {
-			return fmt.Errorf("expected table")
-		}
-		cfg.Foreground = readColor(tbl, cfg.Foreground)
-	case "status_bar_color":
-		tbl, ok := value.(*lua.LTable)
-		if !ok {
-			return fmt.Errorf("expected table")
-		}
-		cfg.StatusBarColor = readColor(tbl, cfg.StatusBarColor)
-	case "alt_background":
-		tbl, ok := value.(*lua.LTable)
-		if !ok {
-			return fmt.Errorf("expected table")
-		}
-		cfg.AltBackground = readColor(tbl, cfg.AltBackground)
-	case "alt_page_background":
-		tbl, ok := value.(*lua.LTable)
-		if !ok {
-			return fmt.Errorf("expected table")
-		}
-		cfg.AltPageBackground = readColor(tbl, cfg.AltPageBackground)
-	case "alt_foreground":
-		tbl, ok := value.(*lua.LTable)
-		if !ok {
-			return fmt.Errorf("expected table")
-		}
-		cfg.AltForeground = readColor(tbl, cfg.AltForeground)
-	case "alt_status_bar_color":
-		tbl, ok := value.(*lua.LTable)
-		if !ok {
-			return fmt.Errorf("expected table")
-		}
-		cfg.AltStatusBarColor = readColor(tbl, cfg.AltStatusBarColor)
-	case "highlight_foreground":
-		tbl, ok := value.(*lua.LTable)
-		if !ok {
-			return fmt.Errorf("expected table")
-		}
-		cfg.HighlightForeground = readColor(tbl, cfg.HighlightForeground)
-	case "highlight_background":
-		tbl, ok := value.(*lua.LTable)
-		if !ok {
-			return fmt.Errorf("expected table")
-		}
-		cfg.HighlightBackground = readColor(tbl, cfg.HighlightBackground)
-	default:
+	desc, ok := configOptions[name]
+	if !ok {
 		return fmt.Errorf("unknown setting")
 	}
-	return nil
+	return desc.apply(cfg, value)
 }
 
 func readColor(tbl *lua.LTable, fallback [3]uint8) [3]uint8 {

@@ -7,15 +7,6 @@ import (
 	"github.com/jupiterrider/purego-sdl3/sdl"
 )
 
-func isCountableAction(action string) bool {
-	switch action {
-	case "next_page", "prev_page", "scroll_down", "scroll_up", "scroll_left", "scroll_right", "next_spread", "prev_spread", "zoom_in", "zoom_out", "search_next", "search_prev":
-		return true
-	default:
-		return false
-	}
-}
-
 func normalizeBinding(binding string) string {
 	return strings.Join(tokenizeBinding(binding), " ")
 }
