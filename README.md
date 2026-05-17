@@ -1,6 +1,6 @@
 # gopdf
 
-MuPDF-backend PDF viewer written in Go with Lua configuration.
+MuPDF-backed PDF viewer written in Go with Lua configuration.
 
 ## Installation
 
@@ -42,6 +42,7 @@ Requirements:
 - Go 1.25+
 - MuPDF 1.25.6+
 - SDL3
+- pkg-config/pkgconf
 - C compiler that works with CGO
 
 ```bash
@@ -86,7 +87,7 @@ Generated keybind edits are loaded from `autogen.lua` before `config.lua`, so ex
 | macOS | `~/Library/Application Support/gopdf/config.lua` |
 | Windows | `%APPDATA%\gopdf\config.lua` |
 
-Generated keybind edits are written to `autogen.lua` next to the normal per-user config file.
+Generated keybind edits are written to `autogen.lua` next to an explicit `--config` file, or to the normal per-user config directory when no explicit config is used.
 
 The last-opened file is saved in the matching per-user app data directory: `$XDG_DATA_HOME/gopdf/state` or `~/.local/share/gopdf/state` on Linux, `~/Library/Application Support/gopdf/state` on macOS, and `%APPDATA%\gopdf\state` on Windows.
 
@@ -123,14 +124,14 @@ gopdf.options.outline_height_percent = 80
 gopdf.options.completion_max_items = 10
 
 -- Colors are { red, green, blue }, 0-255.
-gopdf.options.background = { 255, 255, 255 }
+gopdf.options.background = { 220, 220, 220 }
 gopdf.options.page_background = { 255, 255, 255 }
-gopdf.options.foreground = { 17, 17, 17 }
-gopdf.options.status_bar_color = { 17, 17, 17 }
-gopdf.options.alt_background = { 17, 17, 17 }
+gopdf.options.foreground = { 20, 20, 20 }
+gopdf.options.status_bar_color = { 220, 220, 220 }
+gopdf.options.alt_background = { 20, 20, 20 }
 gopdf.options.alt_page_background = { 17, 17, 17 }
 gopdf.options.alt_foreground = { 255, 255, 255 }
-gopdf.options.alt_status_bar_color = { 17, 17, 17 }
+gopdf.options.alt_status_bar_color = { 20, 20, 20 }
 gopdf.options.highlight_foreground = { 0, 0, 0 }
 gopdf.options.highlight_background = { 255, 224, 102 }
 ```
