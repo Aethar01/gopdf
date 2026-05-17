@@ -46,6 +46,12 @@ func loadFont(path string, size int) font.Face {
 	return basicfont.Face7x13
 }
 
+func closeFontFace(face font.Face) {
+	if closer, ok := face.(interface{ Close() error }); ok {
+		_ = closer.Close()
+	}
+}
+
 func imageToRGBA(src image.Image) *image.RGBA {
 	if rgba, ok := src.(*image.RGBA); ok {
 		return rgba

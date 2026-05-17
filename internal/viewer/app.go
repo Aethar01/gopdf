@@ -103,10 +103,10 @@ type App struct {
 	pageStep        float64
 	altColors       bool
 
-	rows        []rowLayout
-	pageToRow   []int
-	contentW    float64
-	contentH    float64
+	rows      []rowLayout
+	pageToRow []int
+	contentW  float64
+	contentH  float64
 
 	winW int
 	winH int
@@ -213,6 +213,8 @@ func (a *App) setWindowTitle() {
 func (a *App) Close() {
 	a.document.Close()
 	a.closeDocumentResources()
+	closeFontFace(a.fontFace)
+	a.fontFace = nil
 	if a.cursorHand != nil {
 		sdl.DestroyCursor(a.cursorHand)
 		a.cursorHand = nil
@@ -985,7 +987,3 @@ func (a *App) setFitMode(mode string) {
 	a.recomputeLayout(a.viewportSize())
 	a.restoreZoomAnchor(anchor)
 }
-
-
-
-

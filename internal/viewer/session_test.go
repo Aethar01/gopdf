@@ -7,6 +7,26 @@ import (
 	"time"
 )
 
+func TestDocumentSessionPollIsNonBlocking(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "doc.pdf")
+	if err := os.WriteFile(path, []byte("one"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	var s documentSession
+	s.record(path)
+	defer s.Close()
+
+	start := time.Now()
+	if _, ok := s.poll(start); ok {
+		t.Fatal("expected no change without modification")
+	}
+	if elapsed := time.Since(start); elapsed > 20*time.Millisecond {
+		t.Fatalf("poll blocked for %s", elapsed)
+	}
+}
+
 func TestDocumentSessionDetectsChanges(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "doc.pdf")

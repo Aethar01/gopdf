@@ -109,7 +109,7 @@ func (dw *documentWatcher) loop() {
 }
 
 func (dw *documentWatcher) isRelevantEvent(event fsnotify.Event) bool {
-	return event.Has(fsnotify.Write) || event.Has(fsnotify.Chmod) || event.Has(fsnotify.Create)
+	return event.Has(fsnotify.Write) || event.Has(fsnotify.Chmod) || event.Has(fsnotify.Create) || event.Has(fsnotify.Rename)
 }
 
 func (dw *documentWatcher) checkAndNotify() {
@@ -141,6 +141,19 @@ func (dw *documentWatcher) checkAndNotify() {
 }
 
 func (dw *documentWatcher) waitForChange(timeout time.Duration) (watcherChange, bool) {
+	if timeout <= 0 {
+		select {
+		case <-dw.changed:
+			dw.mu.Lock()
+			change := dw.pending
+			dw.pending = watcherChange{}
+			dw.mu.Unlock()
+			return change, true
+		default:
+			return watcherChange{}, false
+		}
+	}
+
 	timer := time.NewTimer(timeout)
 	defer timer.Stop()
 

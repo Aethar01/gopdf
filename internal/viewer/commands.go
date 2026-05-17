@@ -328,7 +328,9 @@ func (a *App) applyConfigState(cfg config.Config, preserveManualFit bool) {
 	}
 	maps.Copy(a.mouseBindings, cfg.MouseBindings)
 	a.pageStep = float64(cfg.ScrollStep)
+	oldFontFace := a.fontFace
 	a.fontFace = loadFont(cfg.UIFontPath, cfg.UIFontSize)
+	closeFontFace(oldFontFace)
 }
 
 func (a *App) Mode() string {

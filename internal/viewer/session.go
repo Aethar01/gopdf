@@ -6,7 +6,7 @@ import (
 )
 
 const (
-	documentReloadDebounce = 750 * time.Millisecond
+	documentReloadDebounce = 200 * time.Millisecond
 	documentReloadRetry    = time.Second
 )
 
@@ -28,7 +28,10 @@ type documentChange struct {
 func (s *documentSession) record(path string) {
 	if s.watcher != nil {
 		s.watcher.Close()
+		s.watcher = nil
 	}
+	s.pending = nil
+	s.lastAttempt = time.Time{}
 	watcher, err := newDocumentWatcher(path)
 	if err != nil {
 		// Fall back gracefully if watcher can't be created
@@ -59,7 +62,7 @@ func (s *documentSession) poll(now time.Time) (documentChange, bool) {
 		return *s.pending, true
 	}
 
-	change, ok := s.watcher.waitForChange(100 * time.Millisecond)
+	change, ok := s.watcher.waitForChange(0)
 	if !ok {
 		return documentChange{}, false
 	}
