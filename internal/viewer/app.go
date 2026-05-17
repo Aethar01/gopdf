@@ -6,7 +6,6 @@ import (
 	"image/color"
 	"maps"
 	"math"
-	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -141,7 +140,6 @@ type App struct {
 	renderPending      map[string]renderRequest
 	renderWorker       *renderWorker
 	metricLoader       *metricLoader
-	renderScaleTime    float64
 	pendingRedraw      bool
 
 	fontFace      font.Face
@@ -158,7 +156,6 @@ type App struct {
 	sequenceLookup map[string]string
 	pendingCount   string
 
-	lastErr       error
 	quit          bool
 	pendingOpen   string
 	selection     textSelection
@@ -186,15 +183,19 @@ type App struct {
 	pendingMetricPath  string
 	pendingMetricPages int
 	pendingMetricStart int
-	docModTime         time.Time
-	docSize            int64
-	lastDocStat        time.Time
+	document           documentSession
 }
 
 type jumpPosition struct {
 	page    int
 	scrollX float64
 	scrollY float64
+}
+
+type openDocumentOptions struct {
+	startPage    int
+	reloadConfig bool
+	preserveView *viewState
 }
 
 func New(docPath string, runtime *config.Runtime, startPage int, iconBytes []byte) (*App, error) {
@@ -320,7 +321,7 @@ func (a *App) Run() error {
 		path := a.initialDocPath
 		startPage := a.initialStartPage
 		a.initialDocPath = ""
-		if err := a.openDocument(path, startPage, false); err != nil {
+		if err := a.openDocument(path, openDocumentOptions{startPage: startPage}); err != nil {
 			return err
 		}
 	}
@@ -376,60 +377,23 @@ func (a *App) eventWaitTimeoutMS() int {
 	return 100
 }
 
-const documentStatInterval = 500 * time.Millisecond
-
 func (a *App) pollDocumentUpdate() {
-	if a.docPath == "" || time.Since(a.lastDocStat) < documentStatInterval {
+	change, ok := a.document.poll(time.Now())
+	if !ok {
 		return
 	}
-	a.lastDocStat = time.Now()
-	info, err := os.Stat(a.docPath)
-	if err != nil || info.IsDir() {
-		return
-	}
-	modTime := info.ModTime()
-	size := info.Size()
-	if a.docModTime.IsZero() {
-		a.docModTime = modTime
-		a.docSize = size
-		return
-	}
-	if modTime.Equal(a.docModTime) && size == a.docSize {
-		return
-	}
-	if err := a.reloadUpdatedDocument(modTime, size); err != nil {
+	if err := a.reloadUpdatedDocument(change); err != nil {
 		a.message = err.Error()
 	}
 }
 
-func (a *App) reloadUpdatedDocument(modTime time.Time, size int64) error {
+func (a *App) reloadUpdatedDocument(change documentChange) error {
 	path := a.docPath
-	page := a.page
-	scrollX, scrollY := a.scrollX, a.scrollY
-	zoom, fitMode := a.zoom, a.fitMode
-	renderMode := a.renderMode
-	dualPage, firstPageOffset := a.dualPage, a.firstPageOffset
-	statusBarShown, altColors := a.statusBarShown, a.altColors
-	if err := a.openDocument(path, page, true); err != nil {
+	state := a.captureViewState()
+	if err := a.openDocument(path, openDocumentOptions{startPage: state.page, reloadConfig: true, preserveView: &state}); err != nil {
 		return err
 	}
-	a.zoom = zoom
-	a.fitMode = fitMode
-	a.renderMode = renderMode
-	a.dualPage = dualPage
-	a.firstPageOffset = firstPageOffset
-	a.statusBarShown = statusBarShown
-	a.altColors = altColors
-	a.page = clampInt(page, 0, max(0, a.pageCount-1))
-	a.recomputeLayout(a.viewportSize())
-	a.scrollX = scrollX
-	a.scrollY = scrollY
-	a.clampScroll()
-	if a.renderMode == "continuous" {
-		a.updateCurrentPageFromScroll()
-	}
-	a.docModTime = modTime
-	a.docSize = size
+	a.document.commit(change)
 	a.message = "reloaded " + a.docName
 	a.pendingRedraw = true
 	return nil
@@ -1239,19 +1203,16 @@ func (a *App) prefetchVisiblePages() {
 	if totalPrefetch*2 > a.cacheLimit {
 		a.cacheLimit = min(a.pageCount*2, totalPrefetch*2)
 	}
-	if a.renderWorker != nil {
-		a.renderWorker.DrainNotIn(seen, a.renderGeneration)
-	}
 	for key, req := range a.renderPending {
 		if req.generation == a.renderGeneration && !seen[req.page] {
 			delete(a.renderPending, key)
 		}
 	}
 	for _, page := range visible {
-		a.requestRender(page, a.scale)
+		a.requestRender(page, a.scale, 0)
 	}
 	for _, page := range prefetch {
-		a.requestRender(page, a.scale)
+		a.requestRender(page, a.scale, 10)
 	}
 }
 
@@ -1812,7 +1773,7 @@ func (a *App) Open(path string) error {
 		a.quit = true
 		return nil
 	}
-	return a.openDocument(path, 0, true)
+	return a.openDocument(path, openDocumentOptions{reloadConfig: true})
 }
 
 func (a *App) resolveOpenPath(path string) string {
@@ -1931,7 +1892,7 @@ func (a *App) pollMetricUpdates() {
 	}
 }
 
-func (a *App) openDocument(path string, startPage int, reloadConfig bool) error {
+func (a *App) openDocument(path string, opts openDocumentOptions) error {
 	a.message = "opening " + path
 
 	path = config.AbsoluteDocumentPath(path)
@@ -1940,6 +1901,7 @@ func (a *App) openDocument(path string, startPage int, reloadConfig bool) error 
 		return err
 	}
 	pages := doc.CachedPageCount()
+	startPage := opts.startPage
 	if startPage < 0 {
 		startPage = 0
 	}
@@ -1953,7 +1915,7 @@ func (a *App) openDocument(path string, startPage int, reloadConfig bool) error 
 
 	a.docPath = path
 	a.docName = filepath.Base(path)
-	a.recordDocumentStat(path)
+	a.document.record(path)
 	a.doc = doc
 	a.pageCount = pages
 	a.page = startPage
@@ -1969,7 +1931,6 @@ func (a *App) openDocument(path string, startPage int, reloadConfig bool) error 
 	a.contentH = 0
 	a.cacheLimit = min(24, pages)
 	a.renderBaseScale = 0
-	a.renderScaleTime = 0
 	a.pageLinks = map[int][]mupdf.Link{}
 	a.search = searchState{}
 	a.outline = nil
@@ -2015,7 +1976,7 @@ func (a *App) openDocument(path string, startPage int, reloadConfig bool) error 
 	}
 
 	var configErr error
-	if reloadConfig {
+	if opts.reloadConfig {
 		configErr = a.runtime.SetDocument(path, pages)
 	}
 	a.applyConfigState(a.runtime.Config(), false)
@@ -2026,25 +1987,17 @@ func (a *App) openDocument(path string, startPage int, reloadConfig bool) error 
 	a.initSearch()
 	a.recomputeLayout(a.viewportSize())
 	a.ensureRenderBaseScale()
-	a.alignPageTop(startPage)
+	if opts.preserveView != nil {
+		a.restoreViewState(*opts.preserveView)
+	} else {
+		a.alignPageTop(startPage)
+	}
 	a.pendingRedraw = true
 	if configErr != nil {
 		a.message = configErr.Error()
 		return configErr
 	}
 	return nil
-}
-
-func (a *App) recordDocumentStat(path string) {
-	info, err := os.Stat(path)
-	if err != nil || info.IsDir() {
-		a.docModTime = time.Time{}
-		a.docSize = 0
-		return
-	}
-	a.docModTime = info.ModTime()
-	a.docSize = info.Size()
-	a.lastDocStat = time.Now()
 }
 
 func (a *App) applyConfigState(cfg config.Config, preserveManualFit bool) {

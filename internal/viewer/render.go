@@ -18,6 +18,7 @@ type renderRequest struct {
 	altColors  bool
 	aaLevel    int
 	cacheKey   string
+	priority   int
 }
 
 type renderUpdate struct {
@@ -71,41 +72,6 @@ func (w *renderWorker) Enqueue(req renderRequest) bool {
 	}
 }
 
-func (w *renderWorker) DrainStale() {
-	gen := int(w.generation.Load())
-	var keep []renderRequest
-	for {
-		select {
-		case req := <-w.requests:
-			if req.generation == gen {
-				keep = append(keep, req)
-			}
-		default:
-			for _, req := range keep {
-				w.requests <- req
-			}
-			return
-		}
-	}
-}
-
-func (w *renderWorker) DrainNotIn(keepPages map[int]bool, gen int) {
-	var keep []renderRequest
-	for {
-		select {
-		case req := <-w.requests:
-			if req.generation == gen && keepPages[req.page] {
-				keep = append(keep, req)
-			}
-		default:
-			for _, req := range keep {
-				w.requests <- req
-			}
-			return
-		}
-	}
-}
-
 func (w *renderWorker) run(docPath string) {
 	defer close(w.done)
 	doc, err := mupdf.Open(docPath)
@@ -115,27 +81,62 @@ func (w *renderWorker) run(docPath string) {
 		return
 	}
 	defer doc.Close()
+	var queue []renderRequest
 	for {
-		select {
-		case <-w.closing:
-			return
-		case req := <-w.requests:
-			if req.generation != int(w.generation.Load()) {
-				continue
+		if len(queue) == 0 {
+			select {
+			case <-w.closing:
+				return
+			case req := <-w.requests:
+				queue = append(queue, req)
 			}
-			rendered, err := doc.Render(req.page, req.scale, 0, req.aaLevel)
-			w.send(renderUpdate{
-				generation: req.generation,
-				page:       req.page,
-				scale:      req.scale,
-				altColors:  req.altColors,
-				aaLevel:    req.aaLevel,
-				cacheKey:   req.cacheKey,
-				rendered:   rendered,
-				err:        err,
-			})
+		}
+		drain := true
+		for drain {
+			select {
+			case req := <-w.requests:
+				queue = append(queue, req)
+			default:
+				drain = false
+			}
+		}
+		req, nextQueue, ok := w.popNextRequest(queue)
+		queue = nextQueue
+		if !ok {
+			continue
+		}
+		rendered, err := doc.Render(req.page, req.scale, 0, req.aaLevel)
+		w.send(renderUpdate{
+			generation: req.generation,
+			page:       req.page,
+			scale:      req.scale,
+			altColors:  req.altColors,
+			aaLevel:    req.aaLevel,
+			cacheKey:   req.cacheKey,
+			rendered:   rendered,
+			err:        err,
+		})
+	}
+}
+
+func (w *renderWorker) popNextRequest(queue []renderRequest) (renderRequest, []renderRequest, bool) {
+	gen := int(w.generation.Load())
+	best := -1
+	for i, req := range queue {
+		if req.generation != gen {
+			continue
+		}
+		if best < 0 || req.priority < queue[best].priority {
+			best = i
 		}
 	}
+	if best < 0 {
+		return renderRequest{}, queue[:0], false
+	}
+	req := queue[best]
+	copy(queue[best:], queue[best+1:])
+	queue = queue[:len(queue)-1]
+	return req, queue, true
 }
 
 func (w *renderWorker) send(update renderUpdate) {
@@ -171,12 +172,14 @@ func (a *App) pollRenderUpdates() {
 		select {
 		case update := <-a.renderWorker.updates:
 			if update.err != nil {
-				a.lastErr = update.err
 				a.message = update.err.Error()
 				continue
 			}
 			if update.generation != a.renderGeneration {
 				delete(a.renderPending, update.cacheKey)
+				continue
+			}
+			if _, pending := a.renderPending[update.cacheKey]; !pending {
 				continue
 			}
 			if update.rendered == nil {
@@ -193,7 +196,6 @@ func (a *App) pollRenderUpdates() {
 			}
 			tex, err := textureFromImage(a.renderer, update.rendered.Image)
 			if err != nil {
-				a.lastErr = err
 				a.message = err.Error()
 				continue
 			}
@@ -253,7 +255,7 @@ func (a *App) evictRenderCacheEntry(key string) {
 	}
 }
 
-func (a *App) requestRender(page int, scale float64) {
+func (a *App) requestRender(page int, scale float64, priority ...int) {
 	if a.renderWorker == nil || page < 0 || page >= a.pageCount {
 		return
 	}
@@ -274,6 +276,9 @@ func (a *App) requestRender(page int, scale float64) {
 		aaLevel:    a.config.AntiAliasing,
 		cacheKey:   cacheKey,
 	}
+	if len(priority) > 0 {
+		req.priority = priority[0]
+	}
 	if !a.renderWorker.Enqueue(req) {
 		return
 	}
@@ -285,7 +290,6 @@ func (a *App) invalidateRenderRequests() {
 	a.renderPending = map[string]renderRequest{}
 	if a.renderWorker != nil {
 		a.renderWorker.SetGeneration(a.renderGeneration)
-		a.renderWorker.DrainStale()
 	}
 }
 

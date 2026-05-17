@@ -522,6 +522,29 @@ func TestRenderScaleForAllowsLowZoomUndersampling(t *testing.T) {
 	assertClose(t, app.renderScaleFor(0.05), 0.25)
 }
 
+func TestRenderWorkerPrioritizesVisibleRequests(t *testing.T) {
+	w := &renderWorker{}
+	w.generation.Store(2)
+	queue := []renderRequest{
+		{generation: 2, page: 10, priority: 10},
+		{generation: 1, page: 1, priority: 0},
+		{generation: 2, page: 3, priority: 0},
+	}
+
+	req, queue, ok := w.popNextRequest(queue)
+	if !ok || req.page != 3 {
+		t.Fatalf("expected current-generation visible request, got %#v ok=%v", req, ok)
+	}
+	req, queue, ok = w.popNextRequest(queue)
+	if !ok || req.page != 10 {
+		t.Fatalf("expected prefetch request after visible request, got %#v ok=%v", req, ok)
+	}
+	_, _, ok = w.popNextRequest(queue)
+	if ok {
+		t.Fatal("expected stale-only queue to have no request")
+	}
+}
+
 func TestViewportAndContentOffsets(t *testing.T) {
 	app := &App{winW: 800, winH: 600, config: config.Config{StatusBarHeight: 28}, statusBarShown: true}
 	w, h := app.viewportSize()
