@@ -165,9 +165,10 @@ func (a *App) runBuiltinAction(action string) error {
 		a.alignPageTop(a.page)
 		a.message = boolWord(a.firstPageOffset, "first-page offset on", "first-page offset off")
 	case "toggle_status_bar":
+		anchor := a.captureZoomAnchor()
 		a.statusBarShown = !a.statusBarShown
 		a.recomputeLayout(a.viewportSize())
-		a.alignPageTop(a.page)
+		a.restoreZoomAnchor(anchor)
 	case "toggle_fullscreen":
 		a.fullscreen = !a.fullscreen
 		a.SetFullscreen(a.fullscreen)

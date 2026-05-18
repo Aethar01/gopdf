@@ -589,6 +589,21 @@ func TestViewportAndContentOffsets(t *testing.T) {
 	assertClose(t, y, 0)
 }
 
+func TestToggleStatusBarKeepsScrollPosition(t *testing.T) {
+	app := testLayoutApp(5)
+	app.winW = 800
+	app.winH = 600
+	app.config.StatusBarHeight = 28
+	app.recomputeLayout(app.viewportSize())
+	app.scrollY = 75
+
+	if err := app.runBuiltinAction("toggle_status_bar"); err != nil {
+		t.Fatal(err)
+	}
+
+	assertClose(t, app.scrollY, 75)
+}
+
 func TestModalListRowAtUsesRowsBelowHeaderOnly(t *testing.T) {
 	app := &App{}
 	rect := sdl.FRect{X: 10, Y: 20, W: 200, H: 160}
