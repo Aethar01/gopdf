@@ -121,6 +121,7 @@ var configOptions = map[string]optionDesc{
 	"render_oversample":    floatOption(func(c *Config) float64 { return c.RenderOversample }, func(c *Config, v float64) { c.RenderOversample = v }),
 	"render_mode":          stringOption(func(c *Config) string { return c.RenderMode }, func(c *Config, v string) { c.RenderMode = NormalizeRenderMode(v) }),
 	"fit_mode":             stringOption(func(c *Config) string { return c.FitMode }, func(c *Config, v string) { c.FitMode = NormalizeFitMode(v) }),
+	"anchor_position":      stringOption(func(c *Config) string { return c.AnchorPosition }, func(c *Config, v string) { c.AnchorPosition = NormalizeAnchorPosition(v) }),
 	"ui_font_path":         stringOption(func(c *Config) string { return c.UIFontPath }, func(c *Config, v string) { c.UIFontPath = v }),
 	"status_bar_left":      stringOption(func(c *Config) string { return c.StatusBarLeft }, func(c *Config, v string) { c.StatusBarLeft = v }),
 	"status_bar_right":     stringOption(func(c *Config) string { return c.StatusBarRight }, func(c *Config, v string) { c.StatusBarRight = v }),
@@ -183,6 +184,14 @@ func NormalizeRenderMode(s string) string {
 		return s
 	}
 	return "continuous"
+}
+
+func NormalizeAnchorPosition(s string) string {
+	s = strings.ToLower(strings.TrimSpace(s))
+	if s == "top" || s == "bottom" {
+		return s
+	}
+	return "center"
 }
 
 func normalizeMouseEvent(s string) string {

@@ -140,8 +140,27 @@ func (a *App) currentRowIndex() int {
 		}
 		return clampInt(a.pageToRow[a.page], 0, len(a.rows)-1)
 	}
+	return a.anchorRowIndex()
+}
+
+func (a *App) anchorRowIndex() int {
+	if len(a.rows) == 0 {
+		return 0
+	}
+	if a.renderMode == "single" {
+		if a.page < 0 || a.page >= len(a.pageToRow) {
+			return 0
+		}
+		return clampInt(a.pageToRow[a.page], 0, len(a.rows)-1)
+	}
 	_, offsetY := a.contentViewportOffset()
-	marker := a.scrollY - offsetY + math.Max(1, float64(a.verticalGap())/2+1)
+	return a.rowIndexAtContentY(a.scrollY + a.viewportAnchorScreenY() - offsetY)
+}
+
+func (a *App) rowIndexAtContentY(marker float64) int {
+	if len(a.rows) == 0 {
+		return 0
+	}
 	if marker < 0 {
 		marker = 0
 	}

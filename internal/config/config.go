@@ -11,6 +11,7 @@ type Config struct {
 	DualPage             bool
 	FirstPageOffset      bool
 	FitMode              string
+	AnchorPosition       string
 	Background           [3]uint8
 	PageBackground       [3]uint8
 	Foreground           [3]uint8

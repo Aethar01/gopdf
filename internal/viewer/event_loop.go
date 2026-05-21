@@ -109,11 +109,10 @@ func (a *App) handleSDLEvent(event *sdl.Event) error {
 		a.quit = true
 	case sdl.EventWindowResized, sdl.EventWindowPixelSizeChanged:
 		e := event.Window()
-		{
+		a.relayoutWithViewportAnchor(func() {
 			a.winW = int(e.Data1)
 			a.winH = int(e.Data2)
-			a.recomputeLayout(a.viewportSize())
-		}
+		})
 	case sdl.EventKeyUp:
 		e := event.Key()
 		a.handleSDLKeyUp(&e)

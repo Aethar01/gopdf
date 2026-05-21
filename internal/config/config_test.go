@@ -713,6 +713,7 @@ func TestLuaOptionNormalizationAndColorClamping(t *testing.T) {
 	if err := os.WriteFile(path, []byte(`
 options.fit_mode = " WIDTH "
 options.render_mode = "SINGLE"
+options.anchor_position = "BOTTOM"
 options.completion_max_items = 0
 options.background = { -5, 128, 999 }
 `), 0o644); err != nil {
@@ -731,6 +732,9 @@ options.background = { -5, 128, 999 }
 	}
 	if cfg.RenderMode != "single" {
 		t.Fatalf("expected normalized render mode single, got %q", cfg.RenderMode)
+	}
+	if cfg.AnchorPosition != "bottom" {
+		t.Fatalf("expected normalized anchor position bottom, got %q", cfg.AnchorPosition)
 	}
 	if cfg.CompletionMaxItems != 1 {
 		t.Fatalf("expected completion_max_items to clamp to 1, got %d", cfg.CompletionMaxItems)

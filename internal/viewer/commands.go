@@ -141,34 +141,26 @@ func (a *App) runBuiltinAction(action string) error {
 	case "search_prev":
 		a.repeatSearch(false)
 	case "toggle_dual_page":
-		a.dualPage = !a.dualPage
-		a.recomputeLayout(a.viewportSize())
-		a.alignPageTop(a.page)
+		a.relayoutWithViewportAnchor(func() { a.dualPage = !a.dualPage })
 		a.message = boolWord(a.dualPage, "dual-page on", "dual-page off")
 	case "toggle_render_mode":
-		page := a.page
-		if a.renderMode == "single" {
-			a.renderMode = "continuous"
-		} else {
-			a.renderMode = "single"
-		}
-		a.recomputeLayout(a.viewportSize())
-		a.alignPageTop(page)
+		a.relayoutWithViewportAnchor(func() {
+			if a.renderMode == "single" {
+				a.renderMode = "continuous"
+			} else {
+				a.renderMode = "single"
+			}
+		})
 		a.message = "render mode " + a.renderMode
 	case "toggle_alt_colors":
 		a.altColors = !a.altColors
 		a.clearCache()
 		a.message = boolWord(a.altColors, "alt colors on", "alt colors off")
 	case "toggle_first_page_offset":
-		a.firstPageOffset = !a.firstPageOffset
-		a.recomputeLayout(a.viewportSize())
-		a.alignPageTop(a.page)
+		a.relayoutWithViewportAnchor(func() { a.firstPageOffset = !a.firstPageOffset })
 		a.message = boolWord(a.firstPageOffset, "first-page offset on", "first-page offset off")
 	case "toggle_status_bar":
-		anchor := a.captureZoomAnchor()
-		a.statusBarShown = !a.statusBarShown
-		a.recomputeLayout(a.viewportSize())
-		a.restoreZoomAnchor(anchor)
+		a.relayoutWithViewportAnchor(func() { a.statusBarShown = !a.statusBarShown })
 	case "toggle_fullscreen":
 		a.fullscreen = !a.fullscreen
 		a.SetFullscreen(a.fullscreen)
@@ -198,17 +190,15 @@ func (a *App) runBuiltinAction(action string) error {
 	case "reload_config":
 		a.reloadConfig()
 	case "rotate_cw":
-		page := a.page
-		a.rotation = normalizeRotation(a.rotation + 90)
-		a.updatePageMetricSizes()
-		a.recomputeLayout(a.viewportSize())
-		a.alignPageTop(page)
+		a.relayoutWithViewportAnchor(func() {
+			a.rotation = normalizeRotation(a.rotation + 90)
+			a.updatePageMetricSizes()
+		})
 	case "rotate_ccw":
-		page := a.page
-		a.rotation = normalizeRotation(a.rotation + 270)
-		a.updatePageMetricSizes()
-		a.recomputeLayout(a.viewportSize())
-		a.alignPageTop(page)
+		a.relayoutWithViewportAnchor(func() {
+			a.rotation = normalizeRotation(a.rotation + 270)
+			a.updatePageMetricSizes()
+		})
 	case "quit":
 		a.quit = true
 	case "close":
@@ -393,10 +383,7 @@ func (a *App) SetRenderMode(mode string) error {
 	if a.renderMode == mode {
 		return nil
 	}
-	page := a.page
-	a.renderMode = mode
-	a.recomputeLayout(a.viewportSize())
-	a.alignPageTop(page)
+	a.relayoutWithViewportAnchor(func() { a.renderMode = mode })
 	return nil
 }
 
@@ -406,23 +393,21 @@ func (a *App) SetZoom(zoom float64) error {
 	if zoom <= 0 {
 		return fmt.Errorf("zoom must be positive")
 	}
-	anchor := a.captureZoomAnchor()
-	a.fitMode = "manual"
-	a.zoom = clampFloat(zoom, 0.05, 8.0)
-	a.maybeUpgradeRenderScale(a.zoom)
-	a.recomputeLayout(a.viewportSize())
-	a.restoreZoomAnchor(anchor)
+	a.relayoutWithViewportAnchor(func() {
+		a.fitMode = "manual"
+		a.zoom = clampFloat(zoom, 0.05, 8.0)
+		a.maybeUpgradeRenderScale(a.zoom)
+	})
 	return nil
 }
 
 func (a *App) Rotation() float64 { return normalizeRotation(a.rotation) }
 
 func (a *App) SetRotation(rotation float64) error {
-	page := a.page
-	a.rotation = normalizeRotation(rotation)
-	a.updatePageMetricSizes()
-	a.recomputeLayout(a.viewportSize())
-	a.alignPageTop(page)
+	a.relayoutWithViewportAnchor(func() {
+		a.rotation = normalizeRotation(rotation)
+		a.updatePageMetricSizes()
+	})
 	return nil
 }
 
@@ -445,9 +430,7 @@ func (a *App) SetStatusBarVisible(visible bool) error {
 	if a.statusBarShown == visible {
 		return nil
 	}
-	a.statusBarShown = visible
-	a.recomputeLayout(a.viewportSize())
-	a.alignPageTop(a.page)
+	a.relayoutWithViewportAnchor(func() { a.statusBarShown = visible })
 	return nil
 }
 
@@ -511,10 +494,7 @@ func (a *App) runCommand(input string) {
 			a.message = "usage: :mode continuous|single"
 			return
 		}
-		page := a.page
-		a.renderMode = sanitizeRenderMode(fields[0])
-		a.recomputeLayout(a.viewportSize())
-		a.alignPageTop(page)
+		a.relayoutWithViewportAnchor(func() { a.renderMode = sanitizeRenderMode(fields[0]) })
 	case "colors":
 		if len(fields) < 1 {
 			a.message = "usage: :colors normal|alt"
@@ -612,11 +592,10 @@ func (a *App) runMouseBinding(event string) bool {
 }
 
 func (a *App) applyConfig(cfg config.Config) {
-	currentPage := a.page
-	a.applyConfigState(cfg, true)
-	a.clearCache()
-	a.recomputeLayout(a.viewportSize())
-	a.alignPageTop(clampInt(currentPage, 0, a.pageCount-1))
+	a.relayoutWithViewportAnchor(func() {
+		a.applyConfigState(cfg, true)
+		a.clearCache()
+	})
 }
 
 func sanitizeFitMode(mode string) string { return config.NormalizeFitMode(mode) }

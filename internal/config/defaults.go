@@ -8,6 +8,7 @@ func Default() Config {
 		DualPage:            false,
 		FirstPageOffset:     true,
 		FitMode:             "page",
+		AnchorPosition:      "center",
 		Background:          [3]uint8{220, 220, 220},
 		PageBackground:      [3]uint8{255, 255, 255},
 		Foreground:          [3]uint8{20, 20, 20},

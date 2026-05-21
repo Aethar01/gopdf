@@ -54,12 +54,10 @@ type textSelection struct {
 	text   string
 }
 
-type zoomAnchor struct {
-	page    int
-	point   mupdf.Point
-	valid   bool
-	centerX float64
-	centerY float64
+type viewportAnchor struct {
+	page  int
+	point mupdf.Point
+	valid bool
 }
 
 type rowLayout struct {
@@ -1001,22 +999,20 @@ func (a *App) anchorPage(page int) int {
 }
 
 func (a *App) setManualZoom(delta float64) {
-	anchor := a.captureZoomAnchor()
-	baseZoom := a.zoom
-	if a.fitMode != "manual" {
-		baseZoom = a.scale
-	}
-	a.fitMode = "manual"
-	a.zoom = math.Max(0.75, math.Min(4.0, baseZoom*delta))
-	a.maybeUpgradeRenderScale(a.zoom)
-	a.recomputeLayout(a.viewportSize())
-	a.restoreZoomAnchor(anchor)
+	a.relayoutWithViewportAnchor(func() {
+		baseZoom := a.zoom
+		if a.fitMode != "manual" {
+			baseZoom = a.scale
+		}
+		a.fitMode = "manual"
+		a.zoom = math.Max(0.75, math.Min(4.0, baseZoom*delta))
+		a.maybeUpgradeRenderScale(a.zoom)
+	})
 }
 
 func (a *App) setFitMode(mode string) {
-	anchor := a.captureZoomAnchor()
-	a.fitMode = mode
-	a.maybeUpgradeRenderScale(a.zoom)
-	a.recomputeLayout(a.viewportSize())
-	a.restoreZoomAnchor(anchor)
+	a.relayoutWithViewportAnchor(func() {
+		a.fitMode = mode
+		a.maybeUpgradeRenderScale(a.zoom)
+	})
 }

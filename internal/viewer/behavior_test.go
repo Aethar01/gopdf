@@ -589,19 +589,28 @@ func TestViewportAndContentOffsets(t *testing.T) {
 	assertClose(t, y, 0)
 }
 
-func TestToggleStatusBarKeepsScrollPosition(t *testing.T) {
+func TestToggleStatusBarKeepsConfiguredAnchorPosition(t *testing.T) {
 	app := testLayoutApp(5)
 	app.winW = 800
 	app.winH = 600
 	app.config.StatusBarHeight = 28
 	app.recomputeLayout(app.viewportSize())
 	app.scrollY = 75
+	anchor := app.captureViewportAnchor()
 
 	if err := app.runBuiltinAction("toggle_status_bar"); err != nil {
 		t.Fatal(err)
 	}
 
-	assertClose(t, app.scrollY, 75)
+	x, y, ok := app.pageScreenOrigin(anchor.page)
+	if !ok {
+		t.Fatal("expected anchored page to remain placed")
+	}
+	tx, ty := transformPoint(anchor.point.X, anchor.point.Y, app.scale, app.rotation)
+	originX, originY := rotatedBoundsOrigin(app.pageMetrics[anchor.page].bounds, app.scale, app.rotation)
+	targetX, targetY := app.viewportAnchorScreenPoint()
+	assertClose(t, x+tx-originX, targetX)
+	assertClose(t, y+ty-originY, targetY)
 }
 
 func TestModalListRowAtUsesRowsBelowHeaderOnly(t *testing.T) {
@@ -789,9 +798,9 @@ func TestCurrentRowIndexAndCurrentPageFollowScroll(t *testing.T) {
 	app.recomputeLayout(app.viewportSize())
 
 	app.renderMode = "continuous"
-	app.scrollY = app.rows[2].y
+	app.scrollY = app.rows[2].y - 1
 	if got := app.currentRowIndex(); got != 2 {
-		t.Fatalf("expected scroll marker in row 2, got row %d", got)
+		t.Fatalf("expected viewport midpoint in row 2, got row %d", got)
 	}
 	app.updateCurrentPageFromScroll()
 	if app.page != app.rows[2].pages[0] {
@@ -803,6 +812,50 @@ func TestCurrentRowIndexAndCurrentPageFollowScroll(t *testing.T) {
 	if got := app.currentRowIndex(); got != app.pageToRow[3] {
 		t.Fatalf("expected single-page row from current page, got %d want %d", got, app.pageToRow[3])
 	}
+}
+
+func TestCurrentRowIndexUsesConfiguredAnchorPosition(t *testing.T) {
+	app := testLayoutApp(4)
+	app.winW = 100
+	app.winH = 100
+	app.config.PageGapVertical = 10
+	app.recomputeLayout(app.viewportSize())
+	app.renderMode = "continuous"
+	app.scrollY = app.rows[2].y - 1
+
+	app.config.AnchorPosition = "top"
+	if got := app.currentRowIndex(); got != 1 {
+		t.Fatalf("expected top anchor to use row 1 sliver, got row %d", got)
+	}
+	app.config.AnchorPosition = "bottom"
+	if got := app.currentRowIndex(); got != 2 {
+		t.Fatalf("expected bottom anchor to use row 2, got row %d", got)
+	}
+}
+
+func TestResizeKeepsConfiguredViewportAnchorPosition(t *testing.T) {
+	app := testLayoutApp(4)
+	app.winW = 220
+	app.winH = 300
+	app.fitMode = "width"
+	app.config.AnchorPosition = "top"
+	app.recomputeLayout(app.viewportSize())
+	app.scrollY = app.rows[1].pageY[0] - 24
+	anchor := app.captureViewportAnchor()
+
+	app.winW = 420
+	app.recomputeLayout(app.viewportSize())
+	app.restoreViewportAnchor(anchor)
+
+	x, y, ok := app.pageScreenOrigin(anchor.page)
+	if !ok {
+		t.Fatal("expected anchored page to remain placed")
+	}
+	tx, ty := transformPoint(anchor.point.X, anchor.point.Y, app.scale, app.rotation)
+	originX, originY := rotatedBoundsOrigin(app.pageMetrics[anchor.page].bounds, app.scale, app.rotation)
+	targetX, targetY := app.viewportAnchorScreenPoint()
+	assertClose(t, x+tx-originX, targetX)
+	assertClose(t, y+ty-originY, targetY)
 }
 
 func TestCompletionAcceptCloseAndVisibleRows(t *testing.T) {

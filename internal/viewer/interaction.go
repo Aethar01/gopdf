@@ -23,35 +23,125 @@ type pageHit struct {
 	render    *renderedPage
 }
 
-func (a *App) captureZoomAnchor() zoomAnchor {
-	viewportW, viewportH := a.viewportSize()
-	cx := float64(viewportW) / 2
-	cy := float64(viewportH) / 2
-	page, point, ok := a.pagePointAtScreen(cx, cy)
+func (a *App) captureViewportAnchor() viewportAnchor {
+	screenX, screenY := a.viewportAnchorScreenPoint()
+	page, x, y, ok := a.pageAtAnchorScreenPoint(screenX, screenY)
 	if !ok {
-		return zoomAnchor{centerX: cx, centerY: cy}
+		return viewportAnchor{}
 	}
-	return zoomAnchor{page: page, point: point, valid: true, centerX: cx, centerY: cy}
+	originX, originY := rotatedBoundsOrigin(a.pageMetrics[page].bounds, a.scale, a.rotation)
+	pageX, pageY := inverseTransformPoint(x+originX, y+originY, a.scale, a.rotation)
+	return viewportAnchor{page: page, point: mupdf.Point{X: pageX, Y: pageY}, valid: true}
 }
 
-func (a *App) restoreZoomAnchor(anchor zoomAnchor) {
-	if !anchor.valid {
+func (a *App) restoreViewportAnchor(anchor viewportAnchor) {
+	if !anchor.valid || anchor.page < 0 || anchor.page >= len(a.pageToRow) || len(a.rows) == 0 {
 		a.clampScroll()
 		return
 	}
-	x, y, rp, ok := a.pagePlacement(anchor.page)
-	if !ok || rp == nil {
+	pageX, pageY, ok := a.pageScreenOrigin(anchor.page)
+	if !ok {
 		a.clampScroll()
 		return
 	}
 	tx, ty := transformPoint(anchor.point.X, anchor.point.Y, a.scale, a.rotation)
-	originX, originY := rotatedBoundsOrigin(a.pageMetrics[rp.page].bounds, a.scale, a.rotation)
-	a.scrollX += (x + tx - originX) - anchor.centerX
-	a.scrollY += (y + ty - originY) - anchor.centerY
+	originX, originY := rotatedBoundsOrigin(a.pageMetrics[anchor.page].bounds, a.scale, a.rotation)
+	targetX, targetY := a.viewportAnchorScreenPoint()
+	a.scrollX += pageX + tx - originX - targetX
+	a.scrollY += pageY + ty - originY - targetY
 	a.clampScroll()
 	if a.renderMode == "continuous" {
-		a.updateCurrentPageFromScroll()
+		pageX, pageY, ok = a.pageScreenOrigin(anchor.page)
+		if ok && (math.Abs(pageX+tx-originX-targetX) > 0.5 || math.Abs(pageY+ty-originY-targetY) > 0.5) {
+			a.page = anchor.page
+		} else {
+			a.updateCurrentPageFromScroll()
+		}
 	}
+}
+
+func (a *App) relayoutWithViewportAnchor(update func()) {
+	fallbackPage := a.page
+	anchor := a.captureViewportAnchor()
+	if update != nil {
+		update()
+	}
+	a.recomputeLayout(a.viewportSize())
+	if !anchor.valid {
+		a.page = clampInt(fallbackPage, 0, a.pageCount-1)
+		a.clampScroll()
+		return
+	}
+	a.restoreViewportAnchor(anchor)
+}
+
+func (a *App) viewportAnchorScreenPoint() (float64, float64) {
+	viewportW, _ := a.viewportSize()
+	return float64(viewportW) / 2, a.viewportAnchorScreenY()
+}
+
+func (a *App) viewportAnchorScreenY() float64 {
+	_, viewportH := a.viewportSize()
+	switch a.config.AnchorPosition {
+	case "top":
+		return 0
+	case "bottom":
+		return float64(viewportH)
+	default:
+		return float64(viewportH) / 2
+	}
+}
+
+func (a *App) pageAtAnchorScreenPoint(screenX, screenY float64) (int, float64, float64, bool) {
+	rowIndex := a.anchorRowIndex()
+	if rowIndex < 0 || rowIndex >= len(a.rows) {
+		return 0, 0, 0, false
+	}
+	row := a.rows[rowIndex]
+	for i, page := range row.pages {
+		x, y := a.rowPageScreenOrigin(row, i)
+		if screenX >= x && screenX <= x+row.pageW[i] && screenY >= y && screenY <= y+row.pageH[i] {
+			return page, screenX - x, screenY - y, true
+		}
+	}
+	if len(row.pages) == 0 {
+		return 0, 0, 0, false
+	}
+	pageIndex := 0
+	for i := range row.pages {
+		x, _ := a.rowPageScreenOrigin(row, i)
+		bestX, _ := a.rowPageScreenOrigin(row, pageIndex)
+		if math.Abs(screenX-(x+row.pageW[i]/2)) < math.Abs(screenX-(bestX+row.pageW[pageIndex]/2)) {
+			pageIndex = i
+		}
+	}
+	x, y := a.rowPageScreenOrigin(row, pageIndex)
+	return row.pages[pageIndex], screenX - x, screenY - y, true
+}
+
+func (a *App) pageScreenOrigin(page int) (float64, float64, bool) {
+	if page < 0 || page >= len(a.pageToRow) || len(a.rows) == 0 {
+		return 0, 0, false
+	}
+	row := a.rows[a.pageToRow[page]]
+	for i, candidate := range row.pages {
+		if candidate == page {
+			x, y := a.rowPageScreenOrigin(row, i)
+			return x, y, true
+		}
+	}
+	return 0, 0, false
+}
+
+func (a *App) rowPageScreenOrigin(row rowLayout, pageIndex int) (float64, float64) {
+	if a.renderMode == "single" {
+		viewportW, viewportH := a.viewportSize()
+		baseX := math.Max(float64(a.horizontalGap()), (float64(viewportW)-row.width)/2)
+		baseY := math.Max(float64(a.verticalGap()), (float64(viewportH)-row.height)/2)
+		return baseX + (row.pageX[pageIndex] - row.x) - a.scrollX, baseY + (row.pageY[pageIndex] - row.y) - a.scrollY
+	}
+	offsetX, offsetY := a.contentViewportOffset()
+	return row.pageX[pageIndex] - a.scrollX + offsetX, row.pageY[pageIndex] - a.scrollY + offsetY
 }
 
 func (a *App) viewportSize() (int, int) {
