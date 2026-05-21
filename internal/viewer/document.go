@@ -20,6 +20,7 @@ func (a *App) Open(path string) error {
 		return fmt.Errorf("open: empty path")
 	}
 	path = a.resolveOpenPath(path)
+	a.logf("open requested path=%q", path)
 	if a.runtime == nil {
 		a.pendingOpen = path
 		a.quit = true
@@ -41,6 +42,7 @@ func (a *App) resolveOpenPath(path string) string {
 }
 
 func (a *App) initMetricLoader(docPath string, pageCount int, startPage int) {
+	a.logf("start metric loader pages=%d startPage=%d", pageCount, startPage+1)
 	l := &metricLoader{
 		updates: make(chan pageMetricUpdate, 128),
 		closing: make(chan struct{}),
@@ -52,6 +54,7 @@ func (a *App) initMetricLoader(docPath string, pageCount int, startPage int) {
 
 func (a *App) closeMetricLoader() {
 	if a.loader != nil {
+		a.logf("close metric loader")
 		a.loader.Close()
 		a.loader = nil
 	}
@@ -111,8 +114,10 @@ func (a *App) openDocument(path string, opts openDocumentOptions) error {
 	a.message = "opening " + path
 
 	path = config.AbsoluteDocumentPath(path)
+	a.logf("opening document path=%q startPage=%d reloadConfig=%t", path, opts.startPage+1, opts.reloadConfig)
 	doc, err := mupdf.Open(path)
 	if err != nil {
+		a.logf("open document failed path=%q err=%v", path, err)
 		return err
 	}
 	pages := doc.CachedPageCount()
@@ -165,6 +170,7 @@ func (a *App) openDocument(path string, opts openDocumentOptions) error {
 	a.pendingOpen = ""
 
 	a.initDocumentMetrics(doc, path, pages, startPage)
+	a.logf("opened document path=%q pages=%d page=%d", path, pages, startPage+1)
 
 	var configErr error
 	if opts.reloadConfig {
@@ -185,6 +191,7 @@ func (a *App) openDocument(path string, opts openDocumentOptions) error {
 	}
 	a.pendingRedraw = true
 	if configErr != nil {
+		a.logf("document config reload failed err=%v", configErr)
 		a.message = configErr.Error()
 		return configErr
 	}
@@ -211,6 +218,7 @@ func (a *App) initDocumentMetrics(doc *mupdf.Document, path string, pages int, s
 	}
 
 	if pages > 1 {
+		a.logf("queue metric loader pages=%d startPage=%d", pages, startPage+1)
 		a.pendingPath = path
 		a.pendingPages = pages
 		a.pendingStart = startPage
@@ -222,7 +230,9 @@ func (a *App) pollDocumentUpdate() {
 	if !ok {
 		return
 	}
+	a.logf("document changed size=%d mod=%s", change.size, change.mod.Format(time.RFC3339Nano))
 	if err := a.reloadUpdatedDocument(change); err != nil {
+		a.logf("document reload failed err=%v", err)
 		a.message = err.Error()
 	}
 }
@@ -241,6 +251,7 @@ func (a *App) reloadUpdatedDocument(change documentChange) error {
 
 func (a *App) softReloadDocument(path string, state viewState) error {
 	path = config.AbsoluteDocumentPath(path)
+	a.logf("soft reload document path=%q", path)
 	doc, err := mupdf.Open(path)
 	if err != nil {
 		return err
@@ -270,6 +281,7 @@ func (a *App) softReloadDocument(path string, state viewState) error {
 	a.selection = textSelection{}
 
 	a.initDocumentMetrics(doc, path, pages, startPage)
+	a.logf("soft reloaded document path=%q pages=%d page=%d", path, pages, startPage+1)
 	a.setWindowTitle()
 	a.initRenderWorker()
 	a.initSearch()

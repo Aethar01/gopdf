@@ -168,11 +168,13 @@ func searchPageOrder(start, count int) []int {
 }
 
 func (a *App) initSearch() {
+	a.logf("init search state")
 	a.search = searchState{matches: map[int][]mupdf.SearchHit{}, current: -1, mode: searchModeForward}
 }
 
 func (a *App) closeSearch() {
 	if a.searchWorker != nil {
+		a.logf("close search worker")
 		a.searchWorker.Close()
 		a.searchWorker = nil
 	}
@@ -186,6 +188,7 @@ func (a *App) pollSearchUpdates() {
 		select {
 		case update := <-a.searchWorker.updates:
 			if update.generation == 0 && update.err != nil {
+				a.logf("search worker failed err=%v", update.err)
 				a.search.running = false
 				a.message = update.err.Error()
 				continue
@@ -195,6 +198,7 @@ func (a *App) pollSearchUpdates() {
 			}
 			a.pendingRedraw = true
 			if update.err != nil {
+				a.logf("search failed query=%q err=%v", a.search.query, update.err)
 				a.search.running = false
 				a.message = update.err.Error()
 				continue
@@ -239,6 +243,7 @@ func (a *App) startSearch(query string, mode searchMode) {
 		return
 	}
 	if a.searchWorker == nil && a.docPath != "" {
+		a.logf("start search worker path=%q", a.docPath)
 		a.searchWorker = newSearchWorker(a.docPath)
 	}
 	if a.searchWorker == nil {
@@ -246,6 +251,7 @@ func (a *App) startSearch(query string, mode searchMode) {
 		return
 	}
 	a.search.running = true
+	a.logf("start search query=%q page=%d", query, a.page+1)
 	a.message = fmt.Sprintf("searching /%s", query)
 	if !a.searchWorker.Start(searchRequest{
 		generation: a.search.generation,

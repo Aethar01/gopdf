@@ -2,6 +2,7 @@ package viewer
 
 import (
 	_ "embed"
+	"log"
 	"math"
 	"strconv"
 	"strings"
@@ -75,6 +76,7 @@ type rowLayout struct {
 type App struct {
 	runtime *config.Runtime
 	config  config.Config
+	verbose bool
 
 	documentState
 	viewStateFields
@@ -185,13 +187,14 @@ type jumpPosition struct {
 	scrollY float64
 }
 
-func New(docPath string, runtime *config.Runtime, startPage int, iconBytes []byte) (*App, error) {
+func New(docPath string, runtime *config.Runtime, startPage int, iconBytes []byte, verbose ...bool) (*App, error) {
 	cfg := runtime.Config()
 	if startPage < 0 {
 		startPage = 0
 	}
 	app := &App{
 		runtime: runtime,
+		verbose: len(verbose) > 0 && verbose[0],
 		documentState: documentState{
 			page:      startPage,
 			pageLinks: map[int][]mupdf.Link{},
@@ -215,6 +218,7 @@ func New(docPath string, runtime *config.Runtime, startPage int, iconBytes []byt
 			sequenceLookup: map[string]string{},
 		},
 	}
+	app.logf("create viewer doc=%q startPage=%d", docPath, startPage+1)
 	runtime.AttachHost(app)
 	app.applyConfigState(cfg, false)
 	app.message = cfg.NormalMessage
@@ -228,6 +232,12 @@ func New(docPath string, runtime *config.Runtime, startPage int, iconBytes []byt
 		app.alignPageTop(startPage)
 	}
 	return app, nil
+}
+
+func (a *App) logf(format string, args ...any) {
+	if a != nil && a.verbose {
+		log.Printf(format, args...)
+	}
 }
 
 func (a *App) setWindowTitle() {

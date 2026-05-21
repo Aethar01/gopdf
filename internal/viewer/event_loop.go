@@ -8,6 +8,7 @@ import (
 )
 
 func (a *App) Run() error {
+	a.logf("init SDL")
 	if !sdl.Init(sdl.InitVideo) {
 		return fmt.Errorf("SDL init failed: %s", sdl.GetError())
 	}
@@ -18,6 +19,7 @@ func (a *App) Run() error {
 		sdl.Quit()
 		return fmt.Errorf("SDL window creation failed: %s", sdl.GetError())
 	}
+	a.logf("created SDL window 1400x900")
 	a.window = window
 	a.renderer = renderer
 	if rw := sdl.IOFromConstMem(a.iconBytes); rw != nil {
@@ -46,6 +48,7 @@ func (a *App) Run() error {
 		path := a.initialDocPath
 		startPage := a.initialStartPage
 		a.initialDocPath = ""
+		a.logf("open initial document path=%q page=%d", path, startPage+1)
 		if err := a.openDocument(path, openDocumentOptions{startPage: startPage}); err != nil {
 			return err
 		}
@@ -82,6 +85,7 @@ func (a *App) Run() error {
 			}
 		}
 	}
+	a.logf("viewer exiting")
 	return nil
 }
 

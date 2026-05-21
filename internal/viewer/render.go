@@ -206,6 +206,7 @@ func renderCacheKey(page int, scale float64, altColors bool, aaLevel int) string
 }
 
 func (a *App) initRenderWorker() {
+	a.logf("start render worker path=%q", a.docPath)
 	a.renderPending = map[string]renderRequest{}
 	a.renderWorker = newRenderWorker(a.docPath)
 	a.renderWorker.SetGeneration(a.renderGeneration)
@@ -226,6 +227,7 @@ func (a *App) pollRenderUpdates() {
 		select {
 		case update := <-a.renderWorker.updates:
 			if update.err != nil {
+				a.logf("render update failed err=%v", update.err)
 				a.message = update.err.Error()
 				continue
 			}
@@ -250,6 +252,7 @@ func (a *App) pollRenderUpdates() {
 			}
 			tex, err := textureFromImage(a.renderer, update.rendered.Image)
 			if err != nil {
+				a.logf("render texture failed page=%d err=%v", update.page+1, err)
 				a.message = err.Error()
 				continue
 			}
@@ -334,6 +337,7 @@ func (a *App) requestRender(page int, scale float64, priority ...int) {
 		req.priority = priority[0]
 	}
 	if !a.renderWorker.Enqueue(req) {
+		a.logf("render enqueue skipped page=%d key=%s", page+1, cacheKey)
 		return
 	}
 	a.renderPending[cacheKey] = req
@@ -452,6 +456,7 @@ func (a *App) maybeUpgradeRenderScale(target float64) bool {
 		return false
 	}
 	a.renderBaseScale = next
+	a.logf("upgrade render scale target=%.3f base=%.3f", target, next)
 	a.invalidateRenderRequests()
 	return true
 }
@@ -473,6 +478,7 @@ func (a *App) maybeDowngradeRenderScale() {
 		return
 	}
 	a.renderBaseScale = next
+	a.logf("downgrade render scale target=%.3f base=%.3f", target, next)
 	a.invalidateRenderRequests()
 }
 

@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -18,7 +19,7 @@ func Load(explicitPath string) (Config, error) {
 	return rt.Config(), nil
 }
 
-func Open(explicitPath, docPath string) (*Runtime, error) {
+func Open(explicitPath, docPath string, verbose ...bool) (*Runtime, error) {
 	docPath = AbsoluteDocumentPath(docPath)
 	docName := ""
 	if docPath != "" {
@@ -29,6 +30,7 @@ func Open(explicitPath, docPath string) (*Runtime, error) {
 		docPath:      docPath,
 		docName:      docName,
 		docMeta:      loadDocumentMeta(docPath),
+		verbose:      len(verbose) > 0 && verbose[0],
 	}
 	if err := rt.Reload(); err != nil {
 		return nil, err
@@ -92,6 +94,7 @@ func (r *Runtime) SetPageCount(pages int) {
 }
 
 func (r *Runtime) Reload() error {
+	r.logf("reload config explicit=%q doc=%q", r.explicitPath, r.docPath)
 	if r.state != nil {
 		r.state.Close()
 		r.state = nil
@@ -103,6 +106,7 @@ func (r *Runtime) Reload() error {
 	autogenPath := r.autogenPath()
 	if autogenPath != "" {
 		if info, err := os.Stat(autogenPath); err == nil && !info.IsDir() {
+			r.logf("apply autogen config %q", autogenPath)
 			if err := r.applyLuaConfig(autogenPath); err != nil {
 				r.Close()
 				return err
@@ -114,6 +118,7 @@ func (r *Runtime) Reload() error {
 	}
 	paths := candidatePaths(r.explicitPath)
 	for _, path := range paths {
+		r.logf("check config %q", path)
 		info, err := os.Stat(path)
 		if err != nil {
 			if os.IsNotExist(err) {
@@ -124,6 +129,7 @@ func (r *Runtime) Reload() error {
 		if info.IsDir() {
 			continue
 		}
+		r.logf("apply config %q", path)
 		if err := r.applyLuaConfig(path); err != nil {
 			r.Close()
 			return err
@@ -135,7 +141,14 @@ func (r *Runtime) Reload() error {
 	}
 	r.cfg.AutogenPath = autogenPath
 	r.dirty = false
+	r.logf("no user config loaded")
 	return nil
+}
+
+func (r *Runtime) logf(format string, args ...any) {
+	if r != nil && r.verbose {
+		log.Printf(format, args...)
+	}
 }
 
 func (r *Runtime) autogenPath() string {

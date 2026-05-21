@@ -58,6 +58,7 @@ type Runtime struct {
 	callbacks    map[string]*lua.LFunction
 	callbackSeq  int
 	dirty        bool
+	verbose      bool
 }
 
 type UIOverlay struct {
