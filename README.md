@@ -65,7 +65,7 @@ gopdf /path/to/file.pdf      # open file
 gopdf --page 20 file.pdf     # start at page 20
 gopdf --config custom.lua file.pdf
 gopdf -v                     # print version
-gopdf -V file.pdf            # enable verbose logs
+gopdf -V                     # enable verbose logs
 ```
 Press F1 to see the default keybinds (and change them if you want)
 
