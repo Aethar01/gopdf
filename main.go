@@ -32,6 +32,12 @@ func run() error {
 	flag.BoolVar(&printVersion, "v", false, "print version")
 	flag.BoolVar(&verbose, "V", false, "enable verbose logging")
 	flag.Parse()
+	pageSet := false
+	flag.Visit(func(f *flag.Flag) {
+		if f.Name == "page" {
+			pageSet = true
+		}
+	})
 
 	if printVersion {
 		fmt.Println(version)
@@ -40,7 +46,11 @@ func run() error {
 
 	var docPath string
 	if flag.NArg() == 0 {
-		docPath = config.GetLastFile()
+		state := config.GetLastState()
+		docPath = state.Path
+		if !pageSet {
+			startPage = state.Page
+		}
 	} else {
 		docPath = flag.Arg(0)
 	}

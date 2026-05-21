@@ -274,7 +274,7 @@ func (a *App) Close() {
 	}
 	sdl.Quit()
 	if a.docPath != "" {
-		config.SetLastFile(a.docPath)
+		config.SetLastState(config.LastState{Path: a.docPath, Page: a.page + 1})
 	}
 }
 
