@@ -14,15 +14,27 @@ jobs:
     name: Build Linux x86_64 AppImage
     runs-on: ubuntu-latest
     container: archlinux:base-devel
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Install native dependencies
-        run: pacman -Syu --noconfirm curl file git go pkgconf sdl3 libmupdf gtk3
+        run: |
+          pacman -Syu --noconfirm \
+            curl \
+            file \
+            git \
+            go \
+            pkgconf \
+            sdl3 \
+            libmupdf \
+            gtk3 \
+            binutils
 
       - name: Verify native dependencies
-        run: pkg-config --cflags --libs mupdf sdl3
+        run: |
+          pkg-config --cflags --libs mupdf sdl3
 
       - name: Build
         env:
@@ -30,30 +42,55 @@ jobs:
           GOOS: linux
           GOARCH: amd64
         run: |
+          set -euo pipefail
+
           mkdir -p dist
-          go build -trimpath -ldflags "-s -w -X main.version=${GITHUB_REF_NAME} -extldflags '-Wl,-z,nopack-relative-relocs'" -o dist/gopdf .
+
+          go build -trimpath \
+            -ldflags="-linkmode=external -s -w -X main.version=${GITHUB_REF_NAME} -extldflags=-Wl,-z,nopack-relative-relocs" \
+            -o dist/gopdf .
+
+          echo "Checking built binary for unsupported RELR relocations..."
+
           if readelf -S dist/gopdf | grep -q '\.relr\.dyn'; then
             printf 'dist/gopdf still contains .relr.dyn; AppImage tooling cannot process it\n' >&2
             exit 1
           fi
 
-      - name: Package AppImage
-        env:
-          VERSION: ${{ github.ref_name }}
+      - name: Download AppImage tooling
         run: |
+          set -euo pipefail
+
+          curl -fsSL -o linuxdeploy-x86_64.AppImage \
+            https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
+
+          curl -fsSL -o appimagetool-x86_64.AppImage \
+            https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage
+
+          chmod +x linuxdeploy-x86_64.AppImage appimagetool-x86_64.AppImage
+
+      - name: Create AppDir
+        run: |
+          set -euo pipefail
+
           name="gopdf-${GITHUB_REF_NAME}-linux-amd64"
           appdir="${name}.AppDir"
 
-          mkdir -p "$appdir/usr/bin" "$appdir/usr/share/applications" "$appdir/usr/share/icons/hicolor/256x256/apps"
+          mkdir -p \
+            "$appdir/usr/bin" \
+            "$appdir/usr/share/applications" \
+            "$appdir/usr/share/icons/hicolor/256x256/apps"
+
           cp dist/gopdf "$appdir/usr/bin/gopdf"
           cp gopdf.desktop "$appdir/usr/share/applications/gopdf.desktop"
           cp assets/gopdf.png "$appdir/usr/share/icons/hicolor/256x256/apps/gopdf.png"
 
-          curl -fsSL -o linuxdeploy-x86_64.AppImage \
-            https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
-          curl -fsSL -o appimagetool-x86_64.AppImage \
-            https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage
-          chmod +x linuxdeploy-x86_64.AppImage appimagetool-x86_64.AppImage
+      - name: Bundle AppDir
+        run: |
+          set -euo pipefail
+
+          name="gopdf-${GITHUB_REF_NAME}-linux-amd64"
+          appdir="${name}.AppDir"
 
           ./linuxdeploy-x86_64.AppImage --appimage-extract-and-run \
             --appdir "$appdir" \
@@ -61,8 +98,45 @@ jobs:
             --desktop-file gopdf.desktop \
             --icon-file assets/gopdf.png
 
-          ./appimagetool-x86_64.AppImage --appimage-extract-and-run "$appdir" "${name}.AppImage"
-          ./${name}.AppImage --appimage-extract-and-run -v
+      - name: Verify AppDir ELF compatibility
+        run: |
+          set -euo pipefail
+
+          name="gopdf-${GITHUB_REF_NAME}-linux-amd64"
+          appdir="${name}.AppDir"
+
+          echo "Checking bundled AppDir ELF files for unsupported RELR relocations..."
+
+          while IFS= read -r -d '' file_path; do
+            if file "$file_path" | grep -q 'ELF'; then
+              if readelf -S "$file_path" 2>/dev/null | grep -q '\.relr\.dyn'; then
+                echo "Unsupported .relr.dyn section found in: $file_path" >&2
+                exit 1
+              fi
+            fi
+          done < <(find "$appdir" -type f -print0)
+
+      - name: Package AppImage
+        env:
+          VERSION: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+
+          name="gopdf-${GITHUB_REF_NAME}-linux-amd64"
+          appdir="${name}.AppDir"
+
+          ./appimagetool-x86_64.AppImage --appimage-extract-and-run \
+            "$appdir" \
+            "${name}.AppImage"
+
+      - name: Test AppImage
+        run: |
+          set -euo pipefail
+
+          name="gopdf-${GITHUB_REF_NAME}-linux-amd64"
+
+          chmod +x "${name}.AppImage"
+          ./"${name}.AppImage" --appimage-extract-and-run -v
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
