@@ -86,6 +86,8 @@ jobs:
           cp assets/gopdf.png "$appdir/usr/share/icons/hicolor/256x256/apps/gopdf.png"
 
       - name: Bundle AppDir
+        env:
+          NO_STRIP: true
         run: |
           set -euo pipefail
 
