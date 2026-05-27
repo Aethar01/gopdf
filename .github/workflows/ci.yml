@@ -6,6 +6,7 @@ on:
       - "**"
     paths-ignore:
       - README.md
+      - .github/workflows/release.yml
   pull_request:
     paths-ignore:
       - README.md
