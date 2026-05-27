@@ -30,6 +30,7 @@ jobs:
             sdl3 \
             libmupdf \
             gtk3 \
+            imagemagick \
             binutils
 
       - name: Verify native dependencies
@@ -81,9 +82,11 @@ jobs:
             "$appdir/usr/share/applications" \
             "$appdir/usr/share/icons/hicolor/256x256/apps"
 
+          magick assets/gopdf.png -resize 256x256 dist/gopdf.png
+
           cp dist/gopdf "$appdir/usr/bin/gopdf"
           cp gopdf.desktop "$appdir/usr/share/applications/gopdf.desktop"
-          cp assets/gopdf.png "$appdir/usr/share/icons/hicolor/256x256/apps/gopdf.png"
+          cp dist/gopdf.png "$appdir/usr/share/icons/hicolor/256x256/apps/gopdf.png"
 
       - name: Bundle AppDir
         env:
@@ -98,7 +101,7 @@ jobs:
             --appdir "$appdir" \
             --executable "$appdir/usr/bin/gopdf" \
             --desktop-file gopdf.desktop \
-            --icon-file assets/gopdf.png
+            --icon-file dist/gopdf.png
 
       - name: Verify AppDir ELF compatibility
         run: |
