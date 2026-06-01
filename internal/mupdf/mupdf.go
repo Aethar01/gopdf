@@ -196,6 +196,7 @@ static int gopdf_page_bounds(gopdf_doc *handle, int page_number, gopdf_rect *out
 		if (page != NULL) {
 			fz_drop_page(handle->ctx, page);
 		}
+		fz_empty_store(handle->ctx);
 	} fz_catch(handle->ctx) {
 		*err = gopdf_dup_string(fz_caught_message(handle->ctx));
 		return 0;
@@ -244,6 +245,7 @@ static int gopdf_render_page(gopdf_doc *handle, int page_number, float scale, fl
 		if (page != NULL) {
 			fz_drop_page(handle->ctx, page);
 		}
+		fz_empty_store(handle->ctx);
 	} fz_catch(handle->ctx) {
 		*err = gopdf_dup_string(fz_caught_message(handle->ctx));
 		return 0;
@@ -323,6 +325,8 @@ static int gopdf_search_page(gopdf_doc *handle, int page_number, const char *nee
 		fz_search_page_number_cb(handle->ctx, handle->doc, page_number, needle, gopdf_collect_search_hit, &builder);
 		out->hits = builder.hits;
 		out->hit_count = builder.hit_count;
+	} fz_always(handle->ctx) {
+		fz_empty_store(handle->ctx);
 	} fz_catch(handle->ctx) {
 		gopdf_free_search_builder(&builder);
 		*err = gopdf_dup_string(fz_caught_message(handle->ctx));
@@ -400,6 +404,7 @@ static int gopdf_load_links(gopdf_doc *handle, int page_number, gopdf_link_resul
 		if (page != NULL) {
 			fz_drop_page(handle->ctx, page);
 		}
+		fz_empty_store(handle->ctx);
 	} fz_catch(handle->ctx) {
 		if (items != NULL) {
 			for (int i = 0; i < count; i++) {
@@ -571,6 +576,7 @@ static int gopdf_extract_selection(gopdf_doc *handle, int page_number, float ax,
 		if (page != NULL) {
 			fz_drop_page(handle->ctx, page);
 		}
+		fz_empty_store(handle->ctx);
 	} fz_catch(handle->ctx) {
 		if (copied != NULL) {
 			fz_free(handle->ctx, copied);

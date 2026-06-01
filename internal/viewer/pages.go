@@ -231,4 +231,5 @@ func (a *App) prefetchVisiblePages() {
 	for _, page := range prefetch {
 		a.requestRender(page, a.scale, 10)
 	}
+
 }

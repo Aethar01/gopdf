@@ -279,6 +279,7 @@ func (a *App) Close() {
 }
 
 func (a *App) closeDocumentResources() {
+	a.logf("close document resources cache=%d pending=%d", len(a.renderCache), len(a.renderPending))
 	a.closeRenderWorker()
 	a.closeMetricLoader()
 	a.closeSearch()

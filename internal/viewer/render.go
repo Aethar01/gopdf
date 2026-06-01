@@ -3,6 +3,7 @@ package viewer
 import (
 	"container/list"
 	"fmt"
+	"log"
 	"math"
 	"sync"
 	"sync/atomic"
@@ -166,9 +167,19 @@ func (w *renderWorker) run(docPath string) {
 		req, nextQueue, ok := w.popNextRequest(queue)
 		queue = nextQueue
 		if !ok {
+			if cap(queue) > 128 {
+				log.Printf("render worker queue empty cap=%d", cap(queue))
+			}
 			continue
 		}
+		if cap(queue) > 256 {
+			log.Printf("render worker queue depth=%d cap=%d page=%d", len(queue), cap(queue), req.page+1)
+		}
 		rendered, err := doc.Render(req.page, req.scale, 0, req.aaLevel)
+		if err == nil && rendered != nil && !w.requestWanted(req, int(w.generation.Load())) {
+			rendered.Image.Pix = nil
+			continue
+		}
 		w.send(renderUpdate{
 			generation: req.generation,
 			page:       req.page,
@@ -184,17 +195,22 @@ func (w *renderWorker) run(docPath string) {
 
 func (w *renderWorker) popNextRequest(queue []renderRequest) (renderRequest, []renderRequest, bool) {
 	gen := int(w.generation.Load())
-	best := -1
-	for i, req := range queue {
-		if !w.requestWanted(req, gen) {
-			continue
-		}
-		if best < 0 || req.priority < queue[best].priority {
-			best = i
+	n := 0
+	for _, req := range queue {
+		if w.requestWanted(req, gen) {
+			queue[n] = req
+			n++
 		}
 	}
-	if best < 0 {
-		return renderRequest{}, queue[:0], false
+	queue = queue[:n]
+	if len(queue) == 0 {
+		return renderRequest{}, nil, false
+	}
+	best := 0
+	for i := 1; i < len(queue); i++ {
+		if queue[i].priority < queue[best].priority {
+			best = i
+		}
 	}
 	req := queue[best]
 	copy(queue[best:], queue[best+1:])
@@ -241,13 +257,22 @@ func (a *App) pollRenderUpdates() {
 				continue
 			}
 			if update.generation != a.renderGeneration {
+				a.logf("render stale generation page=%d gen=%d current=%d key=%s", update.page+1, update.generation, a.renderGeneration, update.cacheKey)
+				if update.rendered != nil {
+					update.rendered.Image.Pix = nil
+				}
 				delete(a.renderPending, update.cacheKey)
 				continue
 			}
 			if _, pending := a.renderPending[update.cacheKey]; !pending {
+				a.logf("render not pending page=%d key=%s", update.page+1, update.cacheKey)
+				if update.rendered != nil {
+					update.rendered.Image.Pix = nil
+				}
 				continue
 			}
 			if update.rendered == nil {
+				a.logf("render nil result page=%d key=%s", update.page+1, update.cacheKey)
 				delete(a.renderPending, update.cacheKey)
 				continue
 			}
@@ -278,6 +303,7 @@ func (a *App) pollRenderUpdates() {
 			a.startPendingMetricLoader()
 			a.pendingRedraw = true
 			a.enforceRenderCacheLimit()
+
 		default:
 			return
 		}
@@ -360,19 +386,20 @@ func (rs *renderService) removeRenderCacheEntry(key string, destroy bool) {
 	delete(rs.renderCache, key)
 }
 
-func (rs *renderService) enforceRenderCacheLimit() {
-	rs.ensureRenderCacheState()
-	for rs.cacheLimit > 0 && len(rs.renderCache) > rs.cacheLimit {
-		front := rs.renderLRU.Front()
+func (a *App) enforceRenderCacheLimit() {
+	a.ensureRenderCacheState()
+	for a.cacheLimit > 0 && len(a.renderCache) > a.cacheLimit {
+		front := a.renderLRU.Front()
 		if front == nil {
 			return
 		}
 		key, _ := front.Value.(string)
-		if _, pending := rs.renderPending[key]; pending {
-			rs.renderLRU.MoveToBack(front)
+		if _, pending := a.renderPending[key]; pending {
+			a.renderLRU.MoveToBack(front)
 			continue
 		}
-		rs.removeRenderCacheEntry(key, true)
+		a.removeRenderCacheEntry(key, true)
+
 	}
 }
 
