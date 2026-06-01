@@ -798,10 +798,13 @@ func (a *App) moveInputCursorRightWord() {
 }
 
 func (a *App) currentScale(viewportW, viewportH int) float64 {
+	return a.currentScaleFromRows(viewportW, viewportH, a.baseRows())
+}
+
+func (a *App) currentScaleFromRows(viewportW, viewportH int, baseRows []rowLayout) float64 {
 	if a.fitMode == "manual" {
 		return a.zoom
 	}
-	baseRows := a.baseRows()
 	if a.renderMode == "single" && len(baseRows) > 0 && a.page >= 0 {
 		rowIndex := clampInt(a.baseRowIndexForPage(a.page, baseRows), 0, len(baseRows)-1)
 		row := baseRows[rowIndex]

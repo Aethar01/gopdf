@@ -23,7 +23,8 @@ func (a *App) drawContinuousPages(renderer *sdl.Renderer) {
 	minY := a.scrollY - margin
 	maxY := a.scrollY + float64(viewportH) + margin
 	offsetX, offsetY := a.contentViewportOffset()
-	for _, row := range a.rows {
+	start, end := a.rowRangeForContentY(minY, maxY)
+	for _, row := range a.rows[start:end] {
 		if row.y+row.height < minY || row.y > maxY {
 			continue
 		}
@@ -135,10 +136,8 @@ func (a *App) cachedRenderPage(page int, scale float64) (*renderedPage, bool) {
 	}
 	var bestHigher *renderedPage
 	var bestLower *renderedPage
-	for _, rp := range a.renderCache {
-		if rp.page != page || rp.altColors != a.altColors || rp.aaLevel != a.config.AntiAliasing {
-			continue
-		}
+	a.ensureRenderCacheState()
+	for _, rp := range a.renderIndex[renderVariantKey{page: page, altColors: a.altColors, aaLevel: a.config.AntiAliasing}] {
 		if math.Abs(rp.scale-renderScale) < 0.0001 {
 			return rp, true
 		}
@@ -180,7 +179,8 @@ func (a *App) prefetchVisiblePages() {
 	} else {
 		viewportW, viewportH := a.viewportSize()
 		offsetX, offsetY := a.contentViewportOffset()
-		for _, row := range a.rows {
+		start, end := a.rowRangeForContentY(a.scrollY-offsetY, a.scrollY+float64(viewportH)-offsetY)
+		for _, row := range a.rows[start:end] {
 			rowY := row.y - a.scrollY + offsetY
 			if rowY+row.height < 0 || rowY > float64(viewportH) {
 				continue
@@ -198,7 +198,8 @@ func (a *App) prefetchVisiblePages() {
 		margin := math.Max(a.renderMargin()*2, float64(viewportH))
 		minY := a.scrollY - margin
 		maxY := a.scrollY + float64(viewportH) + margin
-		for _, row := range a.rows {
+		start, end = a.rowRangeForContentY(minY, maxY)
+		for _, row := range a.rows[start:end] {
 			if row.y+row.height < minY || row.y > maxY {
 				continue
 			}

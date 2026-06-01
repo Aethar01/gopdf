@@ -12,6 +12,9 @@ type outlineMenuState struct {
 	selected             int
 	scroll               int
 	expanded             map[int]bool
+	visibleIndices       []int
+	visibleQuery         string
+	visibleExpandedCount int
 	draggingScrollbar    bool
 	scrollbarDragOffsetY int
 	searching            bool
@@ -62,8 +65,12 @@ func (a *App) outlineIndexForPage(page int) int {
 }
 
 func (a *App) visibleOutlineIndices() []int {
-	visible := make([]int, 0, len(a.outline))
 	query := strings.ToLower(strings.TrimSpace(a.outlineMenu.query))
+	expandedCount := len(a.outlineMenu.expanded)
+	if a.outlineMenu.visibleIndices != nil && a.outlineMenu.visibleQuery == query && a.outlineMenu.visibleExpandedCount == expandedCount {
+		return a.outlineMenu.visibleIndices
+	}
+	visible := make([]int, 0, len(a.outline))
 	for i, item := range a.outline {
 		if query != "" {
 			if strings.Contains(strings.ToLower(item.Title), query) {
@@ -84,7 +91,16 @@ func (a *App) visibleOutlineIndices() []int {
 			visible = append(visible, i)
 		}
 	}
+	a.outlineMenu.visibleIndices = visible
+	a.outlineMenu.visibleQuery = query
+	a.outlineMenu.visibleExpandedCount = expandedCount
 	return visible
+}
+
+func (a *App) invalidateVisibleOutlineIndices() {
+	a.outlineMenu.visibleIndices = nil
+	a.outlineMenu.visibleQuery = ""
+	a.outlineMenu.visibleExpandedCount = 0
 }
 
 func (a *App) selectedVisibleOutlineRow(visible []int) int {
@@ -102,6 +118,7 @@ func (a *App) selectedVisibleOutlineRow(visible []int) int {
 
 func (a *App) updateOutlineSearchQuery(query string) {
 	a.outlineMenu.query = query
+	a.invalidateVisibleOutlineIndices()
 	visible := a.visibleOutlineIndices()
 	if len(visible) == 0 {
 		a.outlineMenu.selected = -1
@@ -223,6 +240,7 @@ func (a *App) collapseSelectedOutline() {
 	}
 	if a.outline[selected].HasChildren && a.outlineMenu.expanded[selected] {
 		delete(a.outlineMenu.expanded, selected)
+		a.invalidateVisibleOutlineIndices()
 		a.ensureOutlineSelectionVisible()
 		return
 	}
@@ -238,6 +256,7 @@ func (a *App) expandSelectedOutline() {
 		return
 	}
 	a.outlineMenu.expanded[selected] = true
+	a.invalidateVisibleOutlineIndices()
 	a.ensureOutlineSelectionVisible()
 }
 

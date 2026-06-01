@@ -445,9 +445,7 @@ func (a *App) SetCacheLimit(limit int) error {
 		return fmt.Errorf("cache limit must be at least 1")
 	}
 	a.cacheLimit = limit
-	for len(a.renderOrder) > a.cacheLimit {
-		a.evictRenderCacheEntry(a.renderOrder[0])
-	}
+	a.enforceRenderCacheLimit()
 	return nil
 }
 

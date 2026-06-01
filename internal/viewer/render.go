@@ -1,6 +1,7 @@
 package viewer
 
 import (
+	"container/list"
 	"fmt"
 	"math"
 	"sync"
@@ -34,13 +35,21 @@ type renderUpdate struct {
 
 type renderService struct {
 	renderCache        map[string]*renderedPage
-	renderOrder        []string
+	renderLRU          *list.List
+	renderLRUItems     map[string]*list.Element
+	renderIndex        map[renderVariantKey]map[string]*renderedPage
 	cacheLimit         int
 	renderBaseScale    float64
 	minRenderBaseScale float64
 	renderGeneration   int
 	renderPending      map[string]renderRequest
 	renderWorker       *renderWorker
+}
+
+type renderVariantKey struct {
+	page      int
+	altColors bool
+	aaLevel   int
 }
 
 type renderWorker struct {
@@ -246,10 +255,7 @@ func (a *App) pollRenderUpdates() {
 				remapPageColors(update.rendered.Image, a.config.AltBackground, a.config.AltForeground)
 			}
 			delete(a.renderPending, update.cacheKey)
-			oldRP := a.renderCache[update.cacheKey]
-			if oldRP != nil {
-				sdl.DestroyTexture(oldRP.texture)
-			}
+			a.removeRenderCacheEntry(update.cacheKey, true)
 			tex, err := textureFromImage(a.renderer, update.rendered.Image)
 			if err != nil {
 				a.logf("render texture failed page=%d err=%v", update.page+1, err)
@@ -268,21 +274,10 @@ func (a *App) pollRenderUpdates() {
 				altColors: update.altColors,
 				aaLevel:   update.aaLevel,
 			}
-			a.renderCache[update.cacheKey] = rp
-			a.renderOrder = append(a.renderOrder, update.cacheKey)
+			a.addRenderCacheEntry(update.cacheKey, rp)
 			a.startPendingMetricLoader()
 			a.pendingRedraw = true
-			for len(a.renderOrder) > a.cacheLimit {
-				oldest := a.renderOrder[0]
-				a.renderOrder = a.renderOrder[1:]
-				if _, pending := a.renderPending[oldest]; pending {
-					continue
-				}
-				if oldRP := a.renderCache[oldest]; oldRP != nil {
-					sdl.DestroyTexture(oldRP.texture)
-				}
-				delete(a.renderCache, oldest)
-			}
+			a.enforceRenderCacheLimit()
 		default:
 			return
 		}
@@ -290,25 +285,94 @@ func (a *App) pollRenderUpdates() {
 }
 
 func (rs *renderService) touchRenderCacheEntry(key string) {
-	for i, k := range rs.renderOrder {
-		if k == key {
-			rs.renderOrder = append(rs.renderOrder[:i], rs.renderOrder[i+1:]...)
-			rs.renderOrder = append(rs.renderOrder, key)
-			return
-		}
+	rs.ensureRenderCacheState()
+	if elem := rs.renderLRUItems[key]; elem != nil {
+		rs.renderLRU.MoveToBack(elem)
 	}
 }
 
 func (rs *renderService) evictRenderCacheEntry(key string) {
-	for i, k := range rs.renderOrder {
-		if k == key {
-			rs.renderOrder = append(rs.renderOrder[:i], rs.renderOrder[i+1:]...)
-			if oldRP := rs.renderCache[key]; oldRP != nil {
-				sdl.DestroyTexture(oldRP.texture)
+	rs.removeRenderCacheEntry(key, true)
+}
+
+func (rs *renderService) ensureRenderCacheState() {
+	if rs.renderCache == nil {
+		rs.renderCache = map[string]*renderedPage{}
+	}
+	if rs.renderLRU == nil {
+		rs.renderLRU = list.New()
+	}
+	if rs.renderLRUItems == nil {
+		rs.renderLRUItems = map[string]*list.Element{}
+	}
+	if rs.renderIndex == nil {
+		rs.renderIndex = map[renderVariantKey]map[string]*renderedPage{}
+		for key, rp := range rs.renderCache {
+			if rp == nil {
+				continue
 			}
-			delete(rs.renderCache, key)
+			if rs.renderLRUItems[key] == nil {
+				rs.renderLRUItems[key] = rs.renderLRU.PushBack(key)
+			}
+			rs.indexRenderPage(key, rp)
+		}
+	}
+}
+
+func (rs *renderService) indexRenderPage(key string, rp *renderedPage) {
+	variant := renderVariantKey{page: rp.page, altColors: rp.altColors, aaLevel: rp.aaLevel}
+	pages := rs.renderIndex[variant]
+	if pages == nil {
+		pages = map[string]*renderedPage{}
+		rs.renderIndex[variant] = pages
+	}
+	pages[key] = rp
+}
+
+func (rs *renderService) addRenderCacheEntry(key string, rp *renderedPage) {
+	rs.ensureRenderCacheState()
+	rs.removeRenderCacheEntry(key, true)
+	rs.renderCache[key] = rp
+	rs.renderLRUItems[key] = rs.renderLRU.PushBack(key)
+	rs.indexRenderPage(key, rp)
+}
+
+func (rs *renderService) removeRenderCacheEntry(key string, destroy bool) {
+	rs.ensureRenderCacheState()
+	rp := rs.renderCache[key]
+	if rp == nil {
+		return
+	}
+	if elem := rs.renderLRUItems[key]; elem != nil {
+		rs.renderLRU.Remove(elem)
+		delete(rs.renderLRUItems, key)
+	}
+	variant := renderVariantKey{page: rp.page, altColors: rp.altColors, aaLevel: rp.aaLevel}
+	if pages := rs.renderIndex[variant]; pages != nil {
+		delete(pages, key)
+		if len(pages) == 0 {
+			delete(rs.renderIndex, variant)
+		}
+	}
+	if destroy {
+		sdl.DestroyTexture(rp.texture)
+	}
+	delete(rs.renderCache, key)
+}
+
+func (rs *renderService) enforceRenderCacheLimit() {
+	rs.ensureRenderCacheState()
+	for rs.cacheLimit > 0 && len(rs.renderCache) > rs.cacheLimit {
+		front := rs.renderLRU.Front()
+		if front == nil {
 			return
 		}
+		key, _ := front.Value.(string)
+		if _, pending := rs.renderPending[key]; pending {
+			rs.renderLRU.MoveToBack(front)
+			continue
+		}
+		rs.removeRenderCacheEntry(key, true)
 	}
 }
 
@@ -372,7 +436,9 @@ func (rs *renderService) clearCache() {
 		sdl.DestroyTexture(rp.texture)
 	}
 	rs.renderCache = map[string]*renderedPage{}
-	rs.renderOrder = nil
+	rs.renderLRU = list.New()
+	rs.renderLRUItems = map[string]*list.Element{}
+	rs.renderIndex = map[renderVariantKey]map[string]*renderedPage{}
 	rs.invalidateRenderRequests()
 }
 

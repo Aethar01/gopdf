@@ -213,7 +213,8 @@ func (a *App) visiblePageHits() []pageHit {
 	minY := a.scrollY - margin
 	maxY := a.scrollY + float64(viewportH) + margin
 	offsetX, offsetY := a.contentViewportOffset()
-	for _, row := range a.rows {
+	start, end := a.rowRangeForContentY(minY, maxY)
+	for _, row := range a.rows[start:end] {
 		if row.y+row.height < minY || row.y > maxY {
 			continue
 		}

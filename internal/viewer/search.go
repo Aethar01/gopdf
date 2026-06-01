@@ -115,7 +115,8 @@ func (w *searchWorker) run(docPath string) {
 				break
 			}
 			restarted := false
-			for _, page := range searchPageOrder(req.startPage, req.pageCount) {
+			for offset := range req.pageCount {
+				page := searchPageAt(req.startPage, req.pageCount, offset)
 				select {
 				case <-w.closing:
 					return
@@ -165,6 +166,14 @@ func searchPageOrder(start, count int) []int {
 		pages = append(pages, page)
 	}
 	return pages
+}
+
+func searchPageAt(start, count, offset int) int {
+	if count <= 0 {
+		return 0
+	}
+	start = clampInt(start, 0, count-1)
+	return (start + offset) % count
 }
 
 func (a *App) initSearch() {

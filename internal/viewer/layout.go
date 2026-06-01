@@ -3,6 +3,7 @@ package viewer
 import (
 	"math"
 	"slices"
+	"sort"
 
 	"gopdf/internal/mupdf"
 )
@@ -73,7 +74,7 @@ func (a *App) recomputeLayout(viewportW, viewportH int) {
 		return
 	}
 	base := a.baseRows()
-	a.scale = a.currentScale(viewportW, viewportH)
+	a.scale = a.currentScaleFromRows(viewportW, viewportH, base)
 	a.rows = make([]rowLayout, len(base))
 	a.pageToRow = make([]int, a.pageCount)
 	maxRowWidth := 0.0
@@ -164,15 +165,20 @@ func (a *App) rowIndexAtContentY(marker float64) int {
 	if marker < 0 {
 		marker = 0
 	}
-	current := 0
-	for i, row := range a.rows {
-		if row.y <= marker {
-			current = i
-			continue
-		}
-		break
+	index := sort.Search(len(a.rows), func(i int) bool { return a.rows[i].y > marker }) - 1
+	return clampInt(index, 0, len(a.rows)-1)
+}
+
+func (a *App) rowRangeForContentY(minY, maxY float64) (int, int) {
+	if len(a.rows) == 0 {
+		return 0, 0
 	}
-	return current
+	start := sort.Search(len(a.rows), func(i int) bool { return a.rows[i].y+a.rows[i].height >= minY })
+	end := sort.Search(len(a.rows), func(i int) bool { return a.rows[i].y > maxY })
+	if start > end {
+		start = end
+	}
+	return start, end
 }
 
 func (a *App) verticalGap() int {

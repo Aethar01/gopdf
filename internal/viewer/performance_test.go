@@ -1,0 +1,191 @@
+package viewer
+
+import (
+	"fmt"
+	"os"
+	"path/filepath"
+	"testing"
+
+	"gopdf/internal/mupdf"
+)
+
+func heavyPDFPath(b *testing.B) string {
+	b.Helper()
+	path := os.Getenv("GOPDF_PERF_PDF")
+	if path == "" {
+		path = filepath.Join("..", "..", "testdata", "perf", "heavy.pdf")
+	}
+	if _, err := os.Stat(path); err != nil {
+		b.Skipf("heavy PDF not found; set GOPDF_PERF_PDF or add %s", path)
+	}
+	return path
+}
+
+func BenchmarkRowIndexAtContentY(b *testing.B) {
+	app := testLayoutApp(100000)
+	app.recomputeLayout(1000, 800)
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = app.rowIndexAtContentY(float64((i % len(app.rows)) * 210))
+	}
+}
+
+func BenchmarkPrefetchVisiblePagesLargeDocument(b *testing.B) {
+	app := testLayoutApp(100000)
+	app.recomputeLayout(1000, 800)
+	app.cacheLimit = 24
+	app.renderCache = map[string]*renderedPage{}
+	app.renderPending = map[string]renderRequest{}
+	app.renderBaseScale = 1
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		app.scrollY = float64((i % len(app.rows)) * 210)
+		app.prefetchVisiblePages()
+	}
+}
+
+func BenchmarkCachedRenderPageIndexedFallback(b *testing.B) {
+	app := &App{}
+	app.pageCount = 50000
+	app.config.AntiAliasing = 8
+	app.renderBaseScale = 1
+	app.renderCache = map[string]*renderedPage{}
+	for page := 0; page < app.pageCount; page++ {
+		scale := 0.5
+		if page%2 == 0 {
+			scale = 2
+		}
+		key := renderCacheKey(page, scale, false, app.config.AntiAliasing)
+		app.addRenderCacheEntry(key, &renderedPage{key: key, page: page, scale: scale, aaLevel: app.config.AntiAliasing})
+	}
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		if _, ok := app.cachedRenderPage(i%app.pageCount, 1); !ok {
+			b.Fatal("expected cached fallback render")
+		}
+	}
+}
+
+func BenchmarkVisibleOutlineIndicesCached(b *testing.B) {
+	const count = 50000
+	outline := make([]mupdf.OutlineItem, count)
+	expanded := map[int]bool{}
+	for i := range outline {
+		parent := -1
+		depth := 0
+		if i%10 != 0 {
+			parent = i - i%10
+			depth = 1
+			expanded[parent] = true
+		}
+		outline[i] = mupdf.OutlineItem{Title: fmt.Sprintf("Item %d", i), Page: i, Parent: parent, Depth: depth, HasChildren: i%10 == 0}
+	}
+	app := &App{documentState: documentState{outline: outline}, uiState: uiState{outlineMenu: outlineMenuState{expanded: expanded}}}
+	_ = app.visibleOutlineIndices()
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = app.visibleOutlineIndices()
+	}
+}
+
+func BenchmarkPerfHeavyPDFOpen(b *testing.B) {
+	path := heavyPDFPath(b)
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		doc, err := mupdf.Open(path)
+		if err != nil {
+			b.Fatal(err)
+		}
+		doc.Close()
+	}
+}
+
+func BenchmarkPerfHeavyPDFBoundsAllPages(b *testing.B) {
+	path := heavyPDFPath(b)
+	doc, err := mupdf.Open(path)
+	if err != nil {
+		b.Fatal(err)
+	}
+	defer doc.Close()
+	pageCount := doc.CachedPageCount()
+	if pageCount == 0 {
+		b.Skip("PDF has no pages")
+	}
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		for page := 0; page < pageCount; page++ {
+			if _, err := doc.Bounds(page); err != nil {
+				b.Fatal(err)
+			}
+		}
+	}
+}
+
+func BenchmarkPerfHeavyPDFRenderPages(b *testing.B) {
+	path := heavyPDFPath(b)
+	doc, err := mupdf.Open(path)
+	if err != nil {
+		b.Fatal(err)
+	}
+	defer doc.Close()
+	pageCount := doc.CachedPageCount()
+	if pageCount == 0 {
+		b.Skip("PDF has no pages")
+	}
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		page := i % pageCount
+		if _, err := doc.Render(page, 1.5, 0, 8); err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
+func BenchmarkPerfHeavyPDFSearchAllPages(b *testing.B) {
+	path := heavyPDFPath(b)
+	query := os.Getenv("GOPDF_PERF_QUERY")
+	if query == "" {
+		query = "the"
+	}
+	doc, err := mupdf.Open(path)
+	if err != nil {
+		b.Fatal(err)
+	}
+	defer doc.Close()
+	pageCount := doc.CachedPageCount()
+	if pageCount == 0 {
+		b.Skip("PDF has no pages")
+	}
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		for page := 0; page < pageCount; page++ {
+			if _, err := doc.SearchPage(page, query); err != nil {
+				b.Fatal(err)
+			}
+		}
+	}
+}
+
+func BenchmarkPerfHeavyPDFOutline(b *testing.B) {
+	path := heavyPDFPath(b)
+	doc, err := mupdf.Open(path)
+	if err != nil {
+		b.Fatal(err)
+	}
+	defer doc.Close()
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		if _, err := doc.Outline(); err != nil {
+			b.Fatal(err)
+		}
+	}
+}
