@@ -160,8 +160,7 @@ func (a *App) openDocument(path string, opts openDocumentOptions) error {
 	a.completion = completionState{}
 	a.selection = textSelection{}
 	a.mode = modeNormal
-	a.input = ""
-	a.inputCursor = 0
+	a.input.Reset()
 	a.ignoreText = ""
 	a.sequence = nil
 	a.pendingCount = ""

@@ -35,15 +35,15 @@ func (a *App) formatStatusBar(template string) string {
 	var inputToken, promptToken string
 	switch a.mode {
 	case modeCommand:
-		message = ":" + a.input
-		inputToken = a.input
+		message = ":" + a.input.Value
+		inputToken = a.input.Value
 	case modeGotoPage:
-		message = " GOTO " + a.input
-		inputToken = a.input
+		message = " GOTO " + a.input.Value
+		inputToken = a.input.Value
 	case modeSearch:
 		promptToken = a.searchPromptToken()
-		message = promptToken + a.input
-		inputToken = a.input
+		message = promptToken + a.input.Value
+		inputToken = a.input.Value
 	}
 
 	page := fmt.Sprintf("%d", a.page+1)
@@ -78,7 +78,7 @@ func (a *App) drawInputCursor(renderer *sdl.Renderer, barY, pad, vertOffset int)
 		return nil
 	}
 	prefix := a.inputPrefix()
-	left, _ := splitAtRune(a.input, a.inputCursor)
+	left := a.input.Left()
 	x := pad + measureText(a.fontFace, prefix+left)
 	fg := a.foregroundColor()
 	if !sdl.SetRenderDrawColor(renderer, fg.R, fg.G, fg.B, fg.A) {

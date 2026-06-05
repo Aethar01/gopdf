@@ -117,25 +117,21 @@ func (a *App) runBuiltinAction(action string) error {
 	case "command_mode":
 		a.closeAllUI()
 		a.mode = modeCommand
-		a.input = ""
-		a.inputCursor = 0
+		a.input.Reset()
 	case "search_prompt":
 		a.closeAllUI()
 		a.mode = modeSearch
 		a.searchInput = searchModeForward
-		a.input = ""
-		a.inputCursor = 0
+		a.input.Reset()
 	case "search_prompt_backward":
 		a.closeAllUI()
 		a.mode = modeSearch
 		a.searchInput = searchModeBackward
-		a.input = ""
-		a.inputCursor = 0
+		a.input.Reset()
 	case "goto_page_prompt":
 		a.closeAllUI()
 		a.mode = modeGotoPage
-		a.input = ""
-		a.inputCursor = 0
+		a.input.Reset()
 	case "search_next":
 		a.repeatSearch(true)
 	case "search_prev":
@@ -236,8 +232,7 @@ func (a *App) closeAllUI() {
 	if a.mode != modeNormal {
 		a.closeCompletion()
 		a.mode = modeNormal
-		a.input = ""
-		a.inputCursor = 0
+		a.input.Reset()
 		a.ignoreText = ""
 	}
 	if a.search.query != "" || len(a.search.order) > 0 || a.search.running {
@@ -264,8 +259,7 @@ func (a *App) closeActiveUI() {
 			return
 		}
 		a.mode = modeNormal
-		a.input = ""
-		a.inputCursor = 0
+		a.input.Reset()
 		a.ignoreText = ""
 		return
 	}

@@ -81,10 +81,7 @@ func (a *App) acceptCompletion() {
 		return
 	}
 	item := a.completion.items[clampInt(a.completion.selected, 0, len(a.completion.items)-1)]
-	left, _ := splitAtRune(a.input, a.completion.start)
-	_, after := splitAtRune(a.input, a.completion.end)
-	a.input = left + item.value + after
-	a.inputCursor = a.completion.start + len([]rune(item.value))
+	a.input.ReplaceRange(a.completion.start, a.completion.end, item.value)
 	a.closeCompletion()
 }
 
@@ -96,20 +93,20 @@ func (a *App) closeCompletion() {
 }
 
 func (a *App) commandCompletions() ([]completionItem, int, int) {
-	left, _ := splitAtRune(a.input, a.inputCursor)
+	left := a.input.Left()
 	cmdStart := firstNonSpaceRune(left)
-	cmdEnd := commandNameEndRune(a.input, cmdStart)
-	if a.inputCursor <= cmdEnd {
-		prefix := strings.TrimSpace(sliceRunes(a.input, cmdStart, a.inputCursor))
+	cmdEnd := commandNameEndRune(a.input.Value, cmdStart)
+	if a.input.Cursor <= cmdEnd {
+		prefix := strings.TrimSpace(sliceRunes(a.input.Value, cmdStart, a.input.Cursor))
 		return prefixedCommandCompletions(prefix), cmdStart, cmdEnd
 	}
-	cmd := strings.TrimSpace(sliceRunes(a.input, cmdStart, cmdEnd))
-	argStart := nextNonSpaceRune(a.input, cmdEnd)
-	if a.inputCursor < argStart {
-		argStart = a.inputCursor
+	cmd := strings.TrimSpace(sliceRunes(a.input.Value, cmdStart, cmdEnd))
+	argStart := nextNonSpaceRune(a.input.Value, cmdEnd)
+	if a.input.Cursor < argStart {
+		argStart = a.input.Cursor
 	}
-	argEnd := nextSpaceRune(a.input, argStart)
-	arg := sliceRunes(a.input, argStart, a.inputCursor)
+	argEnd := nextSpaceRune(a.input.Value, argStart)
+	arg := sliceRunes(a.input.Value, argStart, a.input.Cursor)
 	if cmd == "open" {
 		return a.openPathCompletions(arg), argStart, argEnd
 	}
@@ -252,7 +249,7 @@ func (a *App) drawCompletion(renderer *sdl.Renderer) error {
 		width = max(width, measureText(a.fontFace, row.text))
 	}
 	width = clampInt(width+24, 120, max(120, a.winW-16))
-	left, _ := splitAtRune(a.input, a.inputCursor)
+	left := a.input.Left()
 	x := 8 + measureText(a.fontFace, a.inputPrefix()+left)
 	x = clampInt(x, 8, max(8, a.winW-width-8))
 	height := len(rows) * rowHeight

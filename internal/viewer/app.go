@@ -7,7 +7,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-	"unicode"
 	"unicode/utf8"
 
 	"gopdf/internal/config"
@@ -141,8 +140,7 @@ type sdlState struct {
 
 type inputState struct {
 	mode           mode
-	input          string
-	inputCursor    int
+	input          textInput
 	ignoreText     string
 	message        string
 	mouseBindings  map[string]string
@@ -318,23 +316,23 @@ func (a *App) handleSDLKeyDown(e *sdl.KeyboardEvent) {
 		switch e.Key {
 		case sdl.KeycodeLeft:
 			if e.Mod&sdl.KeymodCtrl != 0 {
-				a.moveInputCursorLeftWord()
+				a.editInput(func(input *textInput) { input.MoveWordLeft() })
 			} else {
-				a.moveInputCursor(-1)
+				a.editInput(func(input *textInput) { input.Move(-1) })
 			}
 			return
 		case sdl.KeycodeRight:
 			if e.Mod&sdl.KeymodCtrl != 0 {
-				a.moveInputCursorRightWord()
+				a.editInput(func(input *textInput) { input.MoveWordRight() })
 			} else {
-				a.moveInputCursor(1)
+				a.editInput(func(input *textInput) { input.Move(1) })
 			}
 			return
 		case sdl.KeycodeBackspace:
-			a.backspaceInput()
+			a.editInput(func(input *textInput) { input.Backspace() })
 			return
 		case sdl.KeycodeDelete:
-			a.deleteInput()
+			a.editInput(func(input *textInput) { input.Delete() })
 			return
 		}
 		if token, ok := keyToken(e.Key, e.Mod); ok && a.handleInputModeBinding(token) {
@@ -362,12 +360,16 @@ func (a *App) handleSDLKeyDown(e *sdl.KeyboardEvent) {
 
 func (a *App) handleInputEditKey(e *sdl.KeyboardEvent) bool {
 	ctrl := e.Mod&sdl.KeymodCtrl != 0
+	if ctrl && e.Key == sdl.KeycodeV {
+		a.editInput(func(input *textInput) { input.InsertText(sdlGetClipboardText()) })
+		return true
+	}
 	if ctrl && e.Key == sdl.KeycodeW {
-		a.deleteInputWord()
+		a.editInput(func(input *textInput) { input.DeleteWordLeft() })
 		return true
 	}
 	if ctrl && e.Key == sdl.KeycodeBackspace {
-		a.deleteInputWord()
+		a.editInput(func(input *textInput) { input.DeleteWordLeft() })
 		return true
 	}
 	return false
@@ -430,7 +432,7 @@ func (a *App) handleSDLTextInput(e *sdl.TextInputEvent) {
 	}
 	for _, r := range text {
 		if r >= 0x20 && r != 0x7f {
-			a.insertInputRune(r)
+			a.editInput(func(input *textInput) { input.InsertRune(r) })
 		}
 	}
 }
@@ -694,11 +696,10 @@ func (a *App) commitInputMode() {
 		a.acceptCompletion()
 		return
 	}
-	input := strings.TrimSpace(a.input)
+	input := strings.TrimSpace(a.input.Value)
 	currentMode := a.mode
 	a.mode = modeNormal
-	a.input = ""
-	a.inputCursor = 0
+	a.input.Reset()
 	a.closeCompletion()
 	if input == "" {
 		return
@@ -713,88 +714,9 @@ func (a *App) commitInputMode() {
 	}
 }
 
-func (a *App) insertInputRune(r rune) {
+func (a *App) editInput(edit func(*textInput)) {
 	a.closeCompletion()
-	left, right := splitAtRune(a.input, a.inputCursor)
-	a.input = left + string(r) + right
-	a.inputCursor++
-}
-
-func (a *App) backspaceInput() {
-	a.closeCompletion()
-	if a.inputCursor <= 0 || a.input == "" {
-		return
-	}
-	left, right := splitAtRune(a.input, a.inputCursor)
-	_, size := lastRune(left)
-	a.input = left[:len(left)-size] + right
-	a.inputCursor--
-}
-
-func (a *App) deleteInputWord() {
-	a.closeCompletion()
-	if a.inputCursor <= 0 || a.input == "" {
-		return
-	}
-	runes := []rune(a.input)
-	end := clampInt(a.inputCursor, 0, len(runes))
-	start := end
-	for start > 0 && unicode.IsSpace(runes[start-1]) {
-		start--
-	}
-	for start > 0 && !unicode.IsSpace(runes[start-1]) {
-		start--
-	}
-	a.input = string(runes[:start]) + string(runes[end:])
-	a.inputCursor = start
-}
-
-func (a *App) moveInputCursor(delta int) {
-	a.closeCompletion()
-	a.inputCursor = clampInt(a.inputCursor+delta, 0, utf8.RuneCountInString(a.input))
-}
-
-func (a *App) deleteInput() {
-	a.closeCompletion()
-	runes := []rune(a.input)
-	if a.inputCursor >= len(runes) {
-		return
-	}
-	left, right := splitAtRune(a.input, a.inputCursor)
-	_, after := splitAtRune(right, 1)
-	a.input = left + after
-}
-
-func (a *App) moveInputCursorLeftWord() {
-	a.closeCompletion()
-	if a.inputCursor <= 0 || a.input == "" {
-		return
-	}
-	runes := []rune(a.input)
-	pos := clampInt(a.inputCursor, 0, len(runes))
-	for pos > 0 && unicode.IsSpace(runes[pos-1]) {
-		pos--
-	}
-	for pos > 0 && !unicode.IsSpace(runes[pos-1]) {
-		pos--
-	}
-	a.inputCursor = pos
-}
-
-func (a *App) moveInputCursorRightWord() {
-	a.closeCompletion()
-	runes := []rune(a.input)
-	if a.inputCursor >= len(runes) {
-		return
-	}
-	pos := clampInt(a.inputCursor, 0, len(runes))
-	for pos < len(runes) && unicode.IsSpace(runes[pos]) {
-		pos++
-	}
-	for pos < len(runes) && !unicode.IsSpace(runes[pos]) {
-		pos++
-	}
-	a.inputCursor = pos
+	edit(&a.input)
 }
 
 func (a *App) currentScale(viewportW, viewportH int) float64 {

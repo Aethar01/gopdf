@@ -100,7 +100,7 @@ func TestFormatStatusBarUsesInputModeMessage(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			app := &App{inputState: inputState{mode: tt.mode, input: tt.input}}
+			app := &App{inputState: inputState{mode: tt.mode, input: textInput{Value: tt.input}}}
 			if tt.back {
 				app.searchInput = searchModeBackward
 			}
@@ -382,13 +382,13 @@ func TestMoveSearchReportsExpectedState(t *testing.T) {
 
 	app.search = searchState{query: "needle", running: true}
 	app.moveSearch(1)
-	if app.message != "searching /needle" {
+	if app.message != "searching for needle" {
 		t.Fatalf("expected running search message, got %q", app.message)
 	}
 
 	app.search = searchState{query: "needle"}
 	app.moveSearch(1)
-	if app.message != "no matches for /needle" {
+	if app.message != "no matches for needle" {
 		t.Fatalf("expected no matches message, got %q", app.message)
 	}
 
@@ -657,12 +657,12 @@ func TestBuiltinPromptActionsEnterExpectedModes(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.action, func(t *testing.T) {
-			app := &App{inputState: inputState{input: "stale", inputCursor: 5, searchInput: searchModeBackward}}
+			app := &App{inputState: inputState{input: textInput{Value: "stale", Cursor: 5}, searchInput: searchModeBackward}}
 			if err := app.runBuiltinAction(tt.action); err != nil {
 				t.Fatal(err)
 			}
-			if app.mode != tt.wantMode || app.input != "" || app.inputCursor != 0 {
-				t.Fatalf("expected clean input mode %v, got mode=%v input=%q cursor=%d", tt.wantMode, app.mode, app.input, app.inputCursor)
+			if app.mode != tt.wantMode || app.input.Value != "" || app.input.Cursor != 0 {
+				t.Fatalf("expected clean input mode %v, got mode=%v input=%q cursor=%d", tt.wantMode, app.mode, app.input.Value, app.input.Cursor)
 			}
 			if tt.wantMode == modeSearch && app.searchInput != tt.wantSearch {
 				t.Fatalf("expected search mode %v, got %v", tt.wantSearch, app.searchInput)
@@ -683,29 +683,42 @@ func TestBuiltinPromptActionsEnterExpectedModes(t *testing.T) {
 }
 
 func TestInputEditingKeepsRuneCursorPositions(t *testing.T) {
-	app := &App{inputState: inputState{input: "ab", inputCursor: 1}}
-	app.insertInputRune('界')
-	if app.input != "a界b" || app.inputCursor != 2 {
-		t.Fatalf("expected rune inserted at cursor, input=%q cursor=%d", app.input, app.inputCursor)
+	app := &App{inputState: inputState{input: textInput{Value: "ab", Cursor: 1}}}
+	app.input.InsertRune('界')
+	if app.input.Value != "a界b" || app.input.Cursor != 2 {
+		t.Fatalf("expected rune inserted at cursor, input=%q cursor=%d", app.input.Value, app.input.Cursor)
 	}
 
-	app.moveInputCursor(10)
-	if app.inputCursor != 3 {
-		t.Fatalf("expected cursor to clamp to rune length, got %d", app.inputCursor)
+	app.input.Move(10)
+	if app.input.Cursor != 3 {
+		t.Fatalf("expected cursor to clamp to rune length, got %d", app.input.Cursor)
 	}
-	app.moveInputCursor(-2)
-	if app.inputCursor != 1 {
-		t.Fatalf("expected cursor to move left by runes, got %d", app.inputCursor)
-	}
-
-	app.backspaceInput()
-	if app.input != "界b" || app.inputCursor != 0 {
-		t.Fatalf("expected backspace to remove previous rune, input=%q cursor=%d", app.input, app.inputCursor)
+	app.input.Move(-2)
+	if app.input.Cursor != 1 {
+		t.Fatalf("expected cursor to move left by runes, got %d", app.input.Cursor)
 	}
 
-	app.backspaceInput()
-	if app.input != "界b" || app.inputCursor != 0 {
-		t.Fatalf("expected backspace at start to be a no-op, input=%q cursor=%d", app.input, app.inputCursor)
+	app.input.Backspace()
+	if app.input.Value != "界b" || app.input.Cursor != 0 {
+		t.Fatalf("expected backspace to remove previous rune, input=%q cursor=%d", app.input.Value, app.input.Cursor)
+	}
+
+	app.input.Backspace()
+	if app.input.Value != "界b" || app.input.Cursor != 0 {
+		t.Fatalf("expected backspace at start to be a no-op, input=%q cursor=%d", app.input.Value, app.input.Cursor)
+	}
+}
+
+func TestPasteInputInsertsClipboardAtCursor(t *testing.T) {
+	oldGet := sdlGetClipboardText
+	t.Cleanup(func() { sdlGetClipboardText = oldGet })
+	sdlGetClipboardText = func() string { return "界x" }
+
+	app := &App{inputState: inputState{input: textInput{Value: "ab", Cursor: 1}}}
+	app.handleInputEditKey(&sdl.KeyboardEvent{Key: sdl.KeycodeV, Mod: sdl.KeymodCtrl})
+
+	if app.input.Value != "a界xb" || app.input.Cursor != 3 {
+		t.Fatalf("expected pasted text at cursor, input=%q cursor=%d", app.input.Value, app.input.Cursor)
 	}
 }
 
@@ -713,20 +726,19 @@ func TestCommitInputModeExecutesModeSpecificBehavior(t *testing.T) {
 	app := testLayoutApp(5)
 	app.recomputeLayout(800, 600)
 	app.mode = modeGotoPage
-	app.input = "3"
-	app.inputCursor = 1
+	app.input.Set("3")
 	app.commitInputMode()
-	if app.mode != modeNormal || app.input != "" || app.inputCursor != 0 || app.page != 2 {
-		t.Fatalf("expected goto input to navigate and clear input, mode=%v input=%q cursor=%d page=%d", app.mode, app.input, app.inputCursor, app.page)
+	if app.mode != modeNormal || app.input.Value != "" || app.input.Cursor != 0 || app.page != 2 {
+		t.Fatalf("expected goto input to navigate and clear input, mode=%v input=%q cursor=%d page=%d", app.mode, app.input.Value, app.input.Cursor, app.page)
 	}
 
-	app = &App{inputState: inputState{mode: modeCommand, input: "quit", inputCursor: 4}}
+	app = &App{inputState: inputState{mode: modeCommand, input: textInput{Value: "quit", Cursor: 4}}}
 	app.commitInputMode()
 	if app.mode != modeNormal || !app.quit {
 		t.Fatalf("expected command input to run quit and return to normal, mode=%v quit=%v", app.mode, app.quit)
 	}
 
-	app = &App{inputState: inputState{mode: modeSearch, input: "needle", inputCursor: 6, searchInput: searchModeBackward}}
+	app = &App{inputState: inputState{mode: modeSearch, input: textInput{Value: "needle", Cursor: 6}, searchInput: searchModeBackward}}
 	app.commitInputMode()
 	if app.mode != modeNormal || app.search.query != "needle" || app.search.mode != searchModeBackward || app.message != "no document open" {
 		t.Fatalf("expected search input to start backward search, mode=%v search=%+v message=%q", app.mode, app.search, app.message)
@@ -860,7 +872,7 @@ func TestResizeKeepsConfiguredViewportAnchorPosition(t *testing.T) {
 
 func TestCompletionAcceptCloseAndVisibleRows(t *testing.T) {
 	app := &App{
-		inputState: inputState{input: "open par", inputCursor: 8},
+		inputState: inputState{input: textInput{Value: "open par", Cursor: 8}},
 		config:     config.Config{CompletionMaxItems: 3},
 		uiState: uiState{completion: completionState{
 			visible:  true,
@@ -874,8 +886,8 @@ func TestCompletionAcceptCloseAndVisibleRows(t *testing.T) {
 		}},
 	}
 	app.acceptCompletion()
-	if app.input != "open paper.pdf" || app.inputCursor != len([]rune("open paper.pdf")) || app.completion.visible || !app.pendingRedraw {
-		t.Fatalf("expected selected completion to replace range and close menu, input=%q cursor=%d completion=%+v redraw=%v", app.input, app.inputCursor, app.completion, app.pendingRedraw)
+	if app.input.Value != "open paper.pdf" || app.input.Cursor != len([]rune("open paper.pdf")) || app.completion.visible || !app.pendingRedraw {
+		t.Fatalf("expected selected completion to replace range and close menu, input=%q cursor=%d completion=%+v redraw=%v", app.input.Value, app.input.Cursor, app.completion, app.pendingRedraw)
 	}
 
 	app.completion = completionState{visible: true, items: []completionItem{{display: "a", value: "a"}}}

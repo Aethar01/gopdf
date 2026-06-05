@@ -10,11 +10,11 @@ import (
 )
 
 func TestShowCompletionAcceptsUniqueCommand(t *testing.T) {
-	a := &App{inputState: inputState{mode: modeCommand, input: "op", inputCursor: 2}, config: config.Default()}
+	a := &App{inputState: inputState{mode: modeCommand, input: textInput{Value: "op", Cursor: 2}}, config: config.Default()}
 	a.showCompletion()
 
-	if a.input != "open" {
-		t.Fatalf("expected open completion, got %q", a.input)
+	if a.input.Value != "open" {
+		t.Fatalf("expected open completion, got %q", a.input.Value)
 	}
 	if a.completion.visible {
 		t.Fatal("expected unique completion to close menu")
@@ -22,7 +22,7 @@ func TestShowCompletionAcceptsUniqueCommand(t *testing.T) {
 }
 
 func TestShowCompletionCyclesCommandMenu(t *testing.T) {
-	a := &App{inputState: inputState{mode: modeCommand, input: "", inputCursor: 0}, config: config.Default()}
+	a := &App{inputState: inputState{mode: modeCommand}, config: config.Default()}
 	a.showCompletion()
 
 	if !a.completion.visible {
@@ -143,17 +143,16 @@ func TestExpandHomePathAcceptsSlashSeparator(t *testing.T) {
 }
 
 func TestDeleteInputWord(t *testing.T) {
-	a := &App{inputState: inputState{input: "open ../some file.pdf", inputCursor: len([]rune("open ../some file"))}}
-	a.deleteInputWord()
-	if a.input != "open ../some .pdf" || a.inputCursor != len([]rune("open ../some ")) {
-		t.Fatalf("expected previous word deleted, input=%q cursor=%d", a.input, a.inputCursor)
+	a := &App{inputState: inputState{input: textInput{Value: "open ../some file.pdf", Cursor: len([]rune("open ../some file"))}}}
+	a.input.DeleteWordLeft()
+	if a.input.Value != "open ../some .pdf" || a.input.Cursor != len([]rune("open ../some ")) {
+		t.Fatalf("expected previous word deleted, input=%q cursor=%d", a.input.Value, a.input.Cursor)
 	}
 
-	a.input = "open ../some   "
-	a.inputCursor = len([]rune(a.input))
-	a.deleteInputWord()
-	if a.input != "open " || a.inputCursor != len([]rune("open ")) {
-		t.Fatalf("expected word and trailing spaces deleted, input=%q cursor=%d", a.input, a.inputCursor)
+	a.input.Set("open ../some   ")
+	a.input.DeleteWordLeft()
+	if a.input.Value != "open " || a.input.Cursor != len([]rune("open ")) {
+		t.Fatalf("expected word and trailing spaces deleted, input=%q cursor=%d", a.input.Value, a.input.Cursor)
 	}
 }
 

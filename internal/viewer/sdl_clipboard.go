@@ -2,9 +2,12 @@ package viewer
 
 import (
 	"fmt"
+
+	"github.com/jupiterrider/purego-sdl3/sdl"
 )
 
 var sdlSetClipboardText func(string) bool
+var sdlGetClipboardText = sdl.GetClipboardText
 
 func setSDLClipboardText(text string) error {
 	if sdlSetClipboardText == nil {

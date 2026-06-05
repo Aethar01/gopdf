@@ -215,7 +215,7 @@ func (a *App) pollSearchUpdates() {
 			if update.done {
 				a.search.running = false
 				if len(a.search.order) == 0 && a.search.query != "" {
-					a.message = fmt.Sprintf("no matches for /%s", a.search.query)
+					a.message = fmt.Sprintf("no matches for %s", a.search.query)
 				} else if len(a.search.order) > 0 {
 					a.message = a.searchStatusMessage()
 				}
@@ -261,7 +261,7 @@ func (a *App) startSearch(query string, mode searchMode) {
 	}
 	a.search.running = true
 	a.logf("start search query=%q page=%d", query, a.page+1)
-	a.message = fmt.Sprintf("searching /%s", query)
+	a.message = fmt.Sprintf("searching for %s", query)
 	if !a.searchWorker.Start(searchRequest{
 		generation: a.search.generation,
 		query:      query,
@@ -302,10 +302,10 @@ func (a *App) moveSearch(delta int) {
 	}
 	if len(a.search.order) == 0 {
 		if a.search.running {
-			a.message = fmt.Sprintf("searching /%s", a.search.query)
+			a.message = fmt.Sprintf("searching for %s", a.search.query)
 			return
 		}
-		a.message = fmt.Sprintf("no matches for /%s", a.search.query)
+		a.message = fmt.Sprintf("no matches for %s", a.search.query)
 		return
 	}
 	if a.search.current < 0 {
