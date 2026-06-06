@@ -6,7 +6,7 @@ import (
 )
 
 func TestDocumentSessionRoundTrip(t *testing.T) {
-	setTestStateDir(t)
+	setTestDataDir(t)
 	path := "/tmp/example.pdf"
 	want := DocumentSession{
 		Page:            4,
@@ -37,14 +37,14 @@ func TestDocumentSessionRoundTrip(t *testing.T) {
 	}
 }
 
-func TestSessionDatabaseDefaultOff(t *testing.T) {
-	if Default().SessionDatabase {
-		t.Fatal("session database should default to off")
+func TestSessionDatabaseDefaultOn(t *testing.T) {
+	if !Default().SessionDatabase {
+		t.Fatal("session database should default to on")
 	}
 }
 
 func TestRecentFiles(t *testing.T) {
-	setTestStateDir(t)
+	setTestDataDir(t)
 	if err := RecordRecentFile("/tmp/one.pdf", 10); err != nil {
 		t.Fatal(err)
 	}
@@ -64,7 +64,7 @@ func TestRecentFiles(t *testing.T) {
 }
 
 func TestRecentFilesMaxEntries(t *testing.T) {
-	setTestStateDir(t)
+	setTestDataDir(t)
 	if err := RecordRecentFile("/tmp/one.pdf", 2); err != nil {
 		t.Fatal(err)
 	}
@@ -84,7 +84,7 @@ func TestRecentFilesMaxEntries(t *testing.T) {
 }
 
 func TestDocumentMarkRoundTrip(t *testing.T) {
-	setTestStateDir(t)
+	setTestDataDir(t)
 	want := DocumentMark{Page: 2, ScrollX: 3, ScrollY: 4, AnchorPage: 5, AnchorX: 6, AnchorY: 7, AnchorValid: true}
 	if err := SetDocumentMark("/tmp/doc.pdf", "a", want); err != nil {
 		t.Fatal(err)
@@ -98,7 +98,7 @@ func TestDocumentMarkRoundTrip(t *testing.T) {
 	}
 }
 
-func setTestStateDir(t *testing.T) {
+func setTestDataDir(t *testing.T) {
 	t.Helper()
 	dir := t.TempDir()
 	switch runtime.GOOS {

@@ -7,9 +7,9 @@ import (
 	"path/filepath"
 )
 
-func platformStatePath() string {
+func platformDataDir() string {
 	if home, err := os.UserHomeDir(); err == nil {
-		return filepath.Join(home, "Library", "Application Support", "gopdf", "state")
+		return filepath.Join(home, "Library", "Application Support", "gopdf")
 	}
 	return ""
 }

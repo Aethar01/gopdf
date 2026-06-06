@@ -7,9 +7,9 @@ import (
 	"path/filepath"
 )
 
-func platformStatePath() string {
+func platformDataDir() string {
 	if dir := appDataDir(); dir != "" {
-		return filepath.Join(dir, "gopdf", "state")
+		return filepath.Join(dir, "gopdf")
 	}
 	return ""
 }

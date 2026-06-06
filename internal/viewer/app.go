@@ -292,9 +292,6 @@ func (a *App) Close() {
 		a.window = nil
 	}
 	sdl.Quit()
-	if a.docPath != "" {
-		config.SetLastState(config.LastState{Path: a.docPath, Page: a.page + 1})
-	}
 }
 
 func (a *App) closeDocumentResources() {

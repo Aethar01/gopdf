@@ -8,12 +8,12 @@ import (
 	"strings"
 )
 
-func platformStatePath() string {
+func platformDataDir() string {
 	if xdgData := os.Getenv("XDG_DATA_HOME"); xdgData != "" {
-		return filepath.Join(xdgData, "gopdf", "state")
+		return filepath.Join(xdgData, "gopdf")
 	}
 	if home, err := os.UserHomeDir(); err == nil {
-		return filepath.Join(home, ".local", "share", "gopdf", "state")
+		return filepath.Join(home, ".local", "share", "gopdf")
 	}
 	return ""
 }

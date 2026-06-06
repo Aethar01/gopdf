@@ -46,10 +46,11 @@ func run() error {
 
 	var docPath string
 	if flag.NArg() == 0 {
-		state := config.GetLastState()
-		docPath = state.Path
-		if !pageSet {
-			startPage = state.Page
+		if recent := config.RecentFiles(1); len(recent) > 0 {
+			docPath = recent[0]
+			if session, ok := config.GetDocumentSession(docPath); !pageSet && ok {
+				startPage = session.Page + 1
+			}
 		}
 	} else {
 		docPath = flag.Arg(0)

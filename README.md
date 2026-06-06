@@ -69,7 +69,7 @@ gopdf -V                     # enable verbose logs
 ```
 Press F1 to see the default keybinds (and change them if you want)
 
-If no file is provided, gopdf reopens the last viewed file when one is saved in its state file.
+If no file is provided, gopdf reopens the most recently viewed file from its session database.
 
 ## Configuration
 
@@ -91,7 +91,7 @@ Generated keybind edits are loaded from `autogen.lua` before `config.lua`, so ex
 
 Generated keybind edits are written to `autogen.lua` next to an explicit `--config` file, or to the normal per-user config directory when no explicit config is used.
 
-The last-opened file is saved in the matching per-user app data directory: `$XDG_DATA_HOME/gopdf/state` or `~/.local/share/gopdf/state` on Linux, `~/Library/Application Support/gopdf/state` on macOS, and `%APPDATA%\gopdf\state` on Windows.
+Session data is saved in `session.sqlite` under the matching per-user app data directory: `$XDG_DATA_HOME/gopdf` or `~/.local/share/gopdf` on Linux, `~/Library/Application Support/gopdf` on macOS, and `%APPDATA%\gopdf` on Windows.
 
 ### Options
 
@@ -99,7 +99,7 @@ The last-opened file is saved in the matching per-user app data directory: `$XDG
 gopdf.options.status_bar_visible = true
 gopdf.options.mouse_text_select = true
 gopdf.options.natural_scroll = false
-gopdf.options.session_database = false          -- opt-in per-document view state database
+gopdf.options.session_database = true           -- per-document view state database
 gopdf.options.anti_aliasing = 8                -- 0 disables AA; MuPDF clamps values to 0-8
 gopdf.options.alt_colors = false
 gopdf.options.render_oversample = 1            -- >1 supersamples, <1 undersamples

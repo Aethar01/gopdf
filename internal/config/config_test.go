@@ -190,26 +190,6 @@ end
 	}
 }
 
-func TestParseLastStateDefaultsMissingPageToOne(t *testing.T) {
-	state := parseLastState("/tmp/example.pdf\n")
-	if state.Path != "/tmp/example.pdf" {
-		t.Fatalf("expected path, got %q", state.Path)
-	}
-	if state.Page != 1 {
-		t.Fatalf("expected missing page to default to 1, got %d", state.Page)
-	}
-}
-
-func TestParseLastStateReadsPage(t *testing.T) {
-	state := parseLastState("/tmp/example.pdf\n42\n")
-	if state.Path != "/tmp/example.pdf" {
-		t.Fatalf("expected path, got %q", state.Path)
-	}
-	if state.Page != 42 {
-		t.Fatalf("expected page 42, got %d", state.Page)
-	}
-}
-
 func TestSetDocumentReloadsDocumentSpecificLuaConfig(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "config.lua")

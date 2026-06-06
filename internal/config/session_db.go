@@ -40,7 +40,7 @@ type DocumentMark struct {
 }
 
 func SessionDatabasePath() string {
-	dir := StateDir()
+	dir := DataDir()
 	if dir == "" {
 		return ""
 	}
