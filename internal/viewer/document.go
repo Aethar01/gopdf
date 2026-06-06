@@ -10,9 +10,10 @@ import (
 )
 
 type openDocumentOptions struct {
-	startPage    int
-	reloadConfig bool
-	preserveView *viewState
+	startPage         int
+	startPageExplicit bool
+	reloadConfig      bool
+	preserveView      *viewState
 }
 
 func (a *App) Open(path string) error {
@@ -81,6 +82,7 @@ func (a *App) pollMetricUpdates() {
 		return
 	}
 	changed := false
+	anchor := a.captureViewportAnchor()
 	for {
 		select {
 		case update, ok := <-a.loader.updates:
@@ -103,6 +105,7 @@ func (a *App) pollMetricUpdates() {
 		default:
 			if changed {
 				a.recomputeLayout(a.viewportSize())
+				a.restoreViewportAnchor(anchor)
 				a.pendingRedraw = true
 			}
 			return
@@ -128,9 +131,14 @@ func (a *App) openDocument(path string, opts openDocumentOptions) error {
 	if pages > 0 && startPage >= pages {
 		startPage = pages - 1
 	}
+	savedState, hasSavedState := a.documentSessionViewState(path)
+	if !opts.startPageExplicit && hasSavedState {
+		startPage = clampInt(savedState.page, 0, max(0, pages-1))
+	}
 
 	a.runtime.SetPageCount(pages)
 
+	a.saveDocumentSession()
 	a.closeDocumentResources()
 
 	a.docPath = path
@@ -185,6 +193,8 @@ func (a *App) openDocument(path string, opts openDocumentOptions) error {
 	a.ensureRenderBaseScale()
 	if opts.preserveView != nil {
 		a.restoreViewState(*opts.preserveView)
+	} else if !opts.startPageExplicit && hasSavedState {
+		a.restoreViewState(savedState)
 	} else {
 		a.alignPageTop(startPage)
 	}

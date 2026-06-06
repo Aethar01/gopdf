@@ -40,6 +40,7 @@ type Config struct {
 	MouseBindings        map[string]string
 	MouseTextSelect      bool
 	NaturalScroll        bool
+	SessionDatabase      bool
 	AntiAliasing         int
 	OutlineInitialDepth  int
 	OutlineWidthPercent  int

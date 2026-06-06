@@ -65,7 +65,7 @@ func run() error {
 	}
 	defer runtime.Close()
 
-	app, err := viewer.New(docPath, runtime, startPage-1, iconBMP, verbose)
+	app, err := viewer.NewWithOptions(docPath, runtime, startPage-1, iconBMP, viewer.NewOptions{Verbose: verbose, StartPageExplicit: pageSet})
 	if err != nil {
 		return fmt.Errorf("start viewer: %w", err)
 	}

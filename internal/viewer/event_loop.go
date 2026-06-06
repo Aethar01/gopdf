@@ -47,9 +47,11 @@ func (a *App) Run() error {
 		}
 		path := a.initialDocPath
 		startPage := a.initialStartPage
+		pageSet := a.initialPageSet
 		a.initialDocPath = ""
+		a.initialPageSet = false
 		a.logf("open initial document path=%q page=%d", path, startPage+1)
-		if err := a.openDocument(path, openDocumentOptions{startPage: startPage}); err != nil {
+		if err := a.openDocument(path, openDocumentOptions{startPage: startPage, startPageExplicit: pageSet}); err != nil {
 			return err
 		}
 	}

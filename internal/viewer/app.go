@@ -102,6 +102,7 @@ type documentState struct {
 
 	initialDocPath   string
 	initialStartPage int
+	initialPageSet   bool
 	document         documentSession
 }
 
@@ -187,14 +188,27 @@ type jumpPosition struct {
 	scrollY float64
 }
 
+type NewOptions struct {
+	Verbose           bool
+	StartPageExplicit bool
+}
+
 func New(docPath string, runtime *config.Runtime, startPage int, iconBytes []byte, verbose ...bool) (*App, error) {
+	opts := NewOptions{}
+	if len(verbose) > 0 {
+		opts.Verbose = verbose[0]
+	}
+	return NewWithOptions(docPath, runtime, startPage, iconBytes, opts)
+}
+
+func NewWithOptions(docPath string, runtime *config.Runtime, startPage int, iconBytes []byte, opts NewOptions) (*App, error) {
 	cfg := runtime.Config()
 	if startPage < 0 {
 		startPage = 0
 	}
 	app := &App{
 		runtime: runtime,
-		verbose: len(verbose) > 0 && verbose[0],
+		verbose: opts.Verbose,
 		documentState: documentState{
 			page:      startPage,
 			pageLinks: map[int][]mupdf.Link{},
@@ -226,6 +240,7 @@ func New(docPath string, runtime *config.Runtime, startPage int, iconBytes []byt
 	if docPath != "" {
 		app.initialDocPath = docPath
 		app.initialStartPage = startPage
+		app.initialPageSet = opts.StartPageExplicit
 	}
 	app.recomputeLayout(1400, 900-app.config.StatusBarHeight)
 	if app.doc != nil {
@@ -253,6 +268,7 @@ func (a *App) setWindowTitle() {
 }
 
 func (a *App) Close() {
+	a.saveDocumentSession()
 	a.document.Close()
 	a.closeDocumentResources()
 	a.clearTextTextureCache()

@@ -45,6 +45,7 @@ func Default() Config {
 		},
 		MouseTextSelect:      true,
 		NaturalScroll:        false,
+		SessionDatabase:      false,
 		AntiAliasing:         8,
 		OutlineInitialDepth:  1,
 		OutlineWidthPercent:  70,

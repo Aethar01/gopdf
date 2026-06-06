@@ -16,6 +16,14 @@ func StatePath() string {
 	return platformStatePath()
 }
 
+func StateDir() string {
+	path := StatePath()
+	if path == "" {
+		return ""
+	}
+	return filepath.Dir(path)
+}
+
 func GetLastFile() string {
 	return GetLastState().Path
 }

@@ -89,6 +89,7 @@ var configOptions = map[string]optionDesc{
 	"status_bar_visible":     boolOption(func(c *Config) bool { return c.StatusBarVisible }, func(c *Config, v bool) { c.StatusBarVisible = v }),
 	"mouse_text_select":      boolOption(func(c *Config) bool { return c.MouseTextSelect }, func(c *Config, v bool) { c.MouseTextSelect = v }),
 	"natural_scroll":         boolOption(func(c *Config) bool { return c.NaturalScroll }, func(c *Config, v bool) { c.NaturalScroll = v }),
+	"session_database":       boolOption(func(c *Config) bool { return c.SessionDatabase }, func(c *Config, v bool) { c.SessionDatabase = v }),
 	"alt_colors":             boolOption(func(c *Config) bool { return c.AltColors }, func(c *Config, v bool) { c.AltColors = v }),
 	"dual_page":              boolOption(func(c *Config) bool { return c.DualPage }, func(c *Config, v bool) { c.DualPage = v }),
 	"first_page_offset":      boolOption(func(c *Config) bool { return c.FirstPageOffset }, func(c *Config, v bool) { c.FirstPageOffset = v }),
