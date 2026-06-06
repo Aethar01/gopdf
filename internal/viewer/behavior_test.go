@@ -157,6 +157,7 @@ func TestKeyTokenIncludesModifiedAndPrintableKeys(t *testing.T) {
 		{name: "ctrl d", key: sdl.KeycodeD, mod: sdl.KeymodCtrl, want: "<c-d>"},
 		{name: "ctrl shift special", key: sdl.KeycodeTab, mod: sdl.KeymodCtrl | sdl.KeymodShift, want: "<c-s-tab>"},
 		{name: "shift slash", key: sdl.KeycodeSlash, mod: sdl.KeymodShift, want: "?"},
+		{name: "shift apostrophe", key: sdl.KeycodeApostrophe, mod: sdl.KeymodShift, want: "\""},
 		{name: "shift return", key: sdl.KeycodeReturn, mod: sdl.KeymodShift, want: "<s-cr>"},
 	}
 

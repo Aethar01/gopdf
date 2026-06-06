@@ -186,6 +186,95 @@ func (a *App) recordRecentFile(path string) {
 	_ = config.RecordRecentFile(path, a.config.RecentFilesMax)
 }
 
+func (a *App) handleMarkToken(token string) bool {
+	if a.pendingMark != "" {
+		if token == "<esc>" {
+			a.pendingMark = ""
+			a.message = ""
+			return true
+		}
+		mode := a.pendingMark
+		a.pendingMark = ""
+		if !isMarkName(token) {
+			a.message = "mark must be a letter"
+			return true
+		}
+		if mode == "set" {
+			a.setDocumentMark(token)
+		} else {
+			a.jumpDocumentMark(token)
+		}
+		return true
+	}
+	if token != "\"" && token != "'" {
+		return false
+	}
+	if !a.config.SessionDatabase {
+		a.message = "marks require session_database"
+		return true
+	}
+	if a.docPath == "" {
+		a.message = "no document open"
+		return true
+	}
+	if token == "\"" {
+		a.pendingMark = "set"
+		a.message = "mark: choose letter"
+	} else {
+		a.pendingMark = "jump"
+		a.message = "jump mark: choose letter"
+	}
+	return true
+}
+
+func isMarkName(token string) bool {
+	if len(token) != 1 {
+		return false
+	}
+	r := token[0]
+	return (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z')
+}
+
+func (a *App) setDocumentMark(name string) {
+	state := a.captureViewState()
+	mark := config.DocumentMark{
+		Page:        state.page,
+		ScrollX:     state.scrollX,
+		ScrollY:     state.scrollY,
+		AnchorPage:  state.anchor.page,
+		AnchorX:     state.anchor.point.X,
+		AnchorY:     state.anchor.point.Y,
+		AnchorValid: state.anchor.valid,
+	}
+	if err := config.SetDocumentMark(a.docPath, name, mark); err != nil {
+		a.message = err.Error()
+		return
+	}
+	a.message = "set mark " + name
+}
+
+func (a *App) jumpDocumentMark(name string) {
+	mark, ok := config.GetDocumentMark(a.docPath, name)
+	if !ok {
+		a.message = "mark not set: " + name
+		return
+	}
+	a.recordJump()
+	a.page = clampInt(mark.Page, 0, max(0, a.pageCount-1))
+	if mark.AnchorValid {
+		a.restoreViewportAnchor(viewportAnchor{page: mark.AnchorPage, point: mupdf.Point{X: mark.AnchorX, Y: mark.AnchorY}, valid: true})
+	} else {
+		a.scrollX = mark.ScrollX
+		a.scrollY = mark.ScrollY
+		a.clampScroll()
+	}
+	if a.renderMode == "continuous" {
+		a.updateCurrentPageFromScroll()
+	}
+	a.message = "jumped to mark " + name
+	a.pendingRedraw = true
+}
+
 func (a *App) restoreDocumentSession() bool {
 	state, ok := a.documentSessionViewState(a.docPath)
 	if !ok {

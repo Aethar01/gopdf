@@ -83,6 +83,21 @@ func TestRecentFilesMaxEntries(t *testing.T) {
 	}
 }
 
+func TestDocumentMarkRoundTrip(t *testing.T) {
+	setTestStateDir(t)
+	want := DocumentMark{Page: 2, ScrollX: 3, ScrollY: 4, AnchorPage: 5, AnchorX: 6, AnchorY: 7, AnchorValid: true}
+	if err := SetDocumentMark("/tmp/doc.pdf", "a", want); err != nil {
+		t.Fatal(err)
+	}
+	got, ok := GetDocumentMark("/tmp/doc.pdf", "a")
+	if !ok {
+		t.Fatal("saved mark was not found")
+	}
+	if got != want {
+		t.Fatalf("mark = %#v, want %#v", got, want)
+	}
+}
+
 func setTestStateDir(t *testing.T) {
 	t.Helper()
 	dir := t.TempDir()

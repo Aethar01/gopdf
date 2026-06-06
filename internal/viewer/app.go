@@ -152,6 +152,7 @@ type inputState struct {
 	sequenceAt     time.Time
 	sequenceLookup map[string]string
 	pendingCount   string
+	pendingMark    string
 }
 
 type interactionState struct {
@@ -362,6 +363,9 @@ func (a *App) handleSDLKeyDown(e *sdl.KeyboardEvent) {
 	if a.mode == modeNormal {
 		if token, ok := keyToken(e.Key, e.Mod); ok {
 			prevMode := a.mode
+			if a.handleMarkToken(token) {
+				return
+			}
 			if a.handleCountToken(token) {
 				return
 			}

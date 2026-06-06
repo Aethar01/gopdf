@@ -358,6 +358,7 @@ func (a *App) PendingKeys() []string { return append([]string(nil), a.sequence..
 
 func (a *App) ClearPendingKeys() {
 	a.sequence = nil
+	a.pendingMark = ""
 	a.pendingCount = ""
 	if a.mode == modeNormal {
 		a.message = ""

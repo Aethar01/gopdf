@@ -109,7 +109,12 @@ func printableKeyToken(key sdl.Keycode, shift bool) (string, bool) {
 		return "=", true
 	case sdl.KeycodeMinus:
 		return "-", true
-	case sdl.KeycodeApostrophe, sdl.KeycodeDblApostrophe, sdl.KeycodeComma, sdl.KeycodePeriod, sdl.KeycodeBackslash, sdl.KeycodeLeftBracket, sdl.KeycodeRightBracket, sdl.KeycodeGrave, sdl.KeycodeExclaim, sdl.KeycodeHash, sdl.KeycodeDollar, sdl.KeycodePercent, sdl.KeycodeAmpersand, sdl.KeycodeLeftParen, sdl.KeycodeRightParen, sdl.KeycodeAsterisk, sdl.KeycodePlus, sdl.KeycodeColon, sdl.KeycodeLess, sdl.KeycodeGreater, sdl.KeycodeQuestion, sdl.KeycodeAt, sdl.KeycodeCaret, sdl.KeycodeUnderscore, sdl.KeycodePipe, sdl.KeycodeTilde:
+	case sdl.KeycodeApostrophe:
+		if shift {
+			return "\"", true
+		}
+		return "'", true
+	case sdl.KeycodeDblApostrophe, sdl.KeycodeComma, sdl.KeycodePeriod, sdl.KeycodeBackslash, sdl.KeycodeLeftBracket, sdl.KeycodeRightBracket, sdl.KeycodeGrave, sdl.KeycodeExclaim, sdl.KeycodeHash, sdl.KeycodeDollar, sdl.KeycodePercent, sdl.KeycodeAmpersand, sdl.KeycodeLeftParen, sdl.KeycodeRightParen, sdl.KeycodeAsterisk, sdl.KeycodePlus, sdl.KeycodeColon, sdl.KeycodeLess, sdl.KeycodeGreater, sdl.KeycodeQuestion, sdl.KeycodeAt, sdl.KeycodeCaret, sdl.KeycodeUnderscore, sdl.KeycodePipe, sdl.KeycodeTilde:
 		return string(rune(key)), true
 	default:
 		return "", false

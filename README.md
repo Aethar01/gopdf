@@ -279,6 +279,7 @@ Supported mouse events:
 | `<Tab>` / `<S-Tab>` | Show or cycle command completion / previous completion |
 | `<Esc>` | Close active UI, clear search, or clear pending keys/count |
 | `<C-i>` / `<C-o>` | Jump forward / backward in jump history |
+| `"{letter}` / `'{letter}` | Set / jump to persistent mark; requires `session_database` |
 | `q` | Quit |
 
 Default mouse bindings:

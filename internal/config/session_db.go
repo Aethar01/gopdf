@@ -29,6 +29,16 @@ type DocumentSession struct {
 	AltColors       bool
 }
 
+type DocumentMark struct {
+	Page        int
+	ScrollX     float64
+	ScrollY     float64
+	AnchorPage  int
+	AnchorX     float64
+	AnchorY     float64
+	AnchorValid bool
+}
+
 func SessionDatabasePath() string {
 	dir := StateDir()
 	if dir == "" {
@@ -181,6 +191,58 @@ func RecentFiles(limit int) []string {
 	return paths
 }
 
+func SetDocumentMark(path string, name string, mark DocumentMark) error {
+	path = AbsoluteDocumentPath(path)
+	if path == "" || name == "" {
+		return nil
+	}
+	db, err := openSessionDatabase()
+	if err != nil {
+		return err
+	}
+	if db == nil {
+		return nil
+	}
+	defer db.Close()
+	_, err = db.Exec(`
+		INSERT INTO document_marks (
+			path, name, page, scroll_x, scroll_y, anchor_page, anchor_x, anchor_y, anchor_valid, updated_at
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		ON CONFLICT(path, name) DO UPDATE SET
+			page = excluded.page,
+			scroll_x = excluded.scroll_x,
+			scroll_y = excluded.scroll_y,
+			anchor_page = excluded.anchor_page,
+			anchor_x = excluded.anchor_x,
+			anchor_y = excluded.anchor_y,
+			anchor_valid = excluded.anchor_valid,
+			updated_at = excluded.updated_at
+	`, path, name, mark.Page, mark.ScrollX, mark.ScrollY, mark.AnchorPage, mark.AnchorX, mark.AnchorY, mark.AnchorValid, time.Now().UnixNano())
+	return err
+}
+
+func GetDocumentMark(path string, name string) (DocumentMark, bool) {
+	path = AbsoluteDocumentPath(path)
+	if path == "" || name == "" {
+		return DocumentMark{}, false
+	}
+	db, err := openSessionDatabase()
+	if err != nil || db == nil {
+		return DocumentMark{}, false
+	}
+	defer db.Close()
+	var mark DocumentMark
+	err = db.QueryRow(`
+		SELECT page, scroll_x, scroll_y, anchor_page, anchor_x, anchor_y, anchor_valid
+		FROM document_marks
+		WHERE path = ? AND name = ?
+	`, path, name).Scan(&mark.Page, &mark.ScrollX, &mark.ScrollY, &mark.AnchorPage, &mark.AnchorX, &mark.AnchorY, &mark.AnchorValid)
+	if errors.Is(err, sql.ErrNoRows) || err != nil {
+		return DocumentMark{}, false
+	}
+	return mark, true
+}
+
 func openSessionDatabase() (*sql.DB, error) {
 	path := SessionDatabasePath()
 	if path == "" {
@@ -232,6 +294,23 @@ func initSessionDatabase(db *sql.DB) error {
 		CREATE TABLE IF NOT EXISTS recent_files (
 			path TEXT PRIMARY KEY,
 			updated_at INTEGER NOT NULL
+		)
+	`); err != nil {
+		return err
+	}
+	if _, err := db.Exec(`
+		CREATE TABLE IF NOT EXISTS document_marks (
+			path TEXT NOT NULL,
+			name TEXT NOT NULL,
+			page INTEGER NOT NULL,
+			scroll_x REAL NOT NULL,
+			scroll_y REAL NOT NULL,
+			anchor_page INTEGER NOT NULL,
+			anchor_x REAL NOT NULL,
+			anchor_y REAL NOT NULL,
+			anchor_valid INTEGER NOT NULL,
+			updated_at INTEGER NOT NULL,
+			PRIMARY KEY (path, name)
 		)
 	`); err != nil {
 		return err
