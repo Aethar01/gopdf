@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"image"
 	"image/color"
-	"image/draw"
 	"os"
 	"unsafe"
 
@@ -52,18 +51,7 @@ func closeFontFace(face font.Face) {
 	}
 }
 
-func imageToRGBA(src image.Image) *image.RGBA {
-	if rgba, ok := src.(*image.RGBA); ok {
-		return rgba
-	}
-	bounds := src.Bounds()
-	rgba := image.NewRGBA(bounds)
-	draw.Draw(rgba, bounds, src, bounds.Min, draw.Src)
-	return rgba
-}
-
-func textureFromImage(renderer *sdl.Renderer, src image.Image) (*sdl.Texture, error) {
-	rgba := imageToRGBA(src)
+func textureFromRGBA(renderer *sdl.Renderer, rgba *image.RGBA) (*sdl.Texture, error) {
 	tex := sdl.CreateTexture(renderer, sdl.PixelFormatRGBA32, sdl.TextureAccessStatic, int32(rgba.Bounds().Dx()), int32(rgba.Bounds().Dy()))
 	if tex == nil {
 		return nil, sdlError("create texture")
@@ -109,7 +97,7 @@ func textTexture(renderer *sdl.Renderer, face font.Face, s string, clr color.Col
 		Dot:  fixed.P(0, ascent),
 	}
 	d.DrawString(s)
-	tex, err := textureFromImage(renderer, img)
+	tex, err := textureFromRGBA(renderer, img)
 	if err != nil {
 		return nil, 0, 0, 0, err
 	}

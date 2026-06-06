@@ -258,7 +258,7 @@ func (a *App) pollRenderUpdates() {
 			}
 			delete(a.renderPending, update.cacheKey)
 			a.removeRenderCacheEntry(update.cacheKey, true)
-			tex, err := textureFromImage(a.renderer, update.rendered.Image)
+			tex, err := textureFromRGBA(a.renderer, update.rendered.Image)
 			if err != nil {
 				a.logf("render texture failed page=%d err=%v", update.page+1, err)
 				a.message = err.Error()
