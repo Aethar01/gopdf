@@ -29,6 +29,7 @@ type renderedPage struct {
 	texture   *sdl.Texture
 	width     float64
 	height    float64
+	bytes     int64
 	pixX      float64
 	pixY      float64
 	key       string
@@ -208,6 +209,7 @@ func New(docPath string, runtime *config.Runtime, startPage int, iconBytes []byt
 		renderService: renderService{
 			renderCache:        map[string]*renderedPage{},
 			cacheLimit:         0,
+			cacheByteLimit:     defaultRenderCacheByteLimit,
 			minRenderBaseScale: 0.25,
 		},
 		metricsService: metricsService{},

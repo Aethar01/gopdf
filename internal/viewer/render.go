@@ -39,6 +39,8 @@ type renderService struct {
 	renderLRUItems     map[string]*list.Element
 	renderIndex        map[renderVariantKey]map[string]*renderedPage
 	cacheLimit         int
+	cacheByteLimit     int64
+	renderCacheBytes   int64
 	renderBaseScale    float64
 	minRenderBaseScale float64
 	renderGeneration   int
@@ -262,10 +264,12 @@ func (a *App) pollRenderUpdates() {
 				a.message = err.Error()
 				continue
 			}
+			bounds := update.rendered.Image.Bounds()
 			rp := &renderedPage{
 				texture:   tex,
-				width:     float64(update.rendered.Image.Bounds().Dx()),
-				height:    float64(update.rendered.Image.Bounds().Dy()),
+				width:     float64(bounds.Dx()),
+				height:    float64(bounds.Dy()),
+				bytes:     estimatedTextureBytes(bounds.Dx(), bounds.Dy()),
 				pixX:      float64(update.rendered.X),
 				pixY:      float64(update.rendered.Y),
 				key:       update.cacheKey,
@@ -332,7 +336,11 @@ func (rs *renderService) indexRenderPage(key string, rp *renderedPage) {
 func (rs *renderService) addRenderCacheEntry(key string, rp *renderedPage) {
 	rs.ensureRenderCacheState()
 	rs.removeRenderCacheEntry(key, true)
+	if rp.bytes <= 0 {
+		rp.bytes = estimatedTextureBytes(int(rp.width), int(rp.height))
+	}
 	rs.renderCache[key] = rp
+	rs.renderCacheBytes += rp.bytes
 	rs.renderLRUItems[key] = rs.renderLRU.PushBack(key)
 	rs.indexRenderPage(key, rp)
 }
@@ -354,15 +362,19 @@ func (rs *renderService) removeRenderCacheEntry(key string, destroy bool) {
 			delete(rs.renderIndex, variant)
 		}
 	}
-	if destroy {
+	if destroy && rp.texture != nil {
 		sdl.DestroyTexture(rp.texture)
+	}
+	rs.renderCacheBytes -= rp.bytes
+	if rs.renderCacheBytes < 0 {
+		rs.renderCacheBytes = 0
 	}
 	delete(rs.renderCache, key)
 }
 
 func (rs *renderService) enforceRenderCacheLimit() {
 	rs.ensureRenderCacheState()
-	for rs.cacheLimit > 0 && len(rs.renderCache) > rs.cacheLimit {
+	for rs.renderCacheOverLimit() {
 		front := rs.renderLRU.Front()
 		if front == nil {
 			return
@@ -374,6 +386,13 @@ func (rs *renderService) enforceRenderCacheLimit() {
 		}
 		rs.removeRenderCacheEntry(key, true)
 	}
+}
+
+func (rs *renderService) renderCacheOverLimit() bool {
+	if rs.cacheLimit > 0 && len(rs.renderCache) > rs.cacheLimit {
+		return true
+	}
+	return rs.cacheByteLimit > 0 && rs.renderCacheBytes > rs.cacheByteLimit && len(rs.renderCache) > 1
 }
 
 func (a *App) requestRender(page int, scale float64, priority ...int) {
@@ -433,9 +452,12 @@ func (a *App) renderScaleFor(layoutScale float64) float64 {
 
 func (rs *renderService) clearCache() {
 	for _, rp := range rs.renderCache {
-		sdl.DestroyTexture(rp.texture)
+		if rp.texture != nil {
+			sdl.DestroyTexture(rp.texture)
+		}
 	}
 	rs.renderCache = map[string]*renderedPage{}
+	rs.renderCacheBytes = 0
 	rs.renderLRU = list.New()
 	rs.renderLRUItems = map[string]*list.Element{}
 	rs.renderIndex = map[renderVariantKey]map[string]*renderedPage{}
@@ -450,12 +472,20 @@ func (rs *renderService) renderDrawScale(rp *renderedPage, layoutScale float64) 
 }
 
 const (
-	defaultMinRenderBaseScale = 0.25
-	defaultRenderOversample   = 1
-	renderUpgradeTolerance    = 0.95
-	renderDowngradeHeadroom   = 2.0
-	renderScaleStep           = 1.5
+	defaultMinRenderBaseScale   = 0.25
+	defaultRenderOversample     = 1
+	defaultRenderCacheByteLimit = 512 << 20
+	renderUpgradeTolerance      = 0.95
+	renderDowngradeHeadroom     = 2.0
+	renderScaleStep             = 1.5
 )
+
+func estimatedTextureBytes(width, height int) int64 {
+	if width <= 0 || height <= 0 {
+		return 0
+	}
+	return int64(width) * int64(height) * 4
+}
 
 func validRenderScale(v float64) bool {
 	return v > 0 && !math.IsNaN(v) && !math.IsInf(v, 0)
