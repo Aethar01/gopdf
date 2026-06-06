@@ -31,6 +31,9 @@ func TestClosedDocumentReturnsErrors(t *testing.T) {
 	if _, err := doc.SearchPage(0, "needle"); err == nil {
 		t.Fatal("expected SearchPage on closed document to fail")
 	}
+	if _, err := doc.PageText(0); err == nil {
+		t.Fatal("expected PageText on closed document to fail")
+	}
 	if _, err := doc.Links(0); err == nil {
 		t.Fatal("expected Links on closed document to fail")
 	}

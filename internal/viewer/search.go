@@ -3,6 +3,7 @@ package viewer
 import (
 	"fmt"
 	"math"
+	"regexp"
 	"strings"
 	"sync"
 
@@ -31,11 +32,13 @@ type searchState struct {
 	running    bool
 	generation int
 	mode       searchMode
+	regex      bool
 }
 
 type searchRequest struct {
 	generation int
 	query      string
+	regex      bool
 	startPage  int
 	pageCount  int
 }
@@ -114,6 +117,15 @@ func (w *searchWorker) run(docPath string) {
 				w.send(searchUpdate{generation: req.generation, done: true})
 				break
 			}
+			var re *regexp.Regexp
+			if req.regex {
+				compiled, err := regexp.Compile(req.query)
+				if err != nil {
+					w.send(searchUpdate{generation: req.generation, done: true, err: err})
+					break
+				}
+				re = compiled
+			}
 			restarted := false
 			for offset := range req.pageCount {
 				page := searchPageAt(req.startPage, req.pageCount, offset)
@@ -128,7 +140,7 @@ func (w *searchWorker) run(docPath string) {
 				if restarted {
 					break
 				}
-				hits, err := doc.SearchPage(page, req.query)
+				hits, err := searchDocumentPage(doc, page, req.query, re)
 				if err != nil {
 					w.send(searchUpdate{generation: req.generation, done: true, err: err})
 					restarted = true
@@ -143,6 +155,31 @@ func (w *searchWorker) run(docPath string) {
 			break
 		}
 	}
+}
+
+func searchDocumentPage(doc *mupdf.Document, page int, query string, re *regexp.Regexp) ([]mupdf.SearchHit, error) {
+	if re == nil {
+		return doc.SearchPage(page, query)
+	}
+	text, err := doc.PageText(page)
+	if err != nil {
+		return nil, err
+	}
+	seen := map[string]bool{}
+	hits := []mupdf.SearchHit{}
+	for _, match := range re.FindAllString(text, -1) {
+		match = strings.TrimSpace(match)
+		if match == "" || seen[match] {
+			continue
+		}
+		seen[match] = true
+		matchHits, err := doc.SearchPage(page, match)
+		if err != nil {
+			return nil, err
+		}
+		hits = append(hits, matchHits...)
+	}
+	return hits, nil
 }
 
 func (w *searchWorker) send(update searchUpdate) {
@@ -215,7 +252,7 @@ func (a *App) pollSearchUpdates() {
 			if update.done {
 				a.search.running = false
 				if len(a.search.order) == 0 && a.search.query != "" {
-					a.message = fmt.Sprintf("no matches for %s", a.search.query)
+					a.message = fmt.Sprintf("no matches for %s", a.searchDisplayQuery())
 				} else if len(a.search.order) > 0 {
 					a.message = a.searchStatusMessage()
 				}
@@ -240,6 +277,7 @@ func (a *App) pollSearchUpdates() {
 
 func (a *App) startSearch(query string, mode searchMode) {
 	query = strings.TrimSpace(query)
+	query, regex := parseSearchQuery(query)
 	a.search.generation++
 	a.search.query = query
 	a.search.matches = map[int][]mupdf.SearchHit{}
@@ -247,6 +285,7 @@ func (a *App) startSearch(query string, mode searchMode) {
 	a.search.current = -1
 	a.search.running = false
 	a.search.mode = mode
+	a.search.regex = regex
 	if query == "" {
 		a.message = ""
 		return
@@ -260,17 +299,25 @@ func (a *App) startSearch(query string, mode searchMode) {
 		return
 	}
 	a.search.running = true
-	a.logf("start search query=%q page=%d", query, a.page+1)
-	a.message = fmt.Sprintf("searching for %s", query)
+	a.logf("start search query=%q regex=%t page=%d", query, regex, a.page+1)
+	a.message = fmt.Sprintf("searching for %s", a.searchDisplayQuery())
 	if !a.searchWorker.Start(searchRequest{
 		generation: a.search.generation,
 		query:      query,
+		regex:      regex,
 		startPage:  a.page,
 		pageCount:  a.pageCount,
 	}) {
 		a.search.running = false
 		a.message = "search unavailable"
 	}
+}
+
+func parseSearchQuery(query string) (string, bool) {
+	if after, ok := strings.CutPrefix(query, "re:"); ok {
+		return strings.TrimSpace(after), true
+	}
+	return query, false
 }
 
 func (a *App) clearSearch() {
@@ -281,6 +328,7 @@ func (a *App) clearSearch() {
 	a.search.current = -1
 	a.search.running = false
 	a.search.mode = searchModeForward
+	a.search.regex = false
 	a.message = ""
 }
 
@@ -302,10 +350,10 @@ func (a *App) moveSearch(delta int) {
 	}
 	if len(a.search.order) == 0 {
 		if a.search.running {
-			a.message = fmt.Sprintf("searching for %s", a.search.query)
+			a.message = fmt.Sprintf("searching for %s", a.searchDisplayQuery())
 			return
 		}
-		a.message = fmt.Sprintf("no matches for %s", a.search.query)
+		a.message = fmt.Sprintf("no matches for %s", a.searchDisplayQuery())
 		return
 	}
 	if a.search.current < 0 {
@@ -394,9 +442,16 @@ func (a *App) searchStatusMessage() string {
 		return ""
 	}
 	if len(a.search.order) == 0 || a.search.current < 0 {
-		return fmt.Sprintf("search /%s", a.search.query)
+		return fmt.Sprintf("search /%s", a.searchDisplayQuery())
 	}
-	return fmt.Sprintf("match %d/%d /%s", a.search.current+1, len(a.search.order), a.search.query)
+	return fmt.Sprintf("match %d/%d /%s", a.search.current+1, len(a.search.order), a.searchDisplayQuery())
+}
+
+func (a *App) searchDisplayQuery() string {
+	if a.search.regex {
+		return "re:" + a.search.query
+	}
+	return a.search.query
 }
 
 func (a *App) searchStatusCounter() string {

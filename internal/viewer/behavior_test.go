@@ -194,6 +194,17 @@ func TestMouseButtonHelpers(t *testing.T) {
 	}
 }
 
+func TestParseSearchQuery(t *testing.T) {
+	query, regex := parseSearchQuery("re:foo.*bar")
+	if query != "foo.*bar" || !regex {
+		t.Fatalf("parseSearchQuery regex = %q, %t", query, regex)
+	}
+	query, regex = parseSearchQuery("plain text")
+	if query != "plain text" || regex {
+		t.Fatalf("parseSearchQuery plain = %q, %t", query, regex)
+	}
+}
+
 func TestVisibleOutlineIndicesRespectExpandedAncestors(t *testing.T) {
 	app := &App{
 		documentState: documentState{outline: []mupdf.OutlineItem{

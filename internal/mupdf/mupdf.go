@@ -596,6 +596,49 @@ static void gopdf_free_selection(gopdf_doc *handle, gopdf_selection *sel) {
 	sel->quad_count = 0;
 }
 
+static int gopdf_extract_page_text(gopdf_doc *handle, int page_number, char **out, char **err) {
+	fz_page *page = NULL;
+	fz_stext_page *text = NULL;
+	fz_rect bounds = fz_empty_rect;
+	fz_point a;
+	fz_point b;
+	*out = NULL;
+	*err = NULL;
+	fz_var(page);
+	fz_var(text);
+	fz_try(handle->ctx) {
+		page = fz_load_page(handle->ctx, handle->doc, page_number);
+		bounds = fz_bound_page(handle->ctx, page);
+		text = fz_new_stext_page_from_page(handle->ctx, page, NULL);
+		a.x = bounds.x0;
+		a.y = bounds.y0;
+		b.x = bounds.x1;
+		b.y = bounds.y1;
+		*out = fz_copy_selection(handle->ctx, text, a, b, 0);
+	} fz_always(handle->ctx) {
+		if (text != NULL) {
+			fz_drop_stext_page(handle->ctx, text);
+		}
+		if (page != NULL) {
+			fz_drop_page(handle->ctx, page);
+		}
+	} fz_catch(handle->ctx) {
+		if (*out != NULL) {
+			fz_free(handle->ctx, *out);
+			*out = NULL;
+		}
+		*err = gopdf_dup_string(fz_caught_message(handle->ctx));
+		return 0;
+	}
+	return 1;
+}
+
+static void gopdf_free_text(gopdf_doc *handle, char *text) {
+	if (text != NULL) {
+		fz_free(handle->ctx, text);
+	}
+}
+
 */
 import "C"
 
@@ -822,6 +865,22 @@ func (d *Document) SearchPage(page int, needle string) ([]SearchHit, error) {
 		}
 	}
 	return hits, nil
+}
+
+func (d *Document) PageText(page int) (string, error) {
+	if err := d.validatePage(page); err != nil {
+		return "", err
+	}
+	var text *C.char
+	var cerr *C.char
+	if ok := C.gopdf_extract_page_text(d.handle, C.int(page), &text, &cerr); ok == 0 {
+		return "", consumeError("extract page text", cerr)
+	}
+	defer C.gopdf_free_text(d.handle, text)
+	if text == nil {
+		return "", nil
+	}
+	return C.GoString(text), nil
 }
 
 func (d *Document) Links(page int) ([]Link, error) {

@@ -557,7 +557,7 @@ func (a *App) reloadConfig() {
 }
 
 func commandHelpMessage() string {
-	return ":open file | :page N | :search text | :mode continuous|single | :colors normal|alt | :keybinds | :set render_mode!|alt_colors!|dual_page!|first_page_offset!|status_bar! | :fit width|page | :lua <code> | :reload-config | :quit"
+	return ":open file | :page N | :search text | :search re:pattern | :mode continuous|single | :colors normal|alt | :keybinds | :set render_mode!|alt_colors!|dual_page!|first_page_offset!|status_bar! | :fit width|page | :lua <code> | :reload-config | :quit"
 }
 
 func (a *App) runSet(setting string) {

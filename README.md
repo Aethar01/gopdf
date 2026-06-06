@@ -298,6 +298,7 @@ Default mouse bindings:
 |---------|-------------|
 | `:page N`, `:p N`, `:N` | Jump to page N |
 | `:search <text>` | Search document |
+| `:search re:<pattern>` | Search document with a Go regular expression |
 | `:fit width` / `:fit page` / `:fit manual` | Set fit mode |
 | `:mode continuous` / `:mode single` | Set render mode |
 | `:colors normal` / `:colors alt` | Set color mode |
@@ -346,6 +347,8 @@ Default mouse bindings:
 | `gopdf.search_query()` | Current search term |
 | `gopdf.search_match_index()` | Current match, 1-indexed, or nil |
 | `gopdf.search_match_count()` | Total matches |
+
+Prefix a query with `re:` to search with a Go regular expression, for example `:search re:foo.*bar`.
 
 ### Utilities
 
