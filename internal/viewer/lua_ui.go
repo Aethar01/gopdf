@@ -206,11 +206,11 @@ func (a *App) drawLuaUI(renderer *sdl.Renderer) error {
 		header = "Menu"
 	}
 	header = fmt.Sprintf(" %s (%d)", header, len(a.luaUI.rows))
-	if err := drawText(renderer, a.fontFace, a.truncateModalListText(header, int(rect.W)-24), int(rect.X)+12, int(rect.Y)+baselineOffset, a.foregroundColor()); err != nil {
+	if err := a.drawText(renderer, a.truncateModalListText(header, int(rect.W)-24), int(rect.X)+12, int(rect.Y)+baselineOffset, a.foregroundColor()); err != nil {
 		return err
 	}
 	if len(a.luaUI.rows) == 0 {
-		if err := drawText(renderer, a.fontFace, "No items", int(rect.X)+16, int(rect.Y)+rowHeight+baselineOffset, a.foregroundColor()); err != nil {
+		if err := a.drawText(renderer, "No items", int(rect.X)+16, int(rect.Y)+rowHeight+baselineOffset, a.foregroundColor()); err != nil {
 			return err
 		}
 		return nil
@@ -233,7 +233,7 @@ func (a *App) drawLuaUI(renderer *sdl.Renderer) error {
 			clr = a.highlightForegroundColor()
 		}
 		text := a.truncateModalListText(a.luaUI.rows[index], int(rect.W)-32)
-		if err := drawText(renderer, a.fontFace, text, int(rect.X)+16, y+baselineOffset, clr); err != nil {
+		if err := a.drawText(renderer, text, int(rect.X)+16, y+baselineOffset, clr); err != nil {
 			return err
 		}
 	}

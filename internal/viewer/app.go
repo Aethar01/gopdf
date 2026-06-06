@@ -137,6 +137,7 @@ type sdlState struct {
 	cursorArrow *sdl.Cursor
 	iconBytes   []byte
 	fontFace    font.Face
+	textCache   map[textTextureKey]cachedTextTexture
 }
 
 type inputState struct {
@@ -254,6 +255,7 @@ func (a *App) setWindowTitle() {
 func (a *App) Close() {
 	a.document.Close()
 	a.closeDocumentResources()
+	a.clearTextTextureCache()
 	closeFontFace(a.fontFace)
 	a.fontFace = nil
 	if a.cursorHand != nil {

@@ -353,7 +353,7 @@ func (a *App) drawKeybindMenu(renderer *sdl.Renderer) error {
 		}
 		header = " Press key for " + action
 	}
-	if err := drawText(renderer, a.fontFace, a.truncateModalListText(header, int(rect.W)-24), int(rect.X)+12, int(rect.Y)+baselineOffset, a.foregroundColor()); err != nil {
+	if err := a.drawText(renderer, a.truncateModalListText(header, int(rect.W)-24), int(rect.X)+12, int(rect.Y)+baselineOffset, a.foregroundColor()); err != nil {
 		return err
 	}
 	listRect, listRows := a.keybindMenuListGeometry()
@@ -374,7 +374,7 @@ func (a *App) drawKeybindMenu(renderer *sdl.Renderer) error {
 		if a.keybindMenu.selected == -1 {
 			clr = a.highlightForegroundColor()
 		}
-		if err := drawText(renderer, a.fontFace, "+ "+newKeybindLabel, int(button.X)+10, int(button.Y)+baselineOffset, clr); err != nil {
+		if err := a.drawText(renderer, "+ "+newKeybindLabel, int(button.X)+10, int(button.Y)+baselineOffset, clr); err != nil {
 			return err
 		}
 	}
@@ -399,7 +399,7 @@ func (a *App) drawKeybindMenu(renderer *sdl.Renderer) error {
 			text = fmt.Sprintf("%-12s %s", row.key, row.action)
 		}
 		text = a.truncateModalListText(text, int(listRect.W)-32)
-		if err := drawText(renderer, a.fontFace, text, int(listRect.X)+16, y+baselineOffset, clr); err != nil {
+		if err := a.drawText(renderer, text, int(listRect.X)+16, y+baselineOffset, clr); err != nil {
 			return err
 		}
 	}

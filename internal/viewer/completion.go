@@ -269,7 +269,7 @@ func (a *App) drawCompletion(renderer *sdl.Renderer) error {
 			}
 			clr = a.highlightForegroundColor()
 		}
-		if err := drawText(renderer, a.fontFace, a.truncateModalListText(row.text, width-20), x+10, rowY+baseline, clr); err != nil {
+		if err := a.drawText(renderer, a.truncateModalListText(row.text, width-20), x+10, rowY+baseline, clr); err != nil {
 			return err
 		}
 	}

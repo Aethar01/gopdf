@@ -374,7 +374,7 @@ func (a *App) drawOutlineMenu(renderer *sdl.Renderer) error {
 	if a.outlineMenu.searching || a.outlineMenu.query != "" {
 		header = fmt.Sprintf(" Outline /%s (%d/%d)", a.outlineMenu.query, len(visible), len(a.outline))
 	}
-	if err := drawText(renderer, a.fontFace, a.truncateModalListText(header, int(rect.W)-24), int(rect.X)+12, int(rect.Y)+baselineOffset, a.foregroundColor()); err != nil {
+	if err := a.drawText(renderer, a.truncateModalListText(header, int(rect.W)-24), int(rect.X)+12, int(rect.Y)+baselineOffset, a.foregroundColor()); err != nil {
 		return err
 	}
 	if len(visible) == 0 {
@@ -382,7 +382,7 @@ func (a *App) drawOutlineMenu(renderer *sdl.Renderer) error {
 		if a.outlineMenu.query != "" {
 			text = "No matching outline entries"
 		}
-		if err := drawText(renderer, a.fontFace, text, int(rect.X)+16, int(rect.Y)+rowHeight+baselineOffset, a.foregroundColor()); err != nil {
+		if err := a.drawText(renderer, text, int(rect.X)+16, int(rect.Y)+rowHeight+baselineOffset, a.foregroundColor()); err != nil {
 			return err
 		}
 		return nil
@@ -425,11 +425,11 @@ func (a *App) drawOutlineMenu(renderer *sdl.Renderer) error {
 		if outlineIndex == a.outlineMenu.selected {
 			clr = a.highlightForegroundColor()
 		}
-		if err := drawText(renderer, a.fontFace, text, int(rect.X)+16, y+baselineOffset, clr); err != nil {
+		if err := a.drawText(renderer, text, int(rect.X)+16, y+baselineOffset, clr); err != nil {
 			return err
 		}
 		if page != "" {
-			if err := drawText(renderer, a.fontFace, page, int(rect.X+rect.W)-16-pageW, y+baselineOffset, clr); err != nil {
+			if err := a.drawText(renderer, page, int(rect.X+rect.W)-16-pageW, y+baselineOffset, clr); err != nil {
 				return err
 			}
 		}

@@ -104,14 +104,61 @@ func textTexture(renderer *sdl.Renderer, face font.Face, s string, clr color.Col
 	return tex, width, height, ascent, nil
 }
 
-func drawText(renderer *sdl.Renderer, face font.Face, s string, x, baselineY int, clr color.Color) error {
-	tex, w, h, ascent, err := textTexture(renderer, face, s, clr)
+const maxTextTextureCacheEntries = 512
+
+type textTextureKey struct {
+	text       string
+	r, g, b, a uint8
+}
+
+type cachedTextTexture struct {
+	texture *sdl.Texture
+	width   int
+	height  int
+	ascent  int
+}
+
+func (a *App) drawText(renderer *sdl.Renderer, s string, x, baselineY int, clr color.Color) error {
+	entry, err := a.cachedTextTexture(renderer, s, clr)
 	if err != nil {
 		return err
 	}
-	defer sdl.DestroyTexture(tex)
-	dst := sdl.FRect{X: float32(x), Y: float32(baselineY - ascent), W: float32(w), H: float32(h)}
-	return renderBool(sdl.RenderTexture(renderer, tex, nil, &dst), "render text")
+	dst := sdl.FRect{X: float32(x), Y: float32(baselineY - entry.ascent), W: float32(entry.width), H: float32(entry.height)}
+	return renderBool(sdl.RenderTexture(renderer, entry.texture, nil, &dst), "render text")
+}
+
+func (a *App) cachedTextTexture(renderer *sdl.Renderer, s string, clr color.Color) (cachedTextTexture, error) {
+	key := newTextTextureKey(s, clr)
+	if a.textCache == nil {
+		a.textCache = map[textTextureKey]cachedTextTexture{}
+	}
+	if entry, ok := a.textCache[key]; ok {
+		return entry, nil
+	}
+	tex, w, h, ascent, err := textTexture(renderer, a.fontFace, s, clr)
+	if err != nil {
+		return cachedTextTexture{}, err
+	}
+	if len(a.textCache) >= maxTextTextureCacheEntries {
+		a.clearTextTextureCache()
+	}
+	entry := cachedTextTexture{texture: tex, width: w, height: h, ascent: ascent}
+	a.textCache[key] = entry
+	return entry, nil
+}
+
+func newTextTextureKey(s string, clr color.Color) textTextureKey {
+	r, g, b, a := clr.RGBA()
+	return textTextureKey{text: s, r: uint8(r >> 8), g: uint8(g >> 8), b: uint8(b >> 8), a: uint8(a >> 8)}
+}
+
+func (a *App) clearTextTextureCache() {
+	for _, entry := range a.textCache {
+		if entry.texture != nil {
+			sdl.DestroyTexture(entry.texture)
+		}
+	}
+	a.textCache = nil
 }
 
 func fillRect(renderer *sdl.Renderer, rect sdl.FRect, clr color.RGBA) error {

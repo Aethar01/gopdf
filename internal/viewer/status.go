@@ -17,14 +17,14 @@ func (a *App) drawStatusBar(renderer *sdl.Renderer) error {
 	right := a.formatStatusBar(a.config.StatusBarRight)
 	pad := a.config.StatusBarPadding
 	vertOffset := (h + a.fontFace.Metrics().Ascent.Ceil() - a.fontFace.Metrics().Descent.Ceil()) / 2
-	if err := drawText(renderer, a.fontFace, left, pad, y+vertOffset, a.foregroundColor()); err != nil {
+	if err := a.drawText(renderer, left, pad, y+vertOffset, a.foregroundColor()); err != nil {
 		return err
 	}
 	if err := a.drawInputCursor(renderer, y, pad, vertOffset); err != nil {
 		return err
 	}
 	rw := measureText(a.fontFace, right)
-	if err := drawText(renderer, a.fontFace, right, a.winW-rw-pad, y+vertOffset, a.foregroundColor()); err != nil {
+	if err := a.drawText(renderer, right, a.winW-rw-pad, y+vertOffset, a.foregroundColor()); err != nil {
 		return err
 	}
 	return nil

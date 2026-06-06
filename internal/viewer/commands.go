@@ -315,6 +315,7 @@ func (a *App) applyConfigState(cfg config.Config, preserveManualFit bool) {
 	a.pageStep = float64(cfg.ScrollStep)
 	oldFontFace := a.fontFace
 	a.fontFace = loadFont(cfg.UIFontPath, cfg.UIFontSize)
+	a.clearTextTextureCache()
 	closeFontFace(oldFontFace)
 }
 
