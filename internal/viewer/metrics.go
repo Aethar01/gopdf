@@ -52,16 +52,30 @@ func (l *metricLoader) run(docPath string, pageCount int, startPage int) {
 		return l.send(pageMetricUpdate{page: i, bounds: bounds, width: w, height: h})
 	}
 	startPage = clampInt(startPage, 0, max(0, pageCount-1))
-	for i := startPage + 1; i < pageCount; i++ {
-		if !loadPage(i) {
+	for _, page := range metricPageOrder(pageCount, startPage) {
+		if !loadPage(page) {
 			return
 		}
 	}
-	for i := 0; i < startPage; i++ {
-		if !loadPage(i) {
-			return
+}
+
+func metricPageOrder(pageCount int, startPage int) []int {
+	if pageCount <= 1 {
+		return nil
+	}
+	startPage = clampInt(startPage, 0, pageCount-1)
+	pages := make([]int, 0, pageCount-1)
+	for distance := 1; len(pages) < pageCount-1; distance++ {
+		forward := startPage + distance
+		if forward < pageCount {
+			pages = append(pages, forward)
+		}
+		backward := startPage - distance
+		if backward >= 0 {
+			pages = append(pages, backward)
 		}
 	}
+	return pages
 }
 
 func (l *metricLoader) Close() bool {
