@@ -10,13 +10,15 @@ import (
 )
 
 type luaUIState struct {
-	visible  bool
-	title    string
-	rows     []string
-	selected int
-	scroll   int
-	onSelect string
-	onClose  string
+	visible              bool
+	title                string
+	rows                 []string
+	selected             int
+	scroll               int
+	draggingScrollbar    bool
+	scrollbarDragOffsetY int
+	onSelect             string
+	onClose              string
 }
 
 func (a *App) ShowUI(overlay config.UIOverlay) error {
@@ -110,6 +112,33 @@ func (a *App) scrollLuaUI(delta int) {
 	a.luaUI.scroll = clampInt(a.luaUI.scroll+delta, 0, maxScroll)
 }
 
+func (a *App) startLuaUIScrollbarDrag(x, y int) bool {
+	rect, rows := a.luaUIGeometry()
+	rowHeight := a.luaUIRowHeight()
+	track, thumb, ok := modalListScrollbarRects(rect, rowHeight, rows, len(a.luaUI.rows), a.luaUI.scroll)
+	if !ok || !pointInRect(x, y, track) {
+		return false
+	}
+	if pointInRect(x, y, thumb) {
+		a.luaUI.scrollbarDragOffsetY = int(float32(y) - thumb.Y)
+	} else {
+		a.luaUI.scrollbarDragOffsetY = int(thumb.H / 2)
+		a.luaUI.scroll = modalListScrollbarScrollForY(track, thumb, rows, len(a.luaUI.rows), y, a.luaUI.scrollbarDragOffsetY)
+	}
+	a.luaUI.draggingScrollbar = true
+	return true
+}
+
+func (a *App) dragLuaUIScrollbar(y int) {
+	rect, rows := a.luaUIGeometry()
+	rowHeight := a.luaUIRowHeight()
+	track, thumb, ok := modalListScrollbarRects(rect, rowHeight, rows, len(a.luaUI.rows), a.luaUI.scroll)
+	if !ok {
+		return
+	}
+	a.luaUI.scroll = modalListScrollbarScrollForY(track, thumb, rows, len(a.luaUI.rows), y, a.luaUI.scrollbarDragOffsetY)
+}
+
 func (a *App) ensureLuaUISelectionVisible() {
 	_, rows := a.luaUIGeometry()
 	if rows < 1 {
@@ -155,6 +184,9 @@ func (a *App) closeLuaUI(callCallback bool) {
 }
 
 func (a *App) clickLuaUI(x, y int) {
+	if a.startLuaUIScrollbarDrag(x, y) {
+		return
+	}
 	rect, rows := a.luaUIGeometry()
 	rowHeight := a.luaUIRowHeight()
 	row, ok := a.modalListRowAt(rect, rows, rowHeight, x, y)
@@ -237,5 +269,5 @@ func (a *App) drawLuaUI(renderer *sdl.Renderer) error {
 			return err
 		}
 	}
-	return nil
+	return a.drawModalListScrollbar(renderer, rect, rowHeight, rows, len(a.luaUI.rows), a.luaUI.scroll)
 }

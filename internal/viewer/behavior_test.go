@@ -341,8 +341,14 @@ func TestRunCommandSearchAndOpenMessages(t *testing.T) {
 	}
 
 	app.runCommand(":help")
-	if app.message != commandHelpMessage() {
-		t.Fatalf("expected help command to show command help, got %q", app.message)
+	if !app.luaUI.visible {
+		t.Fatal("expected help command to open command help window")
+	}
+	if app.luaUI.title != "Commands" {
+		t.Fatalf("expected help window title, got %q", app.luaUI.title)
+	}
+	if len(app.luaUI.rows) == 0 {
+		t.Fatal("expected help window rows")
 	}
 }
 

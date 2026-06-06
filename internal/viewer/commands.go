@@ -523,7 +523,7 @@ func (a *App) runCommand(input string) {
 			a.message = err.Error()
 		}
 	case "help":
-		a.message = commandHelpMessage()
+		a.showCommandHelp()
 	default:
 		a.message = "unknown command: " + name
 	}
@@ -558,6 +558,38 @@ func (a *App) reloadConfig() {
 
 func commandHelpMessage() string {
 	return ":open file | :page N | :search text | :search re:pattern | :mode continuous|single | :colors normal|alt | :keybinds | :set render_mode!|alt_colors!|dual_page!|first_page_offset!|status_bar! | :fit width|page | :lua <code> | :reload-config | :quit"
+}
+
+func (a *App) showCommandHelp() {
+	a.closeAllUI()
+	a.luaUI = luaUIState{
+		visible: true,
+		title:   "Commands",
+		rows:    commandHelpRows(),
+	}
+	a.pendingRedraw = true
+}
+
+func commandHelpRows() []string {
+	return []string{
+		":page N, :p N, :N - Jump to page N",
+		":search <text> - Search document text",
+		":search re:<pattern> - Search with a Go regular expression",
+		":fit width|page|manual - Set fit mode",
+		":mode continuous|single - Set render mode",
+		":colors normal|alt - Set color mode",
+		":set dual_page! - Toggle dual-page mode",
+		":set alt_colors! - Toggle alternate colors",
+		":set render_mode! - Toggle render mode",
+		":set first_page_offset! - Toggle first-page offset",
+		":set status_bar! - Toggle status bar",
+		":open <filename> - Open another PDF relative to the current document",
+		":reload-config - Reload the config file",
+		":keybinds - Toggle the keybinds menu",
+		":lua <code> - Execute Lua code inline",
+		":help - Show this command help window",
+		":quit, :q - Exit",
+	}
 }
 
 func (a *App) runSet(setting string) {

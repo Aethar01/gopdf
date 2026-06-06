@@ -553,6 +553,10 @@ func (a *App) handleSmoothWheel(wx, wy float32) bool {
 
 func (a *App) handleSDLMouseButton(e *sdl.MouseButtonEvent) {
 	if a.luaUI.visible {
+		if e.Type == sdl.EventMouseButtonUp && e.Button == uint8(sdl.ButtonLeft) {
+			a.luaUI.draggingScrollbar = false
+			return
+		}
 		if e.Type == sdl.EventMouseButtonDown && e.Button == uint8(sdl.ButtonLeft) {
 			a.clickLuaUI(int(e.X), int(e.Y))
 		}
@@ -620,6 +624,10 @@ func (a *App) handleSDLMouseButton(e *sdl.MouseButtonEvent) {
 
 func (a *App) handleSDLMouseMotion(e *sdl.MouseMotionEvent) {
 	if a.luaUI.visible {
+		if a.luaUI.draggingScrollbar {
+			a.dragLuaUIScrollbar(int(e.Y))
+			return
+		}
 		a.hoverLuaUI(int(e.X), int(e.Y))
 		return
 	}

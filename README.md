@@ -311,7 +311,7 @@ Default mouse bindings:
 | `:reload-config` | Reload config file |
 | `:keybinds` | Toggle keybinds menu |
 | `:lua <code>` | Execute Lua code inline |
-| `:help` | Show command help in the status bar |
+| `:help` | Open command help window |
 | `:quit`, `:q` | Exit |
 
 ## Lua API
