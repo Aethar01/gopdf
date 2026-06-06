@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	_ "modernc.org/sqlite"
 )
@@ -116,6 +117,70 @@ func SetDocumentSession(path string, s DocumentSession) error {
 	return err
 }
 
+func RecordRecentFile(path string, maxEntries int) error {
+	if maxEntries < 1 {
+		return nil
+	}
+	path = AbsoluteDocumentPath(path)
+	if path == "" {
+		return nil
+	}
+	db, err := openSessionDatabase()
+	if err != nil {
+		return err
+	}
+	if db == nil {
+		return nil
+	}
+	defer db.Close()
+	if _, err = db.Exec(`
+		INSERT INTO recent_files (path, updated_at)
+		VALUES (?, ?)
+		ON CONFLICT(path) DO UPDATE SET updated_at = excluded.updated_at
+	`, path, time.Now().UnixNano()); err != nil {
+		return err
+	}
+	_, err = db.Exec(`
+		DELETE FROM recent_files
+		WHERE path NOT IN (
+			SELECT path
+			FROM recent_files
+			ORDER BY updated_at DESC, path ASC
+			LIMIT ?
+		)
+	`, maxEntries)
+	return err
+}
+
+func RecentFiles(limit int) []string {
+	if limit < 1 {
+		return nil
+	}
+	db, err := openSessionDatabase()
+	if err != nil || db == nil {
+		return nil
+	}
+	defer db.Close()
+	rows, err := db.Query(`
+		SELECT path
+		FROM recent_files
+		ORDER BY updated_at DESC, path ASC
+		LIMIT ?
+	`, limit)
+	if err != nil {
+		return nil
+	}
+	defer rows.Close()
+	paths := []string{}
+	for rows.Next() {
+		var path string
+		if err := rows.Scan(&path); err == nil {
+			paths = append(paths, path)
+		}
+	}
+	return paths
+}
+
 func openSessionDatabase() (*sql.DB, error) {
 	path := SessionDatabasePath()
 	if path == "" {
@@ -161,6 +226,14 @@ func initSessionDatabase(db *sql.DB) error {
 		)
 	`)
 	if err != nil {
+		return err
+	}
+	if _, err := db.Exec(`
+		CREATE TABLE IF NOT EXISTS recent_files (
+			path TEXT PRIMARY KEY,
+			updated_at INTEGER NOT NULL
+		)
+	`); err != nil {
 		return err
 	}
 	for _, stmt := range []string{

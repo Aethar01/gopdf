@@ -6,6 +6,8 @@ import (
 	"sort"
 	"strings"
 
+	"gopdf/internal/config"
+
 	"github.com/jupiterrider/purego-sdl3/sdl"
 )
 
@@ -136,12 +138,13 @@ func prefixedCommandCompletions(prefix string) []completionItem {
 
 func (a *App) openPathCompletions(arg string) []completionItem {
 	arg = unescapeCommandArg(arg)
+	recent := a.recentFileCompletions(arg)
 	base, prefix, typedBase := splitCompletionPath(arg)
 	if arg == "." {
-		return []completionItem{{value: "." + pathSeparator(), display: "." + pathSeparator()}}
+		return append(recent, completionItem{value: "." + pathSeparator(), display: "." + pathSeparator()})
 	}
 	if arg == ".." {
-		return []completionItem{{value: ".." + pathSeparator(), display: ".." + pathSeparator()}}
+		return append(recent, completionItem{value: ".." + pathSeparator(), display: ".." + pathSeparator()})
 	}
 	readDir := base
 	if strings.HasPrefix(base, "~") {
@@ -151,9 +154,9 @@ func (a *App) openPathCompletions(arg string) []completionItem {
 	}
 	entries, err := os.ReadDir(readDir)
 	if err != nil {
-		return nil
+		return recent
 	}
-	items := []completionItem{}
+	items := recent
 	for _, entry := range entries {
 		name := entry.Name()
 		if !strings.HasPrefix(name, prefix) {
@@ -175,6 +178,27 @@ func (a *App) openPathCompletions(arg string) []completionItem {
 		}
 		return strings.ToLower(items[i].display) < strings.ToLower(items[j].display)
 	})
+	return items
+}
+
+func (a *App) recentFileCompletions(arg string) []completionItem {
+	if !a.config.SessionDatabase {
+		return nil
+	}
+	argLower := strings.ToLower(arg)
+	items := []completionItem{}
+	seen := map[string]bool{}
+	for _, path := range config.RecentFiles(a.config.RecentFilesMax) {
+		if path == "" || seen[path] {
+			continue
+		}
+		seen[path] = true
+		base := filepath.Base(path)
+		if argLower != "" && !strings.Contains(strings.ToLower(path), argLower) && !strings.Contains(strings.ToLower(base), argLower) {
+			continue
+		}
+		items = append(items, completionItem{value: escapeCompletionPath(path), display: "recent: " + base})
+	}
 	return items
 }
 

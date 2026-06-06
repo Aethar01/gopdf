@@ -179,6 +179,13 @@ func (a *App) saveDocumentSession() {
 	})
 }
 
+func (a *App) recordRecentFile(path string) {
+	if a == nil || !a.config.SessionDatabase || path == "" {
+		return
+	}
+	_ = config.RecordRecentFile(path, a.config.RecentFilesMax)
+}
+
 func (a *App) restoreDocumentSession() bool {
 	state, ok := a.documentSessionViewState(a.docPath)
 	if !ok {

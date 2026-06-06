@@ -11,6 +11,7 @@ gopdf.options.outline_initial_depth = 1
 gopdf.options.outline_width_percent = 70
 gopdf.options.outline_height_percent = 80
 gopdf.options.completion_max_items = 10
+gopdf.options.recent_files_max = 10
 
 gopdf.options.render_mode = "continuous"
 gopdf.options.dual_page = false

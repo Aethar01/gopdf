@@ -46,6 +46,7 @@ type Config struct {
 	OutlineWidthPercent  int
 	OutlineHeightPercent int
 	CompletionMaxItems   int
+	RecentFilesMax       int
 }
 
 type Runtime struct {

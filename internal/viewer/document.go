@@ -143,6 +143,7 @@ func (a *App) openDocument(path string, opts openDocumentOptions) error {
 
 	a.docPath = path
 	a.docName = filepath.Base(path)
+	a.recordRecentFile(path)
 	a.document.record(path)
 	a.doc = doc
 	a.pageCount = pages
@@ -275,6 +276,7 @@ func (a *App) softReloadDocument(path string, state viewState) error {
 
 	a.docPath = path
 	a.docName = filepath.Base(path)
+	a.recordRecentFile(path)
 	a.doc = doc
 	a.pageCount = pages
 	a.page = startPage

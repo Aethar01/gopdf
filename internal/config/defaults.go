@@ -51,5 +51,6 @@ func Default() Config {
 		OutlineWidthPercent:  70,
 		OutlineHeightPercent: 80,
 		CompletionMaxItems:   10,
+		RecentFilesMax:       10,
 	}
 }

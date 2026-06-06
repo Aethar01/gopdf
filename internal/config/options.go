@@ -98,6 +98,7 @@ var configOptions = map[string]optionDesc{
 	"outline_width_percent":  intOption(func(c *Config) int { return c.OutlineWidthPercent }, func(c *Config, v int) { c.OutlineWidthPercent = v }),
 	"outline_height_percent": intOption(func(c *Config) int { return c.OutlineHeightPercent }, func(c *Config, v int) { c.OutlineHeightPercent = v }),
 	"completion_max_items":   intOption(func(c *Config) int { return c.CompletionMaxItems }, func(c *Config, v int) { c.CompletionMaxItems = max(1, v) }),
+	"recent_files_max":       intOption(func(c *Config) int { return c.RecentFilesMax }, func(c *Config, v int) { c.RecentFilesMax = max(0, v) }),
 	"scroll_step":            intOption(func(c *Config) int { return c.ScrollStep }, func(c *Config, v int) { c.ScrollStep = v }),
 	"page_gap": intOption(func(c *Config) int { return c.PageGap }, func(c *Config, v int) {
 		c.PageGap = v
