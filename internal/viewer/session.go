@@ -196,6 +196,22 @@ func viewStateFromDocumentSession(session config.DocumentSession) viewState {
 	}
 }
 
+func (state viewState) documentMark() config.DocumentMark {
+	return config.DocumentMark{
+		Page:        state.page,
+		ScrollX:     state.scrollX,
+		ScrollY:     state.scrollY,
+		AnchorPage:  state.anchor.page,
+		AnchorX:     state.anchor.point.X,
+		AnchorY:     state.anchor.point.Y,
+		AnchorValid: state.anchor.valid,
+	}
+}
+
+func viewportAnchorFromDocumentMark(mark config.DocumentMark) viewportAnchor {
+	return viewportAnchor{page: mark.AnchorPage, point: mupdf.Point{X: mark.AnchorX, Y: mark.AnchorY}, valid: mark.AnchorValid}
+}
+
 func (a *App) saveDocumentSession() {
 	if a == nil || !a.config.SessionDatabase || a.docPath == "" || a.pageCount == 0 {
 		return
@@ -260,17 +276,7 @@ func isMarkName(token string) bool {
 }
 
 func (a *App) setDocumentMark(name string) {
-	state := a.captureViewState()
-	mark := config.DocumentMark{
-		Page:        state.page,
-		ScrollX:     state.scrollX,
-		ScrollY:     state.scrollY,
-		AnchorPage:  state.anchor.page,
-		AnchorX:     state.anchor.point.X,
-		AnchorY:     state.anchor.point.Y,
-		AnchorValid: state.anchor.valid,
-	}
-	if err := config.SetDocumentMark(a.docPath, name, mark); err != nil {
+	if err := config.SetDocumentMark(a.docPath, name, a.captureViewState().documentMark()); err != nil {
 		a.message = err.Error()
 		return
 	}
@@ -286,7 +292,7 @@ func (a *App) jumpDocumentMark(name string) {
 	a.recordJump()
 	a.page = clampInt(mark.Page, 0, max(0, a.pageCount-1))
 	if mark.AnchorValid {
-		a.restoreViewportAnchor(viewportAnchor{page: mark.AnchorPage, point: mupdf.Point{X: mark.AnchorX, Y: mark.AnchorY}, valid: true})
+		a.restoreViewportAnchor(viewportAnchorFromDocumentMark(mark))
 	} else {
 		a.scrollX = mark.ScrollX
 		a.scrollY = mark.ScrollY
