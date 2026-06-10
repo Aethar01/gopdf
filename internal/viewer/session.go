@@ -155,12 +155,8 @@ func (state viewState) atDocumentStart() viewState {
 	return state
 }
 
-func (a *App) saveDocumentSession() {
-	if a == nil || !a.config.SessionDatabase || a.docPath == "" || a.pageCount == 0 {
-		return
-	}
-	state := a.captureViewState()
-	_ = config.SetDocumentSession(a.docPath, config.DocumentSession{
+func (state viewState) documentSession() config.DocumentSession {
+	return config.DocumentSession{
 		Page:            state.page,
 		ScrollX:         state.scrollX,
 		ScrollY:         state.scrollY,
@@ -176,7 +172,35 @@ func (a *App) saveDocumentSession() {
 		FirstPageOffset: state.firstPageOffset,
 		StatusBarShown:  state.statusBarShown,
 		AltColors:       state.altColors,
-	})
+	}
+}
+
+func viewStateFromDocumentSession(session config.DocumentSession) viewState {
+	return viewState{
+		page:    session.Page,
+		scrollX: session.ScrollX,
+		scrollY: session.ScrollY,
+		anchor: viewportAnchor{
+			page:  session.AnchorPage,
+			point: mupdf.Point{X: session.AnchorX, Y: session.AnchorY},
+			valid: session.AnchorValid,
+		},
+		zoom:            session.Zoom,
+		fitMode:         session.FitMode,
+		renderMode:      session.RenderMode,
+		rotation:        session.Rotation,
+		dualPage:        session.DualPage,
+		firstPageOffset: session.FirstPageOffset,
+		statusBarShown:  session.StatusBarShown,
+		altColors:       session.AltColors,
+	}
+}
+
+func (a *App) saveDocumentSession() {
+	if a == nil || !a.config.SessionDatabase || a.docPath == "" || a.pageCount == 0 {
+		return
+	}
+	_ = config.SetDocumentSession(a.docPath, a.captureViewState().documentSession())
 }
 
 func (a *App) recordRecentFile(path string) {
@@ -292,22 +316,5 @@ func (a *App) documentSessionViewState(path string) (viewState, bool) {
 	if !ok {
 		return viewState{}, false
 	}
-	return viewState{
-		page:    session.Page,
-		scrollX: session.ScrollX,
-		scrollY: session.ScrollY,
-		anchor: viewportAnchor{
-			page:  session.AnchorPage,
-			point: mupdf.Point{X: session.AnchorX, Y: session.AnchorY},
-			valid: session.AnchorValid,
-		},
-		zoom:            session.Zoom,
-		fitMode:         session.FitMode,
-		renderMode:      session.RenderMode,
-		rotation:        session.Rotation,
-		dualPage:        session.DualPage,
-		firstPageOffset: session.FirstPageOffset,
-		statusBarShown:  session.StatusBarShown,
-		altColors:       session.AltColors,
-	}, true
+	return viewStateFromDocumentSession(session), true
 }
