@@ -519,8 +519,13 @@ func (a *App) runCommand(input string) {
 			a.message = "no Lua runtime"
 			return
 		}
-		if err := a.runtime.Eval(args); err != nil {
+		dirty, err := a.runtime.Eval(args)
+		if err != nil {
 			a.message = err.Error()
+			return
+		}
+		if dirty {
+			a.applyConfig(a.runtime.Config())
 		}
 	case "help":
 		a.showCommandHelp()

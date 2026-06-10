@@ -11,6 +11,16 @@ import (
 )
 
 func (r *Runtime) applyLuaConfig(path string) error {
+	L := r.initLuaState()
+	if err := L.DoFile(path); err != nil {
+		L.Close()
+		r.state = nil
+		return fmt.Errorf("%s: %w", path, err)
+	}
+	return nil
+}
+
+func (r *Runtime) initLuaState() *lua.LState {
 	if r.state != nil {
 		r.state.Close()
 		r.state = nil
@@ -24,12 +34,7 @@ func (r *Runtime) applyLuaConfig(path string) error {
 	L.SetGlobal("bind_mouse", L.GetField(mod, "bind_mouse"))
 	L.SetGlobal("unbind_mouse", L.GetField(mod, "unbind_mouse"))
 	L.SetGlobal("options", L.GetField(mod, "options"))
-	if err := L.DoFile(path); err != nil {
-		L.Close()
-		r.state = nil
-		return fmt.Errorf("%s: %w", path, err)
-	}
-	return nil
+	return L
 }
 
 func newLuaModule(L *lua.LState, rt *Runtime, cfg *Config) *lua.LTable {

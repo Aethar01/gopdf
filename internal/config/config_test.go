@@ -351,6 +351,24 @@ end)
 	}
 }
 
+func TestEvalWorksWithoutConfigFile(t *testing.T) {
+	dir := t.TempDir()
+	rt, err := Open(filepath.Join(dir, "missing.lua"), filepath.Join(dir, "doc.pdf"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rt.Close()
+
+	host := &stubHost{}
+	rt.AttachHost(host)
+	if dirty, err := rt.Eval(`gopdf.message("inline lua works")`); dirty || err != nil {
+		t.Fatalf("expected inline lua to run without config file: %v", err)
+	}
+	if host.message != "inline lua works" {
+		t.Fatalf("expected host message from inline lua, got %q", host.message)
+	}
+}
+
 func TestMouseInteractionOptions(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "config.lua")

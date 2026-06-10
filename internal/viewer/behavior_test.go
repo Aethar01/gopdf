@@ -328,6 +328,27 @@ func TestRunCommandAppliesViewerSettings(t *testing.T) {
 	}
 }
 
+func TestLuaCommandAppliesChangedOptions(t *testing.T) {
+	app := testLayoutApp(4)
+	app.winW = 800
+	app.winH = 600
+	app.dualPage = true
+	app.recomputeLayout(app.viewportSize())
+
+	rt, err := config.Open(filepath.Join(t.TempDir(), "missing.lua"), "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rt.Close()
+	app.runtime = rt
+	rt.AttachHost(app)
+
+	app.runCommand(":lua gopdf.options.dual_page = false")
+	if app.dualPage {
+		t.Fatal("expected inline lua option assignment to disable dual-page mode")
+	}
+}
+
 func TestRunCommandSearchAndOpenMessages(t *testing.T) {
 	app := &App{}
 	app.runCommand(":search needle")

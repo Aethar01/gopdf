@@ -139,6 +139,7 @@ func (r *Runtime) Reload() error {
 		r.dirty = false
 		return nil
 	}
+	r.initLuaState()
 	r.cfg.AutogenPath = autogenPath
 	r.dirty = false
 	r.logf("no user config loaded")
@@ -173,11 +174,15 @@ func (r *Runtime) RunAction(action string) (bool, bool, error) {
 	return true, r.dirty, nil
 }
 
-func (r *Runtime) Eval(code string) error {
+func (r *Runtime) Eval(code string) (bool, error) {
 	if r == nil || r.state == nil {
-		return fmt.Errorf("no Lua state")
+		return false, fmt.Errorf("no Lua state")
 	}
-	return r.state.DoString(code)
+	r.dirty = false
+	if err := r.state.DoString(code); err != nil {
+		return r.dirty, err
+	}
+	return r.dirty, nil
 }
 
 func (r *Runtime) RunUISelect(callback string, index int, value string) error {
