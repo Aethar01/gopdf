@@ -575,18 +575,9 @@ func (a *App) showCommandHelp() {
 }
 
 func (a *App) runSet(setting string) {
-	switch setting {
-	case "dual_page!":
-		a.runAction("toggle_dual_page")
-	case "alt_colors!":
-		a.runAction("toggle_alt_colors")
-	case "render_mode!":
-		a.runAction("toggle_render_mode")
-	case "first_page_offset!":
-		a.runAction("toggle_first_page_offset")
-	case "status_bar!":
-		a.runAction("toggle_status_bar")
-	default:
+	if action, ok := setActionForSetting(setting); ok {
+		a.runAction(action)
+	} else {
 		a.message = "unknown setting: " + setting
 	}
 }

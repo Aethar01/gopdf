@@ -1,9 +1,24 @@
 package viewer
 
+import "strings"
+
 type commandSpec struct {
 	Name           string
 	ArgCompletions []string
 	Help           string
+}
+
+type setSettingSpec struct {
+	Name   string
+	Action string
+}
+
+var setSettingSpecs = []setSettingSpec{
+	{Name: "alt_colors!", Action: "toggle_alt_colors"},
+	{Name: "dual_page!", Action: "toggle_dual_page"},
+	{Name: "first_page_offset!", Action: "toggle_first_page_offset"},
+	{Name: "render_mode!", Action: "toggle_render_mode"},
+	{Name: "status_bar!", Action: "toggle_status_bar"},
 }
 
 var commandSpecs = []commandSpec{
@@ -18,7 +33,24 @@ var commandSpecs = []commandSpec{
 	{Name: "quit", Help: ":quit, :q - Exit"},
 	{Name: "reload-config", Help: ":reload-config - Reload the config file"},
 	{Name: "search", Help: ":search <text> - Search document text"},
-	{Name: "set", ArgCompletions: []string{"alt_colors!", "dual_page!", "first_page_offset!", "render_mode!", "status_bar!"}, Help: ":set dual_page!|alt_colors!|render_mode!|first_page_offset!|status_bar! - Toggle setting"},
+	{Name: "set", ArgCompletions: setSettingNames(), Help: ":set " + strings.Join(setSettingNames(), "|") + " - Toggle setting"},
+}
+
+func setActionForSetting(name string) (string, bool) {
+	for _, spec := range setSettingSpecs {
+		if spec.Name == name {
+			return spec.Action, true
+		}
+	}
+	return "", false
+}
+
+func setSettingNames() []string {
+	names := make([]string, 0, len(setSettingSpecs))
+	for _, spec := range setSettingSpecs {
+		names = append(names, spec.Name)
+	}
+	return names
 }
 
 func commandArgCompletionValues(name string) []string {
