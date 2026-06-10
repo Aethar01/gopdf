@@ -78,8 +78,8 @@ func metricPageOrder(pageCount int, startPage int) []int {
 	return pages
 }
 
-func (l *metricLoader) Close() bool {
-	return closeWorker(l.closing, l.done, &l.closeOnce)
+func (l *metricLoader) Close() {
+	closeWorker(l.closing, l.done, &l.closeOnce)
 }
 
 func (l *metricLoader) send(update pageMetricUpdate) bool {

@@ -70,8 +70,8 @@ func newSearchWorker(docPath string) *searchWorker {
 	return w
 }
 
-func (w *searchWorker) Close() bool {
-	return closeWorker(w.closing, w.done, &w.closeOnce)
+func (w *searchWorker) Close() {
+	closeWorker(w.closing, w.done, &w.closeOnce)
 }
 
 func (w *searchWorker) Start(req searchRequest) bool {

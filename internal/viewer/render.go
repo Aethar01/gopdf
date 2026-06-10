@@ -75,8 +75,8 @@ func newRenderWorker(docPath string) *renderWorker {
 	return w
 }
 
-func (w *renderWorker) Close() bool {
-	return closeWorker(w.closing, w.done, &w.closeOnce)
+func (w *renderWorker) Close() {
+	closeWorker(w.closing, w.done, &w.closeOnce)
 }
 
 func (w *renderWorker) SetGeneration(generation int) {
