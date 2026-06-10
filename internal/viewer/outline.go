@@ -161,18 +161,8 @@ func (a *App) ensureOutlineSelectionVisible() {
 		return
 	}
 	_, rows := a.outlineMenuGeometry()
-	if rows < 1 {
-		rows = 1
-	}
 	row := a.selectedVisibleOutlineRow(visible)
-	if row < a.outlineMenu.scroll {
-		a.outlineMenu.scroll = row
-	}
-	if row >= a.outlineMenu.scroll+rows {
-		a.outlineMenu.scroll = row - rows + 1
-	}
-	maxScroll := max(0, len(visible)-rows)
-	a.outlineMenu.scroll = clampInt(a.outlineMenu.scroll, 0, maxScroll)
+	a.outlineMenu.scroll = modalListScrollForSelection(a.outlineMenu.scroll, row, rows, len(visible))
 }
 
 func (a *App) moveOutlineSelection(delta int) {

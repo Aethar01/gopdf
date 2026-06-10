@@ -218,20 +218,11 @@ func (a *App) scrollKeybindMenu(delta int) {
 
 func (a *App) ensureKeybindSelectionVisible() {
 	_, rows := a.keybindMenuListGeometry()
-	if rows < 1 {
-		rows = 1
-	}
 	if a.keybindMenu.selected < 0 {
 		a.keybindMenu.scroll = 0
 		return
 	}
-	if a.keybindMenu.selected < a.keybindMenu.scroll {
-		a.keybindMenu.scroll = a.keybindMenu.selected
-	}
-	if a.keybindMenu.selected >= a.keybindMenu.scroll+rows {
-		a.keybindMenu.scroll = a.keybindMenu.selected - rows + 1
-	}
-	a.keybindMenu.scroll = clampInt(a.keybindMenu.scroll, 0, max(0, len(a.keybindMenu.rows)-rows))
+	a.keybindMenu.scroll = modalListScrollForSelection(a.keybindMenu.scroll, a.keybindMenu.selected, rows, len(a.keybindMenu.rows))
 }
 
 func (a *App) startKeybindScrollbarDrag(x, y int) bool {

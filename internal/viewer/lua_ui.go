@@ -124,17 +124,7 @@ func (a *App) dragLuaUIScrollbar(y int) {
 
 func (a *App) ensureLuaUISelectionVisible() {
 	_, rows := a.luaUIGeometry()
-	if rows < 1 {
-		rows = 1
-	}
-	if a.luaUI.selected < a.luaUI.scroll {
-		a.luaUI.scroll = a.luaUI.selected
-	}
-	if a.luaUI.selected >= a.luaUI.scroll+rows {
-		a.luaUI.scroll = a.luaUI.selected - rows + 1
-	}
-	maxScroll := max(0, len(a.luaUI.rows)-rows)
-	a.luaUI.scroll = clampInt(a.luaUI.scroll, 0, maxScroll)
+	a.luaUI.scroll = modalListScrollForSelection(a.luaUI.scroll, a.luaUI.selected, rows, len(a.luaUI.rows))
 }
 
 func (a *App) activateLuaUISelection() {
