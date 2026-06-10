@@ -9,6 +9,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"gopdf/internal/actions"
 	"gopdf/internal/config"
 	"gopdf/internal/mupdf"
 
@@ -711,7 +712,7 @@ func (a *App) runCountAction(token string) bool {
 		return false
 	}
 	action, ok := a.sequenceLookup[normalizeBinding(token)]
-	if !ok || !isCountableAction(action) {
+	if !ok || !actions.IsCountable(action) {
 		return false
 	}
 	for range count {
