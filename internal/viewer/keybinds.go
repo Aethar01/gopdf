@@ -249,15 +249,11 @@ func (a *App) clickKeybindMenu(x, y int) {
 	}
 	rect, rows := a.keybindMenuListGeometry()
 	rowHeight := a.keybindMenuRowHeight()
-	row, ok := a.modalListRowAt(rect, rows, rowHeight, x, y)
+	index, ok := a.modalListIndexAt(rect, rows, rowHeight, x, y, a.keybindMenu.scroll, len(a.keybindMenu.rows))
 	if !ok {
 		if !pointInRect(x, y, menuRect) {
 			a.keybindMenu = keybindMenuState{}
 		}
-		return
-	}
-	index := a.keybindMenu.scroll + row
-	if index < 0 || index >= len(a.keybindMenu.rows) {
 		return
 	}
 	a.keybindMenu.selected = index
@@ -274,12 +270,8 @@ func (a *App) hoverKeybindMenu(x, y int) {
 	}
 	rect, rows := a.keybindMenuListGeometry()
 	rowHeight := a.keybindMenuRowHeight()
-	row, ok := a.modalListRowAt(rect, rows, rowHeight, x, y)
+	index, ok := a.modalListIndexAt(rect, rows, rowHeight, x, y, a.keybindMenu.scroll, len(a.keybindMenu.rows))
 	if !ok {
-		return
-	}
-	index := a.keybindMenu.scroll + row
-	if index < 0 || index >= len(a.keybindMenu.rows) {
 		return
 	}
 	a.keybindMenu.selected = index

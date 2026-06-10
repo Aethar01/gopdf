@@ -162,15 +162,11 @@ func (a *App) clickLuaUI(x, y int) {
 	}
 	rect, rows := a.luaUIGeometry()
 	rowHeight := a.luaUIRowHeight()
-	row, ok := a.modalListRowAt(rect, rows, rowHeight, x, y)
+	index, ok := a.modalListIndexAt(rect, rows, rowHeight, x, y, a.luaUI.scroll, len(a.luaUI.rows))
 	if !ok {
 		if float32(x) < rect.X || float32(x) > rect.X+rect.W || float32(y) < rect.Y || float32(y) > rect.Y+rect.H {
 			a.closeLuaUI(true)
 		}
-		return
-	}
-	index := a.luaUI.scroll + row
-	if index < 0 || index >= len(a.luaUI.rows) {
 		return
 	}
 	a.luaUI.selected = index
@@ -180,12 +176,8 @@ func (a *App) clickLuaUI(x, y int) {
 func (a *App) hoverLuaUI(x, y int) {
 	rect, rows := a.luaUIGeometry()
 	rowHeight := a.luaUIRowHeight()
-	row, ok := a.modalListRowAt(rect, rows, rowHeight, x, y)
+	index, ok := a.modalListIndexAt(rect, rows, rowHeight, x, y, a.luaUI.scroll, len(a.luaUI.rows))
 	if !ok {
-		return
-	}
-	index := a.luaUI.scroll + row
-	if index < 0 || index >= len(a.luaUI.rows) {
 		return
 	}
 	a.luaUI.selected = index

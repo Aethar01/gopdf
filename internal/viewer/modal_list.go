@@ -56,6 +56,18 @@ func (a *App) modalListRowAt(rect sdl.FRect, rows, rowHeight, x, y int) (int, bo
 	return row, true
 }
 
+func (a *App) modalListIndexAt(rect sdl.FRect, rows, rowHeight, x, y, scroll, total int) (int, bool) {
+	row, ok := a.modalListRowAt(rect, rows, rowHeight, x, y)
+	if !ok {
+		return 0, false
+	}
+	index := scroll + row
+	if index < 0 || index >= total {
+		return 0, false
+	}
+	return index, true
+}
+
 func modalListScrollbarRects(rect sdl.FRect, rowHeight, rows, total, scroll int) (sdl.FRect, sdl.FRect, bool) {
 	if rows <= 0 || total <= rows {
 		return sdl.FRect{}, sdl.FRect{}, false

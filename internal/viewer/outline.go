@@ -296,16 +296,12 @@ func (a *App) clickOutlineMenu(x, y int) {
 	}
 	rect, rows := a.outlineMenuGeometry()
 	rowHeight := a.outlineMenuRowHeight()
-	row, ok := a.modalListRowAt(rect, rows, rowHeight, x, y)
+	visible := a.visibleOutlineIndices()
+	index, ok := a.modalListIndexAt(rect, rows, rowHeight, x, y, a.outlineMenu.scroll, len(visible))
 	if !ok {
 		if float32(x) < rect.X || float32(x) > rect.X+rect.W || float32(y) < rect.Y || float32(y) > rect.Y+rect.H {
 			a.outlineMenu.visible = false
 		}
-		return
-	}
-	visible := a.visibleOutlineIndices()
-	index := a.outlineMenu.scroll + row
-	if index < 0 || index >= len(visible) {
 		return
 	}
 	a.outlineMenu.selected = visible[index]
@@ -315,13 +311,9 @@ func (a *App) clickOutlineMenu(x, y int) {
 func (a *App) hoverOutlineMenu(x, y int) {
 	rect, rows := a.outlineMenuGeometry()
 	rowHeight := a.outlineMenuRowHeight()
-	row, ok := a.modalListRowAt(rect, rows, rowHeight, x, y)
-	if !ok {
-		return
-	}
 	visible := a.visibleOutlineIndices()
-	index := a.outlineMenu.scroll + row
-	if index < 0 || index >= len(visible) {
+	index, ok := a.modalListIndexAt(rect, rows, rowHeight, x, y, a.outlineMenu.scroll, len(visible))
+	if !ok {
 		return
 	}
 	a.outlineMenu.selected = visible[index]
