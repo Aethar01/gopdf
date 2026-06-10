@@ -49,7 +49,7 @@ func TestNewAllowsBlankViewerWithoutDocument(t *testing.T) {
 	}
 	defer rt.Close()
 
-	app, err := New("", rt, 0, nil)
+	app, err := New("", rt, 0, nil, NewOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -195,15 +195,7 @@ type NewOptions struct {
 	StartPageExplicit bool
 }
 
-func New(docPath string, runtime *config.Runtime, startPage int, iconBytes []byte, verbose ...bool) (*App, error) {
-	opts := NewOptions{}
-	if len(verbose) > 0 {
-		opts.Verbose = verbose[0]
-	}
-	return NewWithOptions(docPath, runtime, startPage, iconBytes, opts)
-}
-
-func NewWithOptions(docPath string, runtime *config.Runtime, startPage int, iconBytes []byte, opts NewOptions) (*App, error) {
+func New(docPath string, runtime *config.Runtime, startPage int, iconBytes []byte, opts NewOptions) (*App, error) {
 	cfg := runtime.Config()
 	if startPage < 0 {
 		startPage = 0
