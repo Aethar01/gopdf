@@ -236,29 +236,12 @@ func (a *App) ensureKeybindSelectionVisible() {
 
 func (a *App) startKeybindScrollbarDrag(x, y int) bool {
 	rect, rows := a.keybindMenuListGeometry()
-	rowHeight := a.keybindMenuRowHeight()
-	track, thumb, ok := modalListScrollbarRects(rect, rowHeight, rows, len(a.keybindMenu.rows), a.keybindMenu.scroll)
-	if !ok || !pointInRect(x, y, track) {
-		return false
-	}
-	if pointInRect(x, y, thumb) {
-		a.keybindMenu.scrollbarDragOffsetY = int(float32(y) - thumb.Y)
-	} else {
-		a.keybindMenu.scrollbarDragOffsetY = int(thumb.H / 2)
-		a.keybindMenu.scroll = modalListScrollbarScrollForY(track, thumb, rows, len(a.keybindMenu.rows), y, a.keybindMenu.scrollbarDragOffsetY)
-	}
-	a.keybindMenu.draggingScrollbar = true
-	return true
+	return modalListStartScrollbarDrag(rect, a.keybindMenuRowHeight(), rows, len(a.keybindMenu.rows), x, y, &a.keybindMenu.scroll, &a.keybindMenu.scrollbarDragOffsetY, &a.keybindMenu.draggingScrollbar)
 }
 
 func (a *App) dragKeybindScrollbar(y int) {
 	rect, rows := a.keybindMenuListGeometry()
-	rowHeight := a.keybindMenuRowHeight()
-	track, thumb, ok := modalListScrollbarRects(rect, rowHeight, rows, len(a.keybindMenu.rows), a.keybindMenu.scroll)
-	if !ok {
-		return
-	}
-	a.keybindMenu.scroll = modalListScrollbarScrollForY(track, thumb, rows, len(a.keybindMenu.rows), y, a.keybindMenu.scrollbarDragOffsetY)
+	modalListDragScrollbar(rect, a.keybindMenuRowHeight(), rows, len(a.keybindMenu.rows), y, &a.keybindMenu.scroll, a.keybindMenu.scrollbarDragOffsetY)
 }
 
 func (a *App) clickKeybindMenu(x, y int) {

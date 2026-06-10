@@ -114,29 +114,12 @@ func (a *App) scrollLuaUI(delta int) {
 
 func (a *App) startLuaUIScrollbarDrag(x, y int) bool {
 	rect, rows := a.luaUIGeometry()
-	rowHeight := a.luaUIRowHeight()
-	track, thumb, ok := modalListScrollbarRects(rect, rowHeight, rows, len(a.luaUI.rows), a.luaUI.scroll)
-	if !ok || !pointInRect(x, y, track) {
-		return false
-	}
-	if pointInRect(x, y, thumb) {
-		a.luaUI.scrollbarDragOffsetY = int(float32(y) - thumb.Y)
-	} else {
-		a.luaUI.scrollbarDragOffsetY = int(thumb.H / 2)
-		a.luaUI.scroll = modalListScrollbarScrollForY(track, thumb, rows, len(a.luaUI.rows), y, a.luaUI.scrollbarDragOffsetY)
-	}
-	a.luaUI.draggingScrollbar = true
-	return true
+	return modalListStartScrollbarDrag(rect, a.luaUIRowHeight(), rows, len(a.luaUI.rows), x, y, &a.luaUI.scroll, &a.luaUI.scrollbarDragOffsetY, &a.luaUI.draggingScrollbar)
 }
 
 func (a *App) dragLuaUIScrollbar(y int) {
 	rect, rows := a.luaUIGeometry()
-	rowHeight := a.luaUIRowHeight()
-	track, thumb, ok := modalListScrollbarRects(rect, rowHeight, rows, len(a.luaUI.rows), a.luaUI.scroll)
-	if !ok {
-		return
-	}
-	a.luaUI.scroll = modalListScrollbarScrollForY(track, thumb, rows, len(a.luaUI.rows), y, a.luaUI.scrollbarDragOffsetY)
+	modalListDragScrollbar(rect, a.luaUIRowHeight(), rows, len(a.luaUI.rows), y, &a.luaUI.scroll, a.luaUI.scrollbarDragOffsetY)
 }
 
 func (a *App) ensureLuaUISelectionVisible() {

@@ -194,31 +194,14 @@ func (a *App) scrollOutlineMenu(delta int) {
 
 func (a *App) startOutlineScrollbarDrag(x, y int) bool {
 	rect, rows := a.outlineMenuGeometry()
-	rowHeight := a.outlineMenuRowHeight()
 	visible := a.visibleOutlineIndices()
-	track, thumb, ok := modalListScrollbarRects(rect, rowHeight, rows, len(visible), a.outlineMenu.scroll)
-	if !ok || !pointInRect(x, y, track) {
-		return false
-	}
-	if pointInRect(x, y, thumb) {
-		a.outlineMenu.scrollbarDragOffsetY = int(float32(y) - thumb.Y)
-	} else {
-		a.outlineMenu.scrollbarDragOffsetY = int(thumb.H / 2)
-		a.outlineMenu.scroll = modalListScrollbarScrollForY(track, thumb, rows, len(visible), y, a.outlineMenu.scrollbarDragOffsetY)
-	}
-	a.outlineMenu.draggingScrollbar = true
-	return true
+	return modalListStartScrollbarDrag(rect, a.outlineMenuRowHeight(), rows, len(visible), x, y, &a.outlineMenu.scroll, &a.outlineMenu.scrollbarDragOffsetY, &a.outlineMenu.draggingScrollbar)
 }
 
 func (a *App) dragOutlineScrollbar(y int) {
 	rect, rows := a.outlineMenuGeometry()
-	rowHeight := a.outlineMenuRowHeight()
 	visible := a.visibleOutlineIndices()
-	track, thumb, ok := modalListScrollbarRects(rect, rowHeight, rows, len(visible), a.outlineMenu.scroll)
-	if !ok {
-		return
-	}
-	a.outlineMenu.scroll = modalListScrollbarScrollForY(track, thumb, rows, len(visible), y, a.outlineMenu.scrollbarDragOffsetY)
+	modalListDragScrollbar(rect, a.outlineMenuRowHeight(), rows, len(visible), y, &a.outlineMenu.scroll, a.outlineMenu.scrollbarDragOffsetY)
 }
 
 func (a *App) activateSelectedOutline() {

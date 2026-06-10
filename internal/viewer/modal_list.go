@@ -93,6 +93,29 @@ func modalListScrollbarScrollForY(track, thumb sdl.FRect, rows, total, y, dragOf
 	return clampInt(int(rel/float64(travel)*float64(maxScroll)+0.5), 0, maxScroll)
 }
 
+func modalListStartScrollbarDrag(rect sdl.FRect, rowHeight, rows, total, x, y int, scroll, dragOffset *int, dragging *bool) bool {
+	track, thumb, ok := modalListScrollbarRects(rect, rowHeight, rows, total, *scroll)
+	if !ok || !pointInRect(x, y, track) {
+		return false
+	}
+	if pointInRect(x, y, thumb) {
+		*dragOffset = int(float32(y) - thumb.Y)
+	} else {
+		*dragOffset = int(thumb.H / 2)
+		*scroll = modalListScrollbarScrollForY(track, thumb, rows, total, y, *dragOffset)
+	}
+	*dragging = true
+	return true
+}
+
+func modalListDragScrollbar(rect sdl.FRect, rowHeight, rows, total, y int, scroll *int, dragOffset int) {
+	track, thumb, ok := modalListScrollbarRects(rect, rowHeight, rows, total, *scroll)
+	if !ok {
+		return
+	}
+	*scroll = modalListScrollbarScrollForY(track, thumb, rows, total, y, dragOffset)
+}
+
 func pointInRect(x, y int, rect sdl.FRect) bool {
 	return float32(x) >= rect.X && float32(x) <= rect.X+rect.W && float32(y) >= rect.Y && float32(y) <= rect.Y+rect.H
 }
