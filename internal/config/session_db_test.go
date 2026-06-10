@@ -45,6 +45,8 @@ func TestSessionDatabaseDefaultOn(t *testing.T) {
 
 func TestRecentFiles(t *testing.T) {
 	setTestDataDir(t)
+	one := AbsoluteDocumentPath("/tmp/one.pdf")
+	two := AbsoluteDocumentPath("/tmp/two.pdf")
 	if err := RecordRecentFile("/tmp/one.pdf", 10); err != nil {
 		t.Fatal(err)
 	}
@@ -58,13 +60,15 @@ func TestRecentFiles(t *testing.T) {
 	if len(got) != 2 {
 		t.Fatalf("RecentFiles returned %d entries: %v", len(got), got)
 	}
-	if got[0] != "/tmp/one.pdf" || got[1] != "/tmp/two.pdf" {
-		t.Fatalf("RecentFiles = %v, want [/tmp/one.pdf /tmp/two.pdf]", got)
+	if got[0] != one || got[1] != two {
+		t.Fatalf("RecentFiles = %v, want [%s %s]", got, one, two)
 	}
 }
 
 func TestRecentFilesMaxEntries(t *testing.T) {
 	setTestDataDir(t)
+	two := AbsoluteDocumentPath("/tmp/two.pdf")
+	three := AbsoluteDocumentPath("/tmp/three.pdf")
 	if err := RecordRecentFile("/tmp/one.pdf", 2); err != nil {
 		t.Fatal(err)
 	}
@@ -78,8 +82,8 @@ func TestRecentFilesMaxEntries(t *testing.T) {
 	if len(got) != 2 {
 		t.Fatalf("RecentFiles returned %d entries: %v", len(got), got)
 	}
-	if got[0] != "/tmp/three.pdf" || got[1] != "/tmp/two.pdf" {
-		t.Fatalf("RecentFiles = %v, want [/tmp/three.pdf /tmp/two.pdf]", got)
+	if got[0] != three || got[1] != two {
+		t.Fatalf("RecentFiles = %v, want [%s %s]", got, three, two)
 	}
 }
 
