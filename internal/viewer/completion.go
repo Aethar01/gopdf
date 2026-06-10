@@ -24,28 +24,6 @@ type completionItem struct {
 	display string
 }
 
-var commandCompletionNames = []string{
-	"colors",
-	"fit",
-	"help",
-	"keybinds",
-	"lua",
-	"mode",
-	"open",
-	"page",
-	"quit",
-	"reload-config",
-	"search",
-	"set",
-}
-
-var commandArgCompletions = map[string][]string{
-	"set":    {"alt_colors!", "dual_page!", "first_page_offset!", "render_mode!", "status_bar!"},
-	"colors": {"alt", "normal"},
-	"mode":   {"continuous", "single"},
-	"fit":    {"manual", "page", "width"},
-}
-
 func (a *App) showCompletion() {
 	if a.mode != modeCommand {
 		return
@@ -112,7 +90,7 @@ func (a *App) commandCompletions() ([]completionItem, int, int) {
 	if cmd == "open" {
 		return a.openPathCompletions(arg), argStart, argEnd
 	}
-	if validArgs, ok := commandArgCompletions[cmd]; ok {
+	if validArgs := commandArgCompletionValues(cmd); len(validArgs) > 0 {
 		items := []completionItem{}
 		for _, v := range validArgs {
 			if strings.HasPrefix(v, arg) {
@@ -128,9 +106,9 @@ func (a *App) commandCompletions() ([]completionItem, int, int) {
 
 func prefixedCommandCompletions(prefix string) []completionItem {
 	items := []completionItem{}
-	for _, name := range commandCompletionNames {
-		if strings.HasPrefix(name, prefix) {
-			items = append(items, completionItem{value: name, display: name})
+	for _, spec := range commandSpecs {
+		if strings.HasPrefix(spec.Name, prefix) {
+			items = append(items, completionItem{value: spec.Name, display: spec.Name})
 		}
 	}
 	return items
