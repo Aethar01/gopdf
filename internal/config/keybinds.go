@@ -51,7 +51,7 @@ func (r *Runtime) WriteAutogen() error {
 }
 
 func generatedKeybindLua(bindings map[string]string) string {
-	defaults := defaultBindings()
+	defaults := actions.DefaultBindings()
 	keys := make([]string, 0, len(defaults)+len(bindings))
 	seen := map[string]struct{}{}
 	for key := range defaults {
@@ -92,55 +92,4 @@ func isBuiltinAction(action string) bool {
 
 func Actions() []string {
 	return actions.Names()
-}
-
-func defaultBindings() map[string]string {
-	return map[string]string{
-		"j":       "scroll_down",
-		"<Down>":  "scroll_down",
-		"k":       "scroll_up",
-		"<Up>":    "scroll_up",
-		"h":       "scroll_left",
-		"<Left>":  "scroll_left",
-		"l":       "scroll_right",
-		"<Right>": "scroll_right",
-		"J":       "next_page",
-		"K":       "prev_page",
-		" ":       "next_page",
-		"<PgDn>":  "next_page",
-		"<PgUp>":  "prev_page",
-		"gg":      "first_page",
-		"G":       "last_page",
-		":":       "command_mode",
-		"/":       "search_prompt",
-		"?":       "search_prompt_backward",
-		"n":       "search_next",
-		"N":       "search_prev",
-		"d":       "toggle_dual_page",
-		"m":       "toggle_render_mode",
-		"<C-r>":   "toggle_alt_colors",
-		"co":      "toggle_first_page_offset",
-		"<C-n>":   "toggle_status_bar",
-		"f":       "toggle_fullscreen",
-		"o":       "outline",
-		"<CR>":    "confirm",
-		"<Tab>":   "show_completion",
-		"<S-Tab>": "prev_completion",
-		"+":       "zoom_in",
-		"=":       "zoom_in",
-		"-":       "zoom_out",
-		"0":       "reset_zoom",
-		"w":       "fit_width",
-		"z":       "fit_page",
-		"r":       "rotate_cw",
-		"R":       "rotate_ccw",
-		"<C-g>":   "goto_page_prompt",
-		"q":       "quit",
-		"<Esc>":   "close",
-		"<C-i>":   "jump_forward",
-		"<C-o>":   "jump_backward",
-		"<C-S-o>": "open_file_picker",
-		"<F1>":    "keybinds",
-		"<C-S-r>": "reload_config",
-	}
 }

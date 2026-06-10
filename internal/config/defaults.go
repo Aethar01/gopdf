@@ -1,5 +1,7 @@
 package config
 
+import "gopdf/internal/actions"
+
 func Default() Config {
 	return Config{
 		StatusBarVisible:    true,
@@ -33,7 +35,7 @@ func Default() Config {
 		StatusBarRight:      "{page}/{total} {mode} fit={fit} rot={rot} {zoom}",
 		SequenceTimeoutMS:   700,
 		NormalMessage:       "",
-		KeyBindings:         defaultBindings(),
+		KeyBindings:         actions.DefaultBindings(),
 		MouseBindings: map[string]string{
 			"wheel_up":       "scroll_up",
 			"wheel_down":     "scroll_down",
