@@ -1005,3 +1005,11 @@ func (a *App) setFitMode(mode string) {
 		a.maybeUpgradeRenderScale(a.zoom)
 	})
 }
+
+func (a *App) setAltColors(enabled bool) {
+	if a.altColors == enabled {
+		return
+	}
+	a.altColors = enabled
+	a.clearCache()
+}

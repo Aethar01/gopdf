@@ -149,8 +149,7 @@ func (a *App) runBuiltinAction(action string) error {
 		})
 		a.message = "render mode " + a.renderMode
 	case "toggle_alt_colors":
-		a.altColors = !a.altColors
-		a.clearCache()
+		a.setAltColors(!a.altColors)
 		a.message = boolWord(a.altColors, "alt colors on", "alt colors off")
 	case "toggle_first_page_offset":
 		a.relayoutWithViewportAnchor(func() { a.firstPageOffset = !a.firstPageOffset })
@@ -488,18 +487,22 @@ func (a *App) runCommand(input string) {
 			a.message = "usage: :mode continuous|single"
 			return
 		}
-		a.relayoutWithViewportAnchor(func() { a.renderMode = sanitizeRenderMode(fields[0]) })
+		if err := a.SetRenderMode(fields[0]); err != nil {
+			a.message = err.Error()
+		}
 	case "colors":
 		if len(fields) < 1 {
 			a.message = "usage: :colors normal|alt"
 			return
 		}
-		a.altColors = strings.EqualFold(fields[0], "alt")
+		a.setAltColors(strings.EqualFold(fields[0], "alt"))
 	case "fit":
 		if len(fields) < 1 {
 			return
 		}
-		a.setFitMode(sanitizeFitMode(fields[0]))
+		if err := a.SetFitMode(fields[0]); err != nil {
+			a.message = err.Error()
+		}
 	case "reload-config":
 		a.reloadConfig()
 	case "keybinds":
