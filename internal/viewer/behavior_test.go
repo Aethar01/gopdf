@@ -820,7 +820,7 @@ func TestLayoutGapAndRotationEdgeCases(t *testing.T) {
 	}
 }
 
-func TestCurrentRowIndexAndCurrentPageFollowScroll(t *testing.T) {
+func TestViewportAnchorRowIndexAndCurrentPageFollowScroll(t *testing.T) {
 	app := testLayoutApp(4)
 	app.winW = 100
 	app.winH = 100
@@ -829,7 +829,7 @@ func TestCurrentRowIndexAndCurrentPageFollowScroll(t *testing.T) {
 
 	app.renderMode = "continuous"
 	app.scrollY = app.rows[2].y - 1
-	if got := app.currentRowIndex(); got != 2 {
+	if got := app.viewportAnchorRowIndex(); got != 2 {
 		t.Fatalf("expected viewport midpoint in row 2, got row %d", got)
 	}
 	app.updateCurrentPageFromScroll()
@@ -839,12 +839,199 @@ func TestCurrentRowIndexAndCurrentPageFollowScroll(t *testing.T) {
 
 	app.renderMode = "single"
 	app.page = 3
-	if got := app.currentRowIndex(); got != app.pageToRow[3] {
+	if got := app.viewportAnchorRowIndex(); got != app.pageToRow[3] {
 		t.Fatalf("expected single-page row from current page, got %d want %d", got, app.pageToRow[3])
 	}
 }
 
-func TestCurrentRowIndexUsesConfiguredAnchorPosition(t *testing.T) {
+func TestSpreadNavigationAlignsTargetToViewportAnchor(t *testing.T) {
+	app := testLayoutApp(6)
+	app.winW = 300
+	app.winH = 500
+	app.dualPage = true
+	app.config.AnchorPosition = "center"
+	app.recomputeLayout(app.viewportSize())
+
+	if got := app.viewportAnchorRowIndex(); got != 0 {
+		t.Fatalf("expected document start to anchor row 0 before navigation, got row %d", got)
+	}
+	if app.page != app.rows[0].pages[0] {
+		t.Fatalf("expected current page to follow start row 0, got page %d", app.page)
+	}
+
+	app.nextSpread()
+	assertClose(t, app.scrollY, app.scrollYForAnchoredRow(app.rows[1]))
+	if app.page != app.rows[1].pages[0] || app.viewportAnchorRowIndex() != 1 {
+		t.Fatalf("expected next spread to center row 1, page=%d row=%d", app.page, app.viewportAnchorRowIndex())
+	}
+
+	app.prevSpread()
+	assertClose(t, app.scrollY, 0)
+	if app.page != app.rows[0].pages[0] || app.viewportAnchorRowIndex() != 0 {
+		t.Fatalf("expected previous spread to return to row 0, page=%d row=%d", app.page, app.viewportAnchorRowIndex())
+	}
+}
+
+func TestPageNavigationAlignsTargetToViewportAnchor(t *testing.T) {
+	app := testLayoutApp(5)
+	app.winW = 300
+	app.winH = 500
+	app.config.AnchorPosition = "center"
+	app.recomputeLayout(app.viewportSize())
+
+	if app.page != 0 {
+		t.Fatalf("expected top document edge to keep current page 0 before navigation, got %d", app.page)
+	}
+
+	app.nextPage()
+	assertClose(t, app.scrollY, app.scrollYForAnchoredRow(app.rows[1]))
+	if app.page != 1 || app.viewportAnchorRowIndex() != 1 {
+		t.Fatalf("expected next page to center page 1, page=%d row=%d", app.page, app.viewportAnchorRowIndex())
+	}
+
+	app.prevPage()
+	assertClose(t, app.scrollY, 0)
+	if app.page != 0 || app.viewportAnchorRowIndex() != 0 {
+		t.Fatalf("expected previous page to return to document start, page=%d row=%d", app.page, app.viewportAnchorRowIndex())
+	}
+}
+
+func TestViewportAnchorRowIndexUsesDocumentEdgesWhenClamped(t *testing.T) {
+	for _, anchor := range []string{"top", "center", "bottom"} {
+		t.Run(anchor, func(t *testing.T) {
+			app := testLayoutApp(5)
+			app.winW = 300
+			app.winH = 500
+			app.config.AnchorPosition = anchor
+			app.recomputeLayout(app.viewportSize())
+
+			app.scrollY = 0
+			if got := app.viewportAnchorRowIndex(); got != 0 {
+				t.Fatalf("expected document start to anchor row 0, got %d", got)
+			}
+
+			app.scrollY = app.clampedScrollY(app.contentH)
+			if got := app.viewportAnchorRowIndex(); got != len(app.rows)-1 {
+				t.Fatalf("expected document end to anchor last row, got %d", got)
+			}
+		})
+	}
+}
+
+func TestJumpToDocumentEdgesKeepsEdgePageCurrent(t *testing.T) {
+	for _, anchor := range []string{"top", "center", "bottom"} {
+		t.Run(anchor, func(t *testing.T) {
+			app := testLayoutApp(5)
+			app.winW = 300
+			app.winH = 500
+			app.config.AnchorPosition = anchor
+			app.recomputeLayout(app.viewportSize())
+
+			app.alignPageToAnchor(app.pageCount - 1)
+			if app.page != app.pageCount-1 || app.viewportAnchorRowIndex() != len(app.rows)-1 {
+				t.Fatalf("expected last page current at document end, page=%d row=%d", app.page, app.viewportAnchorRowIndex())
+			}
+
+			app.alignPageToAnchor(0)
+			if app.page != 0 || app.viewportAnchorRowIndex() != 0 {
+				t.Fatalf("expected first page current at document start, page=%d row=%d", app.page, app.viewportAnchorRowIndex())
+			}
+		})
+	}
+}
+
+func TestBottomAnchorCanPageUpFromClampedTopJump(t *testing.T) {
+	app := testLayoutApp(5)
+	app.winW = 300
+	app.winH = 500
+	app.config.AnchorPosition = "bottom"
+	app.recomputeLayout(app.viewportSize())
+
+	app.nextPage()
+	assertClose(t, app.scrollY, 0)
+	if app.page != 1 {
+		t.Fatalf("expected clamped jump to keep page 1 as active page, got %d", app.page)
+	}
+
+	app.prevPage()
+	assertClose(t, app.scrollY, 0)
+	if app.page != 0 {
+		t.Fatalf("expected PageUp to return to page 0, got %d", app.page)
+	}
+}
+
+func TestBottomAnchorCanPageUpFromClampedTopSpreadJump(t *testing.T) {
+	app := testLayoutApp(6)
+	app.winW = 300
+	app.winH = 500
+	app.dualPage = true
+	app.config.AnchorPosition = "bottom"
+	app.recomputeLayout(app.viewportSize())
+
+	app.nextSpread()
+	assertClose(t, app.scrollY, 0)
+	if app.page != app.rows[1].pages[0] || app.rowIndexForPage(app.anchorPage(app.page)) != 1 {
+		t.Fatalf("expected clamped jump to keep row 1 as active row, page=%d row=%d", app.page, app.rowIndexForPage(app.anchorPage(app.page)))
+	}
+
+	app.prevSpread()
+	assertClose(t, app.scrollY, 0)
+	if app.page != app.rows[0].pages[0] || app.rowIndexForPage(app.anchorPage(app.page)) != 0 {
+		t.Fatalf("expected PageUp to return to row 0, page=%d row=%d", app.page, app.rowIndexForPage(app.anchorPage(app.page)))
+	}
+}
+
+func TestScrollOnlyUpdatesCurrentPageWhenPositionChanges(t *testing.T) {
+	app := testLayoutApp(5)
+	app.winW = 300
+	app.winH = 500
+	app.config.AnchorPosition = "bottom"
+	app.recomputeLayout(app.viewportSize())
+
+	app.nextPage()
+	assertClose(t, app.scrollY, 0)
+	if app.page != 1 {
+		t.Fatalf("expected clamped jump to keep page 1 active, got %d", app.page)
+	}
+
+	app.scrollBy(0, -64)
+	if app.page != 1 {
+		t.Fatalf("expected blocked scroll to preserve active page 1, got %d", app.page)
+	}
+
+	app.scrollBy(0, 64)
+	if app.page == 1 {
+		t.Fatalf("expected moving scroll to refresh active page from viewport anchor")
+	}
+}
+
+func TestJumpAlignmentUsesConfiguredViewportAnchor(t *testing.T) {
+	for _, tt := range []struct {
+		anchor string
+		wantY  float64
+	}{
+		{anchor: "top", wantY: 460},
+		{anchor: "center", wantY: 410},
+		{anchor: "bottom", wantY: 360},
+	} {
+		t.Run(tt.anchor, func(t *testing.T) {
+			app := testLayoutApp(5)
+			app.winW = 300
+			app.winH = 300
+			app.config.PageGapVertical = 20
+			app.config.AnchorPosition = tt.anchor
+			app.recomputeLayout(app.viewportSize())
+
+			app.alignPageToAnchor(2)
+			assertClose(t, app.scrollY, tt.wantY)
+			if app.page != 2 || app.viewportAnchorRowIndex() != 2 {
+				t.Fatalf("expected jump to anchor page 2, page=%d row=%d", app.page, app.viewportAnchorRowIndex())
+			}
+		})
+	}
+}
+
+func TestViewportAnchorRowIndexUsesConfiguredAnchorPosition(t *testing.T) {
 	app := testLayoutApp(4)
 	app.winW = 100
 	app.winH = 100
@@ -854,11 +1041,11 @@ func TestCurrentRowIndexUsesConfiguredAnchorPosition(t *testing.T) {
 	app.scrollY = app.rows[2].y - 1
 
 	app.config.AnchorPosition = "top"
-	if got := app.currentRowIndex(); got != 1 {
+	if got := app.viewportAnchorRowIndex(); got != 1 {
 		t.Fatalf("expected top anchor to use row 1 sliver, got row %d", got)
 	}
 	app.config.AnchorPosition = "bottom"
-	if got := app.currentRowIndex(); got != 2 {
+	if got := app.viewportAnchorRowIndex(); got != 2 {
 		t.Fatalf("expected bottom anchor to use row 2, got row %d", got)
 	}
 }

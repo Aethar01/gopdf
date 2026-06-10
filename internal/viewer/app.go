@@ -246,7 +246,7 @@ func NewWithOptions(docPath string, runtime *config.Runtime, startPage int, icon
 	app.recomputeLayout(1400, 900-app.config.StatusBarHeight)
 	if app.doc != nil {
 		app.ensureRenderBaseScale()
-		app.alignPageTop(startPage)
+		app.alignPageToAnchor(startPage)
 	}
 	return app, nil
 }
@@ -789,24 +789,30 @@ func (a *App) currentScaleFromRows(viewportW, viewportH int, baseRows []rowLayou
 }
 
 func (a *App) nextPage() {
+	if a.pageCount == 0 {
+		return
+	}
 	if a.dualPage {
 		a.nextSpread()
 		return
 	}
-	if a.page < a.pageCount-1 {
-		a.page++
-		a.alignPageTop(a.page)
+	page := clampInt(a.page, 0, a.pageCount-1)
+	if page < a.pageCount-1 {
+		a.alignPageToAnchor(page + 1)
 	}
 }
 
 func (a *App) prevPage() {
+	if a.pageCount == 0 {
+		return
+	}
 	if a.dualPage {
 		a.prevSpread()
 		return
 	}
-	if a.page > 0 {
-		a.page--
-		a.alignPageTop(a.page)
+	page := clampInt(a.page, 0, a.pageCount-1)
+	if page > 0 {
+		a.alignPageToAnchor(page - 1)
 	}
 }
 
@@ -814,9 +820,9 @@ func (a *App) nextSpread() {
 	if a.pageCount == 0 {
 		return
 	}
-	row := a.currentRowIndex()
+	row := a.rowIndexForPage(a.anchorPage(a.page))
 	if row < len(a.rows)-1 {
-		a.alignPageTop(a.rows[row+1].pages[0])
+		a.alignPageToAnchor(a.rows[row+1].pages[0])
 	}
 }
 
@@ -829,7 +835,7 @@ func (a *App) nextSpreadFrom(page int) {
 	if row < len(a.rows)-1 {
 		next := a.rows[row+1].pages[0]
 		a.page = next
-		a.alignPageTop(next)
+		a.alignPageToAnchor(next)
 	}
 }
 
@@ -837,9 +843,9 @@ func (a *App) prevSpread() {
 	if a.pageCount == 0 {
 		return
 	}
-	row := a.currentRowIndex()
+	row := a.rowIndexForPage(a.anchorPage(a.page))
 	if row > 0 {
-		a.alignPageTop(a.rows[row-1].pages[0])
+		a.alignPageToAnchor(a.rows[row-1].pages[0])
 	}
 }
 
@@ -852,26 +858,27 @@ func (a *App) prevSpreadFrom(page int) {
 	if row > 0 {
 		prev := a.rows[row-1].pages[0]
 		a.page = prev
-		a.alignPageTop(prev)
+		a.alignPageToAnchor(prev)
 	}
 }
 
 func (a *App) scrollBy(dx, dy float64) {
+	oldX, oldY := a.scrollX, a.scrollY
 	a.scrollX += dx
 	a.scrollY += dy
 	a.clampScroll()
-	if a.renderMode == "single" {
+	if a.renderMode == "single" || (a.scrollX == oldX && a.scrollY == oldY) {
 		return
 	}
 	a.updateCurrentPageFromScroll()
 }
 
-func (a *App) alignPageTop(page int) {
+func (a *App) alignPageToAnchor(page int) {
 	if page < 0 || page >= len(a.pageToRow) {
 		return
 	}
 	page = a.anchorPage(page)
-	if a.positionMatchesPageTop(page) {
+	if a.positionMatchesPageAnchor(page) {
 		return
 	}
 	a.recordJump()
@@ -884,7 +891,7 @@ func (a *App) alignPageTop(page int) {
 		return
 	}
 	row := a.rows[a.pageToRow[page]]
-	a.scrollY = row.y - float64(a.verticalGap())/2
+	a.scrollY = a.scrollYForAnchoredRow(row)
 	a.page = page
 	a.clampScroll()
 }
@@ -939,13 +946,31 @@ func (a *App) restoreJump(jump jumpPosition) {
 	a.clampScroll()
 }
 
-func (a *App) positionMatchesPageTop(page int) bool {
+func (a *App) positionMatchesPageAnchor(page int) bool {
 	if a.renderMode == "single" {
 		return a.page == page && a.scrollX == 0 && a.scrollY == 0
 	}
 	row := a.rows[a.pageToRow[page]]
-	expectedY := row.y - float64(a.verticalGap())/2
+	expectedY := a.clampedScrollY(a.scrollYForAnchoredRow(row))
 	return a.page == page && a.scrollY == expectedY
+}
+
+func (a *App) scrollYForAnchoredRow(row rowLayout) float64 {
+	_, viewportH := a.viewportSize()
+	switch a.config.AnchorPosition {
+	case "top":
+		return row.y
+	case "bottom":
+		return row.y + row.height - float64(viewportH)
+	default:
+		return row.y + row.height/2 - float64(viewportH)/2
+	}
+}
+
+func (a *App) clampedScrollY(scrollY float64) float64 {
+	_, viewportH := a.viewportSize()
+	maxY := math.Max(0, a.contentH-float64(viewportH))
+	return clampFloat(scrollY, 0, maxY)
 }
 
 func (a *App) anchorPage(page int) int {

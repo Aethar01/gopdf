@@ -128,31 +128,35 @@ func (a *App) updateCurrentPageFromScroll() {
 	if len(a.rows) == 0 {
 		return
 	}
-	a.page = a.rows[a.currentRowIndex()].pages[0]
+	a.page = a.rows[a.viewportAnchorRowIndex()].pages[0]
 }
 
-func (a *App) currentRowIndex() int {
+func (a *App) rowIndexForPage(page int) int {
+	if len(a.rows) == 0 {
+		return 0
+	}
+	if page < 0 || page >= len(a.pageToRow) {
+		return 0
+	}
+	return clampInt(a.pageToRow[page], 0, len(a.rows)-1)
+}
+
+func (a *App) viewportAnchorRowIndex() int {
 	if len(a.rows) == 0 {
 		return 0
 	}
 	if a.renderMode == "single" {
-		if a.page < 0 || a.page >= len(a.pageToRow) {
+		return a.rowIndexForPage(a.page)
+	}
+	_, viewportH := a.viewportSize()
+	maxY := math.Max(0, a.contentH-float64(viewportH))
+	if maxY > 0 {
+		if a.scrollY <= 0 {
 			return 0
 		}
-		return clampInt(a.pageToRow[a.page], 0, len(a.rows)-1)
-	}
-	return a.anchorRowIndex()
-}
-
-func (a *App) anchorRowIndex() int {
-	if len(a.rows) == 0 {
-		return 0
-	}
-	if a.renderMode == "single" {
-		if a.page < 0 || a.page >= len(a.pageToRow) {
-			return 0
+		if a.scrollY >= maxY {
+			return len(a.rows) - 1
 		}
-		return clampInt(a.pageToRow[a.page], 0, len(a.rows)-1)
 	}
 	_, offsetY := a.contentViewportOffset()
 	return a.rowIndexAtContentY(a.scrollY + a.viewportAnchorScreenY() - offsetY)

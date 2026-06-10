@@ -197,7 +197,7 @@ func (a *App) openDocument(path string, opts openDocumentOptions) error {
 	} else if !opts.startPageExplicit && hasSavedState {
 		a.restoreViewState(savedState)
 	} else {
-		a.alignPageTop(startPage)
+		a.alignPageToAnchor(startPage)
 	}
 	a.pendingRedraw = true
 	if configErr != nil {

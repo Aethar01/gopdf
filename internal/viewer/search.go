@@ -374,7 +374,7 @@ func (a *App) focusSearchCurrent() {
 		return
 	}
 	ref := a.search.order[a.search.current]
-	a.alignPageTop(ref.page)
+	a.alignPageToAnchor(ref.page)
 	x, y, rp, ok := a.pagePlacement(ref.page)
 	if !ok || rp == nil {
 		return

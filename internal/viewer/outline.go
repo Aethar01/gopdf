@@ -230,7 +230,7 @@ func (a *App) activateSelectedOutline() {
 		return
 	}
 	a.outlineMenu.visible = false
-	a.alignPageTop(item.Page)
+	a.alignPageToAnchor(item.Page)
 }
 
 func (a *App) collapseSelectedOutline() {

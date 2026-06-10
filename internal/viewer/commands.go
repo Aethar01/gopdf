@@ -111,9 +111,9 @@ func (a *App) runBuiltinAction(action string) error {
 	case "prev_spread":
 		a.prevSpread()
 	case "first_page":
-		a.alignPageTop(0)
+		a.alignPageToAnchor(0)
 	case "last_page":
-		a.alignPageTop(a.pageCount - 1)
+		a.alignPageToAnchor(a.pageCount - 1)
 	case "command_mode":
 		a.closeAllUI()
 		a.mode = modeCommand
@@ -281,7 +281,7 @@ func (a *App) GotoPage(page int) error {
 	if a.pageCount == 0 {
 		return nil
 	}
-	a.alignPageTop(clampInt(page-1, 0, a.pageCount-1))
+	a.alignPageToAnchor(clampInt(page-1, 0, a.pageCount-1))
 	return nil
 }
 
@@ -453,7 +453,7 @@ func (a *App) gotoPageInput(input string) {
 		a.message = fmt.Sprintf("invalid page: %s", input)
 		return
 	}
-	a.alignPageTop(clampInt(n-1, 0, a.pageCount-1))
+	a.alignPageToAnchor(clampInt(n-1, 0, a.pageCount-1))
 }
 
 func (a *App) runCommand(input string) {

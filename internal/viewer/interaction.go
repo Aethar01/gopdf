@@ -93,7 +93,7 @@ func (a *App) viewportAnchorScreenY() float64 {
 }
 
 func (a *App) pageAtAnchorScreenPoint(screenX, screenY float64) (int, float64, float64, bool) {
-	rowIndex := a.anchorRowIndex()
+	rowIndex := a.viewportAnchorRowIndex()
 	if rowIndex < 0 || rowIndex >= len(a.rows) {
 		return 0, 0, 0, false
 	}
@@ -318,7 +318,7 @@ func (a *App) activateLink(link mupdf.Link) {
 		return
 	}
 	if link.Page >= 0 {
-		a.alignPageTop(link.Page)
+		a.alignPageToAnchor(link.Page)
 		return
 	}
 	if link.URI != "" {
