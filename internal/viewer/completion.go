@@ -22,6 +22,7 @@ type completionState struct {
 type completionItem struct {
 	value   string
 	display string
+	recent  bool
 }
 
 func (a *App) showCompletion() {
@@ -134,7 +135,7 @@ func (a *App) openPathCompletions(arg string) []completionItem {
 	if err != nil {
 		return recent
 	}
-	items := recent
+	items := []completionItem{}
 	for _, entry := range entries {
 		name := entry.Name()
 		if !strings.HasPrefix(name, prefix) {
@@ -156,7 +157,7 @@ func (a *App) openPathCompletions(arg string) []completionItem {
 		}
 		return strings.ToLower(items[i].display) < strings.ToLower(items[j].display)
 	})
-	return items
+	return append(recent, items...)
 }
 
 func (a *App) recentFileCompletions(arg string) []completionItem {
@@ -175,7 +176,7 @@ func (a *App) recentFileCompletions(arg string) []completionItem {
 		if argLower != "" && !strings.Contains(strings.ToLower(path), argLower) && !strings.Contains(strings.ToLower(base), argLower) {
 			continue
 		}
-		items = append(items, completionItem{value: escapeCompletionPath(path), display: "recent: " + base})
+		items = append(items, completionItem{value: escapeCompletionPath(path), display: base, recent: true})
 	}
 	return items
 }
@@ -290,11 +291,7 @@ func (a *App) visibleCompletionRows() []completionRow {
 	}
 	maxItems := max(1, a.config.CompletionMaxItems)
 	if len(items) <= maxItems {
-		rows := make([]completionRow, len(items))
-		for i, item := range items {
-			rows[i] = completionRow{text: item.display, selected: i == a.completion.selected}
-		}
-		return rows
+		return completionRowsForRange(items, 0, len(items), a.completion.selected)
 	}
 	selected := clampInt(a.completion.selected, 0, len(items)-1)
 	start := clampInt(selected-maxItems/2, 0, len(items)-maxItems)
@@ -311,13 +308,44 @@ func (a *App) visibleCompletionRows() []completionRow {
 	if showTop {
 		rows = append(rows, completionRow{text: "..."})
 	}
-	for i := start; i < end; i++ {
-		rows = append(rows, completionRow{text: items[i].display, selected: i == selected})
-	}
+	rows = append(rows, completionRowsForRange(items, start, end, selected)...)
 	if showBottom {
 		rows = append(rows, completionRow{text: "..."})
 	}
 	return rows
+}
+
+func completionRowsForRange(items []completionItem, start, end, selected int) []completionRow {
+	rows := []completionRow{}
+	categorized := hasRecentItems(items)
+	recentHeaderShown := false
+	suggestionHeaderShown := false
+	for i := start; i < end; i++ {
+		item := items[i]
+		if item.recent && !recentHeaderShown {
+			rows = append(rows, completionRow{text: "Recents:"})
+			recentHeaderShown = true
+		}
+		if !item.recent && categorized && !suggestionHeaderShown {
+			rows = append(rows, completionRow{text: "Suggestions:"})
+			suggestionHeaderShown = true
+		}
+		text := item.display
+		if categorized {
+			text = "  " + text
+		}
+		rows = append(rows, completionRow{text: text, selected: i == selected})
+	}
+	return rows
+}
+
+func hasRecentItems(items []completionItem) bool {
+	for _, item := range items {
+		if item.recent {
+			return true
+		}
+	}
+	return false
 }
 
 func firstNonSpaceRune(s string) int {

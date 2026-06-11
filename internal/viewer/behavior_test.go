@@ -1155,6 +1155,15 @@ func TestCompletionAcceptCloseAndVisibleRows(t *testing.T) {
 	if !rows[1].selected {
 		t.Fatalf("expected selected completion row to remain marked, rows=%+v", rows)
 	}
+
+	app.completion = completionState{selected: 1, items: []completionItem{{display: "old.pdf", recent: true}, {display: "paper.pdf", recent: true}, {display: "docs" + pathSeparator(), value: "docs" + pathSeparator()}}}
+	rows = app.visibleCompletionRows()
+	if got, want := completionRowTexts(rows), []string{"Recents:", "  old.pdf", "  paper.pdf", "Suggestions:", "  docs" + pathSeparator()}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("expected recent completion section %v, got %v", want, got)
+	}
+	if !rows[2].selected {
+		t.Fatalf("expected selected recent row to remain marked under header, rows=%+v", rows)
+	}
 }
 
 func TestColorHelpersUseNormalAndAltPalettes(t *testing.T) {
