@@ -223,6 +223,18 @@ func newLuaModule(L *lua.LState, rt *Runtime, cfg *Config) *lua.LTable {
 			L.Push(luaStringsTable(L, rt.host.PendingKeys()))
 			return 1
 		},
+		"recent_files": func(L *lua.LState) int {
+			if !cfg.SessionDatabase {
+				L.Push(L.NewTable())
+				return 1
+			}
+			limit := cfg.RecentFilesMax
+			if L.GetTop() > 0 {
+				limit = L.CheckInt(1)
+			}
+			L.Push(luaStringsTable(L, RecentFiles(limit)))
+			return 1
+		},
 		"clear_pending_keys": func(L *lua.LState) int {
 			if rt.host == nil {
 				return 0

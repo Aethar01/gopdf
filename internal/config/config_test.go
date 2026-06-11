@@ -369,6 +369,56 @@ func TestEvalWorksWithoutConfigFile(t *testing.T) {
 	}
 }
 
+func TestLuaRecentFilesReturnsLimitedList(t *testing.T) {
+	setTestDataDir(t)
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.lua")
+	one := AbsoluteDocumentPath(filepath.Join(dir, "one.pdf"))
+	two := AbsoluteDocumentPath(filepath.Join(dir, "two.pdf"))
+	three := AbsoluteDocumentPath(filepath.Join(dir, "three.pdf"))
+	if err := RecordRecentFile(one, 10); err != nil {
+		t.Fatal(err)
+	}
+	if err := RecordRecentFile(two, 10); err != nil {
+		t.Fatal(err)
+	}
+	if err := RecordRecentFile(three, 10); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte(`
+local default_files = gopdf.recent_files()
+local limited_files = gopdf.recent_files(2)
+if #default_files == 3 then
+  options.outline_initial_depth = 31
+end
+if #limited_files == 2 and limited_files[1] == `+strconv.Quote(three)+` and limited_files[2] == `+strconv.Quote(two)+` then
+  options.outline_width_percent = 32
+end
+options.session_database = false
+if #gopdf.recent_files(2) == 0 then
+  options.outline_height_percent = 33
+end
+`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	rt, err := Open(path, filepath.Join(dir, "doc.pdf"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rt.Close()
+
+	if got := rt.Config().OutlineInitialDepth; got != 31 {
+		t.Fatalf("expected default recent files list, got outline_initial_depth=%d", got)
+	}
+	if got := rt.Config().OutlineWidthPercent; got != 32 {
+		t.Fatalf("expected limited recent files list, got outline_width_percent=%d", got)
+	}
+	if got := rt.Config().OutlineHeightPercent; got != 33 {
+		t.Fatalf("expected disabled session database to return no recents, got outline_height_percent=%d", got)
+	}
+}
+
 func TestMouseInteractionOptions(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "config.lua")
