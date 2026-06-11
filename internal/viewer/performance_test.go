@@ -142,9 +142,11 @@ func BenchmarkPerfHeavyPDFRenderPages(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		page := i % pageCount
-		if _, err := doc.Render(page, 1.5, 0, 8); err != nil {
+		rendered, err := doc.Render(page, 1.5, 0, 8)
+		if err != nil {
 			b.Fatal(err)
 		}
+		rendered.Close()
 	}
 }
 
