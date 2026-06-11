@@ -460,7 +460,6 @@ func newLuaUITable(L *lua.LState, rt *Runtime) *lua.LTable {
 	}
 	L.SetFuncs(tbl, map[string]lua.LGFunction{
 		"show": show,
-		"menu": show,
 		"close": func(L *lua.LState) int {
 			if rt.host == nil {
 				L.RaiseError("ui.close: viewer host unavailable")

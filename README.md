@@ -369,13 +369,12 @@ Lua callbacks can open a simple modal list overlay. The overlay uses the same na
 | Function | Description |
 |----------|-------------|
 | `gopdf.ui.show(spec)` | Show a modal list UI |
-| `gopdf.ui.menu(spec)` | Alias for `gopdf.ui.show(spec)` |
 | `gopdf.ui.close()` | Close the active Lua UI without running `on_close` |
 | `gopdf.ui.visible()` | Return whether a Lua UI is visible |
 | `gopdf.ui.set_rows(rows)` | Replace the current UI rows |
 | `gopdf.ui.set_selected(index)` | Set the selected row, 1-indexed |
 
-`show` and `menu` accept this table:
+`show` accepts this table:
 
 | Field | Description |
 |-------|-------------|
@@ -396,7 +395,7 @@ local function show_recent_files()
     return
   end
 
-  gopdf.ui.menu({
+  gopdf.ui.show({
     title = "Recent Files",
     rows = rows,
     on_select = function(_, path)
@@ -453,7 +452,7 @@ local function parent_dir(dir)
 end
 
 local function show_file_browser(dir)
-  gopdf.ui.menu({
+  gopdf.ui.show({
     title = "Open PDF: " .. dir,
     rows = list_dir(dir),
     on_select = function(_, name)

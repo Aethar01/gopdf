@@ -719,7 +719,7 @@ func TestLuaUIHostControls(t *testing.T) {
 	path := filepath.Join(dir, "config.lua")
 	if err := os.WriteFile(path, []byte(`
 bind("u", function()
-  gopdf.ui.menu({ rows = { "old" } })
+  gopdf.ui.show({ rows = { "old" } })
   if gopdf.ui.visible() then
     gopdf.ui.set_rows({ "new", "items" })
     gopdf.ui.set_selected(2)
