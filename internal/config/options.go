@@ -94,6 +94,7 @@ var configOptions = map[string]optionDesc{
 	"dual_page":              boolOption(func(c *Config) bool { return c.DualPage }, func(c *Config, v bool) { c.DualPage = v }),
 	"first_page_offset":      boolOption(func(c *Config) bool { return c.FirstPageOffset }, func(c *Config, v bool) { c.FirstPageOffset = v }),
 	"anti_aliasing":          intOption(func(c *Config) int { return c.AntiAliasing }, func(c *Config, v int) { c.AntiAliasing = v }),
+	"page_cache_size":        intOption(func(c *Config) int { return c.PageCacheSize }, func(c *Config, v int) { c.PageCacheSize = max(1, v) }),
 	"outline_initial_depth":  intOption(func(c *Config) int { return c.OutlineInitialDepth }, func(c *Config, v int) { c.OutlineInitialDepth = v }),
 	"outline_width_percent":  intOption(func(c *Config) int { return c.OutlineWidthPercent }, func(c *Config, v int) { c.OutlineWidthPercent = v }),
 	"outline_height_percent": intOption(func(c *Config) int { return c.OutlineHeightPercent }, func(c *Config, v int) { c.OutlineHeightPercent = v }),

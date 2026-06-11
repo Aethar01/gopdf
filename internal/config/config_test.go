@@ -376,6 +376,7 @@ func TestMouseInteractionOptions(t *testing.T) {
 options.natural_scroll = true
 options.anti_aliasing = 4
 options.render_oversample = 0.75
+options.page_cache_size = 12
 bind_mouse("right_down", gopdf.pan)
 `), 0o644); err != nil {
 		t.Fatal(err)
@@ -398,6 +399,9 @@ bind_mouse("right_down", gopdf.pan)
 	}
 	if got := rt.Config().RenderOversample; got != 0.75 {
 		t.Fatalf("expected render_oversample=0.75, got %.2f", got)
+	}
+	if got := rt.Config().PageCacheSize; got != 12 {
+		t.Fatalf("expected page_cache_size=12, got %d", got)
 	}
 }
 

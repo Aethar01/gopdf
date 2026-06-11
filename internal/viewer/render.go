@@ -6,7 +6,9 @@ import (
 	"math"
 	"sync"
 	"sync/atomic"
+	"time"
 
+	"gopdf/internal/config"
 	"gopdf/internal/mupdf"
 
 	"github.com/jupiterrider/purego-sdl3/sdl"
@@ -38,10 +40,17 @@ type renderService struct {
 	renderLRU          *list.List
 	renderLRUItems     map[string]*list.Element
 	renderIndex        map[renderVariantKey]map[string]*renderedPage
+	thumbnailCache     map[renderVariantKey]*renderedPage
+	thumbnailLRU       *list.List
+	thumbnailLRUItems  map[renderVariantKey]*list.Element
 	cacheLimit         int
 	cacheByteLimit     int64
 	renderCacheBytes   int64
+	thumbnailBytes     int64
+	visibleCachePages  map[int]bool
 	renderBaseScale    float64
+	renderScaleTarget  float64
+	renderScaleReadyAt time.Time
 	minRenderBaseScale float64
 	renderGeneration   int
 	renderPending      map[string]renderRequest
@@ -55,6 +64,7 @@ type renderVariantKey struct {
 }
 
 type renderWorker struct {
+	doc        *mupdf.Document
 	requests   chan renderRequest
 	updates    chan renderUpdate
 	closing    chan struct{}
@@ -66,6 +76,7 @@ type renderWorker struct {
 
 func newRenderWorker(doc *mupdf.Document) *renderWorker {
 	w := &renderWorker{
+		doc:      doc,
 		requests: make(chan renderRequest, 128),
 		updates:  make(chan renderUpdate, 1),
 		closing:  make(chan struct{}),
@@ -76,11 +87,19 @@ func newRenderWorker(doc *mupdf.Document) *renderWorker {
 }
 
 func (w *renderWorker) Close() {
+	w.Cancel()
 	closeWorker(w.closing, w.done, &w.closeOnce)
+}
+
+func (w *renderWorker) Cancel() {
+	if w != nil && w.doc != nil {
+		w.doc.CancelRender()
+	}
 }
 
 func (w *renderWorker) SetGeneration(generation int) {
 	w.generation.Store(int32(generation))
+	w.Cancel()
 }
 
 func (w *renderWorker) SetWantedPages(pages map[int]bool) {
@@ -235,6 +254,9 @@ func (a *App) pollRenderUpdates() {
 	for {
 		select {
 		case update := <-a.renderWorker.updates:
+			if update.rendered != nil {
+				defer update.rendered.Close()
+			}
 			if update.err != nil {
 				a.logf("render update failed err=%v", update.err)
 				a.message = update.err.Error()
@@ -277,9 +299,11 @@ func (a *App) pollRenderUpdates() {
 				aaLevel:   update.aaLevel,
 			}
 			a.addRenderCacheEntry(update.cacheKey, rp)
+			a.addThumbnailCacheEntry(rp)
 			a.startPendingMetricLoader()
 			a.pendingRedraw = true
 			a.enforceRenderCacheLimit()
+			a.enforceThumbnailCacheLimit()
 		default:
 			return
 		}
@@ -319,6 +343,15 @@ func (rs *renderService) ensureRenderCacheState() {
 			rs.indexRenderPage(key, rp)
 		}
 	}
+	if rs.thumbnailCache == nil {
+		rs.thumbnailCache = map[renderVariantKey]*renderedPage{}
+	}
+	if rs.thumbnailLRU == nil {
+		rs.thumbnailLRU = list.New()
+	}
+	if rs.thumbnailLRUItems == nil {
+		rs.thumbnailLRUItems = map[renderVariantKey]*list.Element{}
+	}
 }
 
 func (rs *renderService) indexRenderPage(key string, rp *renderedPage) {
@@ -331,9 +364,106 @@ func (rs *renderService) indexRenderPage(key string, rp *renderedPage) {
 	pages[key] = rp
 }
 
+func (rs *renderService) touchThumbnailCacheEntry(key renderVariantKey) {
+	rs.ensureRenderCacheState()
+	if elem := rs.thumbnailLRUItems[key]; elem != nil {
+		rs.thumbnailLRU.MoveToBack(elem)
+	}
+}
+
+func (a *App) addThumbnailCacheEntry(source *renderedPage) {
+	if source == nil || source.texture == nil || a.renderer == nil {
+		return
+	}
+	a.ensureRenderCacheState()
+	tw, th, ratio := thumbnailDimensions(int(source.width), int(source.height))
+	if tw <= 0 || th <= 0 || ratio <= 0 {
+		return
+	}
+	key := renderVariantKey{page: source.page, altColors: source.altColors, aaLevel: source.aaLevel}
+	if a.thumbnailCache[key] != nil {
+		a.touchThumbnailCacheEntry(key)
+		return
+	}
+	tex := sdl.CreateTexture(a.renderer, sdl.PixelFormatRGBA32, sdl.TextureAccessTarget, int32(tw), int32(th))
+	if tex == nil {
+		return
+	}
+	if !sdl.SetTextureScaleMode(tex, sdl.ScaleModeLinear) {
+		sdl.DestroyTexture(tex)
+		return
+	}
+	oldTarget := sdl.GetRenderTarget(a.renderer)
+	if !sdl.SetRenderTarget(a.renderer, tex) {
+		sdl.DestroyTexture(tex)
+		return
+	}
+	dst := sdl.FRect{W: float32(tw), H: float32(th)}
+	ok := sdl.RenderTexture(a.renderer, source.texture, nil, &dst)
+	if !sdl.SetRenderTarget(a.renderer, oldTarget) || !ok {
+		sdl.DestroyTexture(tex)
+		return
+	}
+	rp := &renderedPage{
+		texture:   tex,
+		width:     float64(tw),
+		height:    float64(th),
+		bytes:     estimatedTextureBytes(tw, th),
+		pixX:      source.pixX * ratio,
+		pixY:      source.pixY * ratio,
+		page:      source.page,
+		scale:     source.scale * ratio,
+		altColors: source.altColors,
+		aaLevel:   source.aaLevel,
+	}
+	a.thumbnailCache[key] = rp
+	a.thumbnailBytes += rp.bytes
+	a.thumbnailLRUItems[key] = a.thumbnailLRU.PushBack(key)
+}
+
+func (rs *renderService) removeThumbnailCacheEntry(key renderVariantKey, destroy bool) {
+	rs.ensureRenderCacheState()
+	rp := rs.thumbnailCache[key]
+	if rp == nil {
+		return
+	}
+	if elem := rs.thumbnailLRUItems[key]; elem != nil {
+		rs.thumbnailLRU.Remove(elem)
+		delete(rs.thumbnailLRUItems, key)
+	}
+	if destroy && rp.texture != nil {
+		sdl.DestroyTexture(rp.texture)
+	}
+	rs.thumbnailBytes -= rp.bytes
+	if rs.thumbnailBytes < 0 {
+		rs.thumbnailBytes = 0
+	}
+	delete(rs.thumbnailCache, key)
+}
+
+func (rs *renderService) enforceThumbnailCacheLimit() {
+	rs.ensureRenderCacheState()
+	limit := rs.thumbnailCacheLimit()
+	for limit > 0 && len(rs.thumbnailCache) > limit {
+		front := rs.thumbnailLRU.Front()
+		if front == nil {
+			return
+		}
+		key, _ := front.Value.(renderVariantKey)
+		rs.removeThumbnailCacheEntry(key, true)
+	}
+}
+
+func (rs *renderService) thumbnailCacheLimit() int {
+	if rs.cacheLimit <= 0 {
+		return 0
+	}
+	return rs.cacheLimit * 2
+}
+
 func (rs *renderService) addRenderCacheEntry(key string, rp *renderedPage) {
 	rs.ensureRenderCacheState()
-	rs.removeRenderCacheEntry(key, true)
+	rs.removeRenderCacheVariants(renderVariantKey{page: rp.page, altColors: rp.altColors, aaLevel: rp.aaLevel})
 	if rp.bytes <= 0 {
 		rp.bytes = estimatedTextureBytes(int(rp.width), int(rp.height))
 	}
@@ -341,6 +471,17 @@ func (rs *renderService) addRenderCacheEntry(key string, rp *renderedPage) {
 	rs.renderCacheBytes += rp.bytes
 	rs.renderLRUItems[key] = rs.renderLRU.PushBack(key)
 	rs.indexRenderPage(key, rp)
+}
+
+func (rs *renderService) removeRenderCacheVariants(variant renderVariantKey) {
+	rs.ensureRenderCacheState()
+	keys := make([]string, 0, len(rs.renderIndex[variant]))
+	for key := range rs.renderIndex[variant] {
+		keys = append(keys, key)
+	}
+	for _, key := range keys {
+		rs.removeRenderCacheEntry(key, true)
+	}
 }
 
 func (rs *renderService) removeRenderCacheEntry(key string, destroy bool) {
@@ -373,16 +514,30 @@ func (rs *renderService) removeRenderCacheEntry(key string, destroy bool) {
 func (rs *renderService) enforceRenderCacheLimit() {
 	rs.ensureRenderCacheState()
 	for rs.renderCacheOverLimit() {
-		front := rs.renderLRU.Front()
-		if front == nil {
+		attempts := len(rs.renderCache)
+		evicted := false
+		for attempts > 0 && rs.renderCacheOverLimit() {
+			attempts--
+			front := rs.renderLRU.Front()
+			if front == nil {
+				return
+			}
+			key, _ := front.Value.(string)
+			rp := rs.renderCache[key]
+			if rp != nil && rs.visibleCachePages[rp.page] {
+				rs.renderLRU.MoveToBack(front)
+				continue
+			}
+			if _, pending := rs.renderPending[key]; pending {
+				rs.renderLRU.MoveToBack(front)
+				continue
+			}
+			rs.removeRenderCacheEntry(key, true)
+			evicted = true
+		}
+		if !evicted {
 			return
 		}
-		key, _ := front.Value.(string)
-		if _, pending := rs.renderPending[key]; pending {
-			rs.renderLRU.MoveToBack(front)
-			continue
-		}
-		rs.removeRenderCacheEntry(key, true)
 	}
 }
 
@@ -454,10 +609,19 @@ func (rs *renderService) clearCache() {
 			sdl.DestroyTexture(rp.texture)
 		}
 	}
+	for _, rp := range rs.thumbnailCache {
+		if rp.texture != nil {
+			sdl.DestroyTexture(rp.texture)
+		}
+	}
 	rs.renderCache = map[string]*renderedPage{}
+	rs.thumbnailCache = map[renderVariantKey]*renderedPage{}
 	rs.renderCacheBytes = 0
+	rs.thumbnailBytes = 0
 	rs.renderLRU = list.New()
+	rs.thumbnailLRU = list.New()
 	rs.renderLRUItems = map[string]*list.Element{}
+	rs.thumbnailLRUItems = map[renderVariantKey]*list.Element{}
 	rs.renderIndex = map[renderVariantKey]map[string]*renderedPage{}
 	rs.invalidateRenderRequests()
 }
@@ -470,12 +634,15 @@ func (rs *renderService) renderDrawScale(rp *renderedPage, layoutScale float64) 
 }
 
 const (
-	defaultMinRenderBaseScale   = 0.25
-	defaultRenderOversample     = 1
-	defaultRenderCacheByteLimit = 512 << 20
-	renderUpgradeTolerance      = 0.95
-	renderDowngradeHeadroom     = 2.0
-	renderScaleStep             = 1.5
+	defaultMinRenderBaseScale = 0.25
+	defaultRenderOversample   = 1
+	defaultPageCacheSize      = 16
+	defaultThumbnailMaxPixels = 4 * 1024 * 1024
+	renderUpgradeTolerance    = 0.95
+	renderDowngradeHeadroom   = 2.0
+	renderScaleSettleDelay    = 75 * time.Millisecond
+	thumbnailInitialZoom      = 0.5
+	thumbnailMaxZoom          = 0.5
 )
 
 func estimatedTextureBytes(width, height int) int64 {
@@ -487,6 +654,34 @@ func estimatedTextureBytes(width, height int) int64 {
 
 func validRenderScale(v float64) bool {
 	return v > 0 && !math.IsNaN(v) && !math.IsInf(v, 0)
+}
+
+func pageCacheLimit(cfg config.Config, pageCount int) int {
+	limit := cfg.PageCacheSize
+	if limit <= 0 {
+		limit = defaultPageCacheSize
+	}
+	if pageCount > 0 && limit > pageCount {
+		return pageCount
+	}
+	return limit
+}
+
+func thumbnailDimensions(w, h int) (int, int, float64) {
+	if w <= 0 || h <= 0 {
+		return 0, 0, 0
+	}
+	scale := thumbnailMaxZoom
+	pixels := w * h
+	if pixels > defaultThumbnailMaxPixels {
+		scale = math.Sqrt(float64(defaultThumbnailMaxPixels)/float64(pixels)) * thumbnailInitialZoom
+		if scale > thumbnailMaxZoom {
+			scale = thumbnailMaxZoom
+		}
+	}
+	tw := max(1, int(float64(w)*scale))
+	th := max(1, int(float64(h)*scale))
+	return tw, th, scale
 }
 
 func (rs *renderService) renderScaleFloor() float64 {
@@ -529,11 +724,12 @@ func (a *App) ensureRenderBaseScale() {
 		}
 		return
 	}
-	a.renderBaseScale = math.Max(math.Max(2, a.currentRenderTarget()), floor)
+	a.renderBaseScale = math.Max(a.oversampledRenderScale(a.currentRenderTarget()), floor)
 }
 
 func (a *App) maybeUpgradeRenderScale(target float64) bool {
 	a.ensureRenderBaseScale()
+	floor := a.renderScaleFloor()
 	if !validRenderScale(target) {
 		return false
 	}
@@ -541,11 +737,7 @@ func (a *App) maybeUpgradeRenderScale(target float64) bool {
 	if target <= a.renderBaseScale*renderUpgradeTolerance {
 		return false
 	}
-	next := math.Max(a.renderBaseScale, 2)
-	next = math.Max(next, a.renderScaleFloor())
-	for next < target {
-		next *= renderScaleStep
-	}
+	next := math.Max(target, floor)
 	if next <= a.renderBaseScale+0.01 {
 		return false
 	}
@@ -565,9 +757,7 @@ func (a *App) maybeDowngradeRenderScale() {
 	if target*renderDowngradeHeadroom >= a.renderBaseScale {
 		return
 	}
-	next := a.renderBaseScale / renderScaleStep
-	next = math.Max(next, floor)
-	next = math.Max(next, target)
+	next := math.Max(target, floor)
 	if next >= a.renderBaseScale {
 		return
 	}
@@ -576,11 +766,56 @@ func (a *App) maybeDowngradeRenderScale() {
 	a.invalidateRenderRequests()
 }
 
-func (a *App) adjustRenderBaseScaleForExtremeZoom(layoutScale float64) {
-	if a.maybeUpgradeRenderScale(layoutScale) {
+func (a *App) scheduleRenderScaleTarget(target float64) {
+	a.ensureRenderBaseScale()
+	if !validRenderScale(target) {
 		return
 	}
-	if layoutScale < a.renderBaseScale/4 && a.renderBaseScale > 1 {
-		a.maybeDowngradeRenderScale()
+	target = a.oversampledRenderScale(target)
+	if target <= a.renderBaseScale*renderUpgradeTolerance && target*renderDowngradeHeadroom >= a.renderBaseScale {
+		a.renderScaleTarget = 0
+		a.renderScaleReadyAt = time.Time{}
+		return
+	}
+	if math.Abs(target-a.renderScaleTarget) < 0.01 && !a.renderScaleReadyAt.IsZero() {
+		return
+	}
+	a.renderScaleTarget = target
+	a.renderScaleReadyAt = time.Now().Add(renderScaleSettleDelay)
+}
+
+func (a *App) applyScheduledRenderScaleTarget() bool {
+	if !validRenderScale(a.renderScaleTarget) || a.renderScaleReadyAt.IsZero() || time.Now().Before(a.renderScaleReadyAt) {
+		return false
+	}
+	target := a.renderScaleTarget
+	a.renderScaleTarget = 0
+	a.renderScaleReadyAt = time.Time{}
+	floor := a.renderScaleFloor()
+	if target > a.renderBaseScale*renderUpgradeTolerance {
+		next := math.Max(target, floor)
+		if next > a.renderBaseScale+0.01 {
+			a.renderBaseScale = next
+			a.logf("upgrade render scale target=%.3f base=%.3f", target, next)
+			a.invalidateRenderRequests()
+			return true
+		}
+	}
+	if target*renderDowngradeHeadroom < a.renderBaseScale {
+		next := math.Max(target, floor)
+		if next < a.renderBaseScale {
+			a.renderBaseScale = next
+			a.logf("downgrade render scale target=%.3f base=%.3f", target, next)
+			a.invalidateRenderRequests()
+			return true
+		}
+	}
+	return false
+}
+
+func (a *App) adjustRenderBaseScaleForExtremeZoom(layoutScale float64) {
+	a.scheduleRenderScaleTarget(layoutScale)
+	if a.applyScheduledRenderScaleTarget() {
+		return
 	}
 }

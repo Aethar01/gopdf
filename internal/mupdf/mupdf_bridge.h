@@ -6,6 +6,9 @@
 typedef struct {
 	fz_context *ctx;
 	fz_document *doc;
+	fz_page **pages;
+	int page_count;
+	fz_cookie *render_cookie;
 } gopdf_doc;
 
 typedef struct {
@@ -85,6 +88,9 @@ int gopdf_page_bounds(gopdf_doc *handle, int page_number, gopdf_rect *out, char 
 int gopdf_page_label(gopdf_doc *handle, int page_number, char **out, char **err);
 int gopdf_render_page_info(gopdf_doc *handle, int page_number, float scale, float rotation, int *width, int *height, int *stride, int *x, int *y, char **err);
 int gopdf_render_page_to_buffer(gopdf_doc *handle, int page_number, float scale, float rotation, int aa_level, unsigned char *samples, int width, int height, int stride, char **err);
+int gopdf_render_page_alloc(gopdf_doc *handle, int page_number, float scale, float rotation, int aa_level, unsigned char **samples, int *width, int *height, int *stride, int *x, int *y, char **err);
+void gopdf_cancel_render(gopdf_doc *handle);
+void gopdf_free_rendered_page(unsigned char *samples);
 int gopdf_extract_selection(gopdf_doc *handle, int page_number, float ax, float ay, float bx, float by, gopdf_selection *out, char **err);
 void gopdf_free_selection(gopdf_doc *handle, gopdf_selection *sel);
 int gopdf_search_page(gopdf_doc *handle, int page_number, const char *needle, gopdf_search_result *out, char **err);

@@ -166,7 +166,7 @@ func (a *App) openDocumentWithPassword(path string, opts openDocumentOptions, pa
 	a.pageToRow = nil
 	a.contentW = 0
 	a.contentH = 0
-	a.cacheLimit = min(24, pages)
+	a.cacheLimit = pageCacheLimit(a.config, pages)
 	a.renderBaseScale = 0
 	a.pageLinks = map[int][]mupdf.Link{}
 	a.search = searchState{}
@@ -313,7 +313,7 @@ func (a *App) softReloadDocument(path string, state viewState) error {
 	a.pageToRow = nil
 	a.contentW = 0
 	a.contentH = 0
-	a.cacheLimit = min(24, pages)
+	a.cacheLimit = pageCacheLimit(a.config, pages)
 	a.renderBaseScale = 0
 	a.pageLinks = map[int][]mupdf.Link{}
 	a.outline = nil

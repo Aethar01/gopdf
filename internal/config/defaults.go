@@ -7,6 +7,7 @@ func Default() Config {
 		StatusBarVisible:    true,
 		RenderMode:          "continuous",
 		RenderOversample:    1,
+		PageCacheSize:       16,
 		DualPage:            false,
 		FirstPageOffset:     true,
 		FitMode:             "page",

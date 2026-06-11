@@ -8,6 +8,7 @@ type Config struct {
 	StatusBarVisible     bool
 	RenderMode           string
 	RenderOversample     float64
+	PageCacheSize        int
 	DualPage             bool
 	FirstPageOffset      bool
 	FitMode              string

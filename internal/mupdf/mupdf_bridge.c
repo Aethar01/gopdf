@@ -65,6 +65,28 @@ static fz_matrix gopdf_render_ctm(float scale, float rotation) {
 	return fz_concat(fz_scale(scale, scale), fz_rotate(rotation));
 }
 
+static fz_page *gopdf_load_cached_page(gopdf_doc *handle, int page_number) {
+	if (handle == NULL || page_number < 0) {
+		return NULL;
+	}
+	if (handle->page_count <= 0) {
+		handle->page_count = fz_count_pages(handle->ctx, handle->doc);
+	}
+	if (page_number >= handle->page_count) {
+		return NULL;
+	}
+	if (handle->pages == NULL) {
+		handle->pages = (fz_page **)calloc((size_t)handle->page_count, sizeof(fz_page *));
+		if (handle->pages == NULL) {
+			fz_throw(handle->ctx, FZ_ERROR_SYSTEM, "calloc failed");
+		}
+	}
+	if (handle->pages[page_number] == NULL) {
+		handle->pages[page_number] = fz_load_page(handle->ctx, handle->doc, page_number);
+	}
+	return handle->pages[page_number];
+}
+
 gopdf_doc *gopdf_open_document(const char *path, const char *password, char **err) {
 	gopdf_doc *handle = NULL;
 	fz_context *ctx = NULL;
@@ -115,6 +137,9 @@ gopdf_doc *gopdf_open_document(const char *path, const char *password, char **er
 	}
 	handle->ctx = ctx;
 	handle->doc = doc;
+	handle->pages = NULL;
+	handle->page_count = 0;
+	handle->render_cookie = NULL;
 	return handle;
 }
 
@@ -123,6 +148,14 @@ void gopdf_close_document(gopdf_doc *handle) {
 		return;
 	}
 	if (handle->doc != NULL) {
+		if (handle->pages != NULL) {
+			for (int i = 0; i < handle->page_count; i++) {
+				if (handle->pages[i] != NULL) {
+					fz_drop_page(handle->ctx, handle->pages[i]);
+				}
+			}
+			free(handle->pages);
+		}
 		fz_drop_document(handle->ctx, handle->doc);
 	}
 	if (handle->ctx != NULL) {
@@ -136,6 +169,7 @@ int gopdf_count_pages(gopdf_doc *handle, int *count, char **err) {
 	*count = 0;
 	fz_try(handle->ctx) {
 		*count = fz_count_pages(handle->ctx, handle->doc);
+		handle->page_count = *count;
 	} fz_catch(handle->ctx) {
 		*err = gopdf_dup_string(fz_caught_message(handle->ctx));
 		return 0;
@@ -149,12 +183,11 @@ int gopdf_page_bounds(gopdf_doc *handle, int page_number, gopdf_rect *out, char 
 	*err = NULL;
 	fz_var(page);
 	fz_try(handle->ctx) {
-		page = fz_load_page(handle->ctx, handle->doc, page_number);
-		bounds = fz_bound_page(handle->ctx, page);
-	} fz_always(handle->ctx) {
-		if (page != NULL) {
-			fz_drop_page(handle->ctx, page);
+		page = gopdf_load_cached_page(handle, page_number);
+		if (page == NULL) {
+			fz_throw(handle->ctx, FZ_ERROR_ARGUMENT, "page number out of range");
 		}
+		bounds = fz_bound_page(handle->ctx, page);
 	} fz_catch(handle->ctx) {
 		*err = gopdf_dup_string(fz_caught_message(handle->ctx));
 		return 0;
@@ -173,12 +206,11 @@ int gopdf_page_label(gopdf_doc *handle, int page_number, char **out, char **err)
 	*err = NULL;
 	fz_var(page);
 	fz_try(handle->ctx) {
-		page = fz_load_page(handle->ctx, handle->doc, page_number);
-		fz_page_label(handle->ctx, page, buf, sizeof(buf));
-	} fz_always(handle->ctx) {
-		if (page != NULL) {
-			fz_drop_page(handle->ctx, page);
+		page = gopdf_load_cached_page(handle, page_number);
+		if (page == NULL) {
+			fz_throw(handle->ctx, FZ_ERROR_ARGUMENT, "page number out of range");
 		}
+		fz_page_label(handle->ctx, page, buf, sizeof(buf));
 	} fz_catch(handle->ctx) {
 		*err = gopdf_dup_string(fz_caught_message(handle->ctx));
 		return 0;
@@ -204,9 +236,11 @@ int gopdf_render_page_info(gopdf_doc *handle, int page_number, float scale, floa
 	*stride = 0;
 	*x = 0;
 	*y = 0;
-	fz_var(page);
 	fz_try(handle->ctx) {
-		page = fz_load_page(handle->ctx, handle->doc, page_number);
+		page = gopdf_load_cached_page(handle, page_number);
+		if (page == NULL) {
+			fz_throw(handle->ctx, FZ_ERROR_ARGUMENT, "page number out of range");
+		}
 		bounds = fz_bound_page(handle->ctx, page);
 		bounds = fz_transform_rect(bounds, ctm);
 		bbox = fz_round_rect(bounds);
@@ -218,10 +252,6 @@ int gopdf_render_page_info(gopdf_doc *handle, int page_number, float scale, floa
 		*stride = *width * 4;
 		*x = bbox.x0;
 		*y = bbox.y0;
-	} fz_always(handle->ctx) {
-		if (page != NULL) {
-			fz_drop_page(handle->ctx, page);
-		}
 	} fz_catch(handle->ctx) {
 		*err = gopdf_dup_string(fz_caught_message(handle->ctx));
 		return 0;
@@ -238,15 +268,18 @@ int gopdf_render_page_to_buffer(gopdf_doc *handle, int page_number, float scale,
 	fz_matrix ctm = gopdf_render_ctm(scale, rotation);
 	int old_aa = 0;
 	int have_old_aa = 0;
+	fz_cookie cookie = { 0 };
 	*err = NULL;
-	fz_var(page);
 	fz_var(pix);
 	fz_var(dev);
 	fz_try(handle->ctx) {
 		old_aa = fz_aa_level(handle->ctx);
 		have_old_aa = 1;
 		fz_set_aa_level(handle->ctx, aa_level);
-		page = fz_load_page(handle->ctx, handle->doc, page_number);
+		page = gopdf_load_cached_page(handle, page_number);
+		if (page == NULL) {
+			fz_throw(handle->ctx, FZ_ERROR_ARGUMENT, "page number out of range");
+		}
 		bounds = fz_bound_page(handle->ctx, page);
 		bounds = fz_transform_rect(bounds, ctm);
 		bbox = fz_round_rect(bounds);
@@ -256,9 +289,11 @@ int gopdf_render_page_to_buffer(gopdf_doc *handle, int page_number, float scale,
 		pix = fz_new_pixmap_with_bbox_and_data(handle->ctx, fz_device_rgb(handle->ctx), bbox, NULL, 1, samples);
 		fz_clear_pixmap_with_value(handle->ctx, pix, 0xff);
 		dev = fz_new_draw_device(handle->ctx, fz_identity, pix);
-		fz_run_page(handle->ctx, page, dev, ctm, NULL);
+		handle->render_cookie = &cookie;
+		fz_run_page(handle->ctx, page, dev, ctm, &cookie);
 		fz_close_device(handle->ctx, dev);
 	} fz_always(handle->ctx) {
+		handle->render_cookie = NULL;
 		if (have_old_aa) {
 			fz_set_aa_level(handle->ctx, old_aa);
 		}
@@ -268,14 +303,96 @@ int gopdf_render_page_to_buffer(gopdf_doc *handle, int page_number, float scale,
 		if (pix != NULL) {
 			fz_drop_pixmap(handle->ctx, pix);
 		}
-		if (page != NULL) {
-			fz_drop_page(handle->ctx, page);
-		}
 	} fz_catch(handle->ctx) {
 		*err = gopdf_dup_string(fz_caught_message(handle->ctx));
 		return 0;
 	}
 	return 1;
+}
+
+int gopdf_render_page_alloc(gopdf_doc *handle, int page_number, float scale, float rotation, int aa_level, unsigned char **samples, int *width, int *height, int *stride, int *x, int *y, char **err) {
+	fz_page *page = NULL;
+	fz_pixmap *pix = NULL;
+	fz_device *dev = NULL;
+	fz_rect bounds = fz_empty_rect;
+	fz_irect bbox = fz_empty_irect;
+	fz_matrix ctm = gopdf_render_ctm(scale, rotation);
+	int old_aa = 0;
+	int have_old_aa = 0;
+	fz_cookie cookie = { 0 };
+	*err = NULL;
+	*samples = NULL;
+	*width = 0;
+	*height = 0;
+	*stride = 0;
+	*x = 0;
+	*y = 0;
+	fz_var(pix);
+	fz_var(dev);
+	fz_try(handle->ctx) {
+		old_aa = fz_aa_level(handle->ctx);
+		have_old_aa = 1;
+		fz_set_aa_level(handle->ctx, aa_level);
+		page = gopdf_load_cached_page(handle, page_number);
+		if (page == NULL) {
+			fz_throw(handle->ctx, FZ_ERROR_ARGUMENT, "page number out of range");
+		}
+		bounds = fz_bound_page(handle->ctx, page);
+		bounds = fz_transform_rect(bounds, ctm);
+		bbox = fz_round_rect(bounds);
+		*width = bbox.x1 - bbox.x0;
+		*height = bbox.y1 - bbox.y0;
+		if (*width < 0 || *height < 0 || *width > INT_MAX / 4) {
+			fz_throw(handle->ctx, FZ_ERROR_LIMIT, "rendered page dimensions are invalid");
+		}
+		*stride = *width * 4;
+		*x = bbox.x0;
+		*y = bbox.y0;
+		if (*width > 0 && *height > 0) {
+			if (*height > INT_MAX / *stride) {
+				fz_throw(handle->ctx, FZ_ERROR_LIMIT, "rendered page buffer is too large");
+			}
+			*samples = (unsigned char *)malloc((size_t)*stride * (size_t)*height);
+			if (*samples == NULL) {
+				fz_throw(handle->ctx, FZ_ERROR_SYSTEM, "malloc failed");
+			}
+			pix = fz_new_pixmap_with_bbox_and_data(handle->ctx, fz_device_rgb(handle->ctx), bbox, NULL, 1, *samples);
+			fz_clear_pixmap_with_value(handle->ctx, pix, 0xff);
+			dev = fz_new_draw_device(handle->ctx, fz_identity, pix);
+			handle->render_cookie = &cookie;
+			fz_run_page(handle->ctx, page, dev, ctm, &cookie);
+			fz_close_device(handle->ctx, dev);
+		}
+	} fz_always(handle->ctx) {
+		handle->render_cookie = NULL;
+		if (have_old_aa) {
+			fz_set_aa_level(handle->ctx, old_aa);
+		}
+		if (dev != NULL) {
+			fz_drop_device(handle->ctx, dev);
+		}
+		if (pix != NULL) {
+			fz_drop_pixmap(handle->ctx, pix);
+		}
+	} fz_catch(handle->ctx) {
+		if (*samples != NULL) {
+			free(*samples);
+			*samples = NULL;
+		}
+		*err = gopdf_dup_string(fz_caught_message(handle->ctx));
+		return 0;
+	}
+	return 1;
+}
+
+void gopdf_cancel_render(gopdf_doc *handle) {
+	if (handle != NULL && handle->render_cookie != NULL) {
+		handle->render_cookie->abort = 1;
+	}
+}
+
+void gopdf_free_rendered_page(unsigned char *samples) {
+	free(samples);
 }
 
 static void gopdf_free_search_builder(gopdf_search_builder *builder) {

@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"testing"
+	"time"
 
 	"gopdf/internal/config"
 	"gopdf/internal/mupdf"
@@ -538,24 +539,47 @@ func TestRenderScalePolicy(t *testing.T) {
 	if !app.maybeUpgradeRenderScale(4) {
 		t.Fatal("expected target above tolerance to upgrade render base scale")
 	}
-	assertClose(t, app.renderBaseScale, 4.5)
+	assertClose(t, app.renderBaseScale, 4)
 	if app.renderGeneration != 1 || len(app.renderPending) != 0 {
 		t.Fatalf("expected upgrade to invalidate render requests, generation=%d pending=%d", app.renderGeneration, len(app.renderPending))
 	}
 
 	app.maybeDowngradeRenderScale()
-	assertClose(t, app.renderBaseScale, 3)
+	assertClose(t, app.renderBaseScale, 1)
 	if app.renderGeneration != 2 {
 		t.Fatalf("expected downgrade to invalidate render requests, generation=%d", app.renderGeneration)
 	}
 }
 
 func TestRenderScaleForAllowsLowZoomUndersampling(t *testing.T) {
-	app := &App{config: config.Config{RenderOversample: 1}, renderService: renderService{minRenderBaseScale: 0.25, renderBaseScale: 2}}
+	app := &App{config: config.Config{RenderOversample: 1}, renderService: renderService{minRenderBaseScale: 0.25, renderBaseScale: 1}}
 
-	assertClose(t, app.renderScaleFor(1), 2)
+	assertClose(t, app.renderScaleFor(1), 1)
 	assertClose(t, app.renderScaleFor(0.2), 0.4)
 	assertClose(t, app.renderScaleFor(0.05), 0.25)
+}
+
+func TestRenderScaleTargetDebouncesFastZoom(t *testing.T) {
+	app := &App{viewStateFields: viewStateFields{scale: 1, zoom: 1, fitMode: "manual"}, config: config.Config{RenderOversample: 1}, renderService: renderService{minRenderBaseScale: 0.25, renderBaseScale: 1, renderPending: map[string]renderRequest{"old": {page: 1}}}}
+
+	app.scheduleRenderScaleTarget(2)
+	app.scheduleRenderScaleTarget(3)
+	if app.applyScheduledRenderScaleTarget() {
+		t.Fatal("render scale target applied before settle delay")
+	}
+	assertClose(t, app.renderBaseScale, 1)
+	if app.renderGeneration != 0 || len(app.renderPending) != 1 {
+		t.Fatalf("unexpected early invalidation generation=%d pending=%d", app.renderGeneration, len(app.renderPending))
+	}
+
+	app.renderScaleReadyAt = time.Now().Add(-time.Millisecond)
+	if !app.applyScheduledRenderScaleTarget() {
+		t.Fatal("expected settled render scale target to apply")
+	}
+	assertClose(t, app.renderBaseScale, 3)
+	if app.renderGeneration != 1 || len(app.renderPending) != 0 {
+		t.Fatalf("expected settled target to invalidate once, generation=%d pending=%d", app.renderGeneration, len(app.renderPending))
+	}
 }
 
 func TestRenderWorkerPrioritizesVisibleRequests(t *testing.T) {

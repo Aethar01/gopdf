@@ -307,6 +307,7 @@ func (a *App) applyConfigState(cfg config.Config, preserveManualFit bool) {
 		a.fitMode = currentFitMode
 	}
 	a.renderMode = sanitizeRenderMode(cfg.RenderMode)
+	a.cacheLimit = pageCacheLimit(cfg, a.pageCount)
 	a.altColors = cfg.AltColors
 	a.dualPage = cfg.DualPage
 	a.firstPageOffset = cfg.FirstPageOffset
@@ -321,6 +322,7 @@ func (a *App) applyConfigState(cfg config.Config, preserveManualFit bool) {
 	oldFontFace := a.fontFace
 	a.fontFace = loadFont(cfg.UIFontPath, cfg.UIFontSize)
 	a.clearTextTextureCache()
+	a.enforceRenderCacheLimit()
 	closeFontFace(oldFontFace)
 }
 
@@ -397,7 +399,7 @@ func (a *App) SetZoom(zoom float64) error {
 	a.relayoutWithViewportAnchor(func() {
 		a.fitMode = "manual"
 		a.zoom = clampFloat(zoom, 0.05, 8.0)
-		a.maybeUpgradeRenderScale(a.zoom)
+		a.scheduleRenderScaleTarget(a.zoom)
 	})
 	return nil
 }

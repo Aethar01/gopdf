@@ -225,8 +225,7 @@ func New(docPath string, runtime *config.Runtime, startPage int, iconBytes []byt
 		},
 		renderService: renderService{
 			renderCache:        map[string]*renderedPage{},
-			cacheLimit:         0,
-			cacheByteLimit:     defaultRenderCacheByteLimit,
+			cacheLimit:         pageCacheLimit(cfg, 0),
 			minRenderBaseScale: 0.25,
 		},
 		metricsService: metricsService{},
@@ -1028,14 +1027,14 @@ func (a *App) setManualZoom(delta float64) {
 		}
 		a.fitMode = "manual"
 		a.zoom = math.Max(0.75, math.Min(4.0, baseZoom*delta))
-		a.maybeUpgradeRenderScale(a.zoom)
+		a.scheduleRenderScaleTarget(a.zoom)
 	})
 }
 
 func (a *App) setFitMode(mode string) {
 	a.relayoutWithViewportAnchor(func() {
 		a.fitMode = mode
-		a.maybeUpgradeRenderScale(a.zoom)
+		a.scheduleRenderScaleTarget(a.zoom)
 	})
 }
 

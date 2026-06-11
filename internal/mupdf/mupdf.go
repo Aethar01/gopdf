@@ -40,9 +40,21 @@ type Document struct {
 }
 
 type RenderedPage struct {
-	Image *image.RGBA
-	X     int
-	Y     int
+	Image   *image.RGBA
+	X       int
+	Y       int
+	samples unsafe.Pointer
+}
+
+func (p *RenderedPage) Close() {
+	if p == nil || p.samples == nil {
+		return
+	}
+	C.gopdf_free_rendered_page((*C.uchar)(p.samples))
+	p.samples = nil
+	if p.Image != nil {
+		p.Image.Pix = nil
+	}
 }
 
 type Point struct {
@@ -218,10 +230,11 @@ func (d *Document) Render(page int, scale float64, rotation float64, aaLevel int
 	if aaLevel < 0 {
 		return nil, fmt.Errorf("render page: invalid antialias level %d", aaLevel)
 	}
+	var samples *C.uchar
 	var width, height, stride, x, y C.int
 	var cerr *C.char
-	if ok := C.gopdf_render_page_info(d.handle, C.int(page), C.float(scale), C.float(rotation), &width, &height, &stride, &x, &y, &cerr); ok == 0 {
-		return nil, consumeError("render page info", cerr)
+	if ok := C.gopdf_render_page_alloc(d.handle, C.int(page), C.float(scale), C.float(rotation), C.int(aaLevel), &samples, &width, &height, &stride, &x, &y, &cerr); ok == 0 {
+		return nil, consumeError("render page", cerr)
 	}
 	if width <= 0 || height <= 0 || stride <= 0 {
 		return &RenderedPage{Image: image.NewRGBA(image.Rect(0, 0, 0, 0)), X: int(x), Y: int(y)}, nil
@@ -229,11 +242,19 @@ func (d *Document) Render(page int, scale float64, rotation float64, aaLevel int
 	if int(stride) != int(width)*4 {
 		return nil, fmt.Errorf("render page: unsupported pixmap stride %d for width %d", int(stride), int(width))
 	}
-	img := image.NewRGBA(image.Rect(0, 0, int(width), int(height)))
-	if ok := C.gopdf_render_page_to_buffer(d.handle, C.int(page), C.float(scale), C.float(rotation), C.int(aaLevel), (*C.uchar)(unsafe.Pointer(&img.Pix[0])), width, height, C.int(img.Stride), &cerr); ok == 0 {
-		return nil, consumeError("render page", cerr)
+	if samples == nil {
+		return nil, fmt.Errorf("render page: missing pixel buffer")
 	}
-	return &RenderedPage{Image: img, X: int(x), Y: int(y)}, nil
+	bufLen := int(stride) * int(height)
+	img := &image.RGBA{Pix: unsafe.Slice((*byte)(unsafe.Pointer(samples)), bufLen), Stride: int(stride), Rect: image.Rect(0, 0, int(width), int(height))}
+	return &RenderedPage{Image: img, X: int(x), Y: int(y), samples: unsafe.Pointer(samples)}, nil
+}
+
+func (d *Document) CancelRender() {
+	if d == nil || d.handle == nil {
+		return
+	}
+	C.gopdf_cancel_render(d.handle)
 }
 
 func (d *Document) ExtractSelection(page int, a, b Point) (*Selection, error) {

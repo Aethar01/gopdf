@@ -132,6 +132,7 @@ func (a *App) cachedRenderPage(page int, scale float64) (*renderedPage, bool) {
 	renderScale := a.renderScaleFor(scale)
 	key := renderCacheKey(page, renderScale, a.altColors, a.config.AntiAliasing)
 	if rp, ok := a.renderCache[key]; ok {
+		a.touchRenderCacheEntry(key)
 		return rp, true
 	}
 	var bestHigher *renderedPage
@@ -139,6 +140,7 @@ func (a *App) cachedRenderPage(page int, scale float64) (*renderedPage, bool) {
 	a.ensureRenderCacheState()
 	for _, rp := range a.renderIndex[renderVariantKey{page: page, altColors: a.altColors, aaLevel: a.config.AntiAliasing}] {
 		if math.Abs(rp.scale-renderScale) < 0.0001 {
+			a.touchRenderCacheEntry(rp.key)
 			return rp, true
 		}
 		if rp.scale >= renderScale {
@@ -152,10 +154,17 @@ func (a *App) cachedRenderPage(page int, scale float64) (*renderedPage, bool) {
 		}
 	}
 	if bestHigher != nil {
+		a.touchRenderCacheEntry(bestHigher.key)
 		return bestHigher, true
 	}
 	if bestLower != nil {
+		a.touchRenderCacheEntry(bestLower.key)
 		return bestLower, true
+	}
+	variant := renderVariantKey{page: page, altColors: a.altColors, aaLevel: a.config.AntiAliasing}
+	if rp := a.thumbnailCache[variant]; rp != nil {
+		a.touchThumbnailCacheEntry(variant)
+		return rp, true
 	}
 	return nil, false
 }
@@ -212,13 +221,13 @@ func (a *App) prefetchVisiblePages() {
 			}
 		}
 	}
-	totalPrefetch := len(visible) + len(prefetch)
-	if totalPrefetch*2 > a.cacheLimit {
-		a.cacheLimit = min(a.pageCount*2, totalPrefetch*2)
-	}
 	if a.renderWorker != nil {
 		a.renderWorker.SetWantedPages(seen)
 		a.renderWorker.DrainUnwanted(a.renderGeneration)
+	}
+	a.visibleCachePages = map[int]bool{}
+	for _, page := range visible {
+		a.visibleCachePages[page] = true
 	}
 	for key, req := range a.renderPending {
 		if req.generation == a.renderGeneration && !seen[req.page] {
