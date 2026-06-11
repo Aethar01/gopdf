@@ -357,6 +357,7 @@ Prefix a query with `re:` to search with a Go regular expression, for example `:
 | `gopdf.message()` / `gopdf.message("text")` | Get/set status message |
 | `gopdf.command(":fit width")` | Execute command |
 | `gopdf.open(path)` | Open another PDF |
+| `gopdf.recent_files([limit])` | Return recent files from the session database |
 | `gopdf.pick_file([callback])` | Open native file picker; optional callback receives path |
 | `gopdf.bind(key, action)` / `gopdf.unbind(key)` | Bind/unbind keyboard action |
 | `gopdf.bind_mouse(event, action)` / `gopdf.unbind_mouse(event)` | Bind/unbind mouse action |
@@ -383,6 +384,30 @@ Lua callbacks can open a simple modal list overlay. The overlay uses the same na
 | `selected` | Optional initial selected row, 1-indexed |
 | `on_select(index, value)` | Optional callback run when a row is confirmed or clicked |
 | `on_close()` | Optional callback run when the UI is closed by the viewer |
+
+Example recent-files menu bound to `<C-r>`. It shows the most recent files from the session database and opens the selected row:
+
+```lua
+local function show_recent_files()
+  local rows = gopdf.recent_files(20)
+
+  if #rows == 0 then
+    gopdf.message("no recent files")
+    return
+  end
+
+  gopdf.ui.menu({
+    title = "Recent Files",
+    rows = rows,
+    on_select = function(_, path)
+      gopdf.ui.close()
+      gopdf.open(path)
+    end,
+  })
+end
+
+gopdf.bind("<C-r>", show_recent_files)
+```
 
 Example file browser bound to `fo`. It starts in the user's home directory, shows directories first, lets you open `..`, and opens selected PDFs:
 
