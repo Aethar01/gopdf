@@ -60,6 +60,8 @@ type Runtime struct {
 	host         Host
 	callbacks    map[string]*lua.LFunction
 	callbackSeq  int
+	luaCallDepth int
+	deferredOpen string
 	dirty        bool
 	verbose      bool
 }

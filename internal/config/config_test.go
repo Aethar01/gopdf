@@ -37,6 +37,16 @@ type stubHost struct {
 	cacheCleared     bool
 }
 
+type reloadingOpenHost struct {
+	stubHost
+	rt *Runtime
+}
+
+func (h *reloadingOpenHost) Open(path string) error {
+	h.opened = path
+	return h.rt.SetDocument(path)
+}
+
 func (h *stubHost) ExecuteAction(action string) error {
 	h.actions = append(h.actions, action)
 	return nil
@@ -658,6 +668,49 @@ end)
 	}
 	if host.message != "closed" {
 		t.Fatalf("expected close callback, got %q", host.message)
+	}
+}
+
+func TestLuaUISelectionCanOpenDocument(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.lua")
+	second := filepath.Join(dir, "second.pdf")
+	if err := os.WriteFile(path, []byte(`
+if gopdf.document.name == "second.pdf" then
+  gopdf.options.first_page_offset = false
+end
+
+bind("u", function()
+  gopdf.ui.show({
+    rows = { `+strconv.Quote(second)+` },
+    on_select = function(_, value)
+      gopdf.open(value)
+    end,
+  })
+end)
+`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	rt, err := Open(path, filepath.Join(dir, "first.pdf"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rt.Close()
+
+	host := &reloadingOpenHost{rt: rt}
+	rt.AttachHost(host)
+	if handled, _, err := rt.RunAction(rt.Config().KeyBindings["u"]); !handled || err != nil {
+		t.Fatalf("expected ui callback to run, handled=%v err=%v", handled, err)
+	}
+	if err := rt.RunUISelect(host.ui.OnSelect, 1, second); err != nil {
+		t.Fatal(err)
+	}
+	if host.opened != second {
+		t.Fatalf("expected opened document %q, got %q", second, host.opened)
+	}
+	if rt.Config().FirstPageOffset {
+		t.Fatalf("expected document-specific config reload after opening %q", second)
 	}
 }
 

@@ -110,10 +110,7 @@ func newLuaModule(L *lua.LState, rt *Runtime, cfg *Config) *lua.LTable {
 			return 0
 		},
 		"open": func(L *lua.LState) int {
-			if rt.host == nil {
-				L.RaiseError("open: viewer host unavailable")
-			}
-			if err := rt.host.Open(L.CheckString(1)); err != nil {
+			if err := rt.open(L.CheckString(1)); err != nil {
 				L.RaiseError("open: %v", err)
 			}
 			return 0

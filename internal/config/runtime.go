@@ -168,7 +168,7 @@ func (r *Runtime) RunAction(action string) (bool, bool, error) {
 		return false, false, nil
 	}
 	r.dirty = false
-	if err := r.state.CallByParam(lua.P{Fn: fn, NRet: 0, Protect: true}); err != nil {
+	if err := r.callLua(lua.P{Fn: fn, NRet: 0, Protect: true}); err != nil {
 		return true, r.dirty, err
 	}
 	return true, r.dirty, nil
@@ -179,7 +179,8 @@ func (r *Runtime) Eval(code string) (bool, error) {
 		return false, fmt.Errorf("no Lua state")
 	}
 	r.dirty = false
-	if err := r.state.DoString(code); err != nil {
+	err := r.doLua(func() error { return r.state.DoString(code) })
+	if err != nil {
 		return r.dirty, err
 	}
 	return r.dirty, nil
@@ -202,7 +203,58 @@ func (r *Runtime) runCallback(callback string, args ...lua.LValue) error {
 		return fmt.Errorf("unknown lua callback: %s", callback)
 	}
 	params := lua.P{Fn: fn, NRet: 0, Protect: true}
-	return r.state.CallByParam(params, args...)
+	return r.callLua(params, args...)
+}
+
+func (r *Runtime) callLua(params lua.P, args ...lua.LValue) (err error) {
+	return r.doLua(func() error {
+		return r.state.CallByParam(params, args...)
+	})
+}
+
+func (r *Runtime) doLua(fn func() error) (err error) {
+	r.luaCallDepth++
+	panicked := true
+	defer func() {
+		r.luaCallDepth--
+		if r.luaCallDepth != 0 {
+			return
+		}
+		if panicked || err != nil {
+			r.deferredOpen = ""
+			return
+		}
+		err = r.flushDeferredOpen()
+	}()
+	err = fn()
+	panicked = false
+	return err
+}
+
+func (r *Runtime) open(path string) error {
+	if r.host == nil {
+		return fmt.Errorf("viewer host unavailable")
+	}
+	if r.luaCallDepth > 0 {
+		r.deferredOpen = path
+		return nil
+	}
+	return r.host.Open(path)
+}
+
+func (r *Runtime) flushDeferredOpen() error {
+	if r.deferredOpen == "" {
+		return nil
+	}
+	path := r.deferredOpen
+	r.deferredOpen = ""
+	if r.host == nil {
+		return fmt.Errorf("open: viewer host unavailable")
+	}
+	if err := r.host.Open(path); err != nil {
+		return fmt.Errorf("open: %w", err)
+	}
+	return nil
 }
 
 func loadDocumentMeta(docPath string) documentMeta {
