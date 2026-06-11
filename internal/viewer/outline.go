@@ -199,10 +199,34 @@ func (a *App) activateSelectedOutline() {
 		return
 	}
 	item := a.outline[a.outlineMenu.selected]
+	if item.External {
+		if item.URI == "" {
+			return
+		}
+		if err := openExternalURL(item.URI); err != nil {
+			a.message = err.Error()
+			return
+		}
+		a.outlineMenu.visible = false
+		a.message = item.URI
+		return
+	}
 	if item.Page < 0 {
 		return
 	}
 	a.outlineMenu.visible = false
+	if item.HasX || item.HasY {
+		x, y := item.X, item.Y
+		bounds := a.pageMetrics[item.Page].bounds
+		if !item.HasX {
+			x = float64(bounds.X0+bounds.X1) / 2
+		}
+		if !item.HasY {
+			y = float64(bounds.Y0)
+		}
+		a.alignPageToDocumentPoint(item.Page, x, y)
+		return
+	}
 	a.alignPageToAnchor(item.Page)
 }
 

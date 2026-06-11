@@ -25,19 +25,17 @@ type metricLoader struct {
 type metricsService struct {
 	pageMetrics  []pageMetrics
 	loader       *metricLoader
-	pendingPath  string
+	pendingLoad  bool
 	pendingPages int
 	pendingStart int
 }
 
-func (l *metricLoader) run(docPath string, pageCount int, startPage int) {
+func (l *metricLoader) run(doc *mupdf.Document, pageCount int, startPage int) {
 	defer close(l.done)
-	doc, err := mupdf.Open(docPath)
-	if err != nil {
-		l.send(pageMetricUpdate{err: fmt.Errorf("load page metrics: %w", err)})
+	if doc == nil {
+		l.send(pageMetricUpdate{err: fmt.Errorf("load page metrics: no document open")})
 		return
 	}
-	defer doc.Close()
 	loadPage := func(i int) bool {
 		select {
 		case <-l.closing:

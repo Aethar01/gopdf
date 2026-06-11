@@ -44,6 +44,9 @@ func (a *App) formatStatusBar(template string) string {
 		promptToken = a.searchPromptToken()
 		message = promptToken + a.input.Value
 		inputToken = a.input.Value
+	case modePassword:
+		message = a.inputPrefix() + strings.Repeat("*", len([]rune(a.input.Value)))
+		inputToken = message
 	}
 
 	page := fmt.Sprintf("%d", a.page+1)
@@ -79,6 +82,9 @@ func (a *App) drawInputCursor(renderer *sdl.Renderer, barY, pad, vertOffset int)
 	}
 	prefix := a.inputPrefix()
 	left := a.input.Left()
+	if a.mode == modePassword {
+		left = strings.Repeat("*", len([]rune(left)))
+	}
 	x := pad + measureText(a.fontFace, prefix+left)
 	fg := a.foregroundColor()
 	if !sdl.SetRenderDrawColor(renderer, fg.R, fg.G, fg.B, fg.A) {
@@ -98,6 +104,8 @@ func (a *App) inputPrefix() string {
 		return " GOTO "
 	case modeSearch:
 		return a.searchPromptToken()
+	case modePassword:
+		return " Password: "
 	default:
 		return ""
 	}

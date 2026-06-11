@@ -97,7 +97,7 @@ func BenchmarkPerfHeavyPDFOpen(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		doc, err := mupdf.Open(path)
+		doc, err := mupdf.Open(path, "")
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -107,7 +107,7 @@ func BenchmarkPerfHeavyPDFOpen(b *testing.B) {
 
 func BenchmarkPerfHeavyPDFBoundsAllPages(b *testing.B) {
 	path := heavyPDFPath(b)
-	doc, err := mupdf.Open(path)
+	doc, err := mupdf.Open(path, "")
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -129,7 +129,7 @@ func BenchmarkPerfHeavyPDFBoundsAllPages(b *testing.B) {
 
 func BenchmarkPerfHeavyPDFRenderPages(b *testing.B) {
 	path := heavyPDFPath(b)
-	doc, err := mupdf.Open(path)
+	doc, err := mupdf.Open(path, "")
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -154,7 +154,7 @@ func BenchmarkPerfHeavyPDFSearchAllPages(b *testing.B) {
 	if query == "" {
 		query = "the"
 	}
-	doc, err := mupdf.Open(path)
+	doc, err := mupdf.Open(path, "")
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -176,7 +176,7 @@ func BenchmarkPerfHeavyPDFSearchAllPages(b *testing.B) {
 
 func BenchmarkPerfHeavyPDFOutline(b *testing.B) {
 	path := heavyPDFPath(b)
-	doc, err := mupdf.Open(path)
+	doc, err := mupdf.Open(path, "")
 	if err != nil {
 		b.Fatal(err)
 	}

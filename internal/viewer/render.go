@@ -64,14 +64,14 @@ type renderWorker struct {
 	wanted     atomic.Value
 }
 
-func newRenderWorker(docPath string) *renderWorker {
+func newRenderWorker(doc *mupdf.Document) *renderWorker {
 	w := &renderWorker{
 		requests: make(chan renderRequest, 128),
-		updates:  make(chan renderUpdate, 128),
+		updates:  make(chan renderUpdate, 1),
 		closing:  make(chan struct{}),
 		done:     make(chan struct{}),
 	}
-	go w.run(docPath)
+	go w.run(doc)
 	return w
 }
 
@@ -137,15 +137,13 @@ func (w *renderWorker) requestWanted(req renderRequest, gen int) bool {
 	return !ok || wanted[req.page]
 }
 
-func (w *renderWorker) run(docPath string) {
+func (w *renderWorker) run(doc *mupdf.Document) {
 	defer close(w.done)
-	doc, err := mupdf.Open(docPath)
-	if err != nil {
-		w.send(renderUpdate{err: err})
+	if doc == nil {
+		w.send(renderUpdate{err: fmt.Errorf("render worker: no document open")})
 		w.closeOnce.Do(func() { close(w.closing) })
 		return
 	}
-	defer doc.Close()
 	var queue []renderRequest
 	for {
 		if len(queue) == 0 {
@@ -219,7 +217,7 @@ func renderCacheKey(page int, scale float64, altColors bool, aaLevel int) string
 func (a *App) initRenderWorker() {
 	a.logf("start render worker path=%q", a.docPath)
 	a.renderPending = map[string]renderRequest{}
-	a.renderWorker = newRenderWorker(a.docPath)
+	a.renderWorker = newRenderWorker(a.doc)
 	a.renderWorker.SetGeneration(a.renderGeneration)
 }
 

@@ -59,14 +59,14 @@ type searchWorker struct {
 	closeOnce sync.Once
 }
 
-func newSearchWorker(docPath string) *searchWorker {
+func newSearchWorker(doc *mupdf.Document) *searchWorker {
 	w := &searchWorker{
 		requests: make(chan searchRequest, 1),
 		updates:  make(chan searchUpdate, 64),
 		closing:  make(chan struct{}),
 		done:     make(chan struct{}),
 	}
-	go w.run(docPath)
+	go w.run(doc)
 	return w
 }
 
@@ -96,15 +96,13 @@ func (w *searchWorker) Start(req searchRequest) bool {
 	}
 }
 
-func (w *searchWorker) run(docPath string) {
+func (w *searchWorker) run(doc *mupdf.Document) {
 	defer close(w.done)
-	doc, err := mupdf.Open(docPath)
-	if err != nil {
-		w.send(searchUpdate{done: true, err: err})
+	if doc == nil {
+		w.send(searchUpdate{done: true, err: fmt.Errorf("search worker: no document open")})
 		w.closeOnce.Do(func() { close(w.closing) })
 		return
 	}
-	defer doc.Close()
 	for {
 		var req searchRequest
 		select {
@@ -290,9 +288,9 @@ func (a *App) startSearch(query string, mode searchMode) {
 		a.message = ""
 		return
 	}
-	if a.searchWorker == nil && a.docPath != "" {
+	if a.searchWorker == nil && a.doc != nil {
 		a.logf("start search worker path=%q", a.docPath)
-		a.searchWorker = newSearchWorker(a.docPath)
+		a.searchWorker = newSearchWorker(a.doc)
 	}
 	if a.searchWorker == nil {
 		a.message = "no document open"

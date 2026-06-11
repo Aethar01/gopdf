@@ -22,6 +22,9 @@ func TestClosedDocumentReturnsErrors(t *testing.T) {
 	if _, err := doc.Bounds(0); err == nil {
 		t.Fatal("expected Bounds on closed document to fail")
 	}
+	if _, err := doc.PageLabel(0); err == nil {
+		t.Fatal("expected PageLabel on closed document to fail")
+	}
 	if _, err := doc.Render(0, 1, 0, 8); err == nil {
 		t.Fatal("expected Render on closed document to fail")
 	}

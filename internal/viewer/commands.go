@@ -230,6 +230,9 @@ func (a *App) closeAllUI() {
 	a.outlineMenu.visible = false
 	if a.mode != modeNormal {
 		a.closeCompletion()
+		if a.mode == modePassword {
+			a.passwordPrompt = pendingPasswordPrompt{}
+		}
 		a.mode = modeNormal
 		a.input.Reset()
 		a.ignoreText = ""
@@ -256,6 +259,9 @@ func (a *App) closeActiveUI() {
 		if a.completion.visible {
 			a.closeCompletion()
 			return
+		}
+		if a.mode == modePassword {
+			a.passwordPrompt = pendingPasswordPrompt{}
 		}
 		a.mode = modeNormal
 		a.input.Reset()

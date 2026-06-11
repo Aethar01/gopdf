@@ -42,7 +42,7 @@ func (a *App) resolveOpenPath(path string) string {
 	return config.AbsoluteDocumentPath(path)
 }
 
-func (a *App) initMetricLoader(docPath string, pageCount int, startPage int) {
+func (a *App) initMetricLoader(pageCount int, startPage int) {
 	a.logf("start metric loader pages=%d startPage=%d", pageCount, startPage+1)
 	l := &metricLoader{
 		updates: make(chan pageMetricUpdate, 128),
@@ -50,7 +50,7 @@ func (a *App) initMetricLoader(docPath string, pageCount int, startPage int) {
 		done:    make(chan struct{}),
 	}
 	a.loader = l
-	go l.run(docPath, pageCount, startPage)
+	go l.run(a.doc, pageCount, startPage)
 }
 
 func (a *App) closeMetricLoader() {
@@ -59,22 +59,21 @@ func (a *App) closeMetricLoader() {
 		a.loader.Close()
 		a.loader = nil
 	}
-	a.pendingPath = ""
+	a.pendingLoad = false
 	a.pendingPages = 0
 	a.pendingStart = 0
 }
 
 func (a *App) startPendingMetricLoader() {
-	if a.loader != nil || a.pendingPath == "" || a.pendingPages <= 1 {
+	if a.loader != nil || !a.pendingLoad || a.pendingPages <= 1 {
 		return
 	}
-	path := a.pendingPath
 	pages := a.pendingPages
 	start := a.pendingStart
-	a.pendingPath = ""
+	a.pendingLoad = false
 	a.pendingPages = 0
 	a.pendingStart = 0
-	a.initMetricLoader(path, pages, start)
+	a.initMetricLoader(pages, start)
 }
 
 func (a *App) pollMetricUpdates() {
@@ -114,13 +113,21 @@ func (a *App) pollMetricUpdates() {
 }
 
 func (a *App) openDocument(path string, opts openDocumentOptions) error {
+	return a.openDocumentWithPassword(path, opts, "")
+}
+
+func (a *App) openDocumentWithPassword(path string, opts openDocumentOptions, password string) error {
 	a.message = "opening " + path
 
 	path = config.AbsoluteDocumentPath(path)
 	a.logf("opening document path=%q startPage=%d reloadConfig=%t", path, opts.startPage+1, opts.reloadConfig)
-	doc, err := mupdf.Open(path)
+	doc, err := mupdf.Open(path, password)
 	if err != nil {
 		a.logf("open document failed path=%q err=%v", path, err)
+		if mupdf.IsPasswordError(err) {
+			a.promptDocumentPassword(path, opts)
+			return nil
+		}
 		return err
 	}
 	pages := doc.CachedPageCount()
@@ -143,6 +150,7 @@ func (a *App) openDocument(path string, opts openDocumentOptions) error {
 
 	a.docPath = path
 	a.docName = filepath.Base(path)
+	a.docPassword = password
 	a.recordRecentFile(path)
 	a.document.record(path)
 	a.doc = doc
@@ -177,7 +185,7 @@ func (a *App) openDocument(path string, opts openDocumentOptions) error {
 	a.jumpAhead = nil
 	a.pendingOpen = ""
 
-	a.initDocumentMetrics(doc, path, pages, startPage)
+	a.initDocumentMetrics(doc, pages, startPage)
 	a.logf("opened document path=%q pages=%d page=%d", path, pages, startPage+1)
 
 	var configErr error
@@ -208,7 +216,27 @@ func (a *App) openDocument(path string, opts openDocumentOptions) error {
 	return nil
 }
 
-func (a *App) initDocumentMetrics(doc *mupdf.Document, path string, pages int, startPage int) {
+func (a *App) promptDocumentPassword(path string, opts openDocumentOptions) {
+	a.closeAllUI()
+	a.mode = modePassword
+	a.input.Reset()
+	a.passwordPrompt = pendingPasswordPrompt{path: path, opts: opts}
+	a.message = "password required: " + filepath.Base(path)
+	a.pendingRedraw = true
+}
+
+func (a *App) submitDocumentPassword(password string) {
+	prompt := a.passwordPrompt
+	a.passwordPrompt = pendingPasswordPrompt{}
+	if prompt.path == "" {
+		return
+	}
+	if err := a.openDocumentWithPassword(prompt.path, prompt.opts, password); err != nil {
+		a.message = err.Error()
+	}
+}
+
+func (a *App) initDocumentMetrics(doc *mupdf.Document, pages int, startPage int) {
 	defaultW, defaultH := 612.0, 792.0
 	if pages > 0 {
 		if bounds, err := doc.Bounds(startPage); err == nil {
@@ -229,7 +257,7 @@ func (a *App) initDocumentMetrics(doc *mupdf.Document, path string, pages int, s
 
 	if pages > 1 {
 		a.logf("queue metric loader pages=%d startPage=%d", pages, startPage+1)
-		a.pendingPath = path
+		a.pendingLoad = true
 		a.pendingPages = pages
 		a.pendingStart = startPage
 	}
@@ -262,7 +290,7 @@ func (a *App) reloadUpdatedDocument(change documentChange) error {
 func (a *App) softReloadDocument(path string, state viewState) error {
 	path = config.AbsoluteDocumentPath(path)
 	a.logf("soft reload document path=%q", path)
-	doc, err := mupdf.Open(path)
+	doc, err := mupdf.Open(path, a.docPassword)
 	if err != nil {
 		return err
 	}
@@ -291,7 +319,7 @@ func (a *App) softReloadDocument(path string, state viewState) error {
 	a.outline = nil
 	a.selection = textSelection{}
 
-	a.initDocumentMetrics(doc, path, pages, startPage)
+	a.initDocumentMetrics(doc, pages, startPage)
 	a.logf("soft reloaded document path=%q pages=%d page=%d", path, pages, startPage+1)
 	a.setWindowTitle()
 	a.initRenderWorker()

@@ -24,6 +24,7 @@ const (
 	modeCommand
 	modeGotoPage
 	modeSearch
+	modePassword
 )
 
 type renderedPage struct {
@@ -92,9 +93,10 @@ type App struct {
 }
 
 type documentState struct {
-	docPath string
-	docName string
-	doc     *mupdf.Document
+	docPath     string
+	docName     string
+	docPassword string
+	doc         *mupdf.Document
 
 	pageCount int
 	page      int
@@ -147,6 +149,7 @@ type inputState struct {
 	input          textInput
 	ignoreText     string
 	message        string
+	passwordPrompt pendingPasswordPrompt
 	mouseBindings  map[string]string
 	searchInput    searchMode
 	sequence       []string
@@ -154,6 +157,11 @@ type inputState struct {
 	sequenceLookup map[string]string
 	pendingCount   string
 	pendingMark    string
+}
+
+type pendingPasswordPrompt struct {
+	path string
+	opts openDocumentOptions
 }
 
 type interactionState struct {
@@ -718,12 +726,15 @@ func (a *App) commitInputMode() {
 		a.acceptCompletion()
 		return
 	}
-	input := strings.TrimSpace(a.input.Value)
 	currentMode := a.mode
+	input := strings.TrimSpace(a.input.Value)
+	if currentMode == modePassword {
+		input = a.input.Value
+	}
 	a.mode = modeNormal
 	a.input.Reset()
 	a.closeCompletion()
-	if input == "" {
+	if input == "" && currentMode != modePassword {
 		return
 	}
 	switch currentMode {
@@ -733,6 +744,8 @@ func (a *App) commitInputMode() {
 		a.gotoPageInput(input)
 	case modeSearch:
 		a.startSearch(input, a.searchInput)
+	case modePassword:
+		a.submitDocumentPassword(input)
 	}
 }
 
@@ -885,6 +898,33 @@ func (a *App) alignPageToAnchor(page int) {
 	}
 	row := a.rows[a.pageToRow[page]]
 	a.scrollY = a.scrollYForAnchoredRow(row)
+	a.page = page
+	a.clampScroll()
+}
+
+func (a *App) alignPageToDocumentPoint(page int, x, y float64) {
+	if page < 0 || page >= len(a.pageToRow) {
+		return
+	}
+	page = a.anchorPage(page)
+	a.recordJump()
+	if a.renderMode == "single" {
+		a.page = page
+		a.recomputeLayout(a.viewportSize())
+	}
+	row := a.rows[a.pageToRow[page]]
+	pageIndex := 0
+	for i, rowPage := range row.pages {
+		if rowPage == page {
+			pageIndex = i
+			break
+		}
+	}
+	originX, originY := rotatedBoundsOrigin(a.pageMetrics[page].bounds, a.scale, a.rotation)
+	tx, ty := transformPoint(x, y, a.scale, a.rotation)
+	viewportW, viewportH := a.viewportSize()
+	a.scrollX = row.pageX[pageIndex] + tx - originX - float64(viewportW)/2
+	a.scrollY = row.pageY[pageIndex] + ty - originY - float64(viewportH)/4
 	a.page = page
 	a.clampScroll()
 }
