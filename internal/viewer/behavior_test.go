@@ -6,6 +6,7 @@ import (
 	"math"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"testing"
 	"time"
 
@@ -371,6 +372,9 @@ func TestRunCommandSearchAndOpenMessages(t *testing.T) {
 	}
 	if len(app.luaUI.rows) == 0 {
 		t.Fatal("expected help window rows")
+	}
+	if !slices.Contains(app.luaUI.rows, ":open_file_picker - Open the PDF file picker") {
+		t.Fatal("expected help rows to include open_file_picker command")
 	}
 }
 

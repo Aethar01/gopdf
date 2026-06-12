@@ -2,6 +2,57 @@
 
 MuPDF-backed PDF viewer written in Go with Lua configuration.
 
+gopdf is built for keyboard-driven PDF reading with scriptable behavior. It supports Vim-like navigation, configurable keybindings, commands, search, outlines, session restore, custom colors, and Lua callbacks.
+
+## Contents
+
+- [Quick Start](#quick-start)
+- [Common Tasks](#common-tasks)
+- [Installation](#installation)
+- [Usage](#usage)
+- [Configuration](#configuration)
+- [Keybindings](#keybindings)
+- [Commands](#commands)
+- [Lua API](#lua-api)
+- [License](#license)
+
+## Quick Start
+
+Open a PDF:
+
+```bash
+gopdf file.pdf
+```
+
+Useful defaults:
+
+| Key | What it does |
+|-----|--------------|
+| `F1` | Show and edit keybindings |
+| `j` / `k` | Scroll down / up |
+| `J` / `K` | Next / previous page |
+| `/` / `?` | Search forward / backward |
+| `n` / `N` | Next / previous search match |
+| `o` | Open the PDF outline |
+| `:` | Open the command prompt |
+| `q` | Quit |
+
+If no file is provided, gopdf reopens the most recently viewed file from its session database.
+
+## Common Tasks
+
+| I want to... | See |
+|--------------|-----|
+| Install gopdf | [Installation](#installation) |
+| Open a PDF or start on a specific page | [Usage](#usage) |
+| Change viewer defaults | [Configuration](#configuration) |
+| Change keybindings | [Keybindings](#keybindings) |
+| See every default shortcut | [Default Keybindings](#default-keybindings) |
+| Search, jump pages, or open files by command | [Commands](#commands) |
+| Customize the status bar | [Status Bar](#status-bar) |
+| Write Lua callbacks | [Lua API](#lua-api) |
+| Build a custom recent-files menu | [Custom UI](#custom-ui) |
+
 ## Installation
 
 <details open>
@@ -18,9 +69,10 @@ yay -S gopdf-git
 <details>
 <summary>macOS</summary>
 
-Install from the [latest release](https://github.com/Aethar01/gopdf/releases/latest), amd64 for intel macs or arm64 for apple silicon macs.
+Install from the [latest release](https://github.com/Aethar01/gopdf/releases/latest), amd64 for Intel Macs or arm64 for Apple silicon Macs.
 
-Or install using homebrew:
+Or install using Homebrew:
+
 ```bash
 brew install Aethar01/homebrew-gopdf/gopdf
 ```
@@ -30,7 +82,7 @@ brew install Aethar01/homebrew-gopdf/gopdf
 <details>
 <summary>Windows</summary>
 
-Install from the [latest release](https://github.com/Aethar01/gopdf/releases/latest). Use the installer for Start Menu shortcuts and optional PDF file association, or download the zip, unzip, and run the exe directly.
+Install from the [latest release](https://github.com/Aethar01/gopdf/releases/latest). Use the installer for Start Menu shortcuts and optional PDF file association, or download the zip, unzip it, and run the exe directly.
 
 </details>
 
@@ -67,13 +119,23 @@ gopdf --config custom.lua file.pdf
 gopdf -v                     # print version
 gopdf -V                     # enable verbose logs
 ```
-Press F1 to see the default keybinds (and change them if you want)
 
-If no file is provided, gopdf reopens the most recently viewed file from its session database.
+Press `F1` inside gopdf to see default keybindings and edit them interactively.
 
 ## Configuration
 
-Start from [`config.example.lua`](./config.example.lua). Config is Lua, loaded once at startup and again when `reload_config` or `:reload-config` is used.
+Start from [`config.example.lua`](./config.example.lua) when you want every supported option, or create a small config with only the settings you want to change.
+
+```lua
+gopdf.options.fit_mode = "width"
+gopdf.options.dual_page = true
+gopdf.options.status_bar_visible = true
+
+gopdf.bind("H", gopdf.prev_page)
+gopdf.bind("L", gopdf.next_page)
+```
+
+Config is Lua. It is loaded once at startup and again when `reload_config` or `:reload-config` is used.
 
 ### Config File Locations
 
@@ -93,7 +155,7 @@ Generated keybind edits are written to `autogen.lua` next to an explicit `--conf
 
 Session data is saved in `session.sqlite` under the matching per-user app data directory: `$XDG_DATA_HOME/gopdf` or `~/.local/share/gopdf` on Linux, `~/Library/Application Support/gopdf` on macOS, and `%APPDATA%\gopdf` on Windows.
 
-### Options
+### Configuration Options
 
 ```lua
 gopdf.options.status_bar_visible = true
@@ -107,7 +169,7 @@ gopdf.options.render_oversample = 1            -- >1 supersamples, <1 undersampl
 gopdf.options.render_mode = "continuous"       -- "continuous" or "single"
 gopdf.options.dual_page = false
 gopdf.options.first_page_offset = true
-gopdf.options.fit_mode = "page"                 -- "page", "width", or "manual"
+gopdf.options.fit_mode = "page"                -- "page", "width", or "manual"
 
 gopdf.options.page_gap = 0                      -- sets vertical gap too
 gopdf.options.spread_gap = 0                    -- sets horizontal gap too
@@ -118,7 +180,7 @@ gopdf.options.scroll_step = 64
 gopdf.options.status_bar_height = 28
 gopdf.options.status_bar_padding = 8
 gopdf.options.ui_font_size = 14
-gopdf.options.ui_font_path = ""                 -- empty = default font
+gopdf.options.ui_font_path = ""                -- empty = default font
 gopdf.options.sequence_timeout_ms = 700
 
 gopdf.options.outline_initial_depth = 1
@@ -214,38 +276,6 @@ gopdf.unbind("j")
 gopdf.unbind_mouse("wheel_down")
 ```
 
-### Supported Keys
-
-Key names are case-sensitive for printable letters and normalized for angle-bracket names. SDL-named keys can be bound using their normalized angle-bracket names, for example `<F13>`, `<Home>`, `<AudioMute>`, or keypad key names reported by SDL.
-
-| Form | Examples |
-|------|----------|
-| Printable letters | `a` through `z`, `A` through `Z` |
-| Printable digits | `0` through `9` |
-| Printable punctuation | `/`, `?`, `;`, `:`, `=`, `+`, `-` |
-| Space | `" "` or `<Space>` |
-| Special keys | `<CR>`, `<Enter>`, `<Return>`, `<Esc>`, `<BS>`, `<PgDn>`, `<PgUp>`, `<Tab>` |
-| Function keys | `<F1>` |
-| Arrow keys | `<Up>`, `<Down>`, `<Left>`, `<Right>` |
-| Ctrl keys | `<C-a>`, `<C-S-a>`, `<C-1>`, `<C-S-1>`, `<C-Space>`, `<C-Tab>`, `<C-Enter>`, `<C-Esc>`, `<C-BS>`, `<C-PgDn>`, `<C-PgUp>` |
-| Shift special keys | `<S-CR>`, `<S-Esc>`, `<S-BS>`, `<S-PgDn>`, `<S-PgUp>`, `<S-Tab>` |
-| Sequences | `gg`, `tb`, `co`, `<C-x>g` |
-
-Multiple keys can map to the same action. The `<F1>` keybinds menu adds an additional key for the selected action and writes generated edits to `autogen.lua`. Press `<Del>` or `<BS>` on a selected keybind row to delete it.
-
-Supported mouse events:
-
-| Event | Description |
-|-------|-------------|
-| `wheel_up`, `wheel_down` | Vertical wheel scroll |
-| `wheel_left`, `wheel_right` | Horizontal wheel scroll |
-| `<C-wheel_up>`, `<C-wheel_down>` | Ctrl-wheel events |
-| `left_down`, `left_up` | Left mouse button |
-| `middle_down`, `middle_up` | Middle mouse button |
-| `right_down`, `right_up` | Right mouse button |
-| `x1_down`, `x1_up` | Extra mouse button 1 |
-| `x2_down`, `x2_up` | Extra mouse button 2 |
-
 ### Default Keybindings
 
 | Key | Action |
@@ -292,7 +322,41 @@ Default mouse bindings:
 | `middle_down` | Pan while held |
 | Left-drag | Text selection when `mouse_text_select` is true |
 
+### Supported Key Names
+
+Key names are case-sensitive for printable letters and normalized for angle-bracket names. SDL-named keys can be bound using their normalized angle-bracket names, for example `<F13>`, `<Home>`, `<AudioMute>`, or keypad key names reported by SDL.
+
+| Form | Examples |
+|------|----------|
+| Printable letters | `a` through `z`, `A` through `Z` |
+| Printable digits | `0` through `9` |
+| Printable punctuation | `/`, `?`, `;`, `:`, `=`, `+`, `-` |
+| Space | `" "` or `<Space>` |
+| Special keys | `<CR>`, `<Enter>`, `<Return>`, `<Esc>`, `<BS>`, `<PgDn>`, `<PgUp>`, `<Tab>` |
+| Function keys | `<F1>` |
+| Arrow keys | `<Up>`, `<Down>`, `<Left>`, `<Right>` |
+| Ctrl keys | `<C-a>`, `<C-S-a>`, `<C-1>`, `<C-S-1>`, `<C-Space>`, `<C-Tab>`, `<C-Enter>`, `<C-Esc>`, `<C-BS>`, `<C-PgDn>`, `<C-PgUp>` |
+| Shift special keys | `<S-CR>`, `<S-Esc>`, `<S-BS>`, `<S-PgDn>`, `<S-PgUp>`, `<S-Tab>` |
+| Sequences | `gg`, `tb`, `co`, `<C-x>g` |
+
+Multiple keys can map to the same action. The `<F1>` keybinds menu adds an additional key for the selected action and writes generated edits to `autogen.lua`. Press `<Del>` or `<BS>` on a selected keybind row to delete it.
+
+Supported mouse events:
+
+| Event | Description |
+|-------|-------------|
+| `wheel_up`, `wheel_down` | Vertical wheel scroll |
+| `wheel_left`, `wheel_right` | Horizontal wheel scroll |
+| `<C-wheel_up>`, `<C-wheel_down>` | Ctrl-wheel events |
+| `left_down`, `left_up` | Left mouse button |
+| `middle_down`, `middle_up` | Middle mouse button |
+| `right_down`, `right_up` | Right mouse button |
+| `x1_down`, `x1_up` | Extra mouse button 1 |
+| `x2_down`, `x2_up` | Extra mouse button 2 |
+
 ## Commands
+
+Open the command prompt with `:`.
 
 | Command | Description |
 |---------|-------------|
@@ -308,6 +372,7 @@ Default mouse bindings:
 | `:set first_page_offset!` | Toggle first-page offset |
 | `:set status_bar!` | Toggle status bar |
 | `:open <filename>` | Open another PDF, relative to the current document directory |
+| `:open_file_picker` | Open the PDF file picker |
 | `:reload-config` | Reload config file |
 | `:keybinds` | Toggle keybinds menu |
 | `:lua <code>` | Execute Lua code inline |
@@ -384,7 +449,7 @@ Lua callbacks can open a simple modal list overlay. The overlay uses the same na
 | `on_select(index, value)` | Optional callback run when a row is confirmed or clicked |
 | `on_close()` | Optional callback run when the UI is closed by the viewer |
 
-Example recent-files menu bound to `<C-r>`. It shows the most recent files from the session database and opens the selected row:
+Example recent-files menu bound to `gr`. It shows the most recent files from the session database and opens the selected row:
 
 ```lua
 local function show_recent_files()
@@ -405,7 +470,7 @@ local function show_recent_files()
   })
 end
 
-gopdf.bind("<C-r>", show_recent_files)
+gopdf.bind("gr", show_recent_files)
 ```
 
 Example file browser bound to `fo`. It starts in the user's home directory, shows directories first, lets you open `..`, and opens selected PDFs:
@@ -472,12 +537,12 @@ local function show_file_browser(dir)
   })
 end
 
-gopdf.bind("<C-o>", function()
+gopdf.bind("fo", function()
   show_file_browser(os.getenv("HOME") or ".")
 end)
 ```
 
-### Actions
+### Bindable Actions
 
 Actions can be bound directly, called from callbacks, or executed with `gopdf.command` where a matching command exists.
 

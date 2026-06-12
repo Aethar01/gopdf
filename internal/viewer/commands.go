@@ -525,6 +525,10 @@ func (a *App) runCommand(input string) {
 		if err := a.Open(unescapeCommandArg(args)); err != nil {
 			a.message = err.Error()
 		}
+	case "open_file_picker":
+		if err := a.runBuiltinAction("open_file_picker"); err != nil {
+			a.message = err.Error()
+		}
 	case "lua":
 		if a.runtime == nil {
 			a.message = "no Lua runtime"

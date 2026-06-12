@@ -29,6 +29,7 @@ var commandSpecs = []commandSpec{
 	{Name: "lua", Help: ":lua <code> - Execute Lua code inline"},
 	{Name: "mode", ArgCompletions: []string{"continuous", "single"}, Help: ":mode continuous|single - Set render mode"},
 	{Name: "open", Help: ":open <filename> - Open another PDF relative to the current document"},
+	{Name: "open_file_picker", Help: ":open_file_picker - Open the PDF file picker"},
 	{Name: "page", Help: ":page N, :p N, :N - Jump to page N"},
 	{Name: "quit", Help: ":quit, :q - Exit"},
 	{Name: "reload-config", Help: ":reload-config - Reload the config file"},
