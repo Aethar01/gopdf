@@ -442,6 +442,10 @@ func (a *App) handleSDLTextInput(e *sdl.TextInputEvent) {
 		a.insertOutlineSearchText(text)
 		return
 	}
+	if a.luaUI.visible && a.luaUI.searching {
+		a.insertLuaUISearchText(text)
+		return
+	}
 	if a.keybindMenu.visible || a.luaUI.visible {
 		return
 	}
