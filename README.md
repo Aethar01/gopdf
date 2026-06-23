@@ -56,9 +56,16 @@ If no file is provided, gopdf reopens the most recently viewed file from its ses
 ## Installation
 
 <details open>
-<summary>Arch-based Linux</summary>
+<summary>Linux</summary>
 
-Available in the AUR: [gopdf-git](https://aur.archlinux.org/packages/gopdf-git)
+Download the Linux AppImage from the [latest release](https://github.com/Aethar01/gopdf/releases/latest).
+
+```bash
+chmod +x gopdf-*-linux-x86_64.AppImage
+./gopdf-*-linux-x86_64.AppImage file.pdf
+```
+
+Arch-based systems can also install from the AUR: [gopdf-git](https://aur.archlinux.org/packages/gopdf-git)
 
 ```bash
 yay -S gopdf-git
