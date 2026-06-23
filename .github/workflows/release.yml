@@ -277,12 +277,64 @@ jobs:
             gopdf-${{ github.ref_name }}-windows-amd64-installer.exe
           if-no-files-found: error
 
+  linux-appimage:
+    name: Build Linux AppImage x86_64
+    runs-on: ubuntu-latest
+    container: archlinux:base-devel
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install native dependencies
+        run: pacman -Syu --noconfirm ca-certificates desktop-file-utils fuse2 git go gtk3 libmupdf patchelf pkgconf sdl3 wget
+
+      - name: Verify native dependencies
+        run: pkg-config --cflags --libs mupdf sdl3
+
+      - name: Build
+        env:
+          CGO_ENABLED: 1
+        run: |
+          mkdir -p dist
+          go build -trimpath -ldflags "-s -w -X main.version=${GITHUB_REF_NAME}" -o dist/gopdf .
+          dist/gopdf -v
+
+      - name: Package AppImage
+        env:
+          APPIMAGE_EXTRACT_AND_RUN: 1
+          ARCH: x86_64
+          NO_STRIP: 1
+          OUTPUT: gopdf-${{ github.ref_name }}-linux-x86_64.AppImage
+        run: |
+          mkdir -p AppDir/usr/bin AppDir/usr/share/applications AppDir/usr/share/icons/hicolor/scalable/apps AppDir/usr/share/icons/hicolor/256x256/apps
+          cp dist/gopdf AppDir/usr/bin/gopdf
+          cp gopdf.desktop AppDir/usr/share/applications/gopdf.desktop
+          cp assets/gopdf.svg AppDir/usr/share/icons/hicolor/scalable/apps/gopdf.svg
+          cp assets/gopdf.png AppDir/usr/share/icons/hicolor/256x256/apps/gopdf.png
+
+          wget -O linuxdeploy-x86_64.AppImage https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
+          chmod +x linuxdeploy-x86_64.AppImage
+          ./linuxdeploy-x86_64.AppImage \
+            --appdir AppDir \
+            --desktop-file AppDir/usr/share/applications/gopdf.desktop \
+            --icon-file AppDir/usr/share/icons/hicolor/scalable/apps/gopdf.svg \
+            --executable AppDir/usr/bin/gopdf \
+            --output appimage
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: gopdf-${{ github.ref_name }}-linux-x86_64
+          path: gopdf-${{ github.ref_name }}-linux-x86_64.AppImage
+          if-no-files-found: error
+
   release:
     name: Create GitHub release
     runs-on: ubuntu-latest
     needs:
       - macos
       - windows
+      - linux-appimage
     if: startsWith(github.ref, 'refs/tags/')
     steps:
       - name: Checkout
