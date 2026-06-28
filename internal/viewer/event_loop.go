@@ -109,10 +109,11 @@ func (a *App) eventWaitTimeoutMS() int {
 }
 
 func (a *App) handleSDLEvent(event *sdl.Event) error {
-	defer func() { a.pendingRedraw = true }()
+	redraw := true
 	switch event.Type() {
 	case sdl.EventQuit:
 		a.quit = true
+		redraw = false
 	case sdl.EventWindowResized, sdl.EventWindowPixelSizeChanged:
 		e := event.Window()
 		a.relayoutWithViewportAnchor(func() {
@@ -122,6 +123,7 @@ func (a *App) handleSDLEvent(event *sdl.Event) error {
 	case sdl.EventKeyUp:
 		e := event.Key()
 		a.handleSDLKeyUp(&e)
+		redraw = false
 	case sdl.EventKeyDown:
 		e := event.Key()
 		a.handleSDLKeyDown(&e)
@@ -136,10 +138,16 @@ func (a *App) handleSDLEvent(event *sdl.Event) error {
 		a.handleSDLMouseButton(&e)
 	case sdl.EventMouseMotion:
 		e := event.Motion()
-		a.handleSDLMouseMotion(&e)
+		redraw = a.handleSDLMouseMotion(&e)
 	case sdl.EventDropFile:
 		e := event.Drop()
 		a.handleDroppedFile(e.Data())
+		redraw = e.Data() != ""
+	default:
+		redraw = false
+	}
+	if redraw {
+		a.pendingRedraw = true
 	}
 	return nil
 }

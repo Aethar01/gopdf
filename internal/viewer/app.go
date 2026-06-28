@@ -135,13 +135,14 @@ type layoutState struct {
 }
 
 type sdlState struct {
-	window      *sdl.Window
-	renderer    *sdl.Renderer
-	cursorHand  *sdl.Cursor
-	cursorArrow *sdl.Cursor
-	iconBytes   []byte
-	fontFace    font.Face
-	textCache   map[textTextureKey]cachedTextTexture
+	window       *sdl.Window
+	renderer     *sdl.Renderer
+	cursorHand   *sdl.Cursor
+	cursorArrow  *sdl.Cursor
+	cursorIsHand bool
+	iconBytes    []byte
+	fontFace     font.Face
+	textCache    map[textTextureKey]cachedTextTexture
 }
 
 type inputState struct {
@@ -626,54 +627,72 @@ func (a *App) handleSDLMouseButton(e *sdl.MouseButtonEvent) {
 	}
 }
 
-func (a *App) handleSDLMouseMotion(e *sdl.MouseMotionEvent) {
+func (a *App) handleSDLMouseMotion(e *sdl.MouseMotionEvent) bool {
 	if a.luaUI.visible {
 		if a.luaUI.draggingScrollbar {
+			oldScroll := a.luaUI.scroll
 			a.dragLuaUIScrollbar(int(e.Y))
-			return
+			return a.luaUI.scroll != oldScroll
 		}
+		oldSelected := a.luaUI.selected
 		a.hoverLuaUI(int(e.X), int(e.Y))
-		return
+		return a.luaUI.selected != oldSelected
 	}
 	if a.keybindMenu.visible {
 		if a.keybindMenu.draggingScrollbar {
+			oldScroll := a.keybindMenu.scroll
 			a.dragKeybindScrollbar(int(e.Y))
-			return
+			return a.keybindMenu.scroll != oldScroll
 		}
+		oldSelected := a.keybindMenu.selected
 		a.hoverKeybindMenu(int(e.X), int(e.Y))
-		return
+		return a.keybindMenu.selected != oldSelected
 	}
 	if a.outlineMenu.visible && a.outlineMenu.draggingScrollbar {
+		oldScroll := a.outlineMenu.scroll
 		a.dragOutlineScrollbar(int(e.Y))
-		return
+		return a.outlineMenu.scroll != oldScroll
 	}
 	if a.outlineMenu.visible {
+		oldSelected := a.outlineMenu.selected
 		a.hoverOutlineMenu(int(e.X), int(e.Y))
-		return
+		return a.outlineMenu.selected != oldSelected
 	}
 	if a.panning && (a.panButton == 0 || uint32(e.State)&buttonMask(a.panButton) != 0) {
+		oldX, oldY := a.scrollX, a.scrollY
 		a.scrollBy(-float64(e.Xrel), -float64(e.Yrel))
-		return
+		return a.scrollX != oldX || a.scrollY != oldY
 	}
 	a.stopPan()
 
-	if a.isLinkAt(float64(e.X), float64(e.Y)) {
-		if a.cursorHand != nil {
-			sdl.SetCursor(a.cursorHand)
-		}
-	} else {
-		if a.cursorArrow != nil {
-			sdl.SetCursor(a.cursorArrow)
-		}
-	}
+	a.setLinkCursor(a.isLinkAt(float64(e.X), float64(e.Y)))
 
 	if !a.selection.active || uint32(e.State)&uint32(sdl.ButtonLMask) == 0 {
-		return
+		return false
 	}
 	page, point, ok := a.pagePointAtScreen(float64(e.X), float64(e.Y))
 	if ok && page == a.selection.page {
 		a.selection.focus = point
 		a.refreshSelection()
+		return true
+	}
+	return false
+}
+
+func (a *App) setLinkCursor(hand bool) {
+	if hand == a.cursorIsHand {
+		return
+	}
+	if hand {
+		if a.cursorHand != nil {
+			sdl.SetCursor(a.cursorHand)
+			a.cursorIsHand = true
+		}
+		return
+	}
+	if a.cursorArrow != nil {
+		sdl.SetCursor(a.cursorArrow)
+		a.cursorIsHand = false
 	}
 }
 
