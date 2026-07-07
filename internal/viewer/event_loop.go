@@ -92,7 +92,7 @@ func (a *App) Run() error {
 }
 
 func (a *App) eventWaitTimeoutMS() int {
-	if len(a.renderPending) > 0 || a.search.running {
+	if a.hasPendingVisibleRender() || a.search.running {
 		return 16
 	}
 	if len(a.sequence) > 0 {

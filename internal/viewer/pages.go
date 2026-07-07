@@ -237,7 +237,12 @@ func (a *App) prefetchVisiblePages() {
 	for _, page := range visible {
 		a.requestRender(page, a.scale, 0)
 	}
+	if a.hasPendingVisibleRender() || a.hasPendingBackgroundRender() {
+		return
+	}
 	for _, page := range prefetch {
-		a.requestRender(page, a.scale, 10)
+		if a.requestRender(page, a.scale, 10) {
+			break
+		}
 	}
 }

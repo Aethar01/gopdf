@@ -548,18 +548,18 @@ func (rs *renderService) renderCacheOverLimit() bool {
 	return rs.cacheByteLimit > 0 && rs.renderCacheBytes > rs.cacheByteLimit && len(rs.renderCache) > 1
 }
 
-func (a *App) requestRender(page int, scale float64, priority ...int) {
+func (a *App) requestRender(page int, scale float64, priority ...int) bool {
 	if a.renderWorker == nil || page < 0 || page >= a.pageCount {
-		return
+		return false
 	}
 	renderScale := a.renderScaleFor(scale)
 	cacheKey := renderCacheKey(page, renderScale, a.altColors, a.config.AntiAliasing)
 	if _, ok := a.renderCache[cacheKey]; ok {
 		a.touchRenderCacheEntry(cacheKey)
-		return
+		return false
 	}
 	if _, ok := a.renderPending[cacheKey]; ok {
-		return
+		return false
 	}
 	req := renderRequest{
 		generation: a.renderGeneration,
@@ -574,9 +574,28 @@ func (a *App) requestRender(page int, scale float64, priority ...int) {
 	}
 	if !a.renderWorker.Enqueue(req) {
 		a.logf("render enqueue skipped page=%d key=%s", page+1, cacheKey)
-		return
+		return false
 	}
 	a.renderPending[cacheKey] = req
+	return true
+}
+
+func (a *App) hasPendingVisibleRender() bool {
+	for _, req := range a.renderPending {
+		if req.generation == a.renderGeneration && req.priority <= 0 {
+			return true
+		}
+	}
+	return false
+}
+
+func (a *App) hasPendingBackgroundRender() bool {
+	for _, req := range a.renderPending {
+		if req.generation == a.renderGeneration && req.priority > 0 {
+			return true
+		}
+	}
+	return false
 }
 
 func (rs *renderService) invalidateRenderRequests() {
