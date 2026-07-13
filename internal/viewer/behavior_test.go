@@ -945,6 +945,49 @@ func TestPageNavigationAlignsTargetToViewportAnchor(t *testing.T) {
 	}
 }
 
+func TestPageNavigationAlignsDocumentBoundaryPagesToViewportEdges(t *testing.T) {
+	for _, renderMode := range []string{"continuous", "single"} {
+		for _, dualPage := range []bool{false, true} {
+			name := renderMode
+			if dualPage {
+				name += " dual"
+			}
+			t.Run(name, func(t *testing.T) {
+				app := testLayoutApp(5)
+				app.winW = 300
+				app.winH = 100
+				app.renderMode = renderMode
+				app.dualPage = dualPage
+				app.config.PageGapVertical = 20
+				app.recomputeLayout(app.viewportSize())
+
+				app.page = 0
+				app.scrollY = 70
+				app.prevPage()
+				_, top, ok := app.pageScreenOrigin(0)
+				if !ok {
+					t.Fatal("expected first page screen position")
+				}
+				assertClose(t, top, 0)
+
+				lastPage := app.pageCount - 1
+				app.page = app.anchorPage(lastPage)
+				app.recomputeLayout(app.viewportSize())
+				lastRow := app.rows[app.pageToRow[lastPage]]
+				app.scrollY = lastRow.y
+				app.page = app.anchorPage(lastPage)
+				app.nextPage()
+				_, top, ok = app.pageScreenOrigin(lastPage)
+				if !ok {
+					t.Fatal("expected last page screen position")
+				}
+				pageIndex := len(lastRow.pages) - 1
+				assertClose(t, top+lastRow.pageH[pageIndex], float64(app.winH))
+			})
+		}
+	}
+}
+
 func TestViewportAnchorRowIndexUsesDocumentEdgesWhenClamped(t *testing.T) {
 	for _, anchor := range []string{"top", "center", "bottom"} {
 		t.Run(anchor, func(t *testing.T) {

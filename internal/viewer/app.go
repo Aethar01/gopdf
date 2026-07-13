@@ -827,6 +827,8 @@ func (a *App) nextPage() {
 	page := clampInt(a.page, 0, a.pageCount-1)
 	if page < a.pageCount-1 {
 		a.alignPageToAnchor(page + 1)
+	} else {
+		a.alignPageToViewportEdge(page, true)
 	}
 }
 
@@ -841,6 +843,8 @@ func (a *App) prevPage() {
 	page := clampInt(a.page, 0, a.pageCount-1)
 	if page > 0 {
 		a.alignPageToAnchor(page - 1)
+	} else {
+		a.alignPageToViewportEdge(page, false)
 	}
 }
 
@@ -851,6 +855,8 @@ func (a *App) nextSpread() {
 	row := a.rowIndexForPage(a.anchorPage(a.page))
 	if row < len(a.rows)-1 {
 		a.alignPageToAnchor(a.rows[row+1].pages[0])
+	} else {
+		a.alignPageToViewportEdge(a.pageCount-1, true)
 	}
 }
 
@@ -874,6 +880,8 @@ func (a *App) prevSpread() {
 	row := a.rowIndexForPage(a.anchorPage(a.page))
 	if row > 0 {
 		a.alignPageToAnchor(a.rows[row-1].pages[0])
+	} else {
+		a.alignPageToViewportEdge(0, false)
 	}
 }
 
@@ -922,6 +930,28 @@ func (a *App) alignPageToAnchor(page int) {
 	a.scrollY = a.scrollYForAnchoredRow(row)
 	a.page = page
 	a.clampScroll()
+}
+
+func (a *App) alignPageToViewportEdge(page int, bottom bool) {
+	if page < 0 || page >= len(a.pageToRow) || len(a.rows) == 0 {
+		return
+	}
+	row := a.rows[a.pageToRow[page]]
+	for i, rowPage := range row.pages {
+		if rowPage != page {
+			continue
+		}
+		_, y := a.rowPageScreenOrigin(row, i)
+		targetY := 0.0
+		if bottom {
+			_, viewportH := a.viewportSize()
+			targetY = float64(viewportH) - row.pageH[i]
+		}
+		a.scrollY += y - targetY
+		a.clampScroll()
+		a.page = a.anchorPage(page)
+		return
+	}
 }
 
 func (a *App) alignPageToDocumentPoint(page int, x, y float64) {
