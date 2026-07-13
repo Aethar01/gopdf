@@ -120,6 +120,12 @@ func (a *App) handleSDLEvent(event *sdl.Event) error {
 			a.winW = int(e.Data1)
 			a.winH = int(e.Data2)
 		})
+	case sdl.EventWindowEnterFullscreen:
+		a.fullscreen = true
+		redraw = false
+	case sdl.EventWindowLeaveFullscreen:
+		a.fullscreen = false
+		redraw = false
 	case sdl.EventKeyUp:
 		e := event.Key()
 		a.handleSDLKeyUp(&e)
