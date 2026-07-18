@@ -504,6 +504,18 @@ func TestRuntimeOptionInspectionAndAssignment(t *testing.T) {
 	}
 }
 
+func TestReferenceMetadataCoversRegisteredOptions(t *testing.T) {
+	if err := ValidateReferenceMetadata(); err != nil {
+		t.Fatal(err)
+	}
+	if got, want := len(OptionReferences()), len(OptionNames()); got != want {
+		t.Fatalf("expected %d option references, got %d", want, got)
+	}
+	if len(LuaReferences()) == 0 {
+		t.Fatal("expected Lua function references")
+	}
+}
+
 func TestOutlineConfig(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "config.lua")

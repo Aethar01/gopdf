@@ -1,11 +1,20 @@
 package viewer
 
-import "gopdf/internal/config"
+import (
+	"strings"
+
+	"gopdf/internal/config"
+)
 
 type commandSpec struct {
 	Name           string
 	ArgCompletions []string
 	Help           string
+}
+
+type CommandReferenceEntry struct {
+	Command     string
+	Description string
 }
 
 var commandSpecs = []commandSpec{
@@ -43,4 +52,13 @@ func commandHelpRows() []string {
 	}
 	rows = append(rows, "Search flags: -r regex, -i ignore case, -w whole word, -p current page")
 	return rows
+}
+
+func CommandReferences() []CommandReferenceEntry {
+	refs := make([]CommandReferenceEntry, 0, len(commandSpecs))
+	for _, spec := range commandSpecs {
+		command, description, _ := strings.Cut(spec.Help, " - ")
+		refs = append(refs, CommandReferenceEntry{Command: command, Description: description})
+	}
+	return refs
 }

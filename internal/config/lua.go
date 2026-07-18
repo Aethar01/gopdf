@@ -53,7 +53,7 @@ func newLuaModule(L *lua.LState, rt *Runtime, cfg *Config) *lua.LTable {
 	L.SetField(mod, "document", document)
 	L.SetField(mod, "cache", newLuaCacheTable(L, rt))
 	L.SetField(mod, "ui", newLuaUITable(L, rt))
-	L.SetFuncs(mod, map[string]lua.LGFunction{
+	setDocumentedLuaFunctions(L, mod, "gopdf.", map[string]lua.LGFunction{
 		"bind": func(L *lua.LState) int {
 			key := L.CheckString(1)
 			action := L.CheckAny(2)
@@ -385,7 +385,7 @@ func newLuaOptionsTable(L *lua.LState, rt *Runtime, cfg *Config) *lua.LTable {
 
 func newLuaCacheTable(L *lua.LState, rt *Runtime) *lua.LTable {
 	tbl := L.NewTable()
-	L.SetFuncs(tbl, map[string]lua.LGFunction{
+	setDocumentedLuaFunctions(L, tbl, "gopdf.cache.", map[string]lua.LGFunction{
 		"entries": func(L *lua.LState) int {
 			if rt.host == nil {
 				L.Push(lua.LNumber(0))
@@ -458,7 +458,7 @@ func newLuaUITable(L *lua.LState, rt *Runtime) *lua.LTable {
 		}
 		return 0
 	}
-	L.SetFuncs(tbl, map[string]lua.LGFunction{
+	setDocumentedLuaFunctions(L, tbl, "gopdf.ui.", map[string]lua.LGFunction{
 		"show": show,
 		"close": func(L *lua.LState) int {
 			if rt.host == nil {
@@ -487,6 +487,26 @@ func newLuaUITable(L *lua.LState, rt *Runtime) *lua.LTable {
 		},
 	})
 	return tbl
+}
+
+func setDocumentedLuaFunctions(L *lua.LState, table *lua.LTable, prefix string, functions map[string]lua.LGFunction) {
+	for name := range functions {
+		fullName := prefix + name
+		if actions.IsBuiltin(name) && prefix == "gopdf." {
+			continue
+		}
+		documented := false
+		for _, ref := range luaReference {
+			if strings.HasPrefix(ref.Signature, fullName+"(") {
+				documented = true
+				break
+			}
+		}
+		if !documented {
+			panic("missing Lua function documentation: " + fullName)
+		}
+	}
+	L.SetFuncs(table, functions)
 }
 
 func luaTableStrings(value lua.LValue) []string {

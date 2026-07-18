@@ -14,6 +14,7 @@ gopdf is built for keyboard-driven PDF reading with scriptable behavior. It supp
 - [Keybindings](#keybindings)
 - [Commands](#commands)
 - [Lua API](#lua-api)
+- [Generated Reference](./docs/reference.md)
 - [License](#license)
 
 ## Quick Start
@@ -133,6 +134,8 @@ Press `F1` inside gopdf to see default keybindings and edit them interactively.
 
 Start from [`config.example.lua`](./config.example.lua) when you want every supported option, or create a small config with only the settings you want to change.
 
+The complete [configuration, command, Lua, and action reference](./docs/reference.md) is generated from the application registries with `go generate ./...`.
+
 ```lua
 gopdf.options.fit_mode = "width"
 gopdf.options.dual_page = true
@@ -164,50 +167,9 @@ Session data is saved in `session.sqlite` under the matching per-user app data d
 
 ### Configuration Options
 
-```lua
-gopdf.options.status_bar_visible = true
-gopdf.options.mouse_text_select = true
-gopdf.options.natural_scroll = false
-gopdf.options.session_database = true           -- per-document view state database
-gopdf.options.anti_aliasing = 8                -- 0 disables AA; MuPDF clamps values to 0-8
-gopdf.options.alt_colors = false
-gopdf.options.render_oversample = 1            -- >1 supersamples, <1 undersamples
+See the generated [configuration options reference](./docs/reference.md#configuration-options) for every option, type, default, and description. [`config.example.lua`](./config.example.lua) is generated from the same registry.
 
-gopdf.options.render_mode = "continuous"       -- "continuous" or "single"
-gopdf.options.dual_page = false
-gopdf.options.first_page_offset = true
-gopdf.options.fit_mode = "page"                -- "page", "width", or "manual"
-
-gopdf.options.page_gap = 0                      -- sets vertical gap too
-gopdf.options.spread_gap = 0                    -- sets horizontal gap too
-gopdf.options.page_gap_vertical = 0
-gopdf.options.page_gap_horizontal = 0
-
-gopdf.options.scroll_step = 64
-gopdf.options.status_bar_height = 28
-gopdf.options.status_bar_padding = 8
-gopdf.options.ui_font_size = 14
-gopdf.options.ui_font_path = ""                -- empty = default font
-gopdf.options.sequence_timeout_ms = 700
-
-gopdf.options.outline_initial_depth = 1
-gopdf.options.outline_width_percent = 70
-gopdf.options.outline_height_percent = 80
-gopdf.options.completion_max_items = 10
-gopdf.options.recent_files_max = 10
-
--- Colors are { red, green, blue }, 0-255.
-gopdf.options.background = { 220, 220, 220 }
-gopdf.options.page_background = { 255, 255, 255 }
-gopdf.options.foreground = { 20, 20, 20 }
-gopdf.options.status_bar_color = { 220, 220, 220 }
-gopdf.options.alt_background = { 20, 20, 20 }
-gopdf.options.alt_page_background = { 17, 17, 17 }
-gopdf.options.alt_foreground = { 255, 255, 255 }
-gopdf.options.alt_status_bar_color = { 20, 20, 20 }
-gopdf.options.highlight_foreground = { 0, 0, 0 }
-gopdf.options.highlight_background = { 255, 224, 102 }
-```
+Run `:set` to inspect current values, `:set option?` to inspect one option, `:set option=value` to assign it, or `:set option!` to toggle a boolean.
 
 ### Status Bar
 
