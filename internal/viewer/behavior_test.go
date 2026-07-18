@@ -377,6 +377,34 @@ func TestRunCommandAppliesViewerSettings(t *testing.T) {
 	}
 }
 
+func TestSetCommandInspectsAndAssignsRegisteredOptions(t *testing.T) {
+	rt, err := config.Open(filepath.Join(t.TempDir(), "missing.lua"), "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rt.Close()
+	app := testLayoutApp(3)
+	app.runtime = rt
+	app.applyConfigState(rt.Config(), false)
+
+	app.runCommand(":set scroll_step=80")
+	if app.config.ScrollStep != 80 || app.pageStep != 80 || app.message != "scroll_step=80" {
+		t.Fatalf("expected applied scroll_step, config=%d step=%v message=%q", app.config.ScrollStep, app.pageStep, app.message)
+	}
+	app.runCommand(":set natural_scroll!")
+	if !app.config.NaturalScroll || app.message != "natural_scroll=true" {
+		t.Fatalf("expected toggled natural_scroll, value=%t message=%q", app.config.NaturalScroll, app.message)
+	}
+	app.runCommand(":set fit_mode?")
+	if app.message != `fit_mode="page"` {
+		t.Fatalf("expected inspected fit_mode, got %q", app.message)
+	}
+	app.runCommand(":set")
+	if !app.luaUI.visible || app.luaUI.title != "Options" || len(app.luaUI.rows) != len(config.OptionNames()) {
+		t.Fatalf("expected options inspector, visible=%t title=%q rows=%d", app.luaUI.visible, app.luaUI.title, len(app.luaUI.rows))
+	}
+}
+
 func TestLuaCommandAppliesChangedOptions(t *testing.T) {
 	app := testLayoutApp(4)
 	app.winW = 800

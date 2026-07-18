@@ -465,6 +465,45 @@ bind_mouse("right_down", gopdf.pan)
 	}
 }
 
+func TestRuntimeOptionInspectionAndAssignment(t *testing.T) {
+	rt, err := Open(filepath.Join(t.TempDir(), "missing.lua"), "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rt.Close()
+
+	if value, err := rt.OptionValue("scroll_step"); err != nil || value != "64" {
+		t.Fatalf("OptionValue(scroll_step) = %q, %v", value, err)
+	}
+	if err := rt.SetOption("scroll_step", "96"); err != nil {
+		t.Fatal(err)
+	}
+	if rt.Config().ScrollStep != 96 {
+		t.Fatalf("expected scroll_step=96, got %d", rt.Config().ScrollStep)
+	}
+	if err := rt.ToggleOption("natural_scroll"); err != nil {
+		t.Fatal(err)
+	}
+	if !rt.Config().NaturalScroll {
+		t.Fatal("expected natural_scroll toggle to enable option")
+	}
+	if err := rt.SetOption("background", "#102030"); err != nil {
+		t.Fatal(err)
+	}
+	if got := rt.Config().Background; got != [3]uint8{16, 32, 48} {
+		t.Fatalf("expected parsed background color, got %v", got)
+	}
+	if err := rt.SetOption("status_bar_left", `"{document} ready"`); err != nil {
+		t.Fatal(err)
+	}
+	if got := rt.Config().StatusBarLeft; got != "{document} ready" {
+		t.Fatalf("expected parsed status string, got %q", got)
+	}
+	if err := rt.ToggleOption("scroll_step"); err == nil {
+		t.Fatal("expected toggling a non-boolean option to fail")
+	}
+}
+
 func TestOutlineConfig(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "config.lua")

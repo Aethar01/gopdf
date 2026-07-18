@@ -2,19 +2,34 @@ package config
 
 import (
 	"fmt"
+	"sort"
+	"strconv"
 	"strings"
 
 	lua "github.com/yuin/gopher-lua"
 )
 
 type optionDesc struct {
-	get   func(L *lua.LState, cfg *Config) lua.LValue
-	apply func(cfg *Config, value lua.LValue) error
+	kind      string
+	get       func(L *lua.LState, cfg *Config) lua.LValue
+	apply     func(cfg *Config, value lua.LValue) error
+	format    func(*Config) string
+	applyText func(*Config, string) error
 }
 
 func boolOption(get func(*Config) bool, set func(*Config, bool)) optionDesc {
 	return optionDesc{
-		get: func(L *lua.LState, cfg *Config) lua.LValue { return lua.LBool(get(cfg)) },
+		kind:   "boolean",
+		get:    func(L *lua.LState, cfg *Config) lua.LValue { return lua.LBool(get(cfg)) },
+		format: func(cfg *Config) string { return strconv.FormatBool(get(cfg)) },
+		applyText: func(cfg *Config, raw string) error {
+			value, err := parseBoolOption(raw)
+			if err != nil {
+				return err
+			}
+			set(cfg, value)
+			return nil
+		},
 		apply: func(cfg *Config, value lua.LValue) error {
 			if value.Type() != lua.LTBool {
 				return fmt.Errorf("expected boolean")
@@ -27,7 +42,17 @@ func boolOption(get func(*Config) bool, set func(*Config, bool)) optionDesc {
 
 func intOption(get func(*Config) int, set func(*Config, int)) optionDesc {
 	return optionDesc{
-		get: func(L *lua.LState, cfg *Config) lua.LValue { return lua.LNumber(get(cfg)) },
+		kind:   "integer",
+		get:    func(L *lua.LState, cfg *Config) lua.LValue { return lua.LNumber(get(cfg)) },
+		format: func(cfg *Config) string { return strconv.Itoa(get(cfg)) },
+		applyText: func(cfg *Config, raw string) error {
+			value, err := strconv.Atoi(strings.TrimSpace(raw))
+			if err != nil {
+				return fmt.Errorf("expected integer")
+			}
+			set(cfg, value)
+			return nil
+		},
 		apply: func(cfg *Config, value lua.LValue) error {
 			if value.Type() != lua.LTNumber {
 				return fmt.Errorf("expected number")
@@ -40,7 +65,17 @@ func intOption(get func(*Config) int, set func(*Config, int)) optionDesc {
 
 func floatOption(get func(*Config) float64, set func(*Config, float64)) optionDesc {
 	return optionDesc{
-		get: func(L *lua.LState, cfg *Config) lua.LValue { return lua.LNumber(get(cfg)) },
+		kind:   "number",
+		get:    func(L *lua.LState, cfg *Config) lua.LValue { return lua.LNumber(get(cfg)) },
+		format: func(cfg *Config) string { return strconv.FormatFloat(get(cfg), 'g', -1, 64) },
+		applyText: func(cfg *Config, raw string) error {
+			value, err := strconv.ParseFloat(strings.TrimSpace(raw), 64)
+			if err != nil {
+				return fmt.Errorf("expected number")
+			}
+			set(cfg, value)
+			return nil
+		},
 		apply: func(cfg *Config, value lua.LValue) error {
 			if value.Type() != lua.LTNumber {
 				return fmt.Errorf("expected number")
@@ -53,7 +88,17 @@ func floatOption(get func(*Config) float64, set func(*Config, float64)) optionDe
 
 func stringOption(get func(*Config) string, set func(*Config, string)) optionDesc {
 	return optionDesc{
-		get: func(L *lua.LState, cfg *Config) lua.LValue { return lua.LString(get(cfg)) },
+		kind:   "string",
+		get:    func(L *lua.LState, cfg *Config) lua.LValue { return lua.LString(get(cfg)) },
+		format: func(cfg *Config) string { return strconv.Quote(get(cfg)) },
+		applyText: func(cfg *Config, raw string) error {
+			value, err := parseStringOption(raw)
+			if err != nil {
+				return err
+			}
+			set(cfg, value)
+			return nil
+		},
 		apply: func(cfg *Config, value lua.LValue) error {
 			if value.Type() != lua.LTString {
 				return fmt.Errorf("expected string")
@@ -66,6 +111,7 @@ func stringOption(get func(*Config) string, set func(*Config, string)) optionDes
 
 func colorOption(get func(*Config) [3]uint8, set func(*Config, [3]uint8)) optionDesc {
 	return optionDesc{
+		kind: "color",
 		get: func(L *lua.LState, cfg *Config) lua.LValue {
 			tbl := L.NewTable()
 			c := get(cfg)
@@ -73,6 +119,18 @@ func colorOption(get func(*Config) [3]uint8, set func(*Config, [3]uint8)) option
 				tbl.RawSetInt(i+1, lua.LNumber(c[i]))
 			}
 			return tbl
+		},
+		format: func(cfg *Config) string {
+			color := get(cfg)
+			return fmt.Sprintf("%d,%d,%d", color[0], color[1], color[2])
+		},
+		applyText: func(cfg *Config, raw string) error {
+			color, err := parseColorOption(raw)
+			if err != nil {
+				return err
+			}
+			set(cfg, color)
+			return nil
 		},
 		apply: func(cfg *Config, value lua.LValue) error {
 			tbl, ok := value.(*lua.LTable)
@@ -83,6 +141,112 @@ func colorOption(get func(*Config) [3]uint8, set func(*Config, [3]uint8)) option
 			return nil
 		},
 	}
+}
+
+func OptionNames() []string {
+	names := make([]string, 0, len(configOptions))
+	for name := range configOptions {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return names
+}
+
+func (r *Runtime) OptionValue(name string) (string, error) {
+	desc, ok := configOptions[normalizeOptionName(name)]
+	if !ok {
+		return "", fmt.Errorf("unknown option: %s", name)
+	}
+	return desc.format(&r.cfg), nil
+}
+
+func (r *Runtime) SetOption(name, value string) error {
+	name = normalizeOptionName(name)
+	desc, ok := configOptions[name]
+	if !ok {
+		return fmt.Errorf("unknown option: %s", name)
+	}
+	if err := desc.applyText(&r.cfg, value); err != nil {
+		return fmt.Errorf("%s: %w", name, err)
+	}
+	r.dirty = true
+	return nil
+}
+
+func (r *Runtime) ToggleOption(name string) error {
+	name = normalizeOptionName(name)
+	desc, ok := configOptions[name]
+	if !ok {
+		return fmt.Errorf("unknown option: %s", name)
+	}
+	if desc.kind != "boolean" {
+		return fmt.Errorf("%s: expected boolean option", name)
+	}
+	value := desc.get(r.state, &r.cfg)
+	return r.SetOption(name, strconv.FormatBool(!lua.LVAsBool(value)))
+}
+
+func normalizeOptionName(name string) string {
+	return strings.ToLower(strings.TrimSpace(name))
+}
+
+func parseBoolOption(raw string) (bool, error) {
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case "true", "on", "yes", "1":
+		return true, nil
+	case "false", "off", "no", "0":
+		return false, nil
+	default:
+		return false, fmt.Errorf("expected boolean")
+	}
+}
+
+func parseStringOption(raw string) (string, error) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return "", nil
+	}
+	if raw[0] == '\'' || raw[0] == '"' {
+		if raw[0] == '\'' {
+			if len(raw) < 2 || raw[len(raw)-1] != '\'' {
+				return "", fmt.Errorf("unterminated string")
+			}
+			return raw[1 : len(raw)-1], nil
+		}
+		value, err := strconv.Unquote(raw)
+		if err != nil {
+			return "", fmt.Errorf("invalid quoted string")
+		}
+		return value, nil
+	}
+	return raw, nil
+}
+
+func parseColorOption(raw string) ([3]uint8, error) {
+	raw = strings.TrimSpace(raw)
+	if strings.HasPrefix(raw, "#") {
+		if len(raw) != 7 {
+			return [3]uint8{}, fmt.Errorf("expected #RRGGBB or r,g,b")
+		}
+		value, err := strconv.ParseUint(raw[1:], 16, 24)
+		if err != nil {
+			return [3]uint8{}, fmt.Errorf("expected #RRGGBB or r,g,b")
+		}
+		return [3]uint8{uint8(value >> 16), uint8(value >> 8), uint8(value)}, nil
+	}
+	parts := strings.Split(raw, ",")
+	if len(parts) != 3 {
+		return [3]uint8{}, fmt.Errorf("expected #RRGGBB or r,g,b")
+	}
+	var color [3]uint8
+	for i, part := range parts {
+		value, err := strconv.Atoi(strings.TrimSpace(part))
+		if err != nil || value < 0 || value > 255 {
+			return [3]uint8{}, fmt.Errorf("color channels must be between 0 and 255")
+		}
+		color[i] = uint8(value)
+	}
+	return color, nil
 }
 
 var configOptions = map[string]optionDesc{

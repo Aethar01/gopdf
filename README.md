@@ -374,11 +374,10 @@ Open the command prompt with `:`.
 | `:fit width` / `:fit page` / `:fit manual` | Set fit mode |
 | `:mode continuous` / `:mode single` | Set render mode |
 | `:colors normal` / `:colors alt` | Set color mode |
-| `:set dual_page!` | Toggle dual-page mode |
-| `:set alt_colors!` | Toggle alternate colors |
-| `:set render_mode!` | Toggle render mode |
-| `:set first_page_offset!` | Toggle first-page offset |
-| `:set status_bar!` | Toggle status bar |
+| `:set` | Inspect all registered options |
+| `:set option`, `:set option?` | Show an option's current value |
+| `:set option=value` | Assign an option |
+| `:set option!` | Toggle a boolean option |
 | `:open <filename>` | Open another PDF, relative to the current document directory |
 | `:open_file_picker` | Open the PDF file picker |
 | `:recent` | Open the recent-files menu |

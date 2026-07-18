@@ -1,24 +1,11 @@
 package viewer
 
-import "strings"
+import "gopdf/internal/config"
 
 type commandSpec struct {
 	Name           string
 	ArgCompletions []string
 	Help           string
-}
-
-type setSettingSpec struct {
-	Name   string
-	Action string
-}
-
-var setSettingSpecs = []setSettingSpec{
-	{Name: "alt_colors!", Action: "toggle_alt_colors"},
-	{Name: "dual_page!", Action: "toggle_dual_page"},
-	{Name: "first_page_offset!", Action: "toggle_first_page_offset"},
-	{Name: "render_mode!", Action: "toggle_render_mode"},
-	{Name: "status_bar!", Action: "toggle_status_bar"},
 }
 
 var commandSpecs = []commandSpec{
@@ -35,24 +22,7 @@ var commandSpecs = []commandSpec{
 	{Name: "reload-config", Help: ":reload-config - Reload the config file"},
 	{Name: "recent", Help: ":recent - Open the recent-files menu"},
 	{Name: "search", Help: ":search [-r] [-i] [-w] [-p] <text> - Search document text"},
-	{Name: "set", ArgCompletions: setSettingNames(), Help: ":set " + strings.Join(setSettingNames(), "|") + " - Toggle setting"},
-}
-
-func setActionForSetting(name string) (string, bool) {
-	for _, spec := range setSettingSpecs {
-		if spec.Name == name {
-			return spec.Action, true
-		}
-	}
-	return "", false
-}
-
-func setSettingNames() []string {
-	names := make([]string, 0, len(setSettingSpecs))
-	for _, spec := range setSettingSpecs {
-		names = append(names, spec.Name)
-	}
-	return names
+	{Name: "set", ArgCompletions: config.OptionNames(), Help: ":set [option[?]|option!|option=value] - Inspect or change options"},
 }
 
 func commandArgCompletionValues(name string) []string {

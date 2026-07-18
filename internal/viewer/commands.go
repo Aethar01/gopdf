@@ -502,10 +502,7 @@ func (a *App) runCommand(input string) {
 		}
 		a.gotoPageInput(fields[0])
 	case "set":
-		if len(fields) < 1 {
-			return
-		}
-		a.runSet(fields[0])
+		a.runSet(args)
 	case "mode":
 		if len(fields) < 1 {
 			a.message = "usage: :mode continuous|single"
@@ -630,12 +627,52 @@ func (a *App) showRecentFiles() {
 	a.pendingRedraw = true
 }
 
-func (a *App) runSet(setting string) {
-	if action, ok := setActionForSetting(setting); ok {
-		a.runAction(action)
-	} else {
-		a.message = "unknown setting: " + setting
+func (a *App) runSet(input string) {
+	if a.runtime == nil {
+		a.message = "no config runtime"
+		return
 	}
+	input = strings.TrimSpace(input)
+	if input == "" {
+		rows := make([]string, 0, len(config.OptionNames()))
+		for _, name := range config.OptionNames() {
+			value, _ := a.runtime.OptionValue(name)
+			rows = append(rows, name+"="+value)
+		}
+		a.closeAllUI()
+		a.luaUI = luaUIState{visible: true, title: "Options", rows: rows, selected: 0}
+		a.pendingRedraw = true
+		return
+	}
+	if name, value, ok := strings.Cut(input, "="); ok {
+		if err := a.runtime.SetOption(name, value); err != nil {
+			a.message = err.Error()
+			return
+		}
+		a.applyConfig(a.runtime.Config())
+		name = strings.TrimSpace(name)
+		current, _ := a.runtime.OptionValue(name)
+		a.message = name + "=" + current
+		return
+	}
+	if name, ok := strings.CutSuffix(input, "!"); ok {
+		if err := a.runtime.ToggleOption(name); err != nil {
+			a.message = err.Error()
+			return
+		}
+		a.applyConfig(a.runtime.Config())
+		name = strings.TrimSpace(name)
+		current, _ := a.runtime.OptionValue(name)
+		a.message = name + "=" + current
+		return
+	}
+	name := strings.TrimSuffix(input, "?")
+	value, err := a.runtime.OptionValue(name)
+	if err != nil {
+		a.message = err.Error()
+		return
+	}
+	a.message = strings.TrimSpace(name) + "=" + value
 }
 
 func (a *App) runMouseBinding(event string) bool {
