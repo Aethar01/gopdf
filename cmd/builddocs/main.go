@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"flag"
 	"fmt"
+	"html"
 	"os"
 	"path/filepath"
 	"sort"
@@ -53,18 +54,18 @@ func renderReference() string {
 	b.WriteString("Assign options with `gopdf.options.<name> = <value>` in Lua or `:set <name>=<value>` at runtime. Colors use `{ r, g, b }` in Lua and `r,g,b` or `#RRGGBB` with `:set`.\n\n")
 	b.WriteString("| Option | Type | Default | Description |\n|---|---|---|---|\n")
 	for _, ref := range config.OptionReferences() {
-		fmt.Fprintf(&b, "| `%s` | %s | `%s` | %s |\n", ref.Name, ref.Type, escapeCell(ref.Default), ref.Description)
+		fmt.Fprintf(&b, "| %s | %s | %s | %s |\n", markdownCode(ref.Name), ref.Type, markdownCode(ref.Default), ref.Description)
 	}
 	b.WriteString("\n## Commands\n\n")
 	b.WriteString("| Command | Description |\n|---|---|\n")
 	for _, ref := range commands.CommandReferences() {
-		fmt.Fprintf(&b, "| `%s` | %s |\n", escapeCell(ref.Command), ref.Description)
+		fmt.Fprintf(&b, "| %s | %s |\n", markdownCode(ref.Command), ref.Description)
 	}
 	b.WriteString("\nSearch flags: `-r` regular expression, `-i` ignore case, `-w` whole word, and `-p` current page only. Flags can be combined.\n")
 	b.WriteString("\n## Lua functions\n\n")
 	b.WriteString("| Function | Description |\n|---|---|\n")
 	for _, ref := range config.LuaReferences() {
-		fmt.Fprintf(&b, "| `%s` | %s |\n", escapeCell(ref.Signature), ref.Description)
+		fmt.Fprintf(&b, "| %s | %s |\n", markdownCode(ref.Signature), ref.Description)
 	}
 	b.WriteString("\n## Bindable actions\n\n")
 	b.WriteString("Every action is available as `gopdf.<action>`, can be passed to `gopdf.bind`, and can be called from a runtime Lua callback.\n\n")
@@ -72,9 +73,9 @@ func renderReference() string {
 	for _, action := range actions.All() {
 		keys := make([]string, len(action.Keys))
 		for i, key := range action.Keys {
-			keys[i] = "`" + displayKey(key) + "`"
+			keys[i] = markdownCode(displayKey(key))
 		}
-		fmt.Fprintf(&b, "| `%s` | %s | %t |\n", action.Name, strings.Join(keys, ", "), action.Countable)
+		fmt.Fprintf(&b, "| %s | %s | %t |\n", markdownCode(action.Name), strings.Join(keys, ", "), action.Countable)
 	}
 	b.WriteString("\n## Lua tables\n\n")
 	b.WriteString("- `gopdf.document`: `path`, `name`, `extension`, `exists`, `size_bytes`, and `page_count`.\n")
@@ -117,8 +118,10 @@ func displayKey(key string) string {
 	return key
 }
 
-func escapeCell(value string) string {
-	return strings.ReplaceAll(value, "|", "\\|")
+func markdownCode(value string) string {
+	value = html.EscapeString(value)
+	value = strings.ReplaceAll(value, "|", "&#124;")
+	return "<code>" + value + "</code>"
 }
 
 func fatal(err error) {
