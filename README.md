@@ -30,7 +30,8 @@ Useful defaults:
 
 Download a package for Linux, macOS, or Windows from the [latest release](https://github.com/Aethar01/gopdf/releases/latest).
 
-### Linux
+<details open>
+<summary>Linux</summary>
 
 Run the AppImage directly:
 
@@ -45,7 +46,10 @@ Arch-based systems can install [gopdf-git from the AUR](https://aur.archlinux.or
 yay -S gopdf-git
 ```
 
-### macOS
+</details>
+
+<details>
+<summary>macOS</summary>
 
 Install the release matching Intel or Apple silicon, or use Homebrew:
 
@@ -53,9 +57,14 @@ Install the release matching Intel or Apple silicon, or use Homebrew:
 brew install Aethar01/homebrew-gopdf/gopdf
 ```
 
-### Windows
+</details>
+
+<details>
+<summary>Windows</summary>
 
 The release provides an installer with optional PDF file association and a portable zip.
+
+</details>
 
 ## Usage
 
