@@ -35,7 +35,7 @@ Options can be assigned with `gopdf.options.<name> = <value>` in Lua or `:set <n
 | `page_gap` | integer | `0` | Vertical gap between pages; aliases page_gap_vertical. |
 | `page_gap_horizontal` | integer | `0` | Horizontal gap between pages in a spread. |
 | `page_gap_vertical` | integer | `0` | Vertical gap between page rows. |
-| `recent_files_max` | integer | `10` | Maximum recent files retained and displayed. |
+| `recent_files_max` | integer | `20` | Maximum recent files retained and displayed. |
 | `render_mode` | string | `"continuous"` | Initial render mode: continuous or single. |
 | `render_oversample` | number | `1` | Render scale multiplier; values above 1 supersample. |
 | `scroll_step` | integer | `64` | Keyboard and mouse scroll distance in pixels. |
