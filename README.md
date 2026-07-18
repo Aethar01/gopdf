@@ -1,159 +1,83 @@
 # gopdf
 
-MuPDF-backed PDF viewer written in Go with Lua configuration.
+A minimal, keyboard-driven PDF viewer backed by MuPDF and configured with Lua.
 
-gopdf is built for keyboard-driven PDF reading with scriptable behavior. It supports Vim-like navigation, configurable keybindings, commands, search, outlines, session restore, custom colors, and Lua callbacks.
-
-## Contents
-
-- [Quick Start](#quick-start)
-- [Common Tasks](#common-tasks)
-- [Installation](#installation)
-- [Usage](#usage)
-- [Configuration](#configuration)
-- [Keybindings](#keybindings)
-- [Commands](#commands)
-- [Lua API](#lua-api)
-- [Generated Reference](./docs/reference.md)
-- [License](#license)
+gopdf provides Vim-style navigation, continuous and single-page layouts, dual-page spreads, text search and selection, outlines, links, persistent sessions and marks, configurable colors, commands, and scriptable keybindings without a permanent toolbar.
 
 ## Quick Start
-
-Open a PDF:
 
 ```bash
 gopdf file.pdf
 ```
 
+If no file is provided, gopdf reopens the most recently viewed document.
+
 Useful defaults:
 
-| Key | What it does |
-|-----|--------------|
-| `F1` | Show and edit keybindings |
+| Key | Action |
+|---|---|
 | `j` / `k` | Scroll down / up |
 | `J` / `K` | Next / previous page |
 | `/` / `?` | Search forward / backward |
-| `n` / `N` | Next / previous search match |
-| `o` | Open the PDF outline |
+| `n` / `N` | Next / previous match |
+| `o` | Open the document outline |
+| `gr` | Open recent files |
 | `:` | Open the command prompt |
+| `F1` | View and edit keybindings |
 | `q` | Quit |
-
-If no file is provided, gopdf reopens the most recently viewed file from its session database.
-
-## Common Tasks
-
-| I want to... | See |
-|--------------|-----|
-| Install gopdf | [Installation](#installation) |
-| Open a PDF or start on a specific page | [Usage](#usage) |
-| Change viewer defaults | [Configuration](#configuration) |
-| Change keybindings | [Keybindings](#keybindings) |
-| See every default shortcut | [Default Keybindings](#default-keybindings) |
-| Search, jump pages, or open files by command | [Commands](#commands) |
-| Customize the status bar | [Status Bar](#status-bar) |
-| Write Lua callbacks | [Lua API](#lua-api) |
-| Build a custom recent-files menu | [Custom UI](#custom-ui) |
 
 ## Installation
 
-<details open>
-<summary>Linux</summary>
+Download a package for Linux, macOS, or Windows from the [latest release](https://github.com/Aethar01/gopdf/releases/latest).
 
-Download the Linux AppImage from the [latest release](https://github.com/Aethar01/gopdf/releases/latest).
+### Linux
+
+Run the AppImage directly:
 
 ```bash
 chmod +x gopdf-*-linux-x86_64.AppImage
 ./gopdf-*-linux-x86_64.AppImage file.pdf
 ```
 
-Arch-based systems can also install from the AUR: [gopdf-git](https://aur.archlinux.org/packages/gopdf-git)
+Arch-based systems can install [gopdf-git from the AUR](https://aur.archlinux.org/packages/gopdf-git):
 
 ```bash
 yay -S gopdf-git
 ```
 
-</details>
+### macOS
 
-<details>
-<summary>macOS</summary>
-
-Install from the [latest release](https://github.com/Aethar01/gopdf/releases/latest), amd64 for Intel Macs or arm64 for Apple silicon Macs.
-
-Or install using Homebrew:
+Install the release matching Intel or Apple silicon, or use Homebrew:
 
 ```bash
 brew install Aethar01/homebrew-gopdf/gopdf
 ```
 
-</details>
+### Windows
 
-<details>
-<summary>Windows</summary>
-
-Install from the [latest release](https://github.com/Aethar01/gopdf/releases/latest). Use the installer for Start Menu shortcuts and optional PDF file association, or download the zip, unzip it, and run the exe directly.
-
-</details>
-
-<details>
-<summary>From Source</summary>
-
-Requirements:
-
-- Go 1.25+
-- MuPDF 1.25.6+
-- SDL3
-- pkg-config/pkgconf
-- C compiler that works with CGO
-
-```bash
-go build
-```
-
-Windows with MSYS2 UCRT64:
-
-```bash
-pacman -S --needed mingw-w64-ucrt-x86_64-go mingw-w64-ucrt-x86_64-gcc mingw-w64-ucrt-x86_64-pkgconf mingw-w64-ucrt-x86_64-sdl3 mingw-w64-ucrt-x86_64-mupdf
-go build -o gopdf.exe
-```
-
-</details>
+The release provides an installer with optional PDF file association and a portable zip.
 
 ## Usage
 
 ```bash
-gopdf /path/to/file.pdf      # open file
-gopdf --page 20 file.pdf     # start at page 20
+gopdf /path/to/file.pdf      # open a PDF
+gopdf --page 20 file.pdf     # start on page 20
 gopdf --config custom.lua file.pdf
 gopdf -v                     # print version
 gopdf -V                     # enable verbose logs
 ```
 
-Press `F1` inside gopdf to see default keybindings and edit them interactively.
+Use `F1` to inspect or edit keybindings and `:help` to view available commands.
 
 ## Configuration
 
-Start from [`config.example.lua`](./config.example.lua) when you want every supported option, or create a small config with only the settings you want to change.
+Configuration is optional and written in Lua. Start with [`config.example.lua`](./config.example.lua), or create a small file containing only the values and bindings you want to change. Reload it with `:reload-config`.
 
-The complete [configuration, command, Lua, and action reference](./docs/reference.md) is generated from the application registries with `go generate ./...`.
+The first existing configuration file for the current platform is loaded:
 
-```lua
-gopdf.options.fit_mode = "width"
-gopdf.options.dual_page = true
-gopdf.options.status_bar_visible = true
-
-gopdf.bind("H", gopdf.prev_page)
-gopdf.bind("L", gopdf.next_page)
-```
-
-Config is Lua. It is loaded once at startup and again when `reload_config` or `:reload-config` is used.
-
-### Config File Locations
-
-Generated keybind edits are loaded from `autogen.lua` before `config.lua`, so explicit user config always wins. The first existing user config file for the current OS is used:
-
-| OS | Path |
-|----|------|
-| Any | `--config <path>` argument |
+| Platform | Location |
+|---|---|
+| Any | Path passed with `--config` |
 | Linux | `~/.config/gopdf/config.lua` |
 | Linux | `$XDG_CONFIG_HOME/gopdf/config.lua` |
 | Linux | Each `$XDG_CONFIG_DIRS/gopdf/config.lua` |
@@ -161,423 +85,55 @@ Generated keybind edits are loaded from `autogen.lua` before `config.lua`, so ex
 | macOS | `~/Library/Application Support/gopdf/config.lua` |
 | Windows | `%APPDATA%\gopdf\config.lua` |
 
-Generated keybind edits are written to `autogen.lua` next to an explicit `--config` file, or to the normal per-user config directory when no explicit config is used.
+Interactive keybinding changes are stored in `autogen.lua`. It is loaded before `config.lua`, so explicit user configuration takes precedence.
 
-Session data is saved in `session.sqlite` under the matching per-user app data directory: `$XDG_DATA_HOME/gopdf` or `~/.local/share/gopdf` on Linux, `~/Library/Application Support/gopdf` on macOS, and `%APPDATA%\gopdf` on Windows.
+Session data is stored in `session.sqlite` under the platform application-data directory:
 
-### Configuration Options
+| Platform | Location |
+|---|---|
+| Linux | `$XDG_DATA_HOME/gopdf` or `~/.local/share/gopdf` |
+| macOS | `~/Library/Application Support/gopdf` |
+| Windows | `%APPDATA%\gopdf` |
 
-See the generated [configuration options reference](./docs/reference.md#configuration-options) for every option, type, default, and description. [`config.example.lua`](./config.example.lua) is generated from the same registry.
+## Documentation
 
-Run `:set` to inspect current values, `:set option?` to inspect one option, `:set option=value` to assign it, or `:set option!` to toggle a boolean.
+The [documentation site](https://aethar01.github.io/gopdf/) covers:
 
-### Status Bar
+- Configuration options and defaults
+- Commands and search flags
+- Lua functions and tables
+- Bindable actions and default keys
 
-```lua
-gopdf.status_bar.height = 28
-gopdf.status_bar.left = "{message}"
-gopdf.status_bar.right = "{page}/{total} {mode} fit={fit} rot={rot} {zoom}"
+The site provides documentation for the current `git` branch and an immutable snapshot for each tagged release. Reference content and the example configuration are generated from the same registrations used by the application:
+
+```bash
+go generate ./...
 ```
 
-Available placeholders:
+## Building
 
-| Placeholder | Description |
-|-------------|-------------|
-| `{message}` | Current status message or input prompt |
-| `{page}` | Current page, or current spread range in dual-page mode |
-| `{label}` | Current PDF page label, or label range in dual-page mode |
-| `{total}` | Total pages |
-| `{mode}` | Render mode: continuous or single |
-| `{fit}` | Fit mode: page, width, or manual |
-| `{rot}` | Rotation in degrees |
-| `{zoom}` | Zoom percentage |
-| `{dual}` | `dual` or `single` |
-| `{cover}` | `cover` or `flat` |
-| `{search}` | Search match counter |
-| `{document}` | Document filename |
-| `{input}` | Current input text |
-| `{prompt}` | Search prompt, `/` or `?` |
+Requirements:
 
-Use `$$` for a literal `$` in status bar templates.
+- Go 1.25+
+- MuPDF 1.25.6+
+- SDL3
+- pkg-config/pkgconf
+- A C compiler supported by CGO
 
-Example:
-
-```lua
-gopdf.status_bar.height = 32
-gopdf.options.ui_font_size = 13
-gopdf.options.ui_font_path = "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf"
-gopdf.status_bar.left = " {document} {message}"
-gopdf.status_bar.right = " {page}/{total} | {mode} | {search} | {zoom} "
+```bash
+go build
+go test ./...
 ```
 
-## Keybindings
+On Windows, install the dependencies from MSYS2 UCRT64:
 
-Use `gopdf.bind(key, action)` and `gopdf.bind_mouse(event, action)`. The global aliases `bind`, `unbind`, `bind_mouse`, and `unbind_mouse` are also available in config files.
-
-```lua
-gopdf.bind("j", gopdf.scroll_down)
-gopdf.bind("J", gopdf.next_page)
-gopdf.bind("gg", gopdf.first_page)
-gopdf.bind("<C-o>", gopdf.jump_backward)
-gopdf.bind("<Space>", gopdf.pan)       -- hold Space and move mouse to pan
-
-gopdf.bind_mouse("wheel_down", gopdf.scroll_down)
-gopdf.bind_mouse("<C-wheel_up>", gopdf.zoom_in)
-gopdf.bind_mouse("middle_down", gopdf.pan)
-```
-
-Custom callbacks run after the viewer is active:
-
-```lua
-gopdf.bind("H", function()
-  gopdf.goto_page(1)
-  gopdf.message("first page")
-end)
-
-gopdf.bind("<C-l>", function()
-  gopdf.command(":reload-config")
-end)
-```
-
-Unbind keys or mouse events:
-
-```lua
-gopdf.unbind("j")
-gopdf.unbind_mouse("wheel_down")
-```
-
-### Default Keybindings
-
-| Key | Action |
-|-----|--------|
-| `j`, `<Down>` / `k`, `<Up>` | Scroll down / up |
-| `h`, `<Left>` / `l`, `<Right>` | Scroll left / right |
-| `J` / `K` | Next / previous page |
-| `Space` / `<PgDn>` / `<PgUp>` | Next page / next page / previous page |
-| `gg` / `G` | First / last page |
-| `<C-g>` | Page prompt |
-| `Ng` | Jump to page N |
-| `Nj`, `Nk`, `Nh`, `Nl` | Repeat scroll action N times |
-| `NJ` / `NK` | Jump N pages/spreads forward / backward |
-| `d` | Toggle dual-page mode |
-| `m` | Toggle continuous/single render mode |
-| `<C-r>` | Toggle alternate colors |
-| `co` | Toggle first-page offset |
-| `<C-n>` | Toggle status bar |
-| `f` | Toggle fullscreen |
-| `o` | Open/close outline menu |
-| `<F1>` | Open keybinds menu |
-| `<C-S-o>` | Open PDF file picker |
-| `gr` | Open recent-files menu |
-| `<C-S-r>` | Reload config |
-| `<CR>` | Confirm input or selected outline item |
-| `+` / `=` / `-` / `0` | Zoom in / zoom in / zoom out / reset zoom |
-| `w` / `z` | Fit width / fit page |
-| `r` / `R` | Rotate clockwise / counter-clockwise |
-| `/` / `?` | Search forward / backward |
-| `n` / `N` | Next / previous search match |
-| `:` | Command prompt |
-| `<Tab>` / `<S-Tab>` | Show or cycle command completion / previous completion |
-| `<Esc>` | Close active UI, clear search, or clear pending keys/count |
-| `<C-i>` / `<C-o>` | Jump forward / backward in jump history |
-| `"{letter}` / `'{letter}` | Set / jump to persistent mark; requires `session_database` |
-| `q` | Quit |
-
-Default mouse bindings:
-
-| Mouse | Action |
-|-------|--------|
-| `wheel_up` / `wheel_down` | Scroll up / down |
-| `wheel_left` / `wheel_right` | Scroll left / right |
-| `<C-wheel_up>` / `<C-wheel_down>` | Zoom in / out |
-| `middle_down` | Pan while held |
-| Left-drag | Text selection when `mouse_text_select` is true |
-
-### Supported Key Names
-
-Key names are case-sensitive for printable letters and normalized for angle-bracket names. SDL-named keys can be bound using their normalized angle-bracket names, for example `<F13>`, `<Home>`, `<AudioMute>`, or keypad key names reported by SDL.
-
-| Form | Examples |
-|------|----------|
-| Printable letters | `a` through `z`, `A` through `Z` |
-| Printable digits | `0` through `9` |
-| Printable punctuation | `/`, `?`, `;`, `:`, `=`, `+`, `-` |
-| Space | `" "` or `<Space>` |
-| Special keys | `<CR>`, `<Enter>`, `<Return>`, `<Esc>`, `<BS>`, `<PgDn>`, `<PgUp>`, `<Tab>` |
-| Function keys | `<F1>` |
-| Arrow keys | `<Up>`, `<Down>`, `<Left>`, `<Right>` |
-| Ctrl keys | `<C-a>`, `<C-S-a>`, `<C-1>`, `<C-S-1>`, `<C-Space>`, `<C-Tab>`, `<C-Enter>`, `<C-Esc>`, `<C-BS>`, `<C-PgDn>`, `<C-PgUp>` |
-| Shift special keys | `<S-CR>`, `<S-Esc>`, `<S-BS>`, `<S-PgDn>`, `<S-PgUp>`, `<S-Tab>` |
-| Sequences | `gg`, `tb`, `co`, `<C-x>g` |
-
-Multiple keys can map to the same action. The `<F1>` keybinds menu adds an additional key for the selected action and writes generated edits to `autogen.lua`. Press `<Del>` or `<BS>` on a selected keybind row to delete it.
-
-Supported mouse events:
-
-| Event | Description |
-|-------|-------------|
-| `wheel_up`, `wheel_down` | Vertical wheel scroll |
-| `wheel_left`, `wheel_right` | Horizontal wheel scroll |
-| `<C-wheel_up>`, `<C-wheel_down>` | Ctrl-wheel events |
-| `left_down`, `left_up` | Left mouse button |
-| `middle_down`, `middle_up` | Middle mouse button |
-| `right_down`, `right_up` | Right mouse button |
-| `x1_down`, `x1_up` | Extra mouse button 1 |
-| `x2_down`, `x2_up` | Extra mouse button 2 |
-
-## Commands
-
-Open the command prompt with `:`.
-
-| Command | Description |
-|---------|-------------|
-| `:page PAGE`, `:p PAGE`, `:N` | Jump to a physical page number or PDF page label |
-| `:search [-r] [-i] [-w] [-p] <text>` | Search; flags enable regex, ignore-case, whole-word, and current-page matching |
-| `:fit width` / `:fit page` / `:fit manual` | Set fit mode |
-| `:mode continuous` / `:mode single` | Set render mode |
-| `:colors normal` / `:colors alt` | Set color mode |
-| `:set` | Inspect all registered options |
-| `:set option`, `:set option?` | Show an option's current value |
-| `:set option=value` | Assign an option |
-| `:set option!` | Toggle a boolean option |
-| `:open <filename>` | Open another PDF, relative to the current document directory |
-| `:open_file_picker` | Open the PDF file picker |
-| `:recent` | Open the recent-files menu |
-| `:reload-config` | Reload config file |
-| `:keybinds` | Toggle keybinds menu |
-| `:lua <code>` | Execute Lua code inline |
-| `:help` | Open command help window |
-| `:quit`, `:q` | Exit |
-
-## Lua API
-
-### Viewer State
-
-| Function | Description |
-|----------|-------------|
-| `gopdf.page()` | Current page number, 1-indexed |
-| `gopdf.page_count()` | Total pages |
-| `gopdf.goto_page(n)` | Jump to page n |
-| `gopdf.mode()` | Current UI mode |
-| `gopdf.current_count()` | Pending numeric count |
-| `gopdf.pending_keys()` | Pending key sequence table |
-| `gopdf.clear_pending_keys()` | Clear pending keys and count |
-
-### Display
-
-| Function | Description |
-|----------|-------------|
-| `gopdf.fit_mode()` / `gopdf.set_fit_mode("width"\|"page"\|"manual")` | Get/set fit mode |
-| `gopdf.render_mode()` / `gopdf.set_render_mode("continuous"\|"single")` | Get/set render mode |
-| `gopdf.zoom()` / `gopdf.set_zoom(n)` | Get/set zoom scale |
-| `gopdf.rotation()` / `gopdf.set_rotation(deg)` | Get/set rotation |
-| `gopdf.fullscreen()` / `gopdf.set_fullscreen(bool)` | Get/set fullscreen |
-| `gopdf.status_bar_visible()` / `gopdf.set_status_bar_visible(bool)` | Get/set status bar visibility |
-
-### Search
-
-| Function | Description |
-|----------|-------------|
-| `gopdf.search(query[, backward])` | Search document |
-| `gopdf.search_query()` | Current search term |
-| `gopdf.search_match_index()` | Current match, 1-indexed, or nil |
-| `gopdf.search_match_count()` | Total matches |
-
-Search flags may be combined, for example `:search -ri foo.*bar`. Use `--` before a query beginning with a dash. The same syntax is accepted by `gopdf.search()`.
-
-### Utilities
-
-| Function | Description |
-|----------|-------------|
-| `gopdf.message()` / `gopdf.message("text")` | Get/set status message |
-| `gopdf.command(":fit width")` | Execute command |
-| `gopdf.open(path)` | Open another PDF |
-| `gopdf.recent_files([limit])` | Return recent files from the session database |
-| `gopdf.pick_file([callback])` | Open native file picker; optional callback receives path |
-| `gopdf.bind(key, action)` / `gopdf.unbind(key)` | Bind/unbind keyboard action |
-| `gopdf.bind_mouse(event, action)` / `gopdf.unbind_mouse(event)` | Bind/unbind mouse action |
-
-### Custom UI
-
-Lua callbacks can open a simple modal list overlay. The overlay uses the same navigation actions as the outline menu: `scroll_down`, `scroll_up`, `confirm`, and `close`.
-
-| Function | Description |
-|----------|-------------|
-| `gopdf.ui.show(spec)` | Show a modal list UI |
-| `gopdf.ui.close()` | Close the active Lua UI without running `on_close` |
-| `gopdf.ui.visible()` | Return whether a Lua UI is visible |
-| `gopdf.ui.set_rows(rows)` | Replace the current UI rows |
-| `gopdf.ui.set_selected(index)` | Set the selected row, 1-indexed |
-
-`show` accepts this table:
-
-| Field | Description |
-|-------|-------------|
-| `title` | Optional title shown in the header |
-| `rows` | Array of strings to show |
-| `selected` | Optional initial selected row, 1-indexed |
-| `on_select(index, value)` | Optional callback run when a row is confirmed or clicked |
-| `on_close()` | Optional callback run when the UI is closed by the viewer |
-
-Example recent-files menu bound to `gr`. It shows the most recent files from the session database and opens the selected row:
-
-```lua
-local function show_recent_files()
-  local rows = gopdf.recent_files(20)
-
-  if #rows == 0 then
-    gopdf.message("no recent files")
-    return
-  end
-
-  gopdf.ui.show({
-    title = "Recent Files",
-    rows = rows,
-    on_select = function(_, path)
-      gopdf.ui.close()
-      gopdf.open(path)
-    end,
-  })
-end
-
-gopdf.bind("gr", show_recent_files)
-```
-
-Example file browser bound to `fo`. It starts in the user's home directory, shows directories first, lets you open `..`, and opens selected PDFs:
-
-```lua
-local function shell_quote(s)
-  return "'" .. s:gsub("'", "'\\''") .. "'"
-end
-
-local function list_dir(dir)
-  local rows = {}
-  local command = "find " .. shell_quote(dir) .. " -maxdepth 1 -mindepth 1 " ..
-    '\\( -type d -printf "d:%f\\n" -o -type f -iname "*.pdf" -printf "f:%f\\n" \\)'
-  local handle = io.popen(command)
-  if not handle then
-    return rows
-  end
-  for line in handle:lines() do
-    local kind, name = line:match("^([df]):(.*)$")
-    if kind == "d" then
-      rows[#rows + 1] = name .. "/"
-    elseif kind == "f" then
-      rows[#rows + 1] = name
-    end
-  end
-  handle:close()
-  table.sort(rows)
-  table.insert(rows, 1, "../")
-  return rows
-end
-
-local function join_path(dir, name)
-  if dir == "/" then
-    return "/" .. name
-  end
-  return dir .. "/" .. name
-end
-
-local function parent_dir(dir)
-  if dir == "/" then
-    return "/"
-  end
-  return dir:match("^(.*)/[^/]+/?$") or "/"
-end
-
-local function show_file_browser(dir)
-  gopdf.ui.show({
-    title = "Open PDF: " .. dir,
-    rows = list_dir(dir),
-    on_select = function(_, name)
-      if name == "../" then
-        show_file_browser(parent_dir(dir))
-        return
-      end
-
-      if name:sub(-1) == "/" then
-        show_file_browser(join_path(dir, name:sub(1, -2)))
-        return
-      end
-
-      gopdf.ui.close()
-      gopdf.open(dir .. "/" .. name)
-    end,
-  })
-end
-
-gopdf.bind("fo", function()
-  show_file_browser(os.getenv("HOME") or ".")
-end)
-```
-
-### Bindable Actions
-
-Actions can be bound directly, called from callbacks, or executed with `gopdf.command` where a matching command exists.
-
-```lua
-gopdf.next_page()        gopdf.prev_page()
-gopdf.scroll_down()      gopdf.scroll_up()
-gopdf.scroll_left()      gopdf.scroll_right()
-gopdf.next_spread()      gopdf.prev_spread()
-gopdf.first_page()       gopdf.last_page()
-gopdf.command_mode()     gopdf.goto_page_prompt()
-gopdf.search_prompt()    gopdf.search_prompt_backward()
-gopdf.search_next()      gopdf.search_prev()
-gopdf.clear_search()     gopdf.close()
-gopdf.toggle_dual_page() gopdf.toggle_render_mode()
-gopdf.toggle_alt_colors()
-gopdf.toggle_first_page_offset()
-gopdf.toggle_status_bar()
-gopdf.toggle_fullscreen()
-gopdf.outline()          gopdf.confirm()
-gopdf.zoom_in()          gopdf.zoom_out()
-gopdf.reset_zoom()
-gopdf.fit_width()        gopdf.fit_page()
-gopdf.rotate_cw()        gopdf.rotate_ccw()
-gopdf.jump_forward()     gopdf.jump_backward()
-gopdf.pan()              gopdf.reload_config()
-gopdf.show_completion()  gopdf.next_completion()
-gopdf.prev_completion()
-gopdf.open_file_picker() gopdf.keybinds()
-gopdf.show_recent_files()
-gopdf.quit()
-```
-
-### Cache
-
-```lua
-gopdf.cache.entries()       -- rendered pages in cache
-gopdf.cache.pending()       -- pending renders
-gopdf.cache.limit()         -- current cache entry limit
-gopdf.cache.set_limit(n)    -- set cache entry limit
-gopdf.cache.clear()         -- clear rendered page cache
-```
-
-### Document Metadata
-
-Available during config load:
-
-| Property | Description |
-|----------|-------------|
-| `gopdf.document.name` | Filename |
-| `gopdf.document.path` | Full path |
-| `gopdf.document.extension` | File extension |
-| `gopdf.document.page_count` | Total pages, if readable |
-| `gopdf.document.size_bytes` | File size, if the file exists |
-| `gopdf.document.exists` | Whether the file exists |
-
-Example:
-
-```lua
-if gopdf.document.page_count and gopdf.document.page_count > 200 then
-  gopdf.options.dual_page = true
-end
+```bash
+pacman -S --needed mingw-w64-ucrt-x86_64-go mingw-w64-ucrt-x86_64-gcc mingw-w64-ucrt-x86_64-pkgconf mingw-w64-ucrt-x86_64-sdl3 mingw-w64-ucrt-x86_64-mupdf
+go build -o gopdf.exe
 ```
 
 ## License
 
-gopdf is licensed under [AGPL](./LICENSE).
+gopdf is licensed under the [AGPL](./LICENSE).
 
-Links against [MuPDF](https://mupdf.com/), which is licensed under AGPL unless you have a separate commercial license.
+It links against [MuPDF](https://mupdf.com/), which is licensed under the AGPL unless you have a separate commercial license.

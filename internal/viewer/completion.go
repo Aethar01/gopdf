@@ -6,6 +6,7 @@ import (
 	"sort"
 	"strings"
 
+	"gopdf/internal/commands"
 	"gopdf/internal/config"
 
 	"github.com/jupiterrider/purego-sdl3/sdl"
@@ -91,7 +92,7 @@ func (a *App) commandCompletions() ([]completionItem, int, int) {
 	if cmd == "open" {
 		return a.openPathCompletions(arg), argStart, argEnd
 	}
-	if validArgs := commandArgCompletionValues(cmd); len(validArgs) > 0 {
+	if validArgs := commands.ArgCompletionValues(cmd); len(validArgs) > 0 {
 		items := []completionItem{}
 		for _, v := range validArgs {
 			if strings.HasPrefix(v, arg) {
@@ -107,7 +108,7 @@ func (a *App) commandCompletions() ([]completionItem, int, int) {
 
 func prefixedCommandCompletions(prefix string) []completionItem {
 	items := []completionItem{}
-	for _, spec := range commandSpecs {
+	for _, spec := range commands.All() {
 		if strings.HasPrefix(spec.Name, prefix) {
 			items = append(items, completionItem{value: spec.Name, display: spec.Name})
 		}

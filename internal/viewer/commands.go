@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	commandmeta "gopdf/internal/commands"
 	"gopdf/internal/config"
 	"gopdf/internal/filepicker"
 
@@ -596,7 +597,7 @@ func (a *App) showCommandHelp() {
 	a.luaUI = luaUIState{
 		visible: true,
 		title:   "Commands",
-		rows:    commandHelpRows(),
+		rows:    commandmeta.HelpRows(),
 	}
 	a.pendingRedraw = true
 }

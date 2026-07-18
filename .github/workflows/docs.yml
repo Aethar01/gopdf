@@ -1,0 +1,112 @@
+name: Documentation
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - "*"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: github-pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout current git documentation
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Assemble versioned site
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          go run ./cmd/builddocs
+
+          mkdir -p _site/git
+          cp -a docs/. _site/
+          cp -a docs/. _site/git/
+
+          links='<li><a href="/gopdf/git/">git <span>current main branch</span></a></li>'
+          while IFS= read -r tag; do
+            if ! git cat-file -e "${tag}:docs/index.html" 2>/dev/null || ! git cat-file -e "${tag}:cmd/builddocs/main.go" 2>/dev/null; then
+              continue
+            fi
+
+            worktree="$(mktemp -d)"
+            git worktree add --detach "${worktree}" "${tag}"
+            (
+              cd "${worktree}"
+              go run ./cmd/builddocs
+            )
+            mkdir -p "_site/${tag}"
+            cp -a "${worktree}/docs/." "_site/${tag}/"
+            git worktree remove --force "${worktree}"
+            links+="<li><a href=\"/gopdf/${tag}/\">${tag} <span>tagged release</span></a></li>"
+          done < <(git tag --sort=-version:refname)
+
+          cat > _site/versions.html <<EOF
+          <!doctype html>
+          <html lang="en">
+          <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1">
+            <title>Versions | gopdf</title>
+            <link rel="stylesheet" href="styles.css">
+          </head>
+          <body>
+            <header class="site-header">
+              <a class="brand" href="/gopdf/">gopdf<span>.</span></a>
+              <nav aria-label="Primary navigation">
+                <a href="/gopdf/">Overview</a>
+                <a href="/gopdf/guide.html">Guide</a>
+                <a href="/gopdf/reference.html">Reference</a>
+                <a href="/gopdf/versions.html" aria-current="page">Versions</a>
+                <a href="https://github.com/Aethar01/gopdf">GitHub</a>
+              </nav>
+            </header>
+            <main class="versions-page">
+              <p class="eyebrow">Documentation archive</p>
+              <h1>Choose a version.</h1>
+              <p>The git documentation tracks the current main branch. Tagged documentation is immutable and retained for releases published after versioning was introduced.</p>
+              <ul class="version-list">${links}</ul>
+            </main>
+          </body>
+          </html>
+          EOF
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

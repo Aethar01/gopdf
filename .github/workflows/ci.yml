@@ -31,7 +31,7 @@ jobs:
         run: go test ./...
 
       - name: Check generated documentation
-        run: go run ./cmd/gendocs -check
+        run: go run ./cmd/builddocs -check
 
       - name: Build
         run: go build ./...

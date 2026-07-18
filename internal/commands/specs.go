@@ -1,4 +1,4 @@
-package viewer
+package commands
 
 import (
 	"strings"
@@ -6,7 +6,7 @@ import (
 	"gopdf/internal/config"
 )
 
-type commandSpec struct {
+type Spec struct {
 	Name           string
 	ArgCompletions []string
 	Help           string
@@ -17,7 +17,7 @@ type CommandReferenceEntry struct {
 	Description string
 }
 
-var commandSpecs = []commandSpec{
+var specs = []Spec{
 	{Name: "colors", ArgCompletions: []string{"alt", "normal"}, Help: ":colors normal|alt - Set color mode"},
 	{Name: "fit", ArgCompletions: []string{"manual", "page", "width"}, Help: ":fit width|page|manual - Set fit mode"},
 	{Name: "help", Help: ":help - Show this command help window"},
@@ -34,8 +34,14 @@ var commandSpecs = []commandSpec{
 	{Name: "set", ArgCompletions: config.OptionNames(), Help: ":set [option[?]|option!|option=value] - Inspect or change options"},
 }
 
-func commandArgCompletionValues(name string) []string {
-	for _, spec := range commandSpecs {
+func All() []Spec {
+	result := make([]Spec, len(specs))
+	copy(result, specs)
+	return result
+}
+
+func ArgCompletionValues(name string) []string {
+	for _, spec := range specs {
 		if spec.Name == name {
 			return spec.ArgCompletions
 		}
@@ -43,9 +49,9 @@ func commandArgCompletionValues(name string) []string {
 	return nil
 }
 
-func commandHelpRows() []string {
-	rows := make([]string, 0, len(commandSpecs)+1)
-	for _, spec := range commandSpecs {
+func HelpRows() []string {
+	rows := make([]string, 0, len(specs)+1)
+	for _, spec := range specs {
 		if spec.Help != "" {
 			rows = append(rows, spec.Help)
 		}
@@ -55,8 +61,8 @@ func commandHelpRows() []string {
 }
 
 func CommandReferences() []CommandReferenceEntry {
-	refs := make([]CommandReferenceEntry, 0, len(commandSpecs))
-	for _, spec := range commandSpecs {
+	refs := make([]CommandReferenceEntry, 0, len(specs))
+	for _, spec := range specs {
 		command, description, _ := strings.Cut(spec.Help, " - ")
 		refs = append(refs, CommandReferenceEntry{Command: command, Description: description})
 	}
