@@ -14,6 +14,7 @@ import (
 type luaFunctionSpec struct {
 	Signature   string
 	Description string
+	Function    lua.LGFunction
 }
 
 var luaFunctionReferences = map[string]LuaReferenceEntry{}
@@ -62,293 +63,421 @@ func newLuaModule(L *lua.LState, rt *Runtime, cfg *Config) *lua.LTable {
 	L.SetField(mod, "document", document)
 	L.SetField(mod, "cache", newLuaCacheTable(L, rt))
 	L.SetField(mod, "ui", newLuaUITable(L, rt))
-	setDocumentedLuaFunctions(L, mod, "gopdf.", map[luaFunctionSpec]lua.LGFunction{
-		{Signature: "gopdf.bind(key, action)", Description: "Bind a key sequence to an action or Lua callback."}: func(L *lua.LState) int {
-			key := L.CheckString(1)
-			action := L.CheckAny(2)
-			actionName, err := luaActionName(rt, action)
-			if err != nil {
-				L.RaiseError("bind %q: %v", key, err)
-			}
-			rt.setKeyBinding(key, actionName)
-			return 0
+	registerLuaFunctions(L, mod, "gopdf.", []luaFunctionSpec{
+		{
+			Signature:   "gopdf.bind(key, action)",
+			Description: "Bind a key sequence to an action or Lua callback.",
+			Function: func(L *lua.LState) int {
+				key := L.CheckString(1)
+				action := L.CheckAny(2)
+				actionName, err := luaActionName(rt, action)
+				if err != nil {
+					L.RaiseError("bind %q: %v", key, err)
+				}
+				rt.setKeyBinding(key, actionName)
+				return 0
+			},
 		},
-		{Signature: "gopdf.unbind(key)", Description: "Remove a key binding."}: func(L *lua.LState) int {
-			key := L.CheckString(1)
-			rt.unbindKey(key)
-			return 0
+		{
+			Signature:   "gopdf.unbind(key)",
+			Description: "Remove a key binding.",
+			Function: func(L *lua.LState) int {
+				key := L.CheckString(1)
+				rt.unbindKey(key)
+				return 0
+			},
 		},
-		{Signature: "gopdf.bind_mouse(event, action)", Description: "Bind a mouse event to an action or Lua callback."}: func(L *lua.LState) int {
-			event := normalizeMouseEvent(L.CheckString(1))
-			action := L.CheckAny(2)
-			actionName, err := luaActionName(rt, action)
-			if err != nil {
-				L.RaiseError("bind_mouse %q: %v", event, err)
-			}
-			rt.setMouseBinding(event, actionName)
-			return 0
+		{
+			Signature:   "gopdf.bind_mouse(event, action)",
+			Description: "Bind a mouse event to an action or Lua callback.",
+			Function: func(L *lua.LState) int {
+				event := normalizeMouseEvent(L.CheckString(1))
+				action := L.CheckAny(2)
+				actionName, err := luaActionName(rt, action)
+				if err != nil {
+					L.RaiseError("bind_mouse %q: %v", event, err)
+				}
+				rt.setMouseBinding(event, actionName)
+				return 0
+			},
 		},
-		{Signature: "gopdf.unbind_mouse(event)", Description: "Remove a mouse binding."}: func(L *lua.LState) int {
-			event := normalizeMouseEvent(L.CheckString(1))
-			rt.unbindMouse(event)
-			return 0
+		{
+			Signature:   "gopdf.unbind_mouse(event)",
+			Description: "Remove a mouse binding.",
+			Function: func(L *lua.LState) int {
+				event := normalizeMouseEvent(L.CheckString(1))
+				rt.unbindMouse(event)
+				return 0
+			},
 		},
 
-		{Signature: "gopdf.message([text])", Description: "Get the current message or set it when text is supplied."}: func(L *lua.LState) int {
-			if L.GetTop() > 0 {
-				if rt.host == nil {
-					L.RaiseError("message: viewer host unavailable")
+		{
+			Signature:   "gopdf.message([text])",
+			Description: "Get the current message or set it when text is supplied.",
+			Function: func(L *lua.LState) int {
+				if L.GetTop() > 0 {
+					if rt.host == nil {
+						L.RaiseError("message: viewer host unavailable")
+					}
+					rt.host.SetMessage(L.CheckString(1))
+					return 0
 				}
-				rt.host.SetMessage(L.CheckString(1))
-				return 0
-			}
-			if rt.host == nil {
-				L.Push(lua.LString(cfg.NormalMessage))
+				if rt.host == nil {
+					L.Push(lua.LString(cfg.NormalMessage))
+					return 1
+				}
+				L.Push(lua.LString(rt.host.Message()))
 				return 1
-			}
-			L.Push(lua.LString(rt.host.Message()))
-			return 1
+			},
 		},
-		{Signature: "gopdf.command(command)", Description: "Execute a viewer command."}: func(L *lua.LState) int {
-			if rt.host == nil {
-				L.RaiseError("command: viewer host unavailable")
-			}
-			if err := rt.host.RunCommand(L.CheckString(1)); err != nil {
-				L.RaiseError("command: %v", err)
-			}
-			return 0
+		{
+			Signature:   "gopdf.command(command)",
+			Description: "Execute a viewer command.",
+			Function: func(L *lua.LState) int {
+				if rt.host == nil {
+					L.RaiseError("command: viewer host unavailable")
+				}
+				if err := rt.host.RunCommand(L.CheckString(1)); err != nil {
+					L.RaiseError("command: %v", err)
+				}
+				return 0
+			},
 		},
-		{Signature: "gopdf.open(path)", Description: "Open another document."}: func(L *lua.LState) int {
-			if err := rt.open(L.CheckString(1)); err != nil {
-				L.RaiseError("open: %v", err)
-			}
-			return 0
+		{
+			Signature:   "gopdf.open(path)",
+			Description: "Open another document.",
+			Function: func(L *lua.LState) int {
+				if err := rt.open(L.CheckString(1)); err != nil {
+					L.RaiseError("open: %v", err)
+				}
+				return 0
+			},
 		},
-		{Signature: "gopdf.pick_file([callback])", Description: "Open the native PDF picker; returns a path or invokes callback."}: func(L *lua.LState) int {
-			path, err := filepicker.PickPDF()
-			if err != nil {
-				L.RaiseError("pick_file: %v", err)
-			}
-			if fn, ok := L.Get(1).(*lua.LFunction); ok && path != "" {
-				if err := rt.state.CallByParam(lua.P{Fn: fn, NRet: 0, Protect: true}, lua.LString(path)); err != nil {
+		{
+			Signature:   "gopdf.pick_file([callback])",
+			Description: "Open the native PDF picker; returns a path or invokes callback.",
+			Function: func(L *lua.LState) int {
+				path, err := filepicker.PickPDF()
+				if err != nil {
 					L.RaiseError("pick_file: %v", err)
 				}
+				if fn, ok := L.Get(1).(*lua.LFunction); ok && path != "" {
+					if err := rt.state.CallByParam(lua.P{Fn: fn, NRet: 0, Protect: true}, lua.LString(path)); err != nil {
+						L.RaiseError("pick_file: %v", err)
+					}
+					return 0
+				}
+				L.Push(lua.LString(path))
+				return 1
+			},
+		},
+		{
+			Signature:   "gopdf.page()",
+			Description: "Return the current 1-based physical page number.",
+			Function: func(L *lua.LState) int {
+				if rt.host == nil {
+					L.Push(lua.LNil)
+					return 1
+				}
+				L.Push(lua.LNumber(rt.host.Page()))
+				return 1
+			},
+		},
+		{
+			Signature:   "gopdf.page_count()",
+			Description: "Return the document page count.",
+			Function: func(L *lua.LState) int {
+				if rt.host == nil {
+					L.Push(lua.LNil)
+					return 1
+				}
+				L.Push(lua.LNumber(rt.host.PageCount()))
+				return 1
+			},
+		},
+		{
+			Signature:   "gopdf.goto_page(page)",
+			Description: "Jump to a 1-based physical page number.",
+			Function: func(L *lua.LState) int {
+				if rt.host == nil {
+					L.RaiseError("goto_page: viewer host unavailable")
+				}
+				if err := rt.host.GotoPage(L.CheckInt(1)); err != nil {
+					L.RaiseError("goto_page: %v", err)
+				}
 				return 0
-			}
-			L.Push(lua.LString(path))
-			return 1
+			},
 		},
-		{Signature: "gopdf.page()", Description: "Return the current 1-based physical page number."}: func(L *lua.LState) int {
-			if rt.host == nil {
-				L.Push(lua.LNil)
+		{
+			Signature:   "gopdf.mode()",
+			Description: "Return the current input mode.",
+			Function: func(L *lua.LState) int {
+				if rt.host == nil {
+					L.Push(lua.LNil)
+					return 1
+				}
+				L.Push(lua.LString(rt.host.Mode()))
 				return 1
-			}
-			L.Push(lua.LNumber(rt.host.Page()))
-			return 1
+			},
 		},
-		{Signature: "gopdf.page_count()", Description: "Return the document page count."}: func(L *lua.LState) int {
-			if rt.host == nil {
-				L.Push(lua.LNil)
-				return 1
-			}
-			L.Push(lua.LNumber(rt.host.PageCount()))
-			return 1
-		},
-		{Signature: "gopdf.goto_page(page)", Description: "Jump to a 1-based physical page number."}: func(L *lua.LState) int {
-			if rt.host == nil {
-				L.RaiseError("goto_page: viewer host unavailable")
-			}
-			if err := rt.host.GotoPage(L.CheckInt(1)); err != nil {
-				L.RaiseError("goto_page: %v", err)
-			}
-			return 0
-		},
-		{Signature: "gopdf.mode()", Description: "Return the current input mode."}: func(L *lua.LState) int {
-			if rt.host == nil {
-				L.Push(lua.LNil)
-				return 1
-			}
-			L.Push(lua.LString(rt.host.Mode()))
-			return 1
-		},
-		{Signature: "gopdf.search(query[, backward])", Description: "Search using the same flags as :search."}: func(L *lua.LState) int {
-			if rt.host == nil {
-				L.RaiseError("search: viewer host unavailable")
-			}
-			backward := false
-			if L.GetTop() >= 2 {
-				backward = lua.LVAsBool(L.CheckAny(2))
-			}
-			if err := rt.host.Search(L.CheckString(1), backward); err != nil {
-				L.RaiseError("search: %v", err)
-			}
-			return 0
-		},
-		{Signature: "gopdf.search_query()", Description: "Return the active search query."}: func(L *lua.LState) int {
-			if rt.host == nil {
-				L.Push(lua.LString(""))
-				return 1
-			}
-			L.Push(lua.LString(rt.host.SearchQuery()))
-			return 1
-		},
-		{Signature: "gopdf.search_match_count()", Description: "Return the number of discovered search matches."}: func(L *lua.LState) int {
-			if rt.host == nil {
-				L.Push(lua.LNumber(0))
-				return 1
-			}
-			L.Push(lua.LNumber(rt.host.SearchMatchCount()))
-			return 1
-		},
-		{Signature: "gopdf.search_match_index()", Description: "Return the current 1-based match index or nil."}: func(L *lua.LState) int {
-			if rt.host == nil {
-				L.Push(lua.LNil)
-				return 1
-			}
-			index := rt.host.SearchMatchIndex()
-			if index <= 0 {
-				L.Push(lua.LNil)
-				return 1
-			}
-			L.Push(lua.LNumber(index))
-			return 1
-		},
-		{Signature: "gopdf.current_count()", Description: "Return the pending numeric action count."}: func(L *lua.LState) int {
-			if rt.host == nil {
-				L.Push(lua.LString(""))
-				return 1
-			}
-			L.Push(lua.LString(rt.host.CurrentCount()))
-			return 1
-		},
-		{Signature: "gopdf.pending_keys()", Description: "Return pending key-sequence tokens."}: func(L *lua.LState) int {
-			if rt.host == nil {
-				L.Push(L.NewTable())
-				return 1
-			}
-			L.Push(luaStringsTable(L, rt.host.PendingKeys()))
-			return 1
-		},
-		{Signature: "gopdf.recent_files([limit])", Description: "Return recent document paths."}: func(L *lua.LState) int {
-			if !cfg.SessionDatabase {
-				L.Push(L.NewTable())
-				return 1
-			}
-			limit := cfg.RecentFilesMax
-			if L.GetTop() > 0 {
-				limit = L.CheckInt(1)
-			}
-			L.Push(luaStringsTable(L, RecentFiles(limit)))
-			return 1
-		},
-		{Signature: "gopdf.clear_pending_keys()", Description: "Clear the pending sequence, mark, and numeric count."}: func(L *lua.LState) int {
-			if rt.host == nil {
+		{
+			Signature:   "gopdf.search(query[, backward])",
+			Description: "Search using the same flags as :search.",
+			Function: func(L *lua.LState) int {
+				if rt.host == nil {
+					L.RaiseError("search: viewer host unavailable")
+				}
+				backward := false
+				if L.GetTop() >= 2 {
+					backward = lua.LVAsBool(L.CheckAny(2))
+				}
+				if err := rt.host.Search(L.CheckString(1), backward); err != nil {
+					L.RaiseError("search: %v", err)
+				}
 				return 0
-			}
-			rt.host.ClearPendingKeys()
-			return 0
+			},
 		},
-		{Signature: "gopdf.fit_mode()", Description: "Return the current fit mode."}: func(L *lua.LState) int {
-			if rt.host == nil {
-				L.Push(lua.LString(cfg.FitMode))
+		{
+			Signature:   "gopdf.search_query()",
+			Description: "Return the active search query.",
+			Function: func(L *lua.LState) int {
+				if rt.host == nil {
+					L.Push(lua.LString(""))
+					return 1
+				}
+				L.Push(lua.LString(rt.host.SearchQuery()))
 				return 1
-			}
-			L.Push(lua.LString(rt.host.FitMode()))
-			return 1
+			},
 		},
-		{Signature: "gopdf.set_fit_mode(mode)", Description: "Set page, width, or manual fit mode."}: func(L *lua.LState) int {
-			if rt.host == nil {
-				L.RaiseError("set_fit_mode: viewer host unavailable")
-			}
-			if err := rt.host.SetFitMode(L.CheckString(1)); err != nil {
-				L.RaiseError("set_fit_mode: %v", err)
-			}
-			return 0
-		},
-		{Signature: "gopdf.render_mode()", Description: "Return continuous or single render mode."}: func(L *lua.LState) int {
-			if rt.host == nil {
-				L.Push(lua.LString(cfg.RenderMode))
+		{
+			Signature:   "gopdf.search_match_count()",
+			Description: "Return the number of discovered search matches.",
+			Function: func(L *lua.LState) int {
+				if rt.host == nil {
+					L.Push(lua.LNumber(0))
+					return 1
+				}
+				L.Push(lua.LNumber(rt.host.SearchMatchCount()))
 				return 1
-			}
-			L.Push(lua.LString(rt.host.RenderMode()))
-			return 1
+			},
 		},
-		{Signature: "gopdf.set_render_mode(mode)", Description: "Set continuous or single render mode."}: func(L *lua.LState) int {
-			if rt.host == nil {
-				L.RaiseError("set_render_mode: viewer host unavailable")
-			}
-			if err := rt.host.SetRenderMode(L.CheckString(1)); err != nil {
-				L.RaiseError("set_render_mode: %v", err)
-			}
-			return 0
-		},
-		{Signature: "gopdf.zoom()", Description: "Return the current render scale."}: func(L *lua.LState) int {
-			if rt.host == nil {
-				L.Push(lua.LNil)
+		{
+			Signature:   "gopdf.search_match_index()",
+			Description: "Return the current 1-based match index or nil.",
+			Function: func(L *lua.LState) int {
+				if rt.host == nil {
+					L.Push(lua.LNil)
+					return 1
+				}
+				index := rt.host.SearchMatchIndex()
+				if index <= 0 {
+					L.Push(lua.LNil)
+					return 1
+				}
+				L.Push(lua.LNumber(index))
 				return 1
-			}
-			L.Push(lua.LNumber(rt.host.Zoom()))
-			return 1
+			},
 		},
-		{Signature: "gopdf.set_zoom(scale)", Description: "Set manual zoom scale."}: func(L *lua.LState) int {
-			if rt.host == nil {
-				L.RaiseError("set_zoom: viewer host unavailable")
-			}
-			if err := rt.host.SetZoom(float64(L.CheckNumber(1))); err != nil {
-				L.RaiseError("set_zoom: %v", err)
-			}
-			return 0
-		},
-		{Signature: "gopdf.rotation()", Description: "Return clockwise rotation in degrees."}: func(L *lua.LState) int {
-			if rt.host == nil {
-				L.Push(lua.LNil)
+		{
+			Signature:   "gopdf.current_count()",
+			Description: "Return the pending numeric action count.",
+			Function: func(L *lua.LState) int {
+				if rt.host == nil {
+					L.Push(lua.LString(""))
+					return 1
+				}
+				L.Push(lua.LString(rt.host.CurrentCount()))
 				return 1
-			}
-			L.Push(lua.LNumber(rt.host.Rotation()))
-			return 1
+			},
 		},
-		{Signature: "gopdf.set_rotation(degrees)", Description: "Set clockwise rotation in degrees."}: func(L *lua.LState) int {
-			if rt.host == nil {
-				L.RaiseError("set_rotation: viewer host unavailable")
-			}
-			if err := rt.host.SetRotation(float64(L.CheckNumber(1))); err != nil {
-				L.RaiseError("set_rotation: %v", err)
-			}
-			return 0
-		},
-		{Signature: "gopdf.fullscreen()", Description: "Return fullscreen state."}: func(L *lua.LState) int {
-			if rt.host == nil {
-				L.Push(lua.LFalse)
+		{
+			Signature:   "gopdf.pending_keys()",
+			Description: "Return pending key-sequence tokens.",
+			Function: func(L *lua.LState) int {
+				if rt.host == nil {
+					L.Push(L.NewTable())
+					return 1
+				}
+				L.Push(luaStringsTable(L, rt.host.PendingKeys()))
 				return 1
-			}
-			L.Push(lua.LBool(rt.host.Fullscreen()))
-			return 1
+			},
 		},
-		{Signature: "gopdf.set_fullscreen(enabled)", Description: "Set fullscreen state."}: func(L *lua.LState) int {
-			if rt.host == nil {
-				L.RaiseError("set_fullscreen: viewer host unavailable")
-			}
-			if err := rt.host.SetFullscreen(lua.LVAsBool(L.CheckAny(1))); err != nil {
-				L.RaiseError("set_fullscreen: %v", err)
-			}
-			return 0
-		},
-		{Signature: "gopdf.status_bar_visible()", Description: "Return status bar visibility."}: func(L *lua.LState) int {
-			if rt.host == nil {
-				L.Push(lua.LBool(cfg.StatusBarVisible))
+		{
+			Signature:   "gopdf.recent_files([limit])",
+			Description: "Return recent document paths.",
+			Function: func(L *lua.LState) int {
+				if !cfg.SessionDatabase {
+					L.Push(L.NewTable())
+					return 1
+				}
+				limit := cfg.RecentFilesMax
+				if L.GetTop() > 0 {
+					limit = L.CheckInt(1)
+				}
+				L.Push(luaStringsTable(L, RecentFiles(limit)))
 				return 1
-			}
-			L.Push(lua.LBool(rt.host.StatusBarVisible()))
-			return 1
+			},
 		},
-		{Signature: "gopdf.set_status_bar_visible(visible)", Description: "Set status bar visibility."}: func(L *lua.LState) int {
-			if rt.host == nil {
-				L.RaiseError("set_status_bar_visible: viewer host unavailable")
-			}
-			if err := rt.host.SetStatusBarVisible(lua.LVAsBool(L.CheckAny(1))); err != nil {
-				L.RaiseError("set_status_bar_visible: %v", err)
-			}
-			return 0
+		{
+			Signature:   "gopdf.clear_pending_keys()",
+			Description: "Clear the pending sequence, mark, and numeric count.",
+			Function: func(L *lua.LState) int {
+				if rt.host == nil {
+					return 0
+				}
+				rt.host.ClearPendingKeys()
+				return 0
+			},
+		},
+		{
+			Signature:   "gopdf.fit_mode()",
+			Description: "Return the current fit mode.",
+			Function: func(L *lua.LState) int {
+				if rt.host == nil {
+					L.Push(lua.LString(cfg.FitMode))
+					return 1
+				}
+				L.Push(lua.LString(rt.host.FitMode()))
+				return 1
+			},
+		},
+		{
+			Signature:   "gopdf.set_fit_mode(mode)",
+			Description: "Set page, width, or manual fit mode.",
+			Function: func(L *lua.LState) int {
+				if rt.host == nil {
+					L.RaiseError("set_fit_mode: viewer host unavailable")
+				}
+				if err := rt.host.SetFitMode(L.CheckString(1)); err != nil {
+					L.RaiseError("set_fit_mode: %v", err)
+				}
+				return 0
+			},
+		},
+		{
+			Signature:   "gopdf.render_mode()",
+			Description: "Return continuous or single render mode.",
+			Function: func(L *lua.LState) int {
+				if rt.host == nil {
+					L.Push(lua.LString(cfg.RenderMode))
+					return 1
+				}
+				L.Push(lua.LString(rt.host.RenderMode()))
+				return 1
+			},
+		},
+		{
+			Signature:   "gopdf.set_render_mode(mode)",
+			Description: "Set continuous or single render mode.",
+			Function: func(L *lua.LState) int {
+				if rt.host == nil {
+					L.RaiseError("set_render_mode: viewer host unavailable")
+				}
+				if err := rt.host.SetRenderMode(L.CheckString(1)); err != nil {
+					L.RaiseError("set_render_mode: %v", err)
+				}
+				return 0
+			},
+		},
+		{
+			Signature:   "gopdf.zoom()",
+			Description: "Return the current render scale.",
+			Function: func(L *lua.LState) int {
+				if rt.host == nil {
+					L.Push(lua.LNil)
+					return 1
+				}
+				L.Push(lua.LNumber(rt.host.Zoom()))
+				return 1
+			},
+		},
+		{
+			Signature:   "gopdf.set_zoom(scale)",
+			Description: "Set manual zoom scale.",
+			Function: func(L *lua.LState) int {
+				if rt.host == nil {
+					L.RaiseError("set_zoom: viewer host unavailable")
+				}
+				if err := rt.host.SetZoom(float64(L.CheckNumber(1))); err != nil {
+					L.RaiseError("set_zoom: %v", err)
+				}
+				return 0
+			},
+		},
+		{
+			Signature:   "gopdf.rotation()",
+			Description: "Return clockwise rotation in degrees.",
+			Function: func(L *lua.LState) int {
+				if rt.host == nil {
+					L.Push(lua.LNil)
+					return 1
+				}
+				L.Push(lua.LNumber(rt.host.Rotation()))
+				return 1
+			},
+		},
+		{
+			Signature:   "gopdf.set_rotation(degrees)",
+			Description: "Set clockwise rotation in degrees.",
+			Function: func(L *lua.LState) int {
+				if rt.host == nil {
+					L.RaiseError("set_rotation: viewer host unavailable")
+				}
+				if err := rt.host.SetRotation(float64(L.CheckNumber(1))); err != nil {
+					L.RaiseError("set_rotation: %v", err)
+				}
+				return 0
+			},
+		},
+		{
+			Signature:   "gopdf.fullscreen()",
+			Description: "Return fullscreen state.",
+			Function: func(L *lua.LState) int {
+				if rt.host == nil {
+					L.Push(lua.LFalse)
+					return 1
+				}
+				L.Push(lua.LBool(rt.host.Fullscreen()))
+				return 1
+			},
+		},
+		{
+			Signature:   "gopdf.set_fullscreen(enabled)",
+			Description: "Set fullscreen state.",
+			Function: func(L *lua.LState) int {
+				if rt.host == nil {
+					L.RaiseError("set_fullscreen: viewer host unavailable")
+				}
+				if err := rt.host.SetFullscreen(lua.LVAsBool(L.CheckAny(1))); err != nil {
+					L.RaiseError("set_fullscreen: %v", err)
+				}
+				return 0
+			},
+		},
+		{
+			Signature:   "gopdf.status_bar_visible()",
+			Description: "Return status bar visibility.",
+			Function: func(L *lua.LState) int {
+				if rt.host == nil {
+					L.Push(lua.LBool(cfg.StatusBarVisible))
+					return 1
+				}
+				L.Push(lua.LBool(rt.host.StatusBarVisible()))
+				return 1
+			},
+		},
+		{
+			Signature:   "gopdf.set_status_bar_visible(visible)",
+			Description: "Set status bar visibility.",
+			Function: func(L *lua.LState) int {
+				if rt.host == nil {
+					L.RaiseError("set_status_bar_visible: viewer host unavailable")
+				}
+				if err := rt.host.SetStatusBarVisible(lua.LVAsBool(L.CheckAny(1))); err != nil {
+					L.RaiseError("set_status_bar_visible: %v", err)
+				}
+				return 0
+			},
 		},
 	})
 	L.SetField(mod, "options", newLuaOptionsTable(L, rt, cfg))
@@ -386,45 +515,65 @@ func newLuaOptionsTable(L *lua.LState, rt *Runtime, cfg *Config) *lua.LTable {
 
 func newLuaCacheTable(L *lua.LState, rt *Runtime) *lua.LTable {
 	tbl := L.NewTable()
-	setDocumentedLuaFunctions(L, tbl, "gopdf.cache.", map[luaFunctionSpec]lua.LGFunction{
-		{Signature: "gopdf.cache.entries()", Description: "Return the number of cached rendered pages."}: func(L *lua.LState) int {
-			if rt.host == nil {
-				L.Push(lua.LNumber(0))
+	registerLuaFunctions(L, tbl, "gopdf.cache.", []luaFunctionSpec{
+		{
+			Signature:   "gopdf.cache.entries()",
+			Description: "Return the number of cached rendered pages.",
+			Function: func(L *lua.LState) int {
+				if rt.host == nil {
+					L.Push(lua.LNumber(0))
+					return 1
+				}
+				L.Push(lua.LNumber(rt.host.CacheEntries()))
 				return 1
-			}
-			L.Push(lua.LNumber(rt.host.CacheEntries()))
-			return 1
+			},
 		},
-		{Signature: "gopdf.cache.pending()", Description: "Return the number of pending renders."}: func(L *lua.LState) int {
-			if rt.host == nil {
-				L.Push(lua.LNumber(0))
+		{
+			Signature:   "gopdf.cache.pending()",
+			Description: "Return the number of pending renders.",
+			Function: func(L *lua.LState) int {
+				if rt.host == nil {
+					L.Push(lua.LNumber(0))
+					return 1
+				}
+				L.Push(lua.LNumber(rt.host.CachePending()))
 				return 1
-			}
-			L.Push(lua.LNumber(rt.host.CachePending()))
-			return 1
+			},
 		},
-		{Signature: "gopdf.cache.limit()", Description: "Return the rendered-page cache limit."}: func(L *lua.LState) int {
-			if rt.host == nil {
-				L.Push(lua.LNumber(0))
+		{
+			Signature:   "gopdf.cache.limit()",
+			Description: "Return the rendered-page cache limit.",
+			Function: func(L *lua.LState) int {
+				if rt.host == nil {
+					L.Push(lua.LNumber(0))
+					return 1
+				}
+				L.Push(lua.LNumber(rt.host.CacheLimit()))
 				return 1
-			}
-			L.Push(lua.LNumber(rt.host.CacheLimit()))
-			return 1
+			},
 		},
-		{Signature: "gopdf.cache.set_limit(limit)", Description: "Set the rendered-page cache limit."}: func(L *lua.LState) int {
-			if rt.host == nil {
-				L.RaiseError("cache.set_limit: viewer host unavailable")
-			}
-			if err := rt.host.SetCacheLimit(L.CheckInt(1)); err != nil {
-				L.RaiseError("cache.set_limit: %v", err)
-			}
-			return 0
+		{
+			Signature:   "gopdf.cache.set_limit(limit)",
+			Description: "Set the rendered-page cache limit.",
+			Function: func(L *lua.LState) int {
+				if rt.host == nil {
+					L.RaiseError("cache.set_limit: viewer host unavailable")
+				}
+				if err := rt.host.SetCacheLimit(L.CheckInt(1)); err != nil {
+					L.RaiseError("cache.set_limit: %v", err)
+				}
+				return 0
+			},
 		},
-		{Signature: "gopdf.cache.clear()", Description: "Clear rendered-page caches."}: func(L *lua.LState) int {
-			if rt.host != nil {
-				rt.host.ClearCache()
-			}
-			return 0
+		{
+			Signature:   "gopdf.cache.clear()",
+			Description: "Clear rendered-page caches.",
+			Function: func(L *lua.LState) int {
+				if rt.host != nil {
+					rt.host.ClearCache()
+				}
+				return 0
+			},
 		},
 	})
 	return tbl
@@ -459,40 +608,59 @@ func newLuaUITable(L *lua.LState, rt *Runtime) *lua.LTable {
 		}
 		return 0
 	}
-	setDocumentedLuaFunctions(L, tbl, "gopdf.ui.", map[luaFunctionSpec]lua.LGFunction{
-		{Signature: "gopdf.ui.show(spec)", Description: "Show a searchable modal list overlay."}: show,
-		{Signature: "gopdf.ui.close()", Description: "Close the active Lua overlay without on_close."}: func(L *lua.LState) int {
-			if rt.host == nil {
-				L.RaiseError("ui.close: viewer host unavailable")
-			}
-			rt.host.CloseUI()
-			return 0
+	registerLuaFunctions(L, tbl, "gopdf.ui.", []luaFunctionSpec{
+		{
+			Signature:   "gopdf.ui.show(spec)",
+			Description: "Show a searchable modal list overlay.",
+			Function:    show},
+		{
+			Signature:   "gopdf.ui.close()",
+			Description: "Close the active Lua overlay without on_close.",
+			Function: func(L *lua.LState) int {
+				if rt.host == nil {
+					L.RaiseError("ui.close: viewer host unavailable")
+				}
+				rt.host.CloseUI()
+				return 0
+			},
 		},
-		{Signature: "gopdf.ui.visible()", Description: "Return whether a Lua overlay is visible."}: func(L *lua.LState) int {
-			L.Push(lua.LBool(rt.host != nil && rt.host.UIVisible()))
-			return 1
+		{
+			Signature:   "gopdf.ui.visible()",
+			Description: "Return whether a Lua overlay is visible.",
+			Function: func(L *lua.LState) int {
+				L.Push(lua.LBool(rt.host != nil && rt.host.UIVisible()))
+				return 1
+			},
 		},
-		{Signature: "gopdf.ui.set_rows(rows)", Description: "Replace overlay rows."}: func(L *lua.LState) int {
-			if rt.host == nil {
-				L.RaiseError("ui.set_rows: viewer host unavailable")
-			}
-			rt.host.SetUIRows(luaTableStrings(L.CheckAny(1)))
-			return 0
+		{
+			Signature:   "gopdf.ui.set_rows(rows)",
+			Description: "Replace overlay rows.",
+			Function: func(L *lua.LState) int {
+				if rt.host == nil {
+					L.RaiseError("ui.set_rows: viewer host unavailable")
+				}
+				rt.host.SetUIRows(luaTableStrings(L.CheckAny(1)))
+				return 0
+			},
 		},
-		{Signature: "gopdf.ui.set_selected(index)", Description: "Select a 1-based overlay row."}: func(L *lua.LState) int {
-			if rt.host == nil {
-				L.RaiseError("ui.set_selected: viewer host unavailable")
-			}
-			rt.host.SetUISelected(L.CheckInt(1))
-			return 0
+		{
+			Signature:   "gopdf.ui.set_selected(index)",
+			Description: "Select a 1-based overlay row.",
+			Function: func(L *lua.LState) int {
+				if rt.host == nil {
+					L.RaiseError("ui.set_selected: viewer host unavailable")
+				}
+				rt.host.SetUISelected(L.CheckInt(1))
+				return 0
+			},
 		},
 	})
 	return tbl
 }
 
-func setDocumentedLuaFunctions(L *lua.LState, table *lua.LTable, prefix string, functions map[luaFunctionSpec]lua.LGFunction) {
+func registerLuaFunctions(L *lua.LState, table *lua.LTable, prefix string, functions []luaFunctionSpec) {
 	registered := make(map[string]lua.LGFunction, len(functions))
-	for spec, function := range functions {
+	for _, spec := range functions {
 		name, ok := strings.CutPrefix(spec.Signature, prefix)
 		if !ok {
 			panic("Lua function signature has wrong prefix: " + spec.Signature)
@@ -504,7 +672,10 @@ func setDocumentedLuaFunctions(L *lua.LState, table *lua.LTable, prefix string, 
 		if _, exists := registered[name]; exists {
 			panic("duplicate Lua function: " + prefix + name)
 		}
-		registered[name] = function
+		if spec.Function == nil {
+			panic("missing Lua function implementation: " + spec.Signature)
+		}
+		registered[name] = spec.Function
 		luaFunctionReferencesMu.Lock()
 		luaFunctionReferences[spec.Signature] = LuaReferenceEntry{Signature: spec.Signature, Description: spec.Description}
 		luaFunctionReferencesMu.Unlock()
