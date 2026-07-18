@@ -370,8 +370,7 @@ Open the command prompt with `:`.
 | Command | Description |
 |---------|-------------|
 | `:page PAGE`, `:p PAGE`, `:N` | Jump to a physical page number or PDF page label |
-| `:search <text>` | Search document |
-| `:search re:<pattern>` | Search document with a Go regular expression |
+| `:search [-r] [-i] [-w] [-p] <text>` | Search; flags enable regex, ignore-case, whole-word, and current-page matching |
 | `:fit width` / `:fit page` / `:fit manual` | Set fit mode |
 | `:mode continuous` / `:mode single` | Set render mode |
 | `:colors normal` / `:colors alt` | Set color mode |
@@ -423,7 +422,7 @@ Open the command prompt with `:`.
 | `gopdf.search_match_index()` | Current match, 1-indexed, or nil |
 | `gopdf.search_match_count()` | Total matches |
 
-Prefix a query with `re:` to search with a Go regular expression, for example `:search re:foo.*bar`.
+Search flags may be combined, for example `:search -ri foo.*bar`. Use `--` before a query beginning with a dash. The same syntax is accepted by `gopdf.search()`.
 
 ### Utilities
 

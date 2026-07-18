@@ -6,6 +6,8 @@ import (
 	"regexp"
 	"strings"
 	"sync"
+	"unicode"
+	"unicode/utf8"
 
 	"gopdf/internal/mupdf"
 
@@ -32,13 +34,20 @@ type searchState struct {
 	running    bool
 	generation int
 	mode       searchMode
-	regex      bool
+	options    searchOptions
+}
+
+type searchOptions struct {
+	regex           bool
+	caseInsensitive bool
+	wholeWord       bool
+	currentPageOnly bool
 }
 
 type searchRequest struct {
 	generation int
 	query      string
-	regex      bool
+	options    searchOptions
 	startPage  int
 	pageCount  int
 }
@@ -116,8 +125,15 @@ func (w *searchWorker) run(doc *mupdf.Document) {
 				break
 			}
 			var re *regexp.Regexp
-			if req.regex {
-				compiled, err := regexp.Compile(req.query)
+			if req.options.regex || req.options.caseInsensitive || req.options.wholeWord {
+				pattern := req.query
+				if !req.options.regex {
+					pattern = regexp.QuoteMeta(pattern)
+				}
+				if req.options.caseInsensitive {
+					pattern = "(?i)" + pattern
+				}
+				compiled, err := regexp.Compile(pattern)
 				if err != nil {
 					w.send(searchUpdate{generation: req.generation, done: true, err: err})
 					break
@@ -125,8 +141,11 @@ func (w *searchWorker) run(doc *mupdf.Document) {
 				re = compiled
 			}
 			restarted := false
-			for offset := range req.pageCount {
-				page := searchPageAt(req.startPage, req.pageCount, offset)
+			pages := searchPageOrder(req.startPage, req.pageCount)
+			if req.options.currentPageOnly && req.pageCount > 0 {
+				pages = []int{clampInt(req.startPage, 0, req.pageCount-1)}
+			}
+			for _, page := range pages {
 				select {
 				case <-w.closing:
 					return
@@ -138,7 +157,7 @@ func (w *searchWorker) run(doc *mupdf.Document) {
 				if restarted {
 					break
 				}
-				hits, err := searchDocumentPage(doc, page, req.query, re)
+				hits, err := searchDocumentPage(doc, page, req.query, re, req.options)
 				if err != nil {
 					w.send(searchUpdate{generation: req.generation, done: true, err: err})
 					restarted = true
@@ -155,7 +174,7 @@ func (w *searchWorker) run(doc *mupdf.Document) {
 	}
 }
 
-func searchDocumentPage(doc *mupdf.Document, page int, query string, re *regexp.Regexp) ([]mupdf.SearchHit, error) {
+func searchDocumentPage(doc *mupdf.Document, page int, query string, re *regexp.Regexp, options searchOptions) ([]mupdf.SearchHit, error) {
 	if re == nil {
 		return doc.SearchPage(page, query)
 	}
@@ -165,12 +184,20 @@ func searchDocumentPage(doc *mupdf.Document, page int, query string, re *regexp.
 	}
 	seen := map[string]bool{}
 	hits := []mupdf.SearchHit{}
-	for _, match := range re.FindAllString(text, -1) {
-		match = strings.TrimSpace(match)
-		if match == "" || seen[match] {
+	for _, loc := range re.FindAllStringIndex(text, -1) {
+		if options.wholeWord && !isWholeWordMatch(text, loc[0], loc[1]) {
 			continue
 		}
-		seen[match] = true
+		match := text[loc[0]:loc[1]]
+		match = strings.TrimSpace(match)
+		key := match
+		if options.caseInsensitive {
+			key = strings.ToLower(key)
+		}
+		if match == "" || seen[key] {
+			continue
+		}
+		seen[key] = true
 		matchHits, err := doc.SearchPage(page, match)
 		if err != nil {
 			return nil, err
@@ -178,6 +205,26 @@ func searchDocumentPage(doc *mupdf.Document, page int, query string, re *regexp.
 		hits = append(hits, matchHits...)
 	}
 	return hits, nil
+}
+
+func isWholeWordMatch(text string, start, end int) bool {
+	if start > 0 {
+		r, _ := utf8.DecodeLastRuneInString(text[:start])
+		if isWordRune(r) {
+			return false
+		}
+	}
+	if end < len(text) {
+		r, _ := utf8.DecodeRuneInString(text[end:])
+		if isWordRune(r) {
+			return false
+		}
+	}
+	return true
+}
+
+func isWordRune(r rune) bool {
+	return r == '_' || unicode.IsLetter(r) || unicode.IsNumber(r)
 }
 
 func (w *searchWorker) send(update searchUpdate) {
@@ -275,7 +322,7 @@ func (a *App) pollSearchUpdates() {
 
 func (a *App) startSearch(query string, mode searchMode) {
 	query = strings.TrimSpace(query)
-	query, regex := parseSearchQuery(query)
+	query, options := parseSearchQuery(query)
 	a.search.generation++
 	a.search.query = query
 	a.search.matches = map[int][]mupdf.SearchHit{}
@@ -283,7 +330,7 @@ func (a *App) startSearch(query string, mode searchMode) {
 	a.search.current = -1
 	a.search.running = false
 	a.search.mode = mode
-	a.search.regex = regex
+	a.search.options = options
 	if query == "" {
 		a.message = ""
 		return
@@ -297,12 +344,12 @@ func (a *App) startSearch(query string, mode searchMode) {
 		return
 	}
 	a.search.running = true
-	a.logf("start search query=%q regex=%t page=%d", query, regex, a.page+1)
+	a.logf("start search query=%q options=%+v page=%d", query, options, a.page+1)
 	a.message = fmt.Sprintf("searching for %s", a.searchDisplayQuery())
 	if !a.searchWorker.Start(searchRequest{
 		generation: a.search.generation,
 		query:      query,
-		regex:      regex,
+		options:    options,
 		startPage:  a.page,
 		pageCount:  a.pageCount,
 	}) {
@@ -311,11 +358,44 @@ func (a *App) startSearch(query string, mode searchMode) {
 	}
 }
 
-func parseSearchQuery(query string) (string, bool) {
-	if after, ok := strings.CutPrefix(query, "re:"); ok {
-		return strings.TrimSpace(after), true
+func parseSearchQuery(query string) (string, searchOptions) {
+	query = strings.TrimSpace(query)
+	options := searchOptions{}
+	for query != "" {
+		field, rest, _ := strings.Cut(query, " ")
+		if field == "--" {
+			return strings.TrimSpace(rest), options
+		}
+		if len(field) < 2 || field[0] != '-' || !applySearchFlags(field[1:], &options) {
+			break
+		}
+		query = strings.TrimSpace(rest)
 	}
-	return query, false
+	return query, options
+}
+
+func applySearchFlags(flags string, options *searchOptions) bool {
+	if flags == "" {
+		return false
+	}
+	for _, flag := range flags {
+		if !strings.ContainsRune("riwp", flag) {
+			return false
+		}
+	}
+	for _, flag := range flags {
+		switch flag {
+		case 'r':
+			options.regex = true
+		case 'i':
+			options.caseInsensitive = true
+		case 'w':
+			options.wholeWord = true
+		case 'p':
+			options.currentPageOnly = true
+		}
+	}
+	return true
 }
 
 func (a *App) clearSearch() {
@@ -326,7 +406,7 @@ func (a *App) clearSearch() {
 	a.search.current = -1
 	a.search.running = false
 	a.search.mode = searchModeForward
-	a.search.regex = false
+	a.search.options = searchOptions{}
 	a.message = ""
 }
 
@@ -446,8 +526,21 @@ func (a *App) searchStatusMessage() string {
 }
 
 func (a *App) searchDisplayQuery() string {
-	if a.search.regex {
-		return "re:" + a.search.query
+	flags := ""
+	if a.search.options.regex {
+		flags += "r"
+	}
+	if a.search.options.caseInsensitive {
+		flags += "i"
+	}
+	if a.search.options.wholeWord {
+		flags += "w"
+	}
+	if a.search.options.currentPageOnly {
+		flags += "p"
+	}
+	if flags != "" {
+		return "-" + flags + " " + a.search.query
 	}
 	return a.search.query
 }

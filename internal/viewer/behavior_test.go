@@ -197,13 +197,36 @@ func TestMouseButtonHelpers(t *testing.T) {
 }
 
 func TestParseSearchQuery(t *testing.T) {
-	query, regex := parseSearchQuery("re:foo.*bar")
-	if query != "foo.*bar" || !regex {
-		t.Fatalf("parseSearchQuery regex = %q, %t", query, regex)
+	query, options := parseSearchQuery("-ri -w foo.*bar")
+	if query != "foo.*bar" || !options.regex || !options.caseInsensitive || !options.wholeWord || options.currentPageOnly {
+		t.Fatalf("parseSearchQuery flags = %q, %+v", query, options)
 	}
-	query, regex = parseSearchQuery("plain text")
-	if query != "plain text" || regex {
-		t.Fatalf("parseSearchQuery plain = %q, %t", query, regex)
+	query, options = parseSearchQuery("-- -plain text")
+	if query != "-plain text" || options != (searchOptions{}) {
+		t.Fatalf("parseSearchQuery escaped plain = %q, %+v", query, options)
+	}
+	query, options = parseSearchQuery("-unknown text")
+	if query != "-unknown text" || options != (searchOptions{}) {
+		t.Fatalf("parseSearchQuery unknown flag = %q, %+v", query, options)
+	}
+}
+
+func TestWholeWordMatchUsesUnicodeWordCharacters(t *testing.T) {
+	text := "foo foobar café_2 café"
+	tests := []struct {
+		start int
+		end   int
+		want  bool
+	}{
+		{start: 0, end: 3, want: true},
+		{start: 4, end: 7, want: false},
+		{start: 11, end: 16, want: false},
+		{start: 19, end: len(text), want: true},
+	}
+	for _, tt := range tests {
+		if got := isWholeWordMatch(text, tt.start, tt.end); got != tt.want {
+			t.Fatalf("isWholeWordMatch(%d, %d) = %t, want %t", tt.start, tt.end, got, tt.want)
+		}
 	}
 }
 

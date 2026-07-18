@@ -34,7 +34,7 @@ var commandSpecs = []commandSpec{
 	{Name: "quit", Help: ":quit, :q - Exit"},
 	{Name: "reload-config", Help: ":reload-config - Reload the config file"},
 	{Name: "recent", Help: ":recent - Open the recent-files menu"},
-	{Name: "search", Help: ":search <text> - Search document text"},
+	{Name: "search", Help: ":search [-r] [-i] [-w] [-p] <text> - Search document text"},
 	{Name: "set", ArgCompletions: setSettingNames(), Help: ":set " + strings.Join(setSettingNames(), "|") + " - Toggle setting"},
 }
 
@@ -71,6 +71,6 @@ func commandHelpRows() []string {
 			rows = append(rows, spec.Help)
 		}
 	}
-	rows = append(rows, ":search re:<pattern> - Search with a Go regular expression")
+	rows = append(rows, "Search flags: -r regex, -i ignore case, -w whole word, -p current page")
 	return rows
 }
