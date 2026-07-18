@@ -1,0 +1,26 @@
+name: Notify documentation site
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - "*"
+  workflow_dispatch:
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    env:
+      DOCS_REPO_TOKEN: ${{ secrets.DOCS_REPO_TOKEN }}
+    steps:
+      - name: Trigger gopdf_docs rebuild
+        if: env.DOCS_REPO_TOKEN != ''
+        run: |
+          curl --fail-with-body \
+            --request POST \
+            --header "Accept: application/vnd.github+json" \
+            --header "Authorization: Bearer ${DOCS_REPO_TOKEN}" \
+            --header "X-GitHub-Api-Version: 2022-11-28" \
+            https://api.github.com/repos/Aethar01/gopdf_docs/dispatches \
+            --data '{"event_type":"gopdf-update"}'

@@ -97,7 +97,7 @@ Session data is stored in `session.sqlite` under the platform application-data d
 
 ## Documentation
 
-The [documentation site](https://aethar01.github.io/gopdf/) covers:
+The [documentation site](https://aethar01.github.io/gopdf_docs/) covers:
 
 - Configuration options and defaults
 - Commands and search flags

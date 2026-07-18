@@ -31,5 +31,4 @@ testdata
 AppDir
 
 # Generated documentation site output
-/docs/reference.html
-/_site/
+/docs/reference.md
