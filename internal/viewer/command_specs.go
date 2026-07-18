@@ -30,7 +30,7 @@ var commandSpecs = []commandSpec{
 	{Name: "mode", ArgCompletions: []string{"continuous", "single"}, Help: ":mode continuous|single - Set render mode"},
 	{Name: "open", Help: ":open <filename> - Open another PDF relative to the current document"},
 	{Name: "open_file_picker", Help: ":open_file_picker - Open the PDF file picker"},
-	{Name: "page", Help: ":page N, :p N, :N - Jump to page N"},
+	{Name: "page", Help: ":page PAGE, :p PAGE, :N - Jump to a page number or label"},
 	{Name: "quit", Help: ":quit, :q - Exit"},
 	{Name: "reload-config", Help: ":reload-config - Reload the config file"},
 	{Name: "recent", Help: ":recent - Open the recent-files menu"},

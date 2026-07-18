@@ -99,6 +99,7 @@ func (a *App) pollMetricUpdates() {
 			a.pageMetrics[update.page].bounds = update.bounds
 			a.pageMetrics[update.page].width = update.width
 			a.pageMetrics[update.page].height = update.height
+			a.pageMetrics[update.page].label = update.label
 			a.pageMetrics[update.page].loaded = true
 			changed = true
 		default:
@@ -241,7 +242,8 @@ func (a *App) initDocumentMetrics(doc *mupdf.Document, pages int, startPage int)
 	if pages > 0 {
 		if bounds, err := doc.Bounds(startPage); err == nil {
 			w, h := rotatedBoundsSize(bounds, 0)
-			a.pageMetrics[startPage] = pageMetrics{bounds: bounds, width: w, height: h, loaded: true}
+			label, _ := doc.PageLabel(startPage)
+			a.pageMetrics[startPage] = pageMetrics{bounds: bounds, width: w, height: h, label: label, loaded: true}
 			defaultW, defaultH = w, h
 		}
 	}

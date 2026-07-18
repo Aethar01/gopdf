@@ -12,6 +12,7 @@ type pageMetricUpdate struct {
 	bounds mupdf.Rect
 	width  float64
 	height float64
+	label  string
 	err    error
 }
 
@@ -47,7 +48,8 @@ func (l *metricLoader) run(doc *mupdf.Document, pageCount int, startPage int) {
 			return l.send(pageMetricUpdate{page: i, err: fmt.Errorf("load page %d metrics: %w", i+1, err)})
 		}
 		w, h := rotatedBoundsSize(bounds, 0)
-		return l.send(pageMetricUpdate{page: i, bounds: bounds, width: w, height: h})
+		label, _ := doc.PageLabel(i)
+		return l.send(pageMetricUpdate{page: i, bounds: bounds, width: w, height: h, label: label})
 	}
 	startPage = clampInt(startPage, 0, max(0, pageCount-1))
 	for _, page := range metricPageOrder(pageCount, startPage) {

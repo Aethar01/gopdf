@@ -50,16 +50,19 @@ func (a *App) formatStatusBar(template string) string {
 	}
 
 	page := fmt.Sprintf("%d", a.page+1)
+	label := a.pageLabel(a.page)
 	if a.dualPage && len(a.rows) > 0 && a.page >= 0 && a.page < len(a.pageToRow) {
 		row := a.rows[a.pageToRow[a.page]]
 		if len(row.pages) >= 2 {
 			page = fmt.Sprintf("%d-%d", row.pages[0]+1, row.pages[len(row.pages)-1]+1)
+			label = a.pageLabel(row.pages[0]) + "-" + a.pageLabel(row.pages[len(row.pages)-1])
 		}
 	}
 
 	replacer := strings.NewReplacer(
 		"{message}", message,
 		"{page}", page,
+		"{label}", label,
 		"{total}", fmt.Sprintf("%d", a.pageCount),
 		"{mode}", a.renderMode,
 		"{fit}", a.fitMode,
@@ -74,6 +77,13 @@ func (a *App) formatStatusBar(template string) string {
 		"$$", "$",
 	)
 	return replacer.Replace(template)
+}
+
+func (a *App) pageLabel(page int) string {
+	if page >= 0 && page < len(a.pageMetrics) && a.pageMetrics[page].label != "" {
+		return a.pageMetrics[page].label
+	}
+	return fmt.Sprintf("%d", page+1)
 }
 
 func (a *App) drawInputCursor(renderer *sdl.Renderer, barY, pad, vertOffset int) error {

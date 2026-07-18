@@ -457,12 +457,26 @@ func (a *App) SetCacheLimit(limit int) error {
 func (a *App) ClearCache() { a.clearCache() }
 
 func (a *App) gotoPageInput(input string) {
-	n, err := strconv.Atoi(input)
-	if err != nil {
-		a.message = fmt.Sprintf("invalid page: %s", input)
+	page, ok := a.resolvePageInput(input)
+	if !ok {
+		a.message = fmt.Sprintf("invalid page or label: %s", strings.TrimSpace(input))
 		return
 	}
-	a.alignPageToAnchor(clampInt(n-1, 0, a.pageCount-1))
+	a.alignPageToAnchor(page)
+}
+
+func (a *App) resolvePageInput(input string) (int, bool) {
+	input = strings.TrimSpace(input)
+	for page, metric := range a.pageMetrics {
+		if metric.label != "" && strings.EqualFold(metric.label, input) {
+			return page, true
+		}
+	}
+	n, err := strconv.Atoi(input)
+	if err != nil {
+		return 0, false
+	}
+	return clampInt(n-1, 0, a.pageCount-1), true
 }
 
 func (a *App) runCommand(input string) {

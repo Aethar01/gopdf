@@ -264,7 +264,7 @@ func TestRunCommandValidationPaths(t *testing.T) {
 
 	app.message = ""
 	app.runCommand(":page nope")
-	if app.message != "invalid page: nope" {
+	if app.message != "invalid page or label: nope" {
 		t.Fatalf("expected invalid page message, got %q", app.message)
 	}
 
@@ -289,6 +289,30 @@ func TestRunCommandValidationPaths(t *testing.T) {
 	app.runCommand(":quit")
 	if !app.quit {
 		t.Fatal("expected quit command to set quit flag")
+	}
+}
+
+func TestGotoPageInputAcceptsPageLabel(t *testing.T) {
+	app := testLayoutApp(4)
+	app.pageMetrics[0].label = "i"
+	app.pageMetrics[1].label = "ii"
+	app.pageMetrics[2].label = "1"
+	app.pageMetrics[3].label = "A-2"
+
+	if page, ok := app.resolvePageInput("a-2"); !ok || page != 3 {
+		t.Fatalf("expected label A-2 to resolve to page 4, got %d, %t", page+1, ok)
+	}
+	if page, ok := app.resolvePageInput("1"); !ok || page != 2 {
+		t.Fatalf("expected numeric label 1 to resolve to page 3, got %d, %t", page+1, ok)
+	}
+}
+
+func TestFormatStatusBarUsesPageLabels(t *testing.T) {
+	app := testLayoutApp(3)
+	app.page = 1
+	app.pageMetrics[1].label = "iv"
+	if got := app.formatStatusBar("{page}:{label}"); got != "2:iv" {
+		t.Fatalf("expected page label in status bar, got %q", got)
 	}
 }
 

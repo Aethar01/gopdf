@@ -45,6 +45,7 @@ type pageMetrics struct {
 	bounds mupdf.Rect
 	width  float64
 	height float64
+	label  string
 	loaded bool
 }
 

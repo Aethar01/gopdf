@@ -223,6 +223,7 @@ Available placeholders:
 |-------------|-------------|
 | `{message}` | Current status message or input prompt |
 | `{page}` | Current page, or current spread range in dual-page mode |
+| `{label}` | Current PDF page label, or label range in dual-page mode |
 | `{total}` | Total pages |
 | `{mode}` | Render mode: continuous or single |
 | `{fit}` | Fit mode: page, width, or manual |
@@ -368,7 +369,7 @@ Open the command prompt with `:`.
 
 | Command | Description |
 |---------|-------------|
-| `:page N`, `:p N`, `:N` | Jump to page N |
+| `:page PAGE`, `:p PAGE`, `:N` | Jump to a physical page number or PDF page label |
 | `:search <text>` | Search document |
 | `:search re:<pattern>` | Search document with a Go regular expression |
 | `:fit width` / `:fit page` / `:fit manual` | Set fit mode |
