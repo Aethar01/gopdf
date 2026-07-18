@@ -33,6 +33,7 @@ var commandSpecs = []commandSpec{
 	{Name: "page", Help: ":page N, :p N, :N - Jump to page N"},
 	{Name: "quit", Help: ":quit, :q - Exit"},
 	{Name: "reload-config", Help: ":reload-config - Reload the config file"},
+	{Name: "recent", Help: ":recent - Open the recent-files menu"},
 	{Name: "search", Help: ":search <text> - Search document text"},
 	{Name: "set", ArgCompletions: setSettingNames(), Help: ":set " + strings.Join(setSettingNames(), "|") + " - Toggle setting"},
 }

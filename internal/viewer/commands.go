@@ -216,6 +216,8 @@ func (a *App) runBuiltinAction(action string) error {
 		if path != "" {
 			return a.Open(path)
 		}
+	case "show_recent_files":
+		a.showRecentFiles()
 	case "clear_search":
 		a.clearSearch()
 	default:
@@ -529,6 +531,8 @@ func (a *App) runCommand(input string) {
 		if err := a.runBuiltinAction("open_file_picker"); err != nil {
 			a.message = err.Error()
 		}
+	case "recent":
+		a.showRecentFiles()
 	case "lua":
 		if a.runtime == nil {
 			a.message = "no Lua runtime"
@@ -582,6 +586,32 @@ func (a *App) showCommandHelp() {
 		visible: true,
 		title:   "Commands",
 		rows:    commandHelpRows(),
+	}
+	a.pendingRedraw = true
+}
+
+func (a *App) showRecentFiles() {
+	if !a.config.SessionDatabase {
+		a.message = "session database disabled"
+		return
+	}
+	paths := config.RecentFiles(a.config.RecentFilesMax)
+	if len(paths) == 0 {
+		a.message = "no recent files"
+		return
+	}
+	a.closeAllUI()
+	a.luaUI = luaUIState{
+		visible:  true,
+		title:    "Recent Files",
+		rows:     paths,
+		selected: 0,
+		onSelectBuiltin: func(path string) {
+			a.CloseUI()
+			if err := a.Open(path); err != nil {
+				a.message = err.Error()
+			}
+		},
 	}
 	a.pendingRedraw = true
 }

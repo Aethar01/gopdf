@@ -21,6 +21,7 @@ type luaUIState struct {
 	query                string
 	onSelect             string
 	onClose              string
+	onSelectBuiltin      func(string)
 }
 
 func (a *App) ShowUI(overlay config.UIOverlay) error {
@@ -239,11 +240,16 @@ func (a *App) activateLuaUISelection() {
 		return
 	}
 	callback := a.luaUI.onSelect
-	if callback == "" {
+	builtin := a.luaUI.onSelectBuiltin
+	if callback == "" && builtin == nil {
 		return
 	}
 	index := a.luaUI.selected + 1
 	value := a.luaUI.rows[a.luaUI.selected]
+	if builtin != nil {
+		builtin(value)
+		return
+	}
 	if err := a.runtime.RunUISelect(callback, index, value); err != nil {
 		a.message = err.Error()
 	}

@@ -305,6 +305,7 @@ gopdf.unbind_mouse("wheel_down")
 | `o` | Open/close outline menu |
 | `<F1>` | Open keybinds menu |
 | `<C-S-o>` | Open PDF file picker |
+| `gr` | Open recent-files menu |
 | `<C-S-r>` | Reload config |
 | `<CR>` | Confirm input or selected outline item |
 | `+` / `=` / `-` / `0` | Zoom in / zoom in / zoom out / reset zoom |
@@ -380,6 +381,7 @@ Open the command prompt with `:`.
 | `:set status_bar!` | Toggle status bar |
 | `:open <filename>` | Open another PDF, relative to the current document directory |
 | `:open_file_picker` | Open the PDF file picker |
+| `:recent` | Open the recent-files menu |
 | `:reload-config` | Reload config file |
 | `:keybinds` | Toggle keybinds menu |
 | `:lua <code>` | Execute Lua code inline |
@@ -578,6 +580,7 @@ gopdf.pan()              gopdf.reload_config()
 gopdf.show_completion()  gopdf.next_completion()
 gopdf.prev_completion()
 gopdf.open_file_picker() gopdf.keybinds()
+gopdf.show_recent_files()
 gopdf.quit()
 ```
 

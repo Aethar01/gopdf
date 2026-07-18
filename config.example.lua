@@ -86,6 +86,7 @@ gopdf.bind("<Esc>", gopdf.close)
 gopdf.bind("<C-i>", gopdf.jump_forward)
 gopdf.bind("<C-o>", gopdf.jump_backward)
 gopdf.bind("<C-S-o>", gopdf.open_file_picker)
+gopdf.bind("gr", gopdf.show_recent_files)
 gopdf.bind("<C-S-r>", gopdf.reload_config)
 gopdf.bind("<F1>", gopdf.keybinds)
 

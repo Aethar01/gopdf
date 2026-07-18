@@ -378,6 +378,28 @@ func TestRunCommandSearchAndOpenMessages(t *testing.T) {
 	}
 }
 
+func TestRecentFilesCommandReportsDisabledDatabase(t *testing.T) {
+	app := &App{config: config.Config{SessionDatabase: false}}
+	app.runCommand(":recent")
+	if app.message != "session database disabled" {
+		t.Fatalf("expected disabled database message, got %q", app.message)
+	}
+}
+
+func TestBuiltinModalSelection(t *testing.T) {
+	selected := ""
+	app := &App{uiState: uiState{luaUI: luaUIState{
+		visible:         true,
+		rows:            []string{"one.pdf", "two.pdf"},
+		selected:        1,
+		onSelectBuiltin: func(value string) { selected = value },
+	}}}
+	app.activateLuaUISelection()
+	if selected != "two.pdf" {
+		t.Fatalf("expected built-in selection callback, got %q", selected)
+	}
+}
+
 func TestResolveOpenPathReturnsAbsolutePath(t *testing.T) {
 	want, err := filepath.Abs("test.txt")
 	if err != nil {
