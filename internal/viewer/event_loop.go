@@ -39,21 +39,8 @@ func (a *App) Run() error {
 		w, h := outputW, outputH
 		a.winW, a.winH = int(w), int(h)
 	}
-	if a.initialDocPath != "" {
-		a.message = "opening " + a.initialDocPath
-		a.pendingRedraw = true
-		if err := a.drawFrame(); err != nil {
-			return err
-		}
-		path := a.initialDocPath
-		startPage := a.initialStartPage
-		pageSet := a.initialPageSet
-		a.initialDocPath = ""
-		a.initialPageSet = false
-		a.logf("open initial document path=%q page=%d", path, startPage+1)
-		if err := a.openDocument(path, openDocumentOptions{startPage: startPage, startPageExplicit: pageSet}); err != nil {
-			return err
-		}
+	if err := a.openInitialDocument(); err != nil {
+		return err
 	}
 	a.recomputeLayout(a.viewportSize())
 	a.pendingRedraw = true
@@ -88,6 +75,28 @@ func (a *App) Run() error {
 		}
 	}
 	a.logf("viewer exiting")
+	return nil
+}
+
+func (a *App) openInitialDocument() error {
+	if a.initialDocPath == "" {
+		return nil
+	}
+	a.message = "opening " + a.initialDocPath
+	a.pendingRedraw = true
+	if err := a.drawFrame(); err != nil {
+		return err
+	}
+	path := a.initialDocPath
+	startPage := a.initialStartPage
+	pageSet := a.initialPageSet
+	a.initialDocPath = ""
+	a.initialPageSet = false
+	a.logf("open initial document path=%q page=%d", path, startPage+1)
+	if err := a.openDocument(path, openDocumentOptions{startPage: startPage, startPageExplicit: pageSet}); err != nil {
+		a.message = err.Error()
+		a.pendingRedraw = true
+	}
 	return nil
 }
 

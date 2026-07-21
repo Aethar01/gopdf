@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"os"
 
 	_ "embed"
 
@@ -53,7 +54,11 @@ func run() error {
 			}
 		}
 	} else {
-		docPath = flag.Arg(0)
+		var err error
+		docPath, err = explicitDocumentPath(flag.Arg(0))
+		if err != nil {
+			return err
+		}
 	}
 	if verbose {
 		log.Printf("verbose logging enabled")
@@ -73,4 +78,12 @@ func run() error {
 	defer app.Close()
 
 	return app.Run()
+}
+
+func explicitDocumentPath(path string) (string, error) {
+	path = config.AbsoluteDocumentPath(path)
+	if _, err := os.Stat(path); err != nil {
+		return "", fmt.Errorf("open document: %w", err)
+	}
+	return path, nil
 }
