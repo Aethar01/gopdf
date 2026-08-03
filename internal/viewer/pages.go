@@ -3,6 +3,7 @@ package viewer
 import (
 	"image/color"
 	"math"
+	"sort"
 
 	"gopdf/internal/mupdf"
 
@@ -221,28 +222,78 @@ func (a *App) prefetchVisiblePages() {
 			}
 		}
 	}
-	if a.renderWorker != nil {
-		a.renderWorker.SetWantedPages(seen)
-		a.renderWorker.DrainUnwanted(a.renderGeneration)
-	}
 	a.visibleCachePages = map[int]bool{}
 	for _, page := range visible {
 		a.visibleCachePages[page] = true
 	}
+	if a.renderWorker != nil {
+		a.renderWorker.SetWantedPages(seen)
+		a.renderWorker.SetVisiblePages(a.visibleCachePages)
+		a.renderWorker.DrainUnwanted(a.renderGeneration)
+	}
 	for key, req := range a.renderPending {
-		if req.generation == a.renderGeneration && !seen[req.page] {
-			delete(a.renderPending, key)
+		if req.generation != a.renderGeneration {
+			continue
 		}
+		if !seen[req.page] {
+			delete(a.renderPending, key)
+			continue
+		}
+		if a.visibleCachePages[req.page] {
+			req.priority = 0
+		} else if req.priority <= 0 {
+			req.priority = renderPrefetchPriority + pageDistance(req.page, a.page)
+		}
+		a.renderPending[key] = req
 	}
 	for _, page := range visible {
 		a.requestRender(page, a.scale, 0)
 	}
-	if a.hasPendingVisibleRender() || a.hasPendingBackgroundRender() {
+	if a.hasPendingVisibleRender() {
+		a.preemptNonVisibleRender()
 		return
 	}
-	for _, page := range prefetch {
-		if a.requestRender(page, a.scale, 10) {
+	sort.SliceStable(prefetch, func(i, j int) bool {
+		di := pageDistance(prefetch[i], a.page)
+		dj := pageDistance(prefetch[j], a.page)
+		if di == dj {
+			return prefetch[i] < prefetch[j]
+		}
+		return di < dj
+	})
+	limit := maxPendingPrefetchRenders
+	if a.cacheLimit > 0 {
+		limit = min(limit, max(0, a.cacheLimit-len(visible)))
+	}
+	remaining := limit - a.pendingBackgroundRenderCount()
+	for i, page := range prefetch {
+		if remaining <= 0 {
 			break
 		}
+		if a.requestRender(page, a.scale, renderPrefetchPriority+i) {
+			remaining--
+		}
 	}
+}
+
+func (a *App) preemptNonVisibleRender() {
+	if a.renderWorker == nil {
+		return
+	}
+	page, cancelled := a.renderWorker.CancelNotVisible(a.visibleCachePages)
+	if !cancelled {
+		return
+	}
+	for key, req := range a.renderPending {
+		if req.generation == a.renderGeneration && req.page == page {
+			delete(a.renderPending, key)
+		}
+	}
+}
+
+func pageDistance(a, b int) int {
+	if a < b {
+		return b - a
+	}
+	return a - b
 }

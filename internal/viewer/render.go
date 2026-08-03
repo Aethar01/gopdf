@@ -72,13 +72,15 @@ type renderWorker struct {
 	closeOnce  sync.Once
 	generation atomic.Int32
 	wanted     atomic.Value
+	visible    atomic.Value
+	activePage atomic.Int32
 }
 
 func newRenderWorker(doc *mupdf.Document) *renderWorker {
 	w := &renderWorker{
 		doc:      doc,
 		requests: make(chan renderRequest, 128),
-		updates:  make(chan renderUpdate, 1),
+		updates:  make(chan renderUpdate, maxPendingPrefetchRenders),
 		closing:  make(chan struct{}),
 		done:     make(chan struct{}),
 	}
@@ -110,6 +112,29 @@ func (w *renderWorker) SetWantedPages(pages map[int]bool) {
 		}
 	}
 	w.wanted.Store(keep)
+	activePage := int(w.activePage.Load()) - 1
+	if activePage >= 0 && !keep[activePage] {
+		w.Cancel()
+	}
+}
+
+func (w *renderWorker) SetVisiblePages(pages map[int]bool) {
+	visible := make(map[int]bool, len(pages))
+	for page, ok := range pages {
+		if ok {
+			visible[page] = true
+		}
+	}
+	w.visible.Store(visible)
+}
+
+func (w *renderWorker) CancelNotVisible(visible map[int]bool) (int, bool) {
+	activePage := int(w.activePage.Load()) - 1
+	if activePage < 0 || visible[activePage] {
+		return 0, false
+	}
+	w.Cancel()
+	return activePage, true
 }
 
 func (w *renderWorker) Enqueue(req renderRequest) bool {
@@ -156,6 +181,21 @@ func (w *renderWorker) requestWanted(req renderRequest, gen int) bool {
 	return !ok || wanted[req.page]
 }
 
+func (w *renderWorker) requestPriority(req renderRequest) int {
+	value := w.visible.Load()
+	if value == nil {
+		return req.priority
+	}
+	visible, ok := value.(map[int]bool)
+	if ok && visible[req.page] {
+		return 0
+	}
+	if ok && req.priority <= 0 {
+		return renderPrefetchPriority
+	}
+	return req.priority
+}
+
 func (w *renderWorker) run(doc *mupdf.Document) {
 	defer close(w.done)
 	if doc == nil {
@@ -187,7 +227,9 @@ func (w *renderWorker) run(doc *mupdf.Document) {
 		if !ok {
 			continue
 		}
+		w.activePage.Store(int32(req.page + 1))
 		rendered, err := doc.Render(req.page, req.scale, 0, req.aaLevel)
+		w.activePage.Store(0)
 		w.send(renderUpdate{
 			generation: req.generation,
 			page:       req.page,
@@ -208,7 +250,7 @@ func (w *renderWorker) popNextRequest(queue []renderRequest) (renderRequest, []r
 		if !w.requestWanted(req, gen) {
 			continue
 		}
-		if best < 0 || req.priority < queue[best].priority {
+		if best < 0 || w.requestPriority(req) < w.requestPriority(queue[best]) {
 			best = i
 		}
 	}
@@ -257,11 +299,6 @@ func (a *App) pollRenderUpdates() {
 			if update.rendered != nil {
 				defer update.rendered.Close()
 			}
-			if update.err != nil {
-				a.logf("render update failed err=%v", update.err)
-				a.message = update.err.Error()
-				continue
-			}
 			if update.generation != a.renderGeneration {
 				delete(a.renderPending, update.cacheKey)
 				continue
@@ -269,14 +306,18 @@ func (a *App) pollRenderUpdates() {
 			if _, pending := a.renderPending[update.cacheKey]; !pending {
 				continue
 			}
+			delete(a.renderPending, update.cacheKey)
+			if update.err != nil {
+				a.logf("render update failed err=%v", update.err)
+				a.message = update.err.Error()
+				continue
+			}
 			if update.rendered == nil {
-				delete(a.renderPending, update.cacheKey)
 				continue
 			}
 			if update.altColors {
 				remapPageColors(update.rendered.Image, a.config.AltBackground, a.config.AltForeground)
 			}
-			delete(a.renderPending, update.cacheKey)
 			a.removeRenderCacheEntry(update.cacheKey, true)
 			tex, err := textureFromRGBA(a.renderer, update.rendered.Image)
 			if err != nil {
@@ -558,7 +599,15 @@ func (a *App) requestRender(page int, scale float64, priority ...int) bool {
 		a.touchRenderCacheEntry(cacheKey)
 		return false
 	}
-	if _, ok := a.renderPending[cacheKey]; ok {
+	requestedPriority := 0
+	if len(priority) > 0 {
+		requestedPriority = priority[0]
+	}
+	if req, ok := a.renderPending[cacheKey]; ok {
+		if requestedPriority < req.priority {
+			req.priority = requestedPriority
+			a.renderPending[cacheKey] = req
+		}
 		return false
 	}
 	req := renderRequest{
@@ -569,9 +618,7 @@ func (a *App) requestRender(page int, scale float64, priority ...int) bool {
 		aaLevel:    a.config.AntiAliasing,
 		cacheKey:   cacheKey,
 	}
-	if len(priority) > 0 {
-		req.priority = priority[0]
-	}
+	req.priority = requestedPriority
 	if !a.renderWorker.Enqueue(req) {
 		a.logf("render enqueue skipped page=%d key=%s", page+1, cacheKey)
 		return false
@@ -589,13 +636,14 @@ func (a *App) hasPendingVisibleRender() bool {
 	return false
 }
 
-func (a *App) hasPendingBackgroundRender() bool {
+func (a *App) pendingBackgroundRenderCount() int {
+	count := 0
 	for _, req := range a.renderPending {
 		if req.generation == a.renderGeneration && req.priority > 0 {
-			return true
+			count++
 		}
 	}
-	return false
+	return count
 }
 
 func (rs *renderService) invalidateRenderRequests() {
@@ -657,6 +705,8 @@ const (
 	defaultRenderOversample   = 1
 	defaultPageCacheSize      = 16
 	defaultThumbnailMaxPixels = 4 * 1024 * 1024
+	maxPendingPrefetchRenders = 4
+	renderPrefetchPriority    = 10
 	renderUpgradeTolerance    = 0.95
 	renderDowngradeHeadroom   = 2.0
 	renderScaleSettleDelay    = 75 * time.Millisecond

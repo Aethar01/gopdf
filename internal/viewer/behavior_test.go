@@ -706,6 +706,21 @@ func TestRenderWorkerPrioritizesVisibleRequests(t *testing.T) {
 	}
 }
 
+func TestRenderWorkerPromotesVisiblePrefetchRequest(t *testing.T) {
+	w := &renderWorker{}
+	w.generation.Store(2)
+	w.SetVisiblePages(map[int]bool{10: true})
+	queue := []renderRequest{
+		{generation: 2, page: 3, priority: 0},
+		{generation: 2, page: 10, priority: 10},
+	}
+
+	req, _, ok := w.popNextRequest(queue)
+	if !ok || req.page != 10 {
+		t.Fatalf("expected visible prefetch request to be promoted, got %#v ok=%v", req, ok)
+	}
+}
+
 func TestRenderWorkerSkipsUnwantedRequests(t *testing.T) {
 	w := &renderWorker{}
 	w.generation.Store(2)

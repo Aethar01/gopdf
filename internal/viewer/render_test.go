@@ -3,6 +3,8 @@ package viewer
 import (
 	"container/list"
 	"testing"
+
+	"gopdf/internal/config"
 )
 
 func listWithValues(values ...any) *list.List {
@@ -137,5 +139,77 @@ func TestThumbnailCacheEvictsByDerivedLimit(t *testing.T) {
 	}
 	if len(rs.thumbnailCache) != 2 {
 		t.Fatalf("thumbnail entries = %d, want 2", len(rs.thumbnailCache))
+	}
+}
+
+func TestRequestRenderPromotesPendingRequest(t *testing.T) {
+	key := renderCacheKey(0, 1, false, 8)
+	app := &App{
+		documentState: documentState{pageCount: 1},
+		config:        config.Config{AntiAliasing: 8},
+		renderService: renderService{
+			renderCache:     map[string]*renderedPage{},
+			renderPending:   map[string]renderRequest{key: {page: 0, priority: 10}},
+			renderWorker:    &renderWorker{},
+			renderBaseScale: 1,
+		},
+	}
+
+	if app.requestRender(0, 1, 0) {
+		t.Fatal("pending request should be promoted rather than enqueued again")
+	}
+	if got := app.renderPending[key].priority; got != 0 {
+		t.Fatalf("pending request priority = %d, want 0", got)
+	}
+}
+
+func TestPrefetchVisiblePagesQueuesBoundedLookahead(t *testing.T) {
+	app := testLayoutApp(20)
+	app.winW = 100
+	app.winH = 800
+	app.cacheLimit = 16
+	app.renderBaseScale = 1
+	app.renderCache = map[string]*renderedPage{}
+	app.renderPending = map[string]renderRequest{}
+	app.renderWorker = &renderWorker{requests: make(chan renderRequest, 128)}
+	app.recomputeLayout(app.viewportSize())
+
+	app.prefetchVisiblePages()
+	for key, req := range app.renderPending {
+		if req.priority != 0 {
+			t.Fatalf("queued background render before visible pages completed: %#v", req)
+		}
+		app.addRenderCacheEntry(key, &renderedPage{key: key, page: req.page, scale: req.scale, aaLevel: req.aaLevel, width: 1, height: 1})
+	}
+	app.renderPending = map[string]renderRequest{}
+	app.renderWorker.requests = make(chan renderRequest, 128)
+
+	app.prefetchVisiblePages()
+	if got := app.pendingBackgroundRenderCount(); got != maxPendingPrefetchRenders {
+		t.Fatalf("pending prefetch renders = %d, want %d", got, maxPendingPrefetchRenders)
+	}
+}
+
+func TestVisibleRequestPreemptsPreviouslyVisibleRender(t *testing.T) {
+	worker := &renderWorker{}
+	worker.activePage.Store(1)
+	app := &App{
+		renderService: renderService{
+			renderPending: map[string]renderRequest{
+				"old": {generation: 2, page: 0, priority: 0},
+				"new": {generation: 2, page: 1, priority: 0},
+			},
+			renderWorker:      worker,
+			renderGeneration:  2,
+			visibleCachePages: map[int]bool{1: true},
+		},
+	}
+
+	app.preemptNonVisibleRender()
+	if _, ok := app.renderPending["old"]; ok {
+		t.Fatal("preempted render remained pending")
+	}
+	if _, ok := app.renderPending["new"]; !ok {
+		t.Fatal("visible render was removed")
 	}
 }
