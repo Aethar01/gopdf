@@ -123,6 +123,8 @@ func (a *App) handleSDLEvent(event *sdl.Event) error {
 	case sdl.EventQuit:
 		a.quit = true
 		redraw = false
+	case sdl.EventWindowExposed:
+		redraw = true
 	case sdl.EventWindowResized, sdl.EventWindowPixelSizeChanged:
 		e := event.Window()
 		a.relayoutWithViewportAnchor(func() {

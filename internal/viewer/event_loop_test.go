@@ -65,3 +65,16 @@ func TestHandleSDLEventTracksSystemFullscreenChanges(t *testing.T) {
 		t.Fatal("expected system leave fullscreen event to update app state")
 	}
 }
+
+func TestHandleSDLEventRedrawsExposedWindow(t *testing.T) {
+	app := &App{}
+	event := sdl.Event{}
+	binary.NativeEndian.PutUint32(event[:], uint32(sdl.EventWindowExposed))
+
+	if err := app.handleSDLEvent(&event); err != nil {
+		t.Fatalf("handle window exposed event: %v", err)
+	}
+	if !app.pendingRedraw {
+		t.Fatal("expected window exposed event to request a redraw")
+	}
+}
