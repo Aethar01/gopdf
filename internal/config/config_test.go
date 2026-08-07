@@ -593,27 +593,43 @@ func TestExpandedLuaHostAPI(t *testing.T) {
 	path := filepath.Join(dir, "config.lua")
 	if err := os.WriteFile(path, []byte(`
 bind("X", function()
-  gopdf.goto_page(9)
-  gopdf.set_fit_mode("width")
-  gopdf.set_render_mode("single")
-  gopdf.set_zoom(1.75)
-  gopdf.set_rotation(180)
-  gopdf.set_fullscreen(true)
-  gopdf.set_status_bar_visible(false)
+  local page = gopdf.page(9)
+  local fit_mode = gopdf.fit_mode("width")
+  local render_mode = gopdf.render_mode("single")
+  local zoom = gopdf.zoom(1.75)
+  local rotation = gopdf.rotation(180)
+  local fullscreen = gopdf.fullscreen(false)
+  local status_bar_visible = gopdf.status_bar_visible(false)
   gopdf.search("needle", true)
   local keys = gopdf.pending_keys()
-  gopdf.cache.set_limit(48)
+  local cache_limit = gopdf.cache.limit(48)
   gopdf.cache.clear()
-  gopdf.message(
+  if page ~= gopdf.page() or
+     fit_mode ~= gopdf.fit_mode() or
+     render_mode ~= gopdf.render_mode() or
+     zoom ~= gopdf.zoom() or
+     rotation ~= gopdf.rotation() or
+     fullscreen ~= gopdf.fullscreen() or
+     status_bar_visible ~= gopdf.status_bar_visible() or
+     cache_limit ~= gopdf.cache.limit() then
+    error("setter did not return the current value")
+  end
+  local message =
+    tostring(page) .. ":" ..
     gopdf.mode() .. ":" ..
-    gopdf.fit_mode() .. ":" ..
-    gopdf.render_mode() .. ":" ..
-    tostring(gopdf.zoom()) .. ":" ..
-    tostring(gopdf.rotation()) .. ":" ..
+    fit_mode .. ":" ..
+    render_mode .. ":" ..
+    tostring(zoom) .. ":" ..
+    tostring(rotation) .. ":" ..
+    tostring(fullscreen) .. ":" ..
+    tostring(status_bar_visible) .. ":" ..
+    tostring(cache_limit) .. ":" ..
     tostring(gopdf.search_match_index()) .. "/" .. tostring(gopdf.search_match_count()) .. ":" ..
     gopdf.current_count() .. ":" ..
     keys[1]
-  )
+  if gopdf.message(message) ~= message or gopdf.message() ~= message then
+    error("message setter did not return the current value")
+  end
   gopdf.clear_pending_keys()
 end)
 `), 0o644); err != nil {
@@ -636,6 +652,7 @@ end)
 		renderMode:       "continuous",
 		zoom:             1.25,
 		rotation:         90,
+		fullscreen:       true,
 		statusBarVisible: true,
 		cacheEntries:     7,
 		cachePending:     3,
@@ -649,7 +666,7 @@ end)
 	if host.page != 9 || host.fitMode != "width" || host.renderMode != "single" {
 		t.Fatalf("expected navigation/view setters to run, host=%+v", host)
 	}
-	if host.zoom != 1.75 || host.rotation != 180 || !host.fullscreen || host.statusBarVisible {
+	if host.zoom != 1.75 || host.rotation != 180 || host.fullscreen || host.statusBarVisible {
 		t.Fatalf("expected zoom/rotation/fullscreen/status updates, host=%+v", host)
 	}
 	if host.searchQuery != "needle" || !host.searchBackward {
@@ -658,7 +675,7 @@ end)
 	if host.cacheLimit != 48 || !host.cacheCleared {
 		t.Fatalf("expected cache controls to run, host=%+v", host)
 	}
-	if got := host.message; got != "normal:width:single:1.75:180:2/5:12:g" {
+	if got := host.message; got != "9:normal:width:single:1.75:180:false:false:48:2/5:12:g" {
 		t.Fatalf("unexpected message %q", got)
 	}
 	if len(host.pendingKeys) != 0 || host.currentCount != "" {

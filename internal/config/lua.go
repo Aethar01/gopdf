@@ -113,14 +113,13 @@ func newLuaModule(L *lua.LState, rt *Runtime, cfg *Config) *lua.LTable {
 
 		{
 			Signature:   "gopdf.message([text])",
-			Description: "Get the current message or set it when text is supplied.",
+			Description: "Return the current message, or set and return it when text is supplied.",
 			Function: func(L *lua.LState) int {
 				if L.GetTop() > 0 {
 					if rt.host == nil {
 						L.RaiseError("message: viewer host unavailable")
 					}
 					rt.host.SetMessage(L.CheckString(1))
-					return 0
 				}
 				if rt.host == nil {
 					L.Push(lua.LString(cfg.NormalMessage))
@@ -172,9 +171,17 @@ func newLuaModule(L *lua.LState, rt *Runtime, cfg *Config) *lua.LTable {
 			},
 		},
 		{
-			Signature:   "gopdf.page()",
-			Description: "Return the current 1-based physical page number.",
+			Signature:   "gopdf.page([page])",
+			Description: "Return the current 1-based physical page number, or go to and return it when supplied.",
 			Function: func(L *lua.LState) int {
+				if L.GetTop() > 0 {
+					if rt.host == nil {
+						L.RaiseError("page: viewer host unavailable")
+					}
+					if err := rt.host.GotoPage(L.CheckInt(1)); err != nil {
+						L.RaiseError("page: %v", err)
+					}
+				}
 				if rt.host == nil {
 					L.Push(lua.LNil)
 					return 1
@@ -193,19 +200,6 @@ func newLuaModule(L *lua.LState, rt *Runtime, cfg *Config) *lua.LTable {
 				}
 				L.Push(lua.LNumber(rt.host.PageCount()))
 				return 1
-			},
-		},
-		{
-			Signature:   "gopdf.goto_page(page)",
-			Description: "Jump to a 1-based physical page number.",
-			Function: func(L *lua.LState) int {
-				if rt.host == nil {
-					L.RaiseError("goto_page: viewer host unavailable")
-				}
-				if err := rt.host.GotoPage(L.CheckInt(1)); err != nil {
-					L.RaiseError("goto_page: %v", err)
-				}
-				return 0
 			},
 		},
 		{
@@ -330,9 +324,17 @@ func newLuaModule(L *lua.LState, rt *Runtime, cfg *Config) *lua.LTable {
 			},
 		},
 		{
-			Signature:   "gopdf.fit_mode()",
-			Description: "Return the current fit mode.",
+			Signature:   "gopdf.fit_mode([mode])",
+			Description: "Return the current fit mode, or set and return it when supplied.",
 			Function: func(L *lua.LState) int {
+				if L.GetTop() > 0 {
+					if rt.host == nil {
+						L.RaiseError("fit_mode: viewer host unavailable")
+					}
+					if err := rt.host.SetFitMode(L.CheckString(1)); err != nil {
+						L.RaiseError("fit_mode: %v", err)
+					}
+				}
 				if rt.host == nil {
 					L.Push(lua.LString(cfg.FitMode))
 					return 1
@@ -342,22 +344,17 @@ func newLuaModule(L *lua.LState, rt *Runtime, cfg *Config) *lua.LTable {
 			},
 		},
 		{
-			Signature:   "gopdf.set_fit_mode(mode)",
-			Description: "Set page, width, or manual fit mode.",
+			Signature:   "gopdf.render_mode([mode])",
+			Description: "Return the current render mode, or set and return it when supplied.",
 			Function: func(L *lua.LState) int {
-				if rt.host == nil {
-					L.RaiseError("set_fit_mode: viewer host unavailable")
+				if L.GetTop() > 0 {
+					if rt.host == nil {
+						L.RaiseError("render_mode: viewer host unavailable")
+					}
+					if err := rt.host.SetRenderMode(L.CheckString(1)); err != nil {
+						L.RaiseError("render_mode: %v", err)
+					}
 				}
-				if err := rt.host.SetFitMode(L.CheckString(1)); err != nil {
-					L.RaiseError("set_fit_mode: %v", err)
-				}
-				return 0
-			},
-		},
-		{
-			Signature:   "gopdf.render_mode()",
-			Description: "Return continuous or single render mode.",
-			Function: func(L *lua.LState) int {
 				if rt.host == nil {
 					L.Push(lua.LString(cfg.RenderMode))
 					return 1
@@ -367,22 +364,17 @@ func newLuaModule(L *lua.LState, rt *Runtime, cfg *Config) *lua.LTable {
 			},
 		},
 		{
-			Signature:   "gopdf.set_render_mode(mode)",
-			Description: "Set continuous or single render mode.",
+			Signature:   "gopdf.zoom([scale])",
+			Description: "Return the current render scale, or set and return it when supplied.",
 			Function: func(L *lua.LState) int {
-				if rt.host == nil {
-					L.RaiseError("set_render_mode: viewer host unavailable")
+				if L.GetTop() > 0 {
+					if rt.host == nil {
+						L.RaiseError("zoom: viewer host unavailable")
+					}
+					if err := rt.host.SetZoom(float64(L.CheckNumber(1))); err != nil {
+						L.RaiseError("zoom: %v", err)
+					}
 				}
-				if err := rt.host.SetRenderMode(L.CheckString(1)); err != nil {
-					L.RaiseError("set_render_mode: %v", err)
-				}
-				return 0
-			},
-		},
-		{
-			Signature:   "gopdf.zoom()",
-			Description: "Return the current render scale.",
-			Function: func(L *lua.LState) int {
 				if rt.host == nil {
 					L.Push(lua.LNil)
 					return 1
@@ -392,22 +384,17 @@ func newLuaModule(L *lua.LState, rt *Runtime, cfg *Config) *lua.LTable {
 			},
 		},
 		{
-			Signature:   "gopdf.set_zoom(scale)",
-			Description: "Set manual zoom scale.",
+			Signature:   "gopdf.rotation([degrees])",
+			Description: "Return clockwise rotation, or set and return it when supplied.",
 			Function: func(L *lua.LState) int {
-				if rt.host == nil {
-					L.RaiseError("set_zoom: viewer host unavailable")
+				if L.GetTop() > 0 {
+					if rt.host == nil {
+						L.RaiseError("rotation: viewer host unavailable")
+					}
+					if err := rt.host.SetRotation(float64(L.CheckNumber(1))); err != nil {
+						L.RaiseError("rotation: %v", err)
+					}
 				}
-				if err := rt.host.SetZoom(float64(L.CheckNumber(1))); err != nil {
-					L.RaiseError("set_zoom: %v", err)
-				}
-				return 0
-			},
-		},
-		{
-			Signature:   "gopdf.rotation()",
-			Description: "Return clockwise rotation in degrees.",
-			Function: func(L *lua.LState) int {
 				if rt.host == nil {
 					L.Push(lua.LNil)
 					return 1
@@ -417,22 +404,17 @@ func newLuaModule(L *lua.LState, rt *Runtime, cfg *Config) *lua.LTable {
 			},
 		},
 		{
-			Signature:   "gopdf.set_rotation(degrees)",
-			Description: "Set clockwise rotation in degrees.",
+			Signature:   "gopdf.fullscreen([enabled])",
+			Description: "Return fullscreen state, or set and return it when supplied.",
 			Function: func(L *lua.LState) int {
-				if rt.host == nil {
-					L.RaiseError("set_rotation: viewer host unavailable")
+				if L.GetTop() > 0 {
+					if rt.host == nil {
+						L.RaiseError("fullscreen: viewer host unavailable")
+					}
+					if err := rt.host.SetFullscreen(lua.LVAsBool(L.CheckAny(1))); err != nil {
+						L.RaiseError("fullscreen: %v", err)
+					}
 				}
-				if err := rt.host.SetRotation(float64(L.CheckNumber(1))); err != nil {
-					L.RaiseError("set_rotation: %v", err)
-				}
-				return 0
-			},
-		},
-		{
-			Signature:   "gopdf.fullscreen()",
-			Description: "Return fullscreen state.",
-			Function: func(L *lua.LState) int {
 				if rt.host == nil {
 					L.Push(lua.LFalse)
 					return 1
@@ -442,41 +424,23 @@ func newLuaModule(L *lua.LState, rt *Runtime, cfg *Config) *lua.LTable {
 			},
 		},
 		{
-			Signature:   "gopdf.set_fullscreen(enabled)",
-			Description: "Set fullscreen state.",
+			Signature:   "gopdf.status_bar_visible([visible])",
+			Description: "Return status bar visibility, or set and return it when supplied.",
 			Function: func(L *lua.LState) int {
-				if rt.host == nil {
-					L.RaiseError("set_fullscreen: viewer host unavailable")
+				if L.GetTop() > 0 {
+					if rt.host == nil {
+						L.RaiseError("status_bar_visible: viewer host unavailable")
+					}
+					if err := rt.host.SetStatusBarVisible(lua.LVAsBool(L.CheckAny(1))); err != nil {
+						L.RaiseError("status_bar_visible: %v", err)
+					}
 				}
-				if err := rt.host.SetFullscreen(lua.LVAsBool(L.CheckAny(1))); err != nil {
-					L.RaiseError("set_fullscreen: %v", err)
-				}
-				return 0
-			},
-		},
-		{
-			Signature:   "gopdf.status_bar_visible()",
-			Description: "Return status bar visibility.",
-			Function: func(L *lua.LState) int {
 				if rt.host == nil {
 					L.Push(lua.LBool(cfg.StatusBarVisible))
 					return 1
 				}
 				L.Push(lua.LBool(rt.host.StatusBarVisible()))
 				return 1
-			},
-		},
-		{
-			Signature:   "gopdf.set_status_bar_visible(visible)",
-			Description: "Set status bar visibility.",
-			Function: func(L *lua.LState) int {
-				if rt.host == nil {
-					L.RaiseError("set_status_bar_visible: viewer host unavailable")
-				}
-				if err := rt.host.SetStatusBarVisible(lua.LVAsBool(L.CheckAny(1))); err != nil {
-					L.RaiseError("set_status_bar_visible: %v", err)
-				}
-				return 0
 			},
 		},
 	})
@@ -541,28 +505,23 @@ func newLuaCacheTable(L *lua.LState, rt *Runtime) *lua.LTable {
 			},
 		},
 		{
-			Signature:   "gopdf.cache.limit()",
-			Description: "Return the rendered-page cache limit.",
+			Signature:   "gopdf.cache.limit([limit])",
+			Description: "Return the rendered-page cache limit, or set and return it when supplied.",
 			Function: func(L *lua.LState) int {
+				if L.GetTop() > 0 {
+					if rt.host == nil {
+						L.RaiseError("cache.limit: viewer host unavailable")
+					}
+					if err := rt.host.SetCacheLimit(L.CheckInt(1)); err != nil {
+						L.RaiseError("cache.limit: %v", err)
+					}
+				}
 				if rt.host == nil {
 					L.Push(lua.LNumber(0))
 					return 1
 				}
 				L.Push(lua.LNumber(rt.host.CacheLimit()))
 				return 1
-			},
-		},
-		{
-			Signature:   "gopdf.cache.set_limit(limit)",
-			Description: "Set the rendered-page cache limit.",
-			Function: func(L *lua.LState) int {
-				if rt.host == nil {
-					L.RaiseError("cache.set_limit: viewer host unavailable")
-				}
-				if err := rt.host.SetCacheLimit(L.CheckInt(1)); err != nil {
-					L.RaiseError("cache.set_limit: %v", err)
-				}
-				return 0
 			},
 		},
 		{
