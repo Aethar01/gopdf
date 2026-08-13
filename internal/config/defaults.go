@@ -9,6 +9,7 @@ func Default() Config {
 		RenderOversample:    1,
 		MinZoom:             0.5,
 		MaxZoom:             8,
+		PinchSensitivity:    1,
 		PageCacheSize:       16,
 		DualPage:            false,
 		FirstPageOffset:     true,

@@ -154,7 +154,11 @@ func (a *App) handleSDLEvent(event *sdl.Event) error {
 		a.handleSDLMouseWheel(&e)
 	case sdl.EventPinchUpdate:
 		if scale := pinchEventScale(event); scale > 0 {
-			a.setManualZoom(float64(scale))
+			sensitivity := a.config.PinchSensitivity
+			if sensitivity <= 0 {
+				sensitivity = 1
+			}
+			a.setManualZoom(math.Pow(float64(scale), sensitivity))
 		}
 	case sdl.EventMouseButtonDown, sdl.EventMouseButtonUp:
 		e := event.Button()

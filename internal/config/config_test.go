@@ -493,6 +493,15 @@ func TestRuntimeOptionInspectionAndAssignment(t *testing.T) {
 	if cfg := rt.Config(); cfg.MinZoom != 1.25 || cfg.MaxZoom != 12 {
 		t.Fatalf("expected zoom bounds 1.25..12, got %.2f..%.2f", cfg.MinZoom, cfg.MaxZoom)
 	}
+	if value, err := rt.OptionValue("pinch_sensitivity"); err != nil || value != "1" {
+		t.Fatalf("OptionValue(pinch_sensitivity) = %q, %v", value, err)
+	}
+	if err := rt.SetOption("pinch_sensitivity", "0.5"); err != nil {
+		t.Fatal(err)
+	}
+	if rt.Config().PinchSensitivity != 0.5 {
+		t.Fatalf("expected pinch_sensitivity=0.5, got %v", rt.Config().PinchSensitivity)
+	}
 	if err := rt.ToggleOption("natural_scroll"); err != nil {
 		t.Fatal(err)
 	}

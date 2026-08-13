@@ -82,7 +82,7 @@ func TestHandleSDLEventRedrawsExposedWindow(t *testing.T) {
 
 func TestHandleSDLEventPinchUpdatesZoom(t *testing.T) {
 	app := &App{
-		config:          config.Default(),
+		config:          config.Config{PinchSensitivity: 2, MinZoom: 0.5, MaxZoom: 8},
 		viewStateFields: viewStateFields{zoom: 2, fitMode: "manual"},
 	}
 	event := sdl.Event{}
@@ -92,8 +92,8 @@ func TestHandleSDLEventPinchUpdatesZoom(t *testing.T) {
 	if err := app.handleSDLEvent(&event); err != nil {
 		t.Fatalf("handle pinch event: %v", err)
 	}
-	if app.zoom != 2.5 {
-		t.Fatalf("expected pinch to scale zoom to 2.5, got %v", app.zoom)
+	if app.zoom != 3.125 {
+		t.Fatalf("expected pinch sensitivity to scale zoom to 3.125, got %v", app.zoom)
 	}
 	if app.fitMode != "manual" {
 		t.Fatalf("expected pinch to switch to manual zoom, got %q", app.fitMode)
