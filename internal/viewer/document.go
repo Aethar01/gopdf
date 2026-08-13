@@ -158,7 +158,7 @@ func (a *App) openDocumentWithPassword(path string, opts openDocumentOptions, pa
 	a.pageCount = pages
 	a.page = startPage
 	a.rotation = 0
-	a.zoom = 1
+	a.zoom = a.clampZoom(1)
 	a.scale = 1
 	a.scrollX = 0
 	a.scrollY = 0

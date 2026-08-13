@@ -218,7 +218,7 @@ func New(docPath string, runtime *config.Runtime, startPage int, iconBytes []byt
 			pageLinks: map[int][]mupdf.Link{},
 		},
 		viewStateFields: viewStateFields{
-			zoom:     1,
+			zoom:     cfg.MinZoom,
 			scale:    1,
 			pageStep: 64,
 		},
@@ -1080,9 +1080,21 @@ func (a *App) setManualZoom(delta float64) {
 			baseZoom = a.scale
 		}
 		a.fitMode = "manual"
-		a.zoom = math.Max(0.75, math.Min(4.0, baseZoom*delta))
+		a.zoom = a.clampZoom(baseZoom * delta)
 		a.scheduleRenderScaleTarget(a.zoom)
 	})
+}
+
+func (a *App) clampZoom(zoom float64) float64 {
+	minZoom := a.config.MinZoom
+	if minZoom <= 0 {
+		minZoom = config.Default().MinZoom
+	}
+	maxZoom := a.config.MaxZoom
+	if maxZoom < minZoom {
+		maxZoom = minZoom
+	}
+	return clampFloat(zoom, minZoom, maxZoom)
 }
 
 func (a *App) setFitMode(mode string) {

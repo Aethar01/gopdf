@@ -481,6 +481,18 @@ func TestRuntimeOptionInspectionAndAssignment(t *testing.T) {
 	if rt.Config().ScrollStep != 96 {
 		t.Fatalf("expected scroll_step=96, got %d", rt.Config().ScrollStep)
 	}
+	if value, err := rt.OptionValue("min_zoom"); err != nil || value != "0.5" {
+		t.Fatalf("OptionValue(min_zoom) = %q, %v", value, err)
+	}
+	if err := rt.SetOption("min_zoom", "1.25"); err != nil {
+		t.Fatal(err)
+	}
+	if err := rt.SetOption("max_zoom", "12"); err != nil {
+		t.Fatal(err)
+	}
+	if cfg := rt.Config(); cfg.MinZoom != 1.25 || cfg.MaxZoom != 12 {
+		t.Fatalf("expected zoom bounds 1.25..12, got %.2f..%.2f", cfg.MinZoom, cfg.MaxZoom)
+	}
 	if err := rt.ToggleOption("natural_scroll"); err != nil {
 		t.Fatal(err)
 	}

@@ -177,7 +177,7 @@ func (a *App) runBuiltinAction(action string) error {
 	case "zoom_out":
 		a.setManualZoom(1 / 1.15)
 	case "reset_zoom":
-		a.zoom = 1
+		a.zoom = a.clampZoom(1)
 		a.setFitMode("manual")
 	case "fit_width":
 		a.setFitMode("width")
@@ -310,6 +310,7 @@ func (a *App) applyConfigState(cfg config.Config, preserveManualFit bool) {
 		a.fitMode = currentFitMode
 	}
 	a.renderMode = sanitizeRenderMode(cfg.RenderMode)
+	a.zoom = a.clampZoom(a.zoom)
 	a.cacheLimit = pageCacheLimit(cfg, a.pageCount)
 	a.altColors = cfg.AltColors
 	a.dualPage = cfg.DualPage
@@ -401,7 +402,7 @@ func (a *App) SetZoom(zoom float64) error {
 	}
 	a.relayoutWithViewportAnchor(func() {
 		a.fitMode = "manual"
-		a.zoom = clampFloat(zoom, 0.05, 8.0)
+		a.zoom = a.clampZoom(zoom)
 		a.scheduleRenderScaleTarget(a.zoom)
 	})
 	return nil

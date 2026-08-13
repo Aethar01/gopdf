@@ -113,6 +113,20 @@ func TestFormatStatusBarUsesInputModeMessage(t *testing.T) {
 	}
 }
 
+func TestZoomUsesConfiguredBounds(t *testing.T) {
+	app := &App{
+		config:          config.Config{MinZoom: 1, MaxZoom: 8},
+		viewStateFields: viewStateFields{zoom: 1, scale: 1, fitMode: "manual"},
+	}
+
+	if got := app.clampZoom(0.5); got != 1 {
+		t.Fatalf("expected configured minimum zoom, got %.2f", got)
+	}
+	if got := app.clampZoom(12); got != 8 {
+		t.Fatalf("expected configured maximum zoom, got %.2f", got)
+	}
+}
+
 func TestFormatStatusBarShowsDualPageSpread(t *testing.T) {
 	app := &App{
 		documentState:   documentState{page: 1, pageCount: 4},

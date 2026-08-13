@@ -287,11 +287,21 @@ var configOptions = map[string]optionDesc{
 		c.PageGapHorizontal = v
 		c.SpreadGap = v
 	}),
-	"status_bar_height":    intOption("Status bar height in pixels.", func(c *Config) int { return c.StatusBarHeight }, func(c *Config, v int) { c.StatusBarHeight = v }),
-	"status_bar_padding":   intOption("Horizontal status bar padding in pixels.", func(c *Config) int { return c.StatusBarPadding }, func(c *Config, v int) { c.StatusBarPadding = v }),
-	"ui_font_size":         intOption("UI font size in pixels.", func(c *Config) int { return c.UIFontSize }, func(c *Config, v int) { c.UIFontSize = v }),
-	"sequence_timeout_ms":  intOption("Maximum delay between keys in a binding sequence.", func(c *Config) int { return c.SequenceTimeoutMS }, func(c *Config, v int) { c.SequenceTimeoutMS = v }),
-	"render_oversample":    floatOption("Render scale multiplier; values above 1 supersample.", func(c *Config) float64 { return c.RenderOversample }, func(c *Config, v float64) { c.RenderOversample = v }),
+	"status_bar_height":   intOption("Status bar height in pixels.", func(c *Config) int { return c.StatusBarHeight }, func(c *Config, v int) { c.StatusBarHeight = v }),
+	"status_bar_padding":  intOption("Horizontal status bar padding in pixels.", func(c *Config) int { return c.StatusBarPadding }, func(c *Config, v int) { c.StatusBarPadding = v }),
+	"ui_font_size":        intOption("UI font size in pixels.", func(c *Config) int { return c.UIFontSize }, func(c *Config, v int) { c.UIFontSize = v }),
+	"sequence_timeout_ms": intOption("Maximum delay between keys in a binding sequence.", func(c *Config) int { return c.SequenceTimeoutMS }, func(c *Config, v int) { c.SequenceTimeoutMS = v }),
+	"render_oversample":   floatOption("Render scale multiplier; values above 1 supersample.", func(c *Config) float64 { return c.RenderOversample }, func(c *Config, v float64) { c.RenderOversample = v }),
+	"min_zoom": floatOption("Minimum manual zoom scale.", func(c *Config) float64 { return c.MinZoom }, func(c *Config, v float64) {
+		if v > 0 {
+			c.MinZoom = v
+		}
+	}),
+	"max_zoom": floatOption("Maximum manual zoom scale.", func(c *Config) float64 { return c.MaxZoom }, func(c *Config, v float64) {
+		if v > 0 {
+			c.MaxZoom = v
+		}
+	}),
 	"render_mode":          stringOption("Initial render mode: continuous or single.", func(c *Config) string { return c.RenderMode }, func(c *Config, v string) { c.RenderMode = NormalizeRenderMode(v) }),
 	"fit_mode":             stringOption("Initial fit mode: page, width, or manual.", func(c *Config) string { return c.FitMode }, func(c *Config, v string) { c.FitMode = NormalizeFitMode(v) }),
 	"anchor_position":      stringOption("Viewport anchor: center, top, or bottom.", func(c *Config) string { return c.AnchorPosition }, func(c *Config, v string) { c.AnchorPosition = NormalizeAnchorPosition(v) }),
