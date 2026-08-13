@@ -1,7 +1,9 @@
 package viewer
 
 import (
+	"encoding/binary"
 	"fmt"
+	"math"
 	"time"
 
 	"github.com/jupiterrider/purego-sdl3/sdl"
@@ -150,6 +152,10 @@ func (a *App) handleSDLEvent(event *sdl.Event) error {
 	case sdl.EventMouseWheel:
 		e := event.Wheel()
 		a.handleSDLMouseWheel(&e)
+	case sdl.EventPinchUpdate:
+		if scale := pinchEventScale(event); scale > 0 {
+			a.setManualZoom(float64(scale))
+		}
 	case sdl.EventMouseButtonDown, sdl.EventMouseButtonUp:
 		e := event.Button()
 		a.handleSDLMouseButton(&e)
@@ -167,6 +173,13 @@ func (a *App) handleSDLEvent(event *sdl.Event) error {
 		a.pendingRedraw = true
 	}
 	return nil
+}
+
+// The SDL binding currently does not expose Event.Pinch(). SDL_Event stores
+// the pinch scale immediately after the common event header.
+func pinchEventScale(event *sdl.Event) float32 {
+	const commonEventSize = 16 // type, reserved, timestamp
+	return math.Float32frombits(binary.NativeEndian.Uint32(event[commonEventSize:]))
 }
 
 func (a *App) handleDroppedFile(path string) {

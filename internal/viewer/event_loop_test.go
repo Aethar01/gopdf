@@ -2,6 +2,7 @@ package viewer
 
 import (
 	"encoding/binary"
+	"math"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -76,5 +77,25 @@ func TestHandleSDLEventRedrawsExposedWindow(t *testing.T) {
 	}
 	if !app.pendingRedraw {
 		t.Fatal("expected window exposed event to request a redraw")
+	}
+}
+
+func TestHandleSDLEventPinchUpdatesZoom(t *testing.T) {
+	app := &App{
+		config:          config.Default(),
+		viewStateFields: viewStateFields{zoom: 2, fitMode: "manual"},
+	}
+	event := sdl.Event{}
+	binary.NativeEndian.PutUint32(event[:], uint32(sdl.EventPinchUpdate))
+	binary.NativeEndian.PutUint32(event[16:], math.Float32bits(1.25))
+
+	if err := app.handleSDLEvent(&event); err != nil {
+		t.Fatalf("handle pinch event: %v", err)
+	}
+	if app.zoom != 2.5 {
+		t.Fatalf("expected pinch to scale zoom to 2.5, got %v", app.zoom)
+	}
+	if app.fitMode != "manual" {
+		t.Fatalf("expected pinch to switch to manual zoom, got %q", app.fitMode)
 	}
 }
