@@ -85,6 +85,11 @@ func TestHandleSDLEventPinchUpdatesZoom(t *testing.T) {
 		config:          config.Config{PinchSensitivity: 2, MinZoom: 0.5, MaxZoom: 8},
 		viewStateFields: viewStateFields{zoom: 2, fitMode: "manual"},
 	}
+	begin := sdl.Event{}
+	binary.NativeEndian.PutUint32(begin[:], uint32(sdl.EventPinchBegin))
+	if err := app.handleSDLEvent(&begin); err != nil {
+		t.Fatalf("handle pinch begin: %v", err)
+	}
 	event := sdl.Event{}
 	binary.NativeEndian.PutUint32(event[:], uint32(sdl.EventPinchUpdate))
 	binary.NativeEndian.PutUint32(event[16:], math.Float32bits(1.25))
@@ -92,10 +97,33 @@ func TestHandleSDLEventPinchUpdatesZoom(t *testing.T) {
 	if err := app.handleSDLEvent(&event); err != nil {
 		t.Fatalf("handle pinch event: %v", err)
 	}
-	if app.zoom != 3.125 {
-		t.Fatalf("expected pinch sensitivity to scale zoom to 3.125, got %v", app.zoom)
+	if app.zoom <= 2 || app.zoom >= 3.125 {
+		t.Fatalf("expected pinch update to smoothly scale zoom between 2 and 3.125, got %v", app.zoom)
 	}
 	if app.fitMode != "manual" {
 		t.Fatalf("expected pinch to switch to manual zoom, got %q", app.fitMode)
+	}
+	end := sdl.Event{}
+	binary.NativeEndian.PutUint32(end[:], uint32(sdl.EventPinchEnd))
+	if err := app.handleSDLEvent(&end); err != nil {
+		t.Fatalf("handle pinch end: %v", err)
+	}
+	if app.zoom != 3.125 {
+		t.Fatalf("expected pinch end to commit zoom 3.125, got %v", app.zoom)
+	}
+}
+
+func TestHandleSDLEventPinchOutDoesNotReverseDirection(t *testing.T) {
+	app := &App{config: config.Config{MinZoom: 0.5, MaxZoom: 8}, viewStateFields: viewStateFields{zoom: 2, fitMode: "manual"}}
+	for _, scale := range []float32{0.98, 0.99, 0.97} {
+		event := sdl.Event{}
+		binary.NativeEndian.PutUint32(event[:], uint32(sdl.EventPinchUpdate))
+		binary.NativeEndian.PutUint32(event[16:], math.Float32bits(scale))
+		if err := app.handleSDLEvent(&event); err != nil {
+			t.Fatalf("handle pinch update: %v", err)
+		}
+	}
+	if app.zoom >= 2 {
+		t.Fatalf("expected pinch out to reduce zoom, got %v", app.zoom)
 	}
 }
