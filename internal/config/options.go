@@ -307,6 +307,11 @@ var configOptions = map[string]optionDesc{
 			c.PinchSensitivity = v
 		}
 	}),
+	"pinch_smoothing": floatOption("Trackpad pinch zoom smoothing; 1 applies updates immediately, lower values smooth more.", func(c *Config) float64 { return c.PinchSmoothing }, func(c *Config, v float64) {
+		if v > 0 && v <= 1 {
+			c.PinchSmoothing = v
+		}
+	}),
 	"render_mode":          stringOption("Initial render mode: continuous or single.", func(c *Config) string { return c.RenderMode }, func(c *Config, v string) { c.RenderMode = NormalizeRenderMode(v) }),
 	"fit_mode":             stringOption("Initial fit mode: page, width, or manual.", func(c *Config) string { return c.FitMode }, func(c *Config, v string) { c.FitMode = NormalizeFitMode(v) }),
 	"anchor_position":      stringOption("Viewport anchor: center, top, or bottom.", func(c *Config) string { return c.AnchorPosition }, func(c *Config, v string) { c.AnchorPosition = NormalizeAnchorPosition(v) }),

@@ -29,6 +29,7 @@ gopdf.options.page_gap = 0 -- Vertical gap between pages; aliases page_gap_verti
 gopdf.options.page_gap_horizontal = 0 -- Horizontal gap between pages in a spread.
 gopdf.options.page_gap_vertical = 0 -- Vertical gap between page rows.
 gopdf.options.pinch_sensitivity = 1 -- Trackpad pinch zoom sensitivity; 1 preserves the gesture scale.
+gopdf.options.pinch_smoothing = 0.35 -- Trackpad pinch zoom smoothing; 1 applies updates immediately, lower values smooth more.
 gopdf.options.recent_files_max = 20 -- Maximum recent files retained and displayed.
 gopdf.options.render_mode = "continuous" -- Initial render mode: continuous or single.
 gopdf.options.render_oversample = 1 -- Render scale multiplier; values above 1 supersample.

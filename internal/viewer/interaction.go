@@ -60,6 +60,18 @@ func (a *App) restoreViewportAnchor(anchor viewportAnchor) {
 	}
 }
 
+func (a *App) restoreDocumentPointAtScreen(page int, point mupdf.Point, targetX, targetY float64) {
+	pageX, pageY, ok := a.pageScreenOrigin(page)
+	if !ok {
+		return
+	}
+	tx, ty := transformPoint(point.X, point.Y, a.scale, a.rotation)
+	originX, originY := rotatedBoundsOrigin(a.pageMetrics[page].bounds, a.scale, a.rotation)
+	a.scrollX += pageX + tx - originX - targetX
+	a.scrollY += pageY + ty - originY - targetY
+	a.clampScroll()
+}
+
 func (a *App) relayoutWithViewportAnchor(update func()) {
 	fallbackPage := a.page
 	anchor := a.captureViewportAnchor()
@@ -408,5 +420,7 @@ func (a *App) quadScreenBounds(quad mupdf.Quad, x, y float64, rp *renderedPage) 
 		maxX = math.Max(maxX, sx)
 		maxY = math.Max(maxY, sy)
 	}
+	minX, minY = a.pinchVisualPoint(minX, minY)
+	maxX, maxY = a.pinchVisualPoint(maxX, maxY)
 	return minX, minY, maxX, maxY
 }

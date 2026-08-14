@@ -160,6 +160,8 @@ func (a *App) handleSDLEvent(event *sdl.Event) error {
 		a.endPinch()
 	case sdl.EventMouseButtonDown, sdl.EventMouseButtonUp:
 		e := event.Button()
+		a.mouseX = float64(e.X)
+		a.mouseY = float64(e.Y)
 		a.handleSDLMouseButton(&e)
 	case sdl.EventMouseMotion:
 		e := event.Motion()

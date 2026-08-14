@@ -10,6 +10,7 @@ func Default() Config {
 		MinZoom:             0.5,
 		MaxZoom:             8,
 		PinchSensitivity:    1,
+		PinchSmoothing:      0.35,
 		PageCacheSize:       16,
 		DualPage:            false,
 		FirstPageOffset:     true,
