@@ -179,10 +179,6 @@ type interactionState struct {
 	actionKey     string
 	lastKeyUpCode sdl.Keycode
 	lastKeyUpAt   time.Time
-	mouseX        float64
-	mouseY        float64
-	pinchAnchorX  float64
-	pinchAnchorY  float64
 }
 
 type uiState struct {
@@ -637,8 +633,6 @@ func (a *App) handleSDLMouseButton(e *sdl.MouseButtonEvent) {
 }
 
 func (a *App) handleSDLMouseMotion(e *sdl.MouseMotionEvent) bool {
-	a.mouseX = float64(e.X)
-	a.mouseY = float64(e.Y)
 	if a.luaUI.visible {
 		if a.luaUI.draggingScrollbar {
 			oldScroll := a.luaUI.scroll
@@ -1107,13 +1101,6 @@ func (a *App) beginPinch() {
 	a.pinchBaseZoom = baseZoom
 	a.pinchTargetLog = 0
 	a.pinchSmoothLog = 0
-	viewportW, viewportH := a.viewportSize()
-	a.pinchAnchorX = a.mouseX
-	a.pinchAnchorY = a.mouseY
-	if a.pinchAnchorX <= 0 && a.pinchAnchorY <= 0 {
-		a.pinchAnchorX = float64(viewportW) / 2
-		a.pinchAnchorY = float64(viewportH) / 2
-	}
 }
 
 func (a *App) updatePinch(scale float64) {
@@ -1133,41 +1120,24 @@ func (a *App) updatePinch(scale float64) {
 	minLog := math.Log(a.clampZoom(0.000001) / a.pinchBaseZoom)
 	maxLog := math.Log(a.clampZoom(1000000) / a.pinchBaseZoom)
 	a.pinchTargetLog = clampFloat(a.pinchTargetLog, minLog, maxLog)
-	smoothing := a.config.PinchSmoothing
-	if smoothing <= 0 || smoothing > 1 {
-		smoothing = config.Default().PinchSmoothing
-	}
-	a.pinchSmoothLog += (a.pinchTargetLog - a.pinchSmoothLog) * smoothing
-	a.pendingRedraw = true
+	a.pinchSmoothLog += (a.pinchTargetLog - a.pinchSmoothLog) * 0.35
+	a.applyPinchZoom(math.Exp(a.pinchSmoothLog))
 }
 
 func (a *App) endPinch() {
 	if !a.pinchActive {
 		return
 	}
-	anchorPage, anchorPoint, anchorOK := a.pagePointAtScreen(a.pinchAnchorX, a.pinchAnchorY)
+	a.applyPinchZoom(math.Exp(a.pinchTargetLog))
 	a.pinchActive = false
-	delta := math.Exp(a.pinchTargetLog)
+}
+
+func (a *App) applyPinchZoom(delta float64) {
 	a.relayoutWithViewportAnchor(func() {
 		a.fitMode = "manual"
 		a.zoom = a.clampZoom(a.pinchBaseZoom * delta)
 		a.scheduleRenderScaleTarget(a.zoom)
 	})
-	if anchorOK {
-		a.restoreDocumentPointAtScreen(anchorPage, anchorPoint, a.pinchAnchorX, a.pinchAnchorY)
-	}
-}
-
-func (a *App) pinchVisualScale() float64 {
-	if !a.pinchActive {
-		return 1
-	}
-	return math.Exp(a.pinchSmoothLog)
-}
-
-func (a *App) pinchVisualPoint(x, y float64) (float64, float64) {
-	scale := a.pinchVisualScale()
-	return a.pinchAnchorX + (x-a.pinchAnchorX)*scale, a.pinchAnchorY + (y-a.pinchAnchorY)*scale
 }
 
 func (a *App) clampZoom(zoom float64) float64 {

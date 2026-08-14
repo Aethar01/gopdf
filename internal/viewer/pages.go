@@ -21,9 +21,6 @@ func (a *App) drawPages(renderer *sdl.Renderer) {
 func (a *App) drawContinuousPages(renderer *sdl.Renderer) {
 	viewportW, viewportH := a.viewportSize()
 	margin := a.renderMargin()
-	if a.pinchActive {
-		margin += float64(viewportH)
-	}
 	minY := a.scrollY - margin
 	maxY := a.scrollY + float64(viewportH) + margin
 	offsetX, offsetY := a.contentViewportOffset()
@@ -35,7 +32,7 @@ func (a *App) drawContinuousPages(renderer *sdl.Renderer) {
 		for i, page := range row.pages {
 			x := row.pageX[i] - a.scrollX + offsetX
 			y := row.pageY[i] - a.scrollY + offsetY
-			if !a.pinchActive && (x+row.pageW[i] < 0 || x > float64(viewportW) || y+row.pageH[i] < 0 || y > float64(viewportH)) {
+			if x+row.pageW[i] < 0 || x > float64(viewportW) || y+row.pageH[i] < 0 || y > float64(viewportH) {
 				continue
 			}
 			_ = a.drawPageBackground(renderer, x, y, page)
@@ -96,13 +93,6 @@ func (a *App) drawPageTexture(renderer *sdl.Renderer, x, y, width, height float6
 		W: float32(drawW),
 		H: float32(drawH),
 	}
-	if visualScale := a.pinchVisualScale(); visualScale != 1 {
-		centerX, centerY := a.pinchVisualPoint(float64(dst.X)+float64(dst.W)/2, float64(dst.Y)+float64(dst.H)/2)
-		dst.X = float32(centerX - float64(dst.W)*visualScale/2)
-		dst.Y = float32(centerY - float64(dst.H)*visualScale/2)
-		dst.W *= float32(visualScale)
-		dst.H *= float32(visualScale)
-	}
 	if normalizeRotation(a.rotation) == 0 {
 		sdl.RenderTexture(renderer, rp.texture, nil, &dst)
 		return
@@ -114,18 +104,9 @@ func (a *App) drawPageBackground(renderer *sdl.Renderer, x, y float64, page int)
 	clr := a.pageBackgroundColor()
 	if normalizeRotation(a.rotation) == 0 {
 		m := a.pageMetrics[page]
-		w, h := m.width*a.scale, m.height*a.scale
-		x, y = a.pinchVisualPoint(x, y)
-		visualScale := a.pinchVisualScale()
-		return fillRect(renderer, sdl.FRect{X: float32(x), Y: float32(y), W: float32(w * visualScale), H: float32(h * visualScale)}, clr)
+		return fillRect(renderer, sdl.FRect{X: float32(x), Y: float32(y), W: float32(m.width * a.scale), H: float32(m.height * a.scale)}, clr)
 	}
-	vertices := pageBackgroundVertices(x, y, a.pageMetrics[page].bounds, a.scale, a.rotation, clr)
-	for i := range vertices {
-		x, y := a.pinchVisualPoint(float64(vertices[i].Position.X), float64(vertices[i].Position.Y))
-		vertices[i].Position.X = float32(x)
-		vertices[i].Position.Y = float32(y)
-	}
-	return renderBool(sdl.RenderGeometry(renderer, nil, vertices, []int32{0, 1, 2, 1, 3, 2}), "render geometry")
+	return renderBool(sdl.RenderGeometry(renderer, nil, pageBackgroundVertices(x, y, a.pageMetrics[page].bounds, a.scale, a.rotation, clr), []int32{0, 1, 2, 1, 3, 2}), "render geometry")
 }
 
 func pageBackgroundVertices(x, y float64, bounds mupdf.Rect, scale, rotation float64, clr color.RGBA) []sdl.Vertex {

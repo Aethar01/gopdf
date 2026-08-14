@@ -502,15 +502,6 @@ func TestRuntimeOptionInspectionAndAssignment(t *testing.T) {
 	if rt.Config().PinchSensitivity != 0.5 {
 		t.Fatalf("expected pinch_sensitivity=0.5, got %v", rt.Config().PinchSensitivity)
 	}
-	if value, err := rt.OptionValue("pinch_smoothing"); err != nil || value != "0.35" {
-		t.Fatalf("OptionValue(pinch_smoothing) = %q, %v", value, err)
-	}
-	if err := rt.SetOption("pinch_smoothing", "0.6"); err != nil {
-		t.Fatal(err)
-	}
-	if rt.Config().PinchSmoothing != 0.6 {
-		t.Fatalf("expected pinch_smoothing=0.6, got %v", rt.Config().PinchSmoothing)
-	}
 	if err := rt.ToggleOption("natural_scroll"); err != nil {
 		t.Fatal(err)
 	}
