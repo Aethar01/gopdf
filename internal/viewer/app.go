@@ -634,34 +634,13 @@ func (a *App) handleSDLMouseButton(e *sdl.MouseButtonEvent) {
 
 func (a *App) handleSDLMouseMotion(e *sdl.MouseMotionEvent) bool {
 	if a.luaUI.visible {
-		if a.luaUI.draggingScrollbar {
-			oldScroll := a.luaUI.scroll
-			a.dragLuaUIScrollbar(int(e.Y))
-			return a.luaUI.scroll != oldScroll
-		}
-		oldSelected := a.luaUI.selected
-		a.hoverLuaUI(int(e.X), int(e.Y))
-		return a.luaUI.selected != oldSelected
+		return handleModalListMouseMotion(e, a.luaUI.draggingScrollbar, &a.luaUI.scroll, &a.luaUI.selected, a.dragLuaUIScrollbar, a.hoverLuaUI)
 	}
 	if a.keybindMenu.visible {
-		if a.keybindMenu.draggingScrollbar {
-			oldScroll := a.keybindMenu.scroll
-			a.dragKeybindScrollbar(int(e.Y))
-			return a.keybindMenu.scroll != oldScroll
-		}
-		oldSelected := a.keybindMenu.selected
-		a.hoverKeybindMenu(int(e.X), int(e.Y))
-		return a.keybindMenu.selected != oldSelected
-	}
-	if a.outlineMenu.visible && a.outlineMenu.draggingScrollbar {
-		oldScroll := a.outlineMenu.scroll
-		a.dragOutlineScrollbar(int(e.Y))
-		return a.outlineMenu.scroll != oldScroll
+		return handleModalListMouseMotion(e, a.keybindMenu.draggingScrollbar, &a.keybindMenu.scroll, &a.keybindMenu.selected, a.dragKeybindScrollbar, a.hoverKeybindMenu)
 	}
 	if a.outlineMenu.visible {
-		oldSelected := a.outlineMenu.selected
-		a.hoverOutlineMenu(int(e.X), int(e.Y))
-		return a.outlineMenu.selected != oldSelected
+		return handleModalListMouseMotion(e, a.outlineMenu.draggingScrollbar, &a.outlineMenu.scroll, &a.outlineMenu.selected, a.dragOutlineScrollbar, a.hoverOutlineMenu)
 	}
 	if a.panning && (a.panButton == 0 || uint32(e.State)&buttonMask(a.panButton) != 0) {
 		oldX, oldY := a.scrollX, a.scrollY
