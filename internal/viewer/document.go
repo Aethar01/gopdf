@@ -49,23 +49,12 @@ func (a *App) initMetricLoader(pageCount int, startPage int) {
 		closing: make(chan struct{}),
 		done:    make(chan struct{}),
 	}
-	a.loader = l
+	a.metricLoader = l
 	go l.run(a.doc, pageCount, startPage)
 }
 
-func (a *App) closeMetricLoader() {
-	if a.loader != nil {
-		a.logf("close metric loader")
-		a.loader.Close()
-		a.loader = nil
-	}
-	a.pendingLoad = false
-	a.pendingPages = 0
-	a.pendingStart = 0
-}
-
 func (a *App) startPendingMetricLoader() {
-	if a.loader != nil || !a.pendingLoad || a.pendingPages <= 1 {
+	if a.metricLoader != nil || !a.pendingLoad || a.pendingPages <= 1 {
 		return
 	}
 	pages := a.pendingPages
@@ -77,14 +66,14 @@ func (a *App) startPendingMetricLoader() {
 }
 
 func (a *App) pollMetricUpdates() {
-	if a.loader == nil {
+	if a.metricLoader == nil {
 		return
 	}
 	changed := false
 	anchor := a.captureViewportAnchor()
 	for {
 		select {
-		case update, ok := <-a.loader.updates:
+		case update, ok := <-a.metricLoader.updates:
 			if !ok {
 				return
 			}

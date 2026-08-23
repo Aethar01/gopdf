@@ -145,12 +145,12 @@ func TestThumbnailCacheEvictsByDerivedLimit(t *testing.T) {
 func TestRequestRenderPromotesPendingRequest(t *testing.T) {
 	key := renderCacheKey(0, 1, false, 8)
 	app := &App{
-		documentState: documentState{pageCount: 1},
-		config:        config.Config{AntiAliasing: 8},
+		documentState:   documentState{pageCount: 1},
+		documentWorkers: documentWorkers{renderWorker: &renderWorker{}},
+		config:          config.Config{AntiAliasing: 8},
 		renderService: renderService{
 			renderCache:     map[string]*renderedPage{},
 			renderPending:   map[string]renderRequest{key: {page: 0, priority: 10}},
-			renderWorker:    &renderWorker{},
 			renderBaseScale: 1,
 		},
 	}
@@ -194,12 +194,12 @@ func TestVisibleRequestPreemptsPreviouslyVisibleRender(t *testing.T) {
 	worker := &renderWorker{}
 	worker.activePage.Store(1)
 	app := &App{
+		documentWorkers: documentWorkers{renderWorker: worker},
 		renderService: renderService{
 			renderPending: map[string]renderRequest{
 				"old": {generation: 2, page: 0, priority: 0},
 				"new": {generation: 2, page: 1, priority: 0},
 			},
-			renderWorker:      worker,
 			renderGeneration:  2,
 			visibleCachePages: map[int]bool{1: true},
 		},

@@ -263,14 +263,6 @@ func (a *App) initSearch() {
 	a.search = searchState{matches: map[int][]mupdf.SearchHit{}, current: -1, mode: searchModeForward}
 }
 
-func (a *App) closeSearch() {
-	if a.searchWorker != nil {
-		a.logf("close search worker")
-		a.searchWorker.Close()
-		a.searchWorker = nil
-	}
-}
-
 func (a *App) pollSearchUpdates() {
 	if a.searchWorker == nil {
 		return

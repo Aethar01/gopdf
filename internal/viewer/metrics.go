@@ -25,7 +25,6 @@ type metricLoader struct {
 
 type metricsService struct {
 	pageMetrics  []pageMetrics
-	loader       *metricLoader
 	pendingLoad  bool
 	pendingPages int
 	pendingStart int

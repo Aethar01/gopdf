@@ -85,12 +85,19 @@ type App struct {
 	viewStateFields
 	layoutState
 	sdlState
+	documentWorkers
 	renderService
 	metricsService
 	inputState
 	interactionState
 	uiState
 	navigationState
+}
+
+type documentWorkers struct {
+	renderWorker *renderWorker
+	metricLoader *metricLoader
+	searchWorker *searchWorker
 }
 
 type documentState struct {
@@ -184,7 +191,6 @@ type interactionState struct {
 type uiState struct {
 	pendingRedraw bool
 	search        searchState
-	searchWorker  *searchWorker
 	outlineMenu   outlineMenuState
 	keybindMenu   keybindMenuState
 	luaUI         luaUIState
@@ -282,14 +288,32 @@ func (a *App) Close() {
 }
 
 func (a *App) closeDocumentResources() {
-	a.closeRenderWorker()
-	a.closeMetricLoader()
-	a.closeSearch()
+	a.closeDocumentWorkers()
 	a.clearCache()
 	if a.doc != nil {
 		a.doc.Close()
 		a.doc = nil
 	}
+}
+
+func (a *App) closeDocumentWorkers() {
+	if a.renderWorker != nil {
+		a.renderWorker.Close()
+		a.renderWorker = nil
+	}
+	if a.metricLoader != nil {
+		a.logf("close metric loader")
+		a.metricLoader.Close()
+		a.metricLoader = nil
+	}
+	if a.searchWorker != nil {
+		a.logf("close search worker")
+		a.searchWorker.Close()
+		a.searchWorker = nil
+	}
+	a.pendingLoad = false
+	a.pendingPages = 0
+	a.pendingStart = 0
 }
 
 func (a *App) handleSDLKeyDown(e *sdl.KeyboardEvent) {

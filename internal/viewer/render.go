@@ -54,7 +54,6 @@ type renderService struct {
 	minRenderBaseScale float64
 	renderGeneration   int
 	renderPending      map[string]renderRequest
-	renderWorker       *renderWorker
 }
 
 type renderVariantKey struct {
@@ -280,13 +279,6 @@ func (a *App) initRenderWorker() {
 	a.renderPending = map[string]renderRequest{}
 	a.renderWorker = newRenderWorker(a.doc)
 	a.renderWorker.SetGeneration(a.renderGeneration)
-}
-
-func (rs *renderService) closeRenderWorker() {
-	if rs.renderWorker != nil {
-		rs.renderWorker.Close()
-		rs.renderWorker = nil
-	}
 }
 
 func (a *App) pollRenderUpdates() {
@@ -642,11 +634,11 @@ func (a *App) pendingBackgroundRenderCount() int {
 	return count
 }
 
-func (rs *renderService) invalidateRenderRequests() {
-	rs.renderGeneration++
-	rs.renderPending = map[string]renderRequest{}
-	if rs.renderWorker != nil {
-		rs.renderWorker.SetGeneration(rs.renderGeneration)
+func (a *App) invalidateRenderRequests() {
+	a.renderGeneration++
+	a.renderPending = map[string]renderRequest{}
+	if a.renderWorker != nil {
+		a.renderWorker.SetGeneration(a.renderGeneration)
 	}
 }
 
@@ -666,27 +658,27 @@ func (a *App) renderScaleFor(layoutScale float64) float64 {
 	return a.renderBaseScale
 }
 
-func (rs *renderService) clearCache() {
-	for _, rp := range rs.renderCache {
+func (a *App) clearCache() {
+	for _, rp := range a.renderCache {
 		if rp.texture != nil {
 			sdl.DestroyTexture(rp.texture)
 		}
 	}
-	for _, rp := range rs.thumbnailCache {
+	for _, rp := range a.thumbnailCache {
 		if rp.texture != nil {
 			sdl.DestroyTexture(rp.texture)
 		}
 	}
-	rs.renderCache = map[string]*renderedPage{}
-	rs.thumbnailCache = map[renderVariantKey]*renderedPage{}
-	rs.renderCacheBytes = 0
-	rs.thumbnailBytes = 0
-	rs.renderLRU = list.New()
-	rs.thumbnailLRU = list.New()
-	rs.renderLRUItems = map[string]*list.Element{}
-	rs.thumbnailLRUItems = map[renderVariantKey]*list.Element{}
-	rs.renderIndex = map[renderVariantKey]map[string]*renderedPage{}
-	rs.invalidateRenderRequests()
+	a.renderCache = map[string]*renderedPage{}
+	a.thumbnailCache = map[renderVariantKey]*renderedPage{}
+	a.renderCacheBytes = 0
+	a.thumbnailBytes = 0
+	a.renderLRU = list.New()
+	a.thumbnailLRU = list.New()
+	a.renderLRUItems = map[string]*list.Element{}
+	a.thumbnailLRUItems = map[renderVariantKey]*list.Element{}
+	a.renderIndex = map[renderVariantKey]map[string]*renderedPage{}
+	a.invalidateRenderRequests()
 }
 
 func (rs *renderService) renderDrawScale(rp *renderedPage, layoutScale float64) float64 {
