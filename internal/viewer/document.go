@@ -149,34 +149,19 @@ func (a *App) openDocumentWithPassword(path string, opts openDocumentOptions, pa
 	a.saveDocumentSession()
 	a.closeDocumentResources()
 
-	a.docPath = path
-	a.docName = filepath.Base(path)
 	a.docPassword = password
-	a.recordRecentFile(path)
 	a.document.record(path)
-	a.doc = doc
-	a.pageCount = pages
-	a.page = startPage
+	a.installDocument(doc, path, pages, startPage)
 	a.rotation = 0
 	a.zoom = a.clampZoom(1)
 	a.scale = 1
 	a.scrollX = 0
 	a.scrollY = 0
-	a.pageMetrics = make([]pageMetrics, pages)
-	a.rows = nil
-	a.pageToRow = nil
-	a.contentW = 0
-	a.contentH = 0
-	a.cacheLimit = pageCacheLimit(a.config, pages)
-	a.renderBaseScale = 0
-	a.pageLinks = map[int][]mupdf.Link{}
 	a.search = searchState{}
-	a.outline = nil
 	a.outlineMenu = outlineMenuState{}
 	a.keybindMenu = keybindMenuState{}
 	a.luaUI = luaUIState{}
 	a.completion = completionState{}
-	a.selection = textSelection{}
 	a.mode = modeNormal
 	a.input.Reset()
 	a.ignoreText = ""
@@ -265,6 +250,25 @@ func (a *App) initDocumentMetrics(doc *mupdf.Document, pages int, startPage int)
 	}
 }
 
+func (a *App) installDocument(doc *mupdf.Document, path string, pages, startPage int) {
+	a.docPath = path
+	a.docName = filepath.Base(path)
+	a.recordRecentFile(path)
+	a.doc = doc
+	a.pageCount = pages
+	a.page = startPage
+	a.pageMetrics = make([]pageMetrics, pages)
+	a.rows = nil
+	a.pageToRow = nil
+	a.contentW = 0
+	a.contentH = 0
+	a.cacheLimit = pageCacheLimit(a.config, pages)
+	a.renderBaseScale = 0
+	a.pageLinks = map[int][]mupdf.Link{}
+	a.outline = nil
+	a.selection = textSelection{}
+}
+
 func (a *App) pollDocumentUpdate() {
 	change, ok := a.document.poll(time.Now())
 	if !ok {
@@ -304,22 +308,7 @@ func (a *App) softReloadDocument(path string, state viewState) error {
 	}
 	a.closeDocumentResources()
 
-	a.docPath = path
-	a.docName = filepath.Base(path)
-	a.recordRecentFile(path)
-	a.doc = doc
-	a.pageCount = pages
-	a.page = startPage
-	a.pageMetrics = make([]pageMetrics, pages)
-	a.rows = nil
-	a.pageToRow = nil
-	a.contentW = 0
-	a.contentH = 0
-	a.cacheLimit = pageCacheLimit(a.config, pages)
-	a.renderBaseScale = 0
-	a.pageLinks = map[int][]mupdf.Link{}
-	a.outline = nil
-	a.selection = textSelection{}
+	a.installDocument(doc, path, pages, startPage)
 
 	a.initDocumentMetrics(doc, pages, startPage)
 	a.logf("soft reloaded document path=%q pages=%d page=%d", path, pages, startPage+1)
