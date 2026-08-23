@@ -23,26 +23,19 @@ func (a *App) drawContinuousPages(renderer *sdl.Renderer) {
 	margin := a.renderMargin()
 	minY := a.scrollY - margin
 	maxY := a.scrollY + float64(viewportH) + margin
-	start, end := a.rowRangeForContentY(minY, maxY)
-	for _, row := range a.rows[start:end] {
-		if row.y+row.height < minY || row.y > maxY {
-			continue
+	a.forEachContinuousPage(minY, maxY, func(page int, x, y, width, height float64) {
+		if x+width < 0 || x > float64(viewportW) || y+height < 0 || y > float64(viewportH) {
+			return
 		}
-		for i, page := range row.pages {
-			x, y := a.rowPageScreenOrigin(row, i)
-			if x+row.pageW[i] < 0 || x > float64(viewportW) || y+row.pageH[i] < 0 || y > float64(viewportH) {
-				continue
-			}
-			_ = a.drawPageBackground(renderer, x, y, page)
-			rp, ok := a.cachedRenderPage(page, a.scale)
-			if !ok {
-				continue
-			}
-			drawScale := a.renderDrawScale(rp, a.scale)
-			a.drawPageTexture(renderer, x, y, row.pageW[i], row.pageH[i], rp, drawScale)
-			a.drawSearchHighlightsForPage(renderer, page, x, y, rp)
+		_ = a.drawPageBackground(renderer, x, y, page)
+		rp, ok := a.cachedRenderPage(page, a.scale)
+		if !ok {
+			return
 		}
-	}
+		drawScale := a.renderDrawScale(rp, a.scale)
+		a.drawPageTexture(renderer, x, y, width, height, rp, drawScale)
+		a.drawSearchHighlightsForPage(renderer, page, x, y, rp)
+	})
 	a.drawSelection(renderer)
 }
 
@@ -183,39 +176,24 @@ func (a *App) prefetchVisiblePages() {
 		}
 	} else {
 		viewportW, viewportH := a.viewportSize()
-		offsetX, offsetY := a.contentViewportOffset()
-		start, end := a.rowRangeForContentY(a.scrollY-offsetY, a.scrollY+float64(viewportH)-offsetY)
-		for _, row := range a.rows[start:end] {
-			rowY := row.y - a.scrollY + offsetY
-			if rowY+row.height < 0 || rowY > float64(viewportH) {
-				continue
+		_, offsetY := a.contentViewportOffset()
+		a.forEachContinuousPage(a.scrollY-offsetY, a.scrollY+float64(viewportH)-offsetY, func(page int, x, y, width, height float64) {
+			if x+width < 0 || x > float64(viewportW) || y+height < 0 || y > float64(viewportH) {
+				return
 			}
-			for i, page := range row.pages {
-				x := row.pageX[i] - a.scrollX + offsetX
-				y := row.pageY[i] - a.scrollY + offsetY
-				if x+row.pageW[i] < 0 || x > float64(viewportW) || y+row.pageH[i] < 0 || y > float64(viewportH) {
-					continue
-				}
-				visible = append(visible, page)
-				seen[page] = true
-			}
-		}
+			visible = append(visible, page)
+			seen[page] = true
+		})
 		margin := math.Max(a.renderMargin()*2, float64(viewportH))
 		minY := a.scrollY - margin
 		maxY := a.scrollY + float64(viewportH) + margin
-		start, end = a.rowRangeForContentY(minY, maxY)
-		for _, row := range a.rows[start:end] {
-			if row.y+row.height < minY || row.y > maxY {
-				continue
+		a.forEachContinuousPage(minY, maxY, func(page int, _, _, _, _ float64) {
+			if seen[page] {
+				return
 			}
-			for _, page := range row.pages {
-				if seen[page] {
-					continue
-				}
-				prefetch = append(prefetch, page)
-				seen[page] = true
-			}
-		}
+			prefetch = append(prefetch, page)
+			seen[page] = true
+		})
 	}
 	a.visibleCachePages = map[int]bool{}
 	for _, page := range visible {

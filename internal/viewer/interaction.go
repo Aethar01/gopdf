@@ -208,22 +208,15 @@ func (a *App) visiblePageHits() []pageHit {
 	margin := a.renderMargin()
 	minY := a.scrollY - margin
 	maxY := a.scrollY + float64(viewportH) + margin
-	start, end := a.rowRangeForContentY(minY, maxY)
-	for _, row := range a.rows[start:end] {
-		if row.y+row.height < minY || row.y > maxY {
-			continue
+	a.forEachContinuousPage(minY, maxY, func(page int, x, y, width, height float64) {
+		rp, ok := a.cachedRenderPage(page, a.scale)
+		if !ok {
+			a.requestRender(page, a.scale)
+			return
 		}
-		for i, page := range row.pages {
-			rp, ok := a.cachedRenderPage(page, a.scale)
-			if !ok {
-				a.requestRender(page, a.scale)
-				continue
-			}
-			drawScale := a.renderDrawScale(rp, a.scale)
-			x, y := a.rowPageScreenOrigin(row, i)
-			hits = append(hits, pageHit{page: page, x: x, y: y, width: row.pageW[i], height: row.pageH[i], drawScale: drawScale, render: rp})
-		}
-	}
+		drawScale := a.renderDrawScale(rp, a.scale)
+		hits = append(hits, pageHit{page: page, x: x, y: y, width: width, height: height, drawScale: drawScale, render: rp})
+	})
 	return hits
 }
 
