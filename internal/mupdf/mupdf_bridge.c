@@ -288,7 +288,7 @@ int gopdf_render_page_to_buffer(gopdf_doc *handle, int page_number, float scale,
 		pix = fz_new_pixmap_with_bbox_and_data(handle->ctx, fz_device_rgb(handle->ctx), bbox, NULL, 1, samples);
 		fz_clear_pixmap_with_value(handle->ctx, pix, 0xff);
 		dev = fz_new_draw_device(handle->ctx, fz_identity, pix);
-		handle->render_cookie.abort = 0;
+		memset(&handle->render_cookie, 0, sizeof(handle->render_cookie));
 		fz_run_page(handle->ctx, page, dev, ctm, &handle->render_cookie);
 		fz_close_device(handle->ctx, dev);
 	} fz_always(handle->ctx) {
@@ -356,7 +356,7 @@ int gopdf_render_page_alloc(gopdf_doc *handle, int page_number, float scale, flo
 			pix = fz_new_pixmap_with_bbox_and_data(handle->ctx, fz_device_rgb(handle->ctx), bbox, NULL, 1, *samples);
 			fz_clear_pixmap_with_value(handle->ctx, pix, 0xff);
 			dev = fz_new_draw_device(handle->ctx, fz_identity, pix);
-			handle->render_cookie.abort = 0;
+			memset(&handle->render_cookie, 0, sizeof(handle->render_cookie));
 			fz_run_page(handle->ctx, page, dev, ctm, &handle->render_cookie);
 			fz_close_device(handle->ctx, dev);
 		}
