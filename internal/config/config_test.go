@@ -317,6 +317,45 @@ end)
 	}
 }
 
+func TestFailedReloadPreservesActiveConfigAndCallbacks(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.lua")
+	if err := os.WriteFile(path, []byte(`
+options.page_gap_vertical = 7
+bind("h", function()
+  options.page_gap_vertical = 10
+end)
+`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	rt, err := Open(path, filepath.Join(dir, "doc.pdf"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rt.Close()
+	action := rt.Config().KeyBindings["h"]
+
+	if err := os.WriteFile(path, []byte("options.page_gap_vertical =\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := rt.Reload(); err == nil {
+		t.Fatal("expected invalid Lua config to fail")
+	}
+	if got := rt.Config().PageGapVertical; got != 7 {
+		t.Fatalf("failed reload changed page gap to %d", got)
+	}
+	if got := rt.Config().KeyBindings["h"]; got != action {
+		t.Fatalf("failed reload changed binding to %q", got)
+	}
+	if handled, dirty, err := rt.RunAction(action); !handled || !dirty || err != nil {
+		t.Fatalf("preserved callback failed: handled=%v dirty=%v err=%v", handled, dirty, err)
+	}
+	if got := rt.Config().PageGapVertical; got != 10 {
+		t.Fatalf("preserved callback set page gap to %d", got)
+	}
+}
+
 func TestActionValuesBindAndExecuteAgainstViewerHost(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "config.lua")
