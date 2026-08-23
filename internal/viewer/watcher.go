@@ -16,10 +16,11 @@ type documentWatcher struct {
 	changed chan struct{}
 	pending watcherChange
 
-	watcher *fsnotify.Watcher
-	done    chan struct{}
-	mu      sync.Mutex
-	started bool
+	watcher   *fsnotify.Watcher
+	done      chan struct{}
+	mu        sync.Mutex
+	closeOnce sync.Once
+	started   bool
 }
 
 type watcherChange struct {
@@ -168,11 +169,8 @@ func (dw *documentWatcher) waitForChange(timeout time.Duration) (watcherChange, 
 }
 
 func (dw *documentWatcher) Close() {
-	select {
-	case <-dw.done:
-		return
-	default:
+	dw.closeOnce.Do(func() {
 		close(dw.done)
 		dw.watcher.Close()
-	}
+	})
 }
