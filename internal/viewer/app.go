@@ -278,26 +278,7 @@ func (a *App) Close() {
 	a.saveDocumentSession()
 	a.document.Close()
 	a.closeDocumentResources()
-	a.clearTextTextureCache()
-	closeFontFace(a.fontFace)
-	a.fontFace = nil
-	if a.cursorHand != nil {
-		sdl.DestroyCursor(a.cursorHand)
-		a.cursorHand = nil
-	}
-	if a.cursorArrow != nil {
-		sdl.DestroyCursor(a.cursorArrow)
-		a.cursorArrow = nil
-	}
-	if a.renderer != nil {
-		sdl.DestroyRenderer(a.renderer)
-		a.renderer = nil
-	}
-	if a.window != nil {
-		sdl.DestroyWindow(a.window)
-		a.window = nil
-	}
-	sdl.Quit()
+	a.sdlState.Close()
 }
 
 func (a *App) closeDocumentResources() {
