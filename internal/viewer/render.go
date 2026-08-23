@@ -4,7 +4,6 @@ import (
 	"container/list"
 	"fmt"
 	"math"
-	"sync"
 	"sync/atomic"
 	"time"
 
@@ -58,12 +57,10 @@ type renderVariantKey struct {
 }
 
 type renderWorker struct {
+	workerLifecycle
 	doc        *mupdf.Document
 	requests   chan renderRequest
 	updates    chan renderUpdate
-	closing    chan struct{}
-	done       chan struct{}
-	closeOnce  sync.Once
 	generation atomic.Int32
 	wanted     atomic.Value
 	visible    atomic.Value
@@ -72,11 +69,10 @@ type renderWorker struct {
 
 func newRenderWorker(doc *mupdf.Document) *renderWorker {
 	w := &renderWorker{
-		doc:      doc,
-		requests: make(chan renderRequest, 128),
-		updates:  make(chan renderUpdate, maxPendingPrefetchRenders),
-		closing:  make(chan struct{}),
-		done:     make(chan struct{}),
+		workerLifecycle: newWorkerLifecycle(),
+		doc:             doc,
+		requests:        make(chan renderRequest, 128),
+		updates:         make(chan renderUpdate, maxPendingPrefetchRenders),
 	}
 	go w.run(doc)
 	return w
@@ -84,7 +80,7 @@ func newRenderWorker(doc *mupdf.Document) *renderWorker {
 
 func (w *renderWorker) Close() {
 	w.Cancel()
-	closeWorker(w.closing, w.done, &w.closeOnce)
+	w.workerLifecycle.Close()
 }
 
 func (w *renderWorker) Cancel() {
@@ -193,7 +189,7 @@ func (w *renderWorker) requestPriority(req renderRequest) int {
 func (w *renderWorker) run(doc *mupdf.Document) {
 	defer close(w.done)
 	if doc == nil {
-		w.send(renderUpdate{err: fmt.Errorf("render worker: no document open")})
+		sendWorkerUpdate(&w.workerLifecycle, w.updates, renderUpdate{err: fmt.Errorf("render worker: no document open")})
 		w.closeOnce.Do(func() { close(w.closing) })
 		return
 	}
@@ -224,7 +220,7 @@ func (w *renderWorker) run(doc *mupdf.Document) {
 		w.activePage.Store(int32(req.page + 1))
 		rendered, err := doc.Render(req.page, req.scale, 0, req.aaLevel)
 		w.activePage.Store(0)
-		w.send(renderUpdate{request: req, rendered: rendered, err: err})
+		sendWorkerUpdate(&w.workerLifecycle, w.updates, renderUpdate{request: req, rendered: rendered, err: err})
 	}
 }
 
@@ -246,14 +242,6 @@ func (w *renderWorker) popNextRequest(queue []renderRequest) (renderRequest, []r
 	copy(queue[best:], queue[best+1:])
 	queue = queue[:len(queue)-1]
 	return req, queue, true
-}
-
-func (w *renderWorker) send(update renderUpdate) {
-	select {
-	case <-w.closing:
-		return
-	case w.updates <- update:
-	}
 }
 
 func renderCacheKey(page int, scale float64, altColors bool, aaLevel int) string {

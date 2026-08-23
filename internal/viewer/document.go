@@ -45,9 +45,8 @@ func (a *App) resolveOpenPath(path string) string {
 func (a *App) initMetricLoader(pageCount int, startPage int) {
 	a.logf("start metric loader pages=%d startPage=%d", pageCount, startPage+1)
 	l := &metricLoader{
-		updates: make(chan pageMetricUpdate, 128),
-		closing: make(chan struct{}),
-		done:    make(chan struct{}),
+		workerLifecycle: newWorkerLifecycle(),
+		updates:         make(chan pageMetricUpdate, 128),
 	}
 	a.metricLoader = l
 	go l.run(a.doc, pageCount, startPage)

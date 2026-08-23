@@ -5,7 +5,6 @@ import (
 	"math"
 	"regexp"
 	"strings"
-	"sync"
 	"unicode"
 	"unicode/utf8"
 
@@ -61,26 +60,19 @@ type searchUpdate struct {
 }
 
 type searchWorker struct {
-	requests  chan searchRequest
-	updates   chan searchUpdate
-	closing   chan struct{}
-	done      chan struct{}
-	closeOnce sync.Once
+	workerLifecycle
+	requests chan searchRequest
+	updates  chan searchUpdate
 }
 
 func newSearchWorker(doc *mupdf.Document) *searchWorker {
 	w := &searchWorker{
-		requests: make(chan searchRequest, 1),
-		updates:  make(chan searchUpdate, 64),
-		closing:  make(chan struct{}),
-		done:     make(chan struct{}),
+		workerLifecycle: newWorkerLifecycle(),
+		requests:        make(chan searchRequest, 1),
+		updates:         make(chan searchUpdate, 64),
 	}
 	go w.run(doc)
 	return w
-}
-
-func (w *searchWorker) Close() {
-	closeWorker(w.closing, w.done, &w.closeOnce)
 }
 
 func (w *searchWorker) Start(req searchRequest) bool {
@@ -108,7 +100,7 @@ func (w *searchWorker) Start(req searchRequest) bool {
 func (w *searchWorker) run(doc *mupdf.Document) {
 	defer close(w.done)
 	if doc == nil {
-		w.send(searchUpdate{done: true, err: fmt.Errorf("search worker: no document open")})
+		sendWorkerUpdate(&w.workerLifecycle, w.updates, searchUpdate{done: true, err: fmt.Errorf("search worker: no document open")})
 		w.closeOnce.Do(func() { close(w.closing) })
 		return
 	}
@@ -121,7 +113,7 @@ func (w *searchWorker) run(doc *mupdf.Document) {
 		}
 		for {
 			if strings.TrimSpace(req.query) == "" {
-				w.send(searchUpdate{generation: req.generation, done: true})
+				sendWorkerUpdate(&w.workerLifecycle, w.updates, searchUpdate{generation: req.generation, done: true})
 				break
 			}
 			var re *regexp.Regexp
@@ -135,7 +127,7 @@ func (w *searchWorker) run(doc *mupdf.Document) {
 				}
 				compiled, err := regexp.Compile(pattern)
 				if err != nil {
-					w.send(searchUpdate{generation: req.generation, done: true, err: err})
+					sendWorkerUpdate(&w.workerLifecycle, w.updates, searchUpdate{generation: req.generation, done: true, err: err})
 					break
 				}
 				re = compiled
@@ -159,16 +151,16 @@ func (w *searchWorker) run(doc *mupdf.Document) {
 				}
 				hits, err := searchDocumentPage(doc, page, req.query, re, req.options)
 				if err != nil {
-					w.send(searchUpdate{generation: req.generation, done: true, err: err})
+					sendWorkerUpdate(&w.workerLifecycle, w.updates, searchUpdate{generation: req.generation, done: true, err: err})
 					restarted = true
 					break
 				}
-				w.send(searchUpdate{generation: req.generation, page: page, hits: hits})
+				sendWorkerUpdate(&w.workerLifecycle, w.updates, searchUpdate{generation: req.generation, page: page, hits: hits})
 			}
 			if restarted {
 				continue
 			}
-			w.send(searchUpdate{generation: req.generation, done: true})
+			sendWorkerUpdate(&w.workerLifecycle, w.updates, searchUpdate{generation: req.generation, done: true})
 			break
 		}
 	}
@@ -225,14 +217,6 @@ func isWholeWordMatch(text string, start, end int) bool {
 
 func isWordRune(r rune) bool {
 	return r == '_' || unicode.IsLetter(r) || unicode.IsNumber(r)
-}
-
-func (w *searchWorker) send(update searchUpdate) {
-	select {
-	case <-w.closing:
-		return
-	case w.updates <- update:
-	}
 }
 
 func searchPageOrder(start, count int) []int {
