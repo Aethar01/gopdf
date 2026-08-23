@@ -234,14 +234,6 @@ func searchPageOrder(start, count int) []int {
 	return pages
 }
 
-func searchPageAt(start, count, offset int) int {
-	if count <= 0 {
-		return 0
-	}
-	start = clampInt(start, 0, count-1)
-	return (start + offset) % count
-}
-
 func (a *App) initSearch() {
 	a.logf("init search state")
 	a.search = searchState{matches: map[int][]mupdf.SearchHit{}, current: -1, mode: searchModeForward}

@@ -25,14 +25,6 @@ type Rect struct {
 	Y1 float32
 }
 
-func (r Rect) Width() float64 {
-	return float64(r.X1 - r.X0)
-}
-
-func (r Rect) Height() float64 {
-	return float64(r.Y1 - r.Y0)
-}
-
 type Document struct {
 	mu     sync.Mutex
 	handle *C.gopdf_doc
