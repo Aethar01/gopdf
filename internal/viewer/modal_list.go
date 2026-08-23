@@ -15,6 +15,20 @@ func handleModalListMouseMotion(e *sdl.MouseMotionEvent, dragging bool, scroll, 
 	return *selected != old
 }
 
+func modalListSelectedRow(visible []int, selected *int, scroll int) int {
+	for i, index := range visible {
+		if index == *selected {
+			return i
+		}
+	}
+	if len(visible) == 0 {
+		return 0
+	}
+	row := clampInt(scroll, 0, len(visible)-1)
+	*selected = visible[row]
+	return row
+}
+
 func (a *App) modalListGeometry(widthPct, heightPct int) (sdl.FRect, int) {
 	viewportW, viewportH := a.viewportSize()
 	widthPct = clampInt(widthPct, 20, 100)

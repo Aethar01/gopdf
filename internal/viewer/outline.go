@@ -103,19 +103,6 @@ func (a *App) invalidateVisibleOutlineIndices() {
 	a.outlineMenu.visibleExpandedCount = 0
 }
 
-func (a *App) selectedVisibleOutlineRow(visible []int) int {
-	for i, index := range visible {
-		if index == a.outlineMenu.selected {
-			return i
-		}
-	}
-	if len(visible) == 0 {
-		return 0
-	}
-	a.outlineMenu.selected = visible[clampInt(a.outlineMenu.scroll, 0, len(visible)-1)]
-	return clampInt(a.outlineMenu.scroll, 0, len(visible)-1)
-}
-
 func (a *App) updateOutlineSearchQuery(query string) {
 	a.outlineMenu.query = query
 	a.invalidateVisibleOutlineIndices()
@@ -161,7 +148,7 @@ func (a *App) ensureOutlineSelectionVisible() {
 		return
 	}
 	_, rows := a.outlineMenuGeometry()
-	row := a.selectedVisibleOutlineRow(visible)
+	row := modalListSelectedRow(visible, &a.outlineMenu.selected, a.outlineMenu.scroll)
 	a.outlineMenu.scroll = modalListScrollForSelection(a.outlineMenu.scroll, row, rows, len(visible))
 }
 
@@ -170,7 +157,7 @@ func (a *App) moveOutlineSelection(delta int) {
 	if len(visible) == 0 {
 		return
 	}
-	row := a.selectedVisibleOutlineRow(visible)
+	row := modalListSelectedRow(visible, &a.outlineMenu.selected, a.outlineMenu.scroll)
 	row = clampInt(row+delta, 0, len(visible)-1)
 	a.outlineMenu.selected = visible[row]
 	a.ensureOutlineSelectionVisible()
