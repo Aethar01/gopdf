@@ -311,10 +311,6 @@ func (a *App) closeDocumentResources() {
 	}
 }
 
-func (a *App) PendingOpen() string {
-	return a.pendingOpen
-}
-
 func (a *App) handleSDLKeyDown(e *sdl.KeyboardEvent) {
 	if e.Repeat && e.Key == a.lastKeyUpCode && time.Since(a.lastKeyUpAt) < 100*time.Millisecond {
 		if a.ignoreText == "" {
@@ -844,19 +840,6 @@ func (a *App) nextSpread() {
 	}
 }
 
-func (a *App) nextSpreadFrom(page int) {
-	if a.pageCount == 0 {
-		return
-	}
-	page = a.anchorPage(page)
-	row := a.pageToRow[page]
-	if row < len(a.rows)-1 {
-		next := a.rows[row+1].pages[0]
-		a.page = next
-		a.alignPageToAnchor(next)
-	}
-}
-
 func (a *App) prevSpread() {
 	if a.pageCount == 0 {
 		return
@@ -866,19 +849,6 @@ func (a *App) prevSpread() {
 		a.alignPageToAnchor(a.rows[row-1].pages[0])
 	} else {
 		a.alignPageToViewportEdge(0, false)
-	}
-}
-
-func (a *App) prevSpreadFrom(page int) {
-	if a.pageCount == 0 {
-		return
-	}
-	page = a.anchorPage(page)
-	row := a.pageToRow[page]
-	if row > 0 {
-		prev := a.rows[row-1].pages[0]
-		a.page = prev
-		a.alignPageToAnchor(prev)
 	}
 }
 

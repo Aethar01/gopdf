@@ -358,10 +358,6 @@ func (rs *renderService) touchRenderCacheEntry(key string) {
 	}
 }
 
-func (rs *renderService) evictRenderCacheEntry(key string) {
-	rs.removeRenderCacheEntry(key, true)
-}
-
 func (rs *renderService) ensureRenderCacheState() {
 	if rs.renderCache == nil {
 		rs.renderCache = map[string]*renderedPage{}

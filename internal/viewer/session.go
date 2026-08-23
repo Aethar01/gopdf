@@ -23,9 +23,8 @@ type documentSession struct {
 }
 
 type documentChange struct {
-	mod       time.Time
-	size      int64
-	firstSeen time.Time
+	mod  time.Time
+	size int64
 }
 
 func (s *documentSession) record(path string) {
@@ -71,9 +70,8 @@ func (s *documentSession) poll(now time.Time) (documentChange, bool) {
 	}
 
 	s.pending = &documentChange{
-		mod:       change.mod,
-		size:      change.size,
-		firstSeen: change.firstSeen,
+		mod:  change.mod,
+		size: change.size,
 	}
 	s.lastAttempt = now
 	return *s.pending, true
@@ -303,15 +301,6 @@ func (a *App) jumpDocumentMark(name string) {
 	}
 	a.message = "jumped to mark " + name
 	a.pendingRedraw = true
-}
-
-func (a *App) restoreDocumentSession() bool {
-	state, ok := a.documentSessionViewState(a.docPath)
-	if !ok {
-		return false
-	}
-	a.restoreViewState(state)
-	return true
 }
 
 func (a *App) documentSessionViewState(path string) (viewState, bool) {

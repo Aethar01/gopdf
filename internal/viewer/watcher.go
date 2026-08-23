@@ -23,9 +23,8 @@ type documentWatcher struct {
 }
 
 type watcherChange struct {
-	mod       time.Time
-	size      int64
-	firstSeen time.Time
+	mod  time.Time
+	size int64
 }
 
 func newDocumentWatcher(path string) (*documentWatcher, error) {
@@ -129,9 +128,8 @@ func (dw *documentWatcher) checkAndNotify() {
 	dw.mod = mod
 	dw.size = size
 	dw.pending = watcherChange{
-		mod:       mod,
-		size:      size,
-		firstSeen: time.Now(),
+		mod:  mod,
+		size: size,
 	}
 
 	select {
