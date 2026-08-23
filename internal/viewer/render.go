@@ -750,7 +750,6 @@ func (a *App) ensureRenderBaseScale() {
 
 func (a *App) maybeUpgradeRenderScale(target float64) bool {
 	a.ensureRenderBaseScale()
-	floor := a.renderScaleFloor()
 	if !validRenderScale(target) {
 		return false
 	}
@@ -758,33 +757,16 @@ func (a *App) maybeUpgradeRenderScale(target float64) bool {
 	if target <= a.renderBaseScale*renderUpgradeTolerance {
 		return false
 	}
-	next := math.Max(target, floor)
-	if next <= a.renderBaseScale+0.01 {
-		return false
-	}
-	a.renderBaseScale = next
-	a.logf("upgrade render scale target=%.3f base=%.3f", target, next)
-	a.invalidateRenderRequests()
-	return true
+	return a.applyRenderBaseScaleTarget(target)
 }
 
 func (a *App) maybeDowngradeRenderScale() {
 	a.ensureRenderBaseScale()
-	floor := a.renderScaleFloor()
-	if a.renderBaseScale <= floor {
-		return
-	}
 	target := a.currentRenderTarget()
 	if target*renderDowngradeHeadroom >= a.renderBaseScale {
 		return
 	}
-	next := math.Max(target, floor)
-	if next >= a.renderBaseScale {
-		return
-	}
-	a.renderBaseScale = next
-	a.logf("downgrade render scale target=%.3f base=%.3f", target, next)
-	a.invalidateRenderRequests()
+	a.applyRenderBaseScaleTarget(target)
 }
 
 func (a *App) scheduleRenderScaleTarget(target float64) {
@@ -812,6 +794,14 @@ func (a *App) applyScheduledRenderScaleTarget() bool {
 	target := a.renderScaleTarget
 	a.renderScaleTarget = 0
 	a.renderScaleReadyAt = time.Time{}
+	return a.applyRenderBaseScaleTarget(target)
+}
+
+func (a *App) applyRenderBaseScaleTarget(target float64) bool {
+	a.ensureRenderBaseScale()
+	if !validRenderScale(target) {
+		return false
+	}
 	floor := a.renderScaleFloor()
 	if target > a.renderBaseScale*renderUpgradeTolerance {
 		next := math.Max(target, floor)
