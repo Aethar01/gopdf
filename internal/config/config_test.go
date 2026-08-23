@@ -356,7 +356,7 @@ end)
 	}
 }
 
-func TestFailedSetDocumentPreservesDocumentMetadata(t *testing.T) {
+func TestFailedSetDocumentKeepsNewDocumentMetadata(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "config.lua")
 	if err := os.WriteFile(path, []byte("options.page_gap_vertical = 7\n"), 0o644); err != nil {
@@ -368,19 +368,18 @@ func TestFailedSetDocumentPreservesDocumentMetadata(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer rt.Close()
-	oldMeta := rt.docMeta
-
 	if err := os.WriteFile(path, []byte("options.page_gap_vertical =\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if err := rt.SetDocument(filepath.Join(dir, "second.pdf"), 42); err == nil {
+	second := filepath.Join(dir, "second.pdf")
+	if err := rt.SetDocument(second, 42); err == nil {
 		t.Fatal("expected invalid document config to fail")
 	}
-	if rt.docPath != first || rt.docName != filepath.Base(first) || rt.docMeta != oldMeta {
+	if rt.docPath != second || rt.docName != filepath.Base(second) || rt.docMeta.pageCount != 42 || !rt.docMeta.hasPages {
 		t.Fatalf("failed document reload changed metadata: path=%q name=%q meta=%+v", rt.docPath, rt.docName, rt.docMeta)
 	}
-	if _, err := rt.Eval(`assert(gopdf.document.path == ` + strconv.Quote(first) + `)`); err != nil {
-		t.Fatalf("previous Lua document metadata was not preserved: %v", err)
+	if _, err := rt.Eval(`assert(gopdf.document.path == ` + strconv.Quote(second) + ` and gopdf.document.page_count == 42)`); err != nil {
+		t.Fatalf("new Lua document metadata was not retained: %v", err)
 	}
 }
 

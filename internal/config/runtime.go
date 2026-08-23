@@ -74,9 +74,6 @@ func (r *Runtime) AttachHost(host Host) {
 }
 
 func (r *Runtime) SetDocument(path string, pageCount ...int) error {
-	oldPath := r.docPath
-	oldName := r.docName
-	oldMeta := r.docMeta
 	path = AbsoluteDocumentPath(path)
 	r.docPath = path
 	r.docName = ""
@@ -89,9 +86,7 @@ func (r *Runtime) SetDocument(path string, pageCount ...int) error {
 		r.docMeta.hasPages = true
 	}
 	if err := r.Reload(); err != nil {
-		r.docPath = oldPath
-		r.docName = oldName
-		r.docMeta = oldMeta
+		r.updateLuaDocument()
 		return err
 	}
 	return nil
@@ -100,6 +95,7 @@ func (r *Runtime) SetDocument(path string, pageCount ...int) error {
 func (r *Runtime) SetPageCount(pages int) {
 	r.docMeta.pageCount = pages
 	r.docMeta.hasPages = true
+	r.updateLuaDocument()
 }
 
 func (r *Runtime) Reload() error {
