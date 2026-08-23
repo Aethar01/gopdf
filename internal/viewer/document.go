@@ -149,27 +149,9 @@ func (a *App) openDocumentWithPassword(path string, opts openDocumentOptions, pa
 	a.saveDocumentSession()
 	a.closeDocumentResources()
 
-	a.docPassword = password
 	a.document.record(path)
 	a.installDocument(doc, path, pages, startPage)
-	a.rotation = 0
-	a.zoom = a.clampZoom(1)
-	a.scale = 1
-	a.scrollX = 0
-	a.scrollY = 0
-	a.search = searchState{}
-	a.outlineMenu = outlineMenuState{}
-	a.keybindMenu = keybindMenuState{}
-	a.luaUI = luaUIState{}
-	a.completion = completionState{}
-	a.mode = modeNormal
-	a.input.Reset()
-	a.ignoreText = ""
-	a.sequence = nil
-	a.pendingCount = ""
-	a.jumpBack = nil
-	a.jumpAhead = nil
-	a.pendingOpen = ""
+	a.resetForNewDocument(password)
 
 	a.initDocumentMetrics(doc, pages, startPage)
 	a.logf("opened document path=%q pages=%d page=%d", path, pages, startPage+1)
@@ -200,6 +182,28 @@ func (a *App) openDocumentWithPassword(path string, opts openDocumentOptions, pa
 		return configErr
 	}
 	return nil
+}
+
+func (a *App) resetForNewDocument(password string) {
+	a.docPassword = password
+	a.rotation = 0
+	a.zoom = a.clampZoom(1)
+	a.scale = 1
+	a.scrollX = 0
+	a.scrollY = 0
+	a.search = searchState{}
+	a.outlineMenu = outlineMenuState{}
+	a.keybindMenu = keybindMenuState{}
+	a.luaUI = luaUIState{}
+	a.completion = completionState{}
+	a.mode = modeNormal
+	a.input.Reset()
+	a.ignoreText = ""
+	a.sequence = nil
+	a.pendingCount = ""
+	a.jumpBack = nil
+	a.jumpAhead = nil
+	a.pendingOpen = ""
 }
 
 func (a *App) promptDocumentPassword(path string, opts openDocumentOptions) {
