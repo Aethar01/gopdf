@@ -124,33 +124,12 @@ func (a *App) cachedRenderPage(page int, scale float64) (*renderedPage, bool) {
 		a.touchRenderCacheEntry(key)
 		return rp, true
 	}
-	var bestHigher *renderedPage
-	var bestLower *renderedPage
 	a.ensureRenderCacheState()
-	for _, rp := range a.renderIndex[renderVariantKey{page: page, altColors: a.altColors, aaLevel: a.config.AntiAliasing}] {
-		if math.Abs(rp.scale-renderScale) < 0.0001 {
-			a.touchRenderCacheEntry(rp.key)
-			return rp, true
-		}
-		if rp.scale >= renderScale {
-			if bestHigher == nil || rp.scale < bestHigher.scale {
-				bestHigher = rp
-			}
-			continue
-		}
-		if bestLower == nil || rp.scale > bestLower.scale {
-			bestLower = rp
-		}
-	}
-	if bestHigher != nil {
-		a.touchRenderCacheEntry(bestHigher.key)
-		return bestHigher, true
-	}
-	if bestLower != nil {
-		a.touchRenderCacheEntry(bestLower.key)
-		return bestLower, true
-	}
 	variant := renderVariantKey{page: page, altColors: a.altColors, aaLevel: a.config.AntiAliasing}
+	if rp := a.renderIndex[variant]; rp != nil {
+		a.touchRenderCacheEntry(rp.key)
+		return rp, true
+	}
 	if rp := a.thumbnailCache[variant]; rp != nil {
 		a.touchThumbnailCacheEntry(variant)
 		return rp, true

@@ -39,7 +39,7 @@ type renderService struct {
 	renderCache        map[string]*renderedPage
 	renderLRU          *list.List
 	renderLRUItems     map[string]*list.Element
-	renderIndex        map[renderVariantKey]map[string]*renderedPage
+	renderIndex        map[renderVariantKey]*renderedPage
 	thumbnailCache     map[renderVariantKey]*renderedPage
 	thumbnailLRU       *list.List
 	thumbnailLRUItems  map[renderVariantKey]*list.Element
@@ -361,7 +361,7 @@ func (rs *renderService) ensureRenderCacheState() {
 		rs.renderLRUItems = map[string]*list.Element{}
 	}
 	if rs.renderIndex == nil {
-		rs.renderIndex = map[renderVariantKey]map[string]*renderedPage{}
+		rs.renderIndex = map[renderVariantKey]*renderedPage{}
 		for key, rp := range rs.renderCache {
 			if rp == nil {
 				continue
@@ -384,13 +384,9 @@ func (rs *renderService) ensureRenderCacheState() {
 }
 
 func (rs *renderService) indexRenderPage(key string, rp *renderedPage) {
+	rp.key = key
 	variant := renderVariantKey{page: rp.page, altColors: rp.altColors, aaLevel: rp.aaLevel}
-	pages := rs.renderIndex[variant]
-	if pages == nil {
-		pages = map[string]*renderedPage{}
-		rs.renderIndex[variant] = pages
-	}
-	pages[key] = rp
+	rs.renderIndex[variant] = rp
 }
 
 func (rs *renderService) touchThumbnailCacheEntry(key renderVariantKey) {
@@ -504,12 +500,8 @@ func (rs *renderService) addRenderCacheEntry(key string, rp *renderedPage) {
 
 func (rs *renderService) removeRenderCacheVariants(variant renderVariantKey) {
 	rs.ensureRenderCacheState()
-	keys := make([]string, 0, len(rs.renderIndex[variant]))
-	for key := range rs.renderIndex[variant] {
-		keys = append(keys, key)
-	}
-	for _, key := range keys {
-		rs.removeRenderCacheEntry(key, true)
+	if rp := rs.renderIndex[variant]; rp != nil {
+		rs.removeRenderCacheEntry(rp.key, true)
 	}
 }
 
@@ -524,11 +516,8 @@ func (rs *renderService) removeRenderCacheEntry(key string, destroy bool) {
 		delete(rs.renderLRUItems, key)
 	}
 	variant := renderVariantKey{page: rp.page, altColors: rp.altColors, aaLevel: rp.aaLevel}
-	if pages := rs.renderIndex[variant]; pages != nil {
-		delete(pages, key)
-		if len(pages) == 0 {
-			delete(rs.renderIndex, variant)
-		}
+	if rs.renderIndex[variant] == rp {
+		delete(rs.renderIndex, variant)
 	}
 	if destroy && rp.texture != nil {
 		sdl.DestroyTexture(rp.texture)
@@ -677,7 +666,7 @@ func (a *App) clearCache() {
 	a.thumbnailLRU = list.New()
 	a.renderLRUItems = map[string]*list.Element{}
 	a.thumbnailLRUItems = map[renderVariantKey]*list.Element{}
-	a.renderIndex = map[renderVariantKey]map[string]*renderedPage{}
+	a.renderIndex = map[renderVariantKey]*renderedPage{}
 	a.invalidateRenderRequests()
 }
 
