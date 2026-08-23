@@ -208,6 +208,28 @@ func TestRenderTargetAllowsUndersampling(t *testing.T) {
 	assertClose(t, app.currentRenderTarget(), 1.5)
 }
 
+func TestRowPageScreenOrigin(t *testing.T) {
+	row := rowLayout{x: 20, y: 30, width: 200, height: 300, pageX: []float64{45}, pageY: []float64{65}}
+	app := testLayoutApp(1)
+	app.rows = []rowLayout{row}
+	app.pageToRow = []int{0}
+	app.winW = 500
+	app.winH = 600
+	app.contentW = 300
+	app.contentH = 700
+	app.scrollX = 10
+	app.scrollY = 15
+
+	x, y := app.rowPageScreenOrigin(row, 0)
+	assertClose(t, x, 135)
+	assertClose(t, y, 50)
+
+	app.renderMode = "single"
+	x, y = app.rowPageScreenOrigin(row, 0)
+	assertClose(t, x, 165)
+	assertClose(t, y, 170)
+}
+
 func testLayoutApp(pageCount int) *App {
 	metrics := make([]pageMetrics, pageCount)
 	for i := range metrics {

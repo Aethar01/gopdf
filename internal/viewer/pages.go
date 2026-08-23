@@ -23,15 +23,13 @@ func (a *App) drawContinuousPages(renderer *sdl.Renderer) {
 	margin := a.renderMargin()
 	minY := a.scrollY - margin
 	maxY := a.scrollY + float64(viewportH) + margin
-	offsetX, offsetY := a.contentViewportOffset()
 	start, end := a.rowRangeForContentY(minY, maxY)
 	for _, row := range a.rows[start:end] {
 		if row.y+row.height < minY || row.y > maxY {
 			continue
 		}
 		for i, page := range row.pages {
-			x := row.pageX[i] - a.scrollX + offsetX
-			y := row.pageY[i] - a.scrollY + offsetY
+			x, y := a.rowPageScreenOrigin(row, i)
 			if x+row.pageW[i] < 0 || x > float64(viewportW) || y+row.pageH[i] < 0 || y > float64(viewportH) {
 				continue
 			}
@@ -54,11 +52,8 @@ func (a *App) drawSinglePage(renderer *sdl.Renderer) {
 	}
 	viewportW, viewportH := a.viewportSize()
 	row := a.rows[a.pageToRow[a.page]]
-	baseX := math.Max(float64(a.horizontalGap()), (float64(viewportW)-row.width)/2)
-	baseY := math.Max(float64(a.verticalGap()), (float64(viewportH)-row.height)/2)
 	for i, page := range row.pages {
-		x := baseX + (row.pageX[i] - row.x) - a.scrollX
-		y := baseY + (row.pageY[i] - row.y) - a.scrollY
+		x, y := a.rowPageScreenOrigin(row, i)
 		if x+row.pageW[i] < 0 || x > float64(viewportW) || y+row.pageH[i] < 0 || y > float64(viewportH) {
 			continue
 		}

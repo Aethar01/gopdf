@@ -191,10 +191,7 @@ func (a *App) visiblePageHits() []pageHit {
 		if len(a.rows) == 0 || a.page < 0 || a.page >= len(a.pageToRow) {
 			return hits
 		}
-		viewportW, viewportH := a.viewportSize()
 		row := a.rows[a.pageToRow[a.page]]
-		baseX := math.Max(float64(a.horizontalGap()), (float64(viewportW)-row.width)/2)
-		baseY := math.Max(float64(a.verticalGap()), (float64(viewportH)-row.height)/2)
 		for i, page := range row.pages {
 			rp, ok := a.cachedRenderPage(page, a.scale)
 			if !ok {
@@ -202,8 +199,7 @@ func (a *App) visiblePageHits() []pageHit {
 				continue
 			}
 			drawScale := a.renderDrawScale(rp, a.scale)
-			x := baseX + (row.pageX[i] - row.x) - a.scrollX
-			y := baseY + (row.pageY[i] - row.y) - a.scrollY
+			x, y := a.rowPageScreenOrigin(row, i)
 			hits = append(hits, pageHit{page: page, x: x, y: y, width: row.pageW[i], height: row.pageH[i], drawScale: drawScale, render: rp})
 		}
 		return hits
@@ -212,7 +208,6 @@ func (a *App) visiblePageHits() []pageHit {
 	margin := a.renderMargin()
 	minY := a.scrollY - margin
 	maxY := a.scrollY + float64(viewportH) + margin
-	offsetX, offsetY := a.contentViewportOffset()
 	start, end := a.rowRangeForContentY(minY, maxY)
 	for _, row := range a.rows[start:end] {
 		if row.y+row.height < minY || row.y > maxY {
@@ -225,8 +220,7 @@ func (a *App) visiblePageHits() []pageHit {
 				continue
 			}
 			drawScale := a.renderDrawScale(rp, a.scale)
-			x := row.pageX[i] - a.scrollX + offsetX
-			y := row.pageY[i] - a.scrollY + offsetY
+			x, y := a.rowPageScreenOrigin(row, i)
 			hits = append(hits, pageHit{page: page, x: x, y: y, width: row.pageW[i], height: row.pageH[i], drawScale: drawScale, render: rp})
 		}
 	}
@@ -384,14 +378,8 @@ func (a *App) pagePlacement(page int) (float64, float64, *renderedPage, bool) {
 		a.requestRender(page, a.scale)
 		return 0, 0, nil, false
 	}
-	if a.renderMode == "single" {
-		viewportW, viewportH := a.viewportSize()
-		baseX := math.Max(float64(a.horizontalGap()), (float64(viewportW)-row.width)/2)
-		baseY := math.Max(float64(a.verticalGap()), (float64(viewportH)-row.height)/2)
-		return baseX + (row.pageX[index] - row.x) - a.scrollX, baseY + (row.pageY[index] - row.y) - a.scrollY, rp, true
-	}
-	offsetX, offsetY := a.contentViewportOffset()
-	return row.pageX[index] - a.scrollX + offsetX, row.pageY[index] - a.scrollY + offsetY, rp, true
+	x, y := a.rowPageScreenOrigin(row, index)
+	return x, y, rp, true
 }
 
 func (a *App) quadScreenBounds(quad mupdf.Quad, x, y float64, rp *renderedPage) (float64, float64, float64, float64) {
