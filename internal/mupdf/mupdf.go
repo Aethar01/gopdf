@@ -237,9 +237,13 @@ func (d *Document) Render(page int, scale float64, rotation float64, aaLevel int
 		return nil, consumeError("render page", cerr)
 	}
 	if width <= 0 || height <= 0 || stride <= 0 {
+		if samples != nil {
+			C.gopdf_free_rendered_page(samples)
+		}
 		return &RenderedPage{Image: image.NewRGBA(image.Rect(0, 0, 0, 0)), X: int(x), Y: int(y)}, nil
 	}
 	if int(stride) != int(width)*4 {
+		C.gopdf_free_rendered_page(samples)
 		return nil, fmt.Errorf("render page: unsupported pixmap stride %d for width %d", int(stride), int(width))
 	}
 	if samples == nil {
