@@ -29,6 +29,16 @@ func modalListSelectedRow(visible []int, selected *int, scroll int) int {
 	return row
 }
 
+func resetModalListSelection(visible []int, selected, scroll *int, ensureVisible func()) {
+	*scroll = 0
+	if len(visible) == 0 {
+		*selected = -1
+		return
+	}
+	*selected = visible[0]
+	ensureVisible()
+}
+
 func (a *App) modalListGeometry(widthPct, heightPct int) (sdl.FRect, int) {
 	viewportW, viewportH := a.viewportSize()
 	widthPct = clampInt(widthPct, 20, 100)

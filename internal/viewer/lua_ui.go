@@ -150,15 +150,7 @@ func (a *App) visibleLuaUIIndices() []int {
 
 func (a *App) updateLuaUISearchQuery(query string) {
 	a.luaUI.query = query
-	visible := a.visibleLuaUIIndices()
-	if len(visible) == 0 {
-		a.luaUI.selected = -1
-		a.luaUI.scroll = 0
-		return
-	}
-	a.luaUI.selected = visible[0]
-	a.luaUI.scroll = 0
-	a.ensureLuaUISelectionVisible()
+	resetModalListSelection(a.visibleLuaUIIndices(), &a.luaUI.selected, &a.luaUI.scroll, a.ensureLuaUISelectionVisible)
 }
 
 func (a *App) insertLuaUISearchText(text string) {

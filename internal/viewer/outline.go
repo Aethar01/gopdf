@@ -106,15 +106,7 @@ func (a *App) invalidateVisibleOutlineIndices() {
 func (a *App) updateOutlineSearchQuery(query string) {
 	a.outlineMenu.query = query
 	a.invalidateVisibleOutlineIndices()
-	visible := a.visibleOutlineIndices()
-	if len(visible) == 0 {
-		a.outlineMenu.selected = -1
-		a.outlineMenu.scroll = 0
-		return
-	}
-	a.outlineMenu.selected = visible[0]
-	a.outlineMenu.scroll = 0
-	a.ensureOutlineSelectionVisible()
+	resetModalListSelection(a.visibleOutlineIndices(), &a.outlineMenu.selected, &a.outlineMenu.scroll, a.ensureOutlineSelectionVisible)
 }
 
 func (a *App) insertOutlineSearchText(text string) {
