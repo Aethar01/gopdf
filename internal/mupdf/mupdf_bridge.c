@@ -139,7 +139,7 @@ gopdf_doc *gopdf_open_document(const char *path, const char *password, char **er
 	handle->doc = doc;
 	handle->pages = NULL;
 	handle->page_count = 0;
-	handle->render_cookie = NULL;
+	memset(&handle->render_cookie, 0, sizeof(handle->render_cookie));
 	return handle;
 }
 
@@ -268,7 +268,6 @@ int gopdf_render_page_to_buffer(gopdf_doc *handle, int page_number, float scale,
 	fz_matrix ctm = gopdf_render_ctm(scale, rotation);
 	int old_aa = 0;
 	int have_old_aa = 0;
-	fz_cookie cookie = { 0 };
 	*err = NULL;
 	fz_var(pix);
 	fz_var(dev);
@@ -289,11 +288,10 @@ int gopdf_render_page_to_buffer(gopdf_doc *handle, int page_number, float scale,
 		pix = fz_new_pixmap_with_bbox_and_data(handle->ctx, fz_device_rgb(handle->ctx), bbox, NULL, 1, samples);
 		fz_clear_pixmap_with_value(handle->ctx, pix, 0xff);
 		dev = fz_new_draw_device(handle->ctx, fz_identity, pix);
-		handle->render_cookie = &cookie;
-		fz_run_page(handle->ctx, page, dev, ctm, &cookie);
+		handle->render_cookie.abort = 0;
+		fz_run_page(handle->ctx, page, dev, ctm, &handle->render_cookie);
 		fz_close_device(handle->ctx, dev);
 	} fz_always(handle->ctx) {
-		handle->render_cookie = NULL;
 		if (have_old_aa) {
 			fz_set_aa_level(handle->ctx, old_aa);
 		}
@@ -319,7 +317,6 @@ int gopdf_render_page_alloc(gopdf_doc *handle, int page_number, float scale, flo
 	fz_matrix ctm = gopdf_render_ctm(scale, rotation);
 	int old_aa = 0;
 	int have_old_aa = 0;
-	fz_cookie cookie = { 0 };
 	*err = NULL;
 	*samples = NULL;
 	*width = 0;
@@ -359,12 +356,11 @@ int gopdf_render_page_alloc(gopdf_doc *handle, int page_number, float scale, flo
 			pix = fz_new_pixmap_with_bbox_and_data(handle->ctx, fz_device_rgb(handle->ctx), bbox, NULL, 1, *samples);
 			fz_clear_pixmap_with_value(handle->ctx, pix, 0xff);
 			dev = fz_new_draw_device(handle->ctx, fz_identity, pix);
-			handle->render_cookie = &cookie;
-			fz_run_page(handle->ctx, page, dev, ctm, &cookie);
+			handle->render_cookie.abort = 0;
+			fz_run_page(handle->ctx, page, dev, ctm, &handle->render_cookie);
 			fz_close_device(handle->ctx, dev);
 		}
 	} fz_always(handle->ctx) {
-		handle->render_cookie = NULL;
 		if (have_old_aa) {
 			fz_set_aa_level(handle->ctx, old_aa);
 		}
@@ -386,8 +382,8 @@ int gopdf_render_page_alloc(gopdf_doc *handle, int page_number, float scale, flo
 }
 
 void gopdf_cancel_render(gopdf_doc *handle) {
-	if (handle != NULL && handle->render_cookie != NULL) {
-		handle->render_cookie->abort = 1;
+	if (handle != NULL) {
+		handle->render_cookie.abort = 1;
 	}
 }
 
