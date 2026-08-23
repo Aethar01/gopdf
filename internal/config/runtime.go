@@ -85,24 +85,46 @@ func (r *Runtime) SetDocument(path string, pageCount ...int) error {
 		r.docMeta.pageCount = pageCount[0]
 		r.docMeta.hasPages = true
 	}
-	return r.Reload()
+	if err := r.Reload(); err != nil {
+		r.updateLuaDocument()
+		return err
+	}
+	return nil
 }
 
 func (r *Runtime) SetPageCount(pages int) {
 	r.docMeta.pageCount = pages
 	r.docMeta.hasPages = true
+	r.updateLuaDocument()
 }
 
 func (r *Runtime) Reload() error {
 	r.logf("reload config explicit=%q doc=%q", r.explicitPath, r.docPath)
-	if r.state != nil {
-		r.state.Close()
-		r.state = nil
-	}
+	oldState := r.state
+	oldConfig := r.cfg
+	oldCallbacks := r.callbacks
+	oldCallbackSeq := r.callbackSeq
+	oldDirty := r.dirty
+	committed := false
+	r.state = nil
 	r.cfg = Default()
 	r.callbacks = map[string]*lua.LFunction{}
 	r.callbackSeq = 0
 	r.dirty = false
+	defer func() {
+		if committed {
+			if oldState != nil {
+				oldState.Close()
+			}
+			return
+		}
+		r.Close()
+		r.state = oldState
+		r.cfg = oldConfig
+		r.callbacks = oldCallbacks
+		r.callbackSeq = oldCallbackSeq
+		r.dirty = oldDirty
+	}()
 	autogenPath := r.autogenPath()
 	if autogenPath != "" {
 		if info, err := os.Stat(autogenPath); err == nil && !info.IsDir() {
@@ -137,12 +159,14 @@ func (r *Runtime) Reload() error {
 		r.cfg.ConfigPath = path
 		r.cfg.AutogenPath = autogenPath
 		r.dirty = false
+		committed = true
 		return nil
 	}
 	r.initLuaState()
 	r.cfg.AutogenPath = autogenPath
 	r.dirty = false
 	r.logf("no user config loaded")
+	committed = true
 	return nil
 }
 

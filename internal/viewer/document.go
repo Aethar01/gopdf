@@ -45,27 +45,15 @@ func (a *App) resolveOpenPath(path string) string {
 func (a *App) initMetricLoader(pageCount int, startPage int) {
 	a.logf("start metric loader pages=%d startPage=%d", pageCount, startPage+1)
 	l := &metricLoader{
-		updates: make(chan pageMetricUpdate, 128),
-		closing: make(chan struct{}),
-		done:    make(chan struct{}),
+		workerLifecycle: newWorkerLifecycle(),
+		updates:         make(chan pageMetricUpdate, 128),
 	}
-	a.loader = l
+	a.metricLoader = l
 	go l.run(a.doc, pageCount, startPage)
 }
 
-func (a *App) closeMetricLoader() {
-	if a.loader != nil {
-		a.logf("close metric loader")
-		a.loader.Close()
-		a.loader = nil
-	}
-	a.pendingLoad = false
-	a.pendingPages = 0
-	a.pendingStart = 0
-}
-
 func (a *App) startPendingMetricLoader() {
-	if a.loader != nil || !a.pendingLoad || a.pendingPages <= 1 {
+	if a.metricLoader != nil || !a.pendingLoad || a.pendingPages <= 1 {
 		return
 	}
 	pages := a.pendingPages
@@ -77,14 +65,14 @@ func (a *App) startPendingMetricLoader() {
 }
 
 func (a *App) pollMetricUpdates() {
-	if a.loader == nil {
+	if a.metricLoader == nil {
 		return
 	}
 	changed := false
 	anchor := a.captureViewportAnchor()
 	for {
 		select {
-		case update, ok := <-a.loader.updates:
+		case update, ok := <-a.metricLoader.updates:
 			if !ok {
 				return
 			}
@@ -149,42 +137,9 @@ func (a *App) openDocumentWithPassword(path string, opts openDocumentOptions, pa
 	a.saveDocumentSession()
 	a.closeDocumentResources()
 
-	a.docPath = path
-	a.docName = filepath.Base(path)
-	a.docPassword = password
-	a.recordRecentFile(path)
 	a.document.record(path)
-	a.doc = doc
-	a.pageCount = pages
-	a.page = startPage
-	a.rotation = 0
-	a.zoom = a.clampZoom(1)
-	a.scale = 1
-	a.scrollX = 0
-	a.scrollY = 0
-	a.pageMetrics = make([]pageMetrics, pages)
-	a.rows = nil
-	a.pageToRow = nil
-	a.contentW = 0
-	a.contentH = 0
-	a.cacheLimit = pageCacheLimit(a.config, pages)
-	a.renderBaseScale = 0
-	a.pageLinks = map[int][]mupdf.Link{}
-	a.search = searchState{}
-	a.outline = nil
-	a.outlineMenu = outlineMenuState{}
-	a.keybindMenu = keybindMenuState{}
-	a.luaUI = luaUIState{}
-	a.completion = completionState{}
-	a.selection = textSelection{}
-	a.mode = modeNormal
-	a.input.Reset()
-	a.ignoreText = ""
-	a.sequence = nil
-	a.pendingCount = ""
-	a.jumpBack = nil
-	a.jumpAhead = nil
-	a.pendingOpen = ""
+	a.installDocument(doc, path, pages, startPage)
+	a.resetForNewDocument(password)
 
 	a.initDocumentMetrics(doc, pages, startPage)
 	a.logf("opened document path=%q pages=%d page=%d", path, pages, startPage+1)
@@ -215,6 +170,28 @@ func (a *App) openDocumentWithPassword(path string, opts openDocumentOptions, pa
 		return configErr
 	}
 	return nil
+}
+
+func (a *App) resetForNewDocument(password string) {
+	a.docPassword = password
+	a.rotation = 0
+	a.zoom = a.clampZoom(1)
+	a.scale = 1
+	a.scrollX = 0
+	a.scrollY = 0
+	a.search = searchState{}
+	a.outlineMenu = outlineMenuState{}
+	a.keybindMenu = keybindMenuState{}
+	a.luaUI = luaUIState{}
+	a.completion = completionState{}
+	a.mode = modeNormal
+	a.input.Reset()
+	a.ignoreText = ""
+	a.sequence = nil
+	a.pendingCount = ""
+	a.jumpBack = nil
+	a.jumpAhead = nil
+	a.pendingOpen = ""
 }
 
 func (a *App) promptDocumentPassword(path string, opts openDocumentOptions) {
@@ -265,6 +242,25 @@ func (a *App) initDocumentMetrics(doc *mupdf.Document, pages int, startPage int)
 	}
 }
 
+func (a *App) installDocument(doc *mupdf.Document, path string, pages, startPage int) {
+	a.docPath = path
+	a.docName = filepath.Base(path)
+	a.recordRecentFile(path)
+	a.doc = doc
+	a.pageCount = pages
+	a.page = startPage
+	a.pageMetrics = make([]pageMetrics, pages)
+	a.rows = nil
+	a.pageToRow = nil
+	a.contentW = 0
+	a.contentH = 0
+	a.cacheLimit = pageCacheLimit(a.config, pages)
+	a.renderBaseScale = 0
+	a.pageLinks = map[int][]mupdf.Link{}
+	a.outline = nil
+	a.selection = textSelection{}
+}
+
 func (a *App) pollDocumentUpdate() {
 	change, ok := a.document.poll(time.Now())
 	if !ok {
@@ -304,22 +300,7 @@ func (a *App) softReloadDocument(path string, state viewState) error {
 	}
 	a.closeDocumentResources()
 
-	a.docPath = path
-	a.docName = filepath.Base(path)
-	a.recordRecentFile(path)
-	a.doc = doc
-	a.pageCount = pages
-	a.page = startPage
-	a.pageMetrics = make([]pageMetrics, pages)
-	a.rows = nil
-	a.pageToRow = nil
-	a.contentW = 0
-	a.contentH = 0
-	a.cacheLimit = pageCacheLimit(a.config, pages)
-	a.renderBaseScale = 0
-	a.pageLinks = map[int][]mupdf.Link{}
-	a.outline = nil
-	a.selection = textSelection{}
+	a.installDocument(doc, path, pages, startPage)
 
 	a.initDocumentMetrics(doc, pages, startPage)
 	a.logf("soft reloaded document path=%q pages=%d page=%d", path, pages, startPage+1)

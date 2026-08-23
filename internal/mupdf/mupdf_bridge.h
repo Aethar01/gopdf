@@ -8,7 +8,7 @@ typedef struct {
 	fz_document *doc;
 	fz_page **pages;
 	int page_count;
-	fz_cookie *render_cookie;
+	fz_cookie render_cookie;
 } gopdf_doc;
 
 typedef struct {

@@ -85,12 +85,19 @@ type App struct {
 	viewStateFields
 	layoutState
 	sdlState
+	documentWorkers
 	renderService
 	metricsService
 	inputState
 	interactionState
 	uiState
 	navigationState
+}
+
+type documentWorkers struct {
+	renderWorker *renderWorker
+	metricLoader *metricLoader
+	searchWorker *searchWorker
 }
 
 type documentState struct {
@@ -184,7 +191,6 @@ type interactionState struct {
 type uiState struct {
 	pendingRedraw bool
 	search        searchState
-	searchWorker  *searchWorker
 	outlineMenu   outlineMenuState
 	keybindMenu   keybindMenuState
 	luaUI         luaUIState
@@ -278,32 +284,11 @@ func (a *App) Close() {
 	a.saveDocumentSession()
 	a.document.Close()
 	a.closeDocumentResources()
-	a.clearTextTextureCache()
-	closeFontFace(a.fontFace)
-	a.fontFace = nil
-	if a.cursorHand != nil {
-		sdl.DestroyCursor(a.cursorHand)
-		a.cursorHand = nil
-	}
-	if a.cursorArrow != nil {
-		sdl.DestroyCursor(a.cursorArrow)
-		a.cursorArrow = nil
-	}
-	if a.renderer != nil {
-		sdl.DestroyRenderer(a.renderer)
-		a.renderer = nil
-	}
-	if a.window != nil {
-		sdl.DestroyWindow(a.window)
-		a.window = nil
-	}
-	sdl.Quit()
+	a.sdlState.Close()
 }
 
 func (a *App) closeDocumentResources() {
-	a.closeRenderWorker()
-	a.closeMetricLoader()
-	a.closeSearch()
+	a.closeDocumentWorkers()
 	a.clearCache()
 	if a.doc != nil {
 		a.doc.Close()
@@ -311,8 +296,24 @@ func (a *App) closeDocumentResources() {
 	}
 }
 
-func (a *App) PendingOpen() string {
-	return a.pendingOpen
+func (a *App) closeDocumentWorkers() {
+	if a.renderWorker != nil {
+		a.renderWorker.Close()
+		a.renderWorker = nil
+	}
+	if a.metricLoader != nil {
+		a.logf("close metric loader")
+		a.metricLoader.Close()
+		a.metricLoader = nil
+	}
+	if a.searchWorker != nil {
+		a.logf("close search worker")
+		a.searchWorker.Close()
+		a.searchWorker = nil
+	}
+	a.pendingLoad = false
+	a.pendingPages = 0
+	a.pendingStart = 0
 }
 
 func (a *App) handleSDLKeyDown(e *sdl.KeyboardEvent) {
@@ -634,34 +635,13 @@ func (a *App) handleSDLMouseButton(e *sdl.MouseButtonEvent) {
 
 func (a *App) handleSDLMouseMotion(e *sdl.MouseMotionEvent) bool {
 	if a.luaUI.visible {
-		if a.luaUI.draggingScrollbar {
-			oldScroll := a.luaUI.scroll
-			a.dragLuaUIScrollbar(int(e.Y))
-			return a.luaUI.scroll != oldScroll
-		}
-		oldSelected := a.luaUI.selected
-		a.hoverLuaUI(int(e.X), int(e.Y))
-		return a.luaUI.selected != oldSelected
+		return handleModalListMouseMotion(e, a.luaUI.draggingScrollbar, &a.luaUI.scroll, &a.luaUI.selected, a.dragLuaUIScrollbar, a.hoverLuaUI)
 	}
 	if a.keybindMenu.visible {
-		if a.keybindMenu.draggingScrollbar {
-			oldScroll := a.keybindMenu.scroll
-			a.dragKeybindScrollbar(int(e.Y))
-			return a.keybindMenu.scroll != oldScroll
-		}
-		oldSelected := a.keybindMenu.selected
-		a.hoverKeybindMenu(int(e.X), int(e.Y))
-		return a.keybindMenu.selected != oldSelected
-	}
-	if a.outlineMenu.visible && a.outlineMenu.draggingScrollbar {
-		oldScroll := a.outlineMenu.scroll
-		a.dragOutlineScrollbar(int(e.Y))
-		return a.outlineMenu.scroll != oldScroll
+		return handleModalListMouseMotion(e, a.keybindMenu.draggingScrollbar, &a.keybindMenu.scroll, &a.keybindMenu.selected, a.dragKeybindScrollbar, a.hoverKeybindMenu)
 	}
 	if a.outlineMenu.visible {
-		oldSelected := a.outlineMenu.selected
-		a.hoverOutlineMenu(int(e.X), int(e.Y))
-		return a.outlineMenu.selected != oldSelected
+		return handleModalListMouseMotion(e, a.outlineMenu.draggingScrollbar, &a.outlineMenu.scroll, &a.outlineMenu.selected, a.dragOutlineScrollbar, a.hoverOutlineMenu)
 	}
 	if a.panning && (a.panButton == 0 || uint32(e.State)&buttonMask(a.panButton) != 0) {
 		oldX, oldY := a.scrollX, a.scrollY
@@ -865,19 +845,6 @@ func (a *App) nextSpread() {
 	}
 }
 
-func (a *App) nextSpreadFrom(page int) {
-	if a.pageCount == 0 {
-		return
-	}
-	page = a.anchorPage(page)
-	row := a.pageToRow[page]
-	if row < len(a.rows)-1 {
-		next := a.rows[row+1].pages[0]
-		a.page = next
-		a.alignPageToAnchor(next)
-	}
-}
-
 func (a *App) prevSpread() {
 	if a.pageCount == 0 {
 		return
@@ -887,19 +854,6 @@ func (a *App) prevSpread() {
 		a.alignPageToAnchor(a.rows[row-1].pages[0])
 	} else {
 		a.alignPageToViewportEdge(0, false)
-	}
-}
-
-func (a *App) prevSpreadFrom(page int) {
-	if a.pageCount == 0 {
-		return
-	}
-	page = a.anchorPage(page)
-	row := a.pageToRow[page]
-	if row > 0 {
-		prev := a.rows[row-1].pages[0]
-		a.page = prev
-		a.alignPageToAnchor(prev)
 	}
 }
 

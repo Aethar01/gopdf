@@ -152,13 +152,36 @@ func newTextTextureKey(s string, clr color.Color) textTextureKey {
 	return textTextureKey{text: s, r: uint8(r >> 8), g: uint8(g >> 8), b: uint8(b >> 8), a: uint8(a >> 8)}
 }
 
-func (a *App) clearTextTextureCache() {
-	for _, entry := range a.textCache {
+func (s *sdlState) clearTextTextureCache() {
+	for _, entry := range s.textCache {
 		if entry.texture != nil {
 			sdl.DestroyTexture(entry.texture)
 		}
 	}
-	a.textCache = nil
+	s.textCache = nil
+}
+
+func (s *sdlState) Close() {
+	s.clearTextTextureCache()
+	closeFontFace(s.fontFace)
+	s.fontFace = nil
+	if s.cursorHand != nil {
+		sdl.DestroyCursor(s.cursorHand)
+		s.cursorHand = nil
+	}
+	if s.cursorArrow != nil {
+		sdl.DestroyCursor(s.cursorArrow)
+		s.cursorArrow = nil
+	}
+	if s.renderer != nil {
+		sdl.DestroyRenderer(s.renderer)
+		s.renderer = nil
+	}
+	if s.window != nil {
+		sdl.DestroyWindow(s.window)
+		s.window = nil
+	}
+	sdl.Quit()
 }
 
 func fillRect(renderer *sdl.Renderer, rect sdl.FRect, clr color.RGBA) error {

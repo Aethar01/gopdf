@@ -47,8 +47,7 @@ func (r *Runtime) initLuaState() *lua.LState {
 	return L
 }
 
-func newLuaModule(L *lua.LState, rt *Runtime, cfg *Config) *lua.LTable {
-	mod := L.NewTable()
+func newLuaDocumentTable(L *lua.LState, rt *Runtime) *lua.LTable {
 	document := L.NewTable()
 	L.SetField(document, "path", lua.LString(rt.docPath))
 	L.SetField(document, "name", lua.LString(rt.docName))
@@ -60,7 +59,22 @@ func newLuaModule(L *lua.LState, rt *Runtime, cfg *Config) *lua.LTable {
 	if rt.docMeta.hasPages {
 		L.SetField(document, "page_count", lua.LNumber(rt.docMeta.pageCount))
 	}
-	L.SetField(mod, "document", document)
+	return document
+}
+
+func (r *Runtime) updateLuaDocument() {
+	if r.state == nil {
+		return
+	}
+	mod, ok := r.state.GetGlobal("gopdf").(*lua.LTable)
+	if ok {
+		r.state.SetField(mod, "document", newLuaDocumentTable(r.state, r))
+	}
+}
+
+func newLuaModule(L *lua.LState, rt *Runtime, cfg *Config) *lua.LTable {
+	mod := L.NewTable()
+	L.SetField(mod, "document", newLuaDocumentTable(L, rt))
 	L.SetField(mod, "cache", newLuaCacheTable(L, rt))
 	L.SetField(mod, "ui", newLuaUITable(L, rt))
 	registerLuaFunctions(L, mod, "gopdf.", []luaFunctionSpec{

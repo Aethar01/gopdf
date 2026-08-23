@@ -16,16 +16,16 @@ type documentWatcher struct {
 	changed chan struct{}
 	pending watcherChange
 
-	watcher *fsnotify.Watcher
-	done    chan struct{}
-	mu      sync.Mutex
-	started bool
+	watcher   *fsnotify.Watcher
+	done      chan struct{}
+	mu        sync.Mutex
+	closeOnce sync.Once
+	started   bool
 }
 
 type watcherChange struct {
-	mod       time.Time
-	size      int64
-	firstSeen time.Time
+	mod  time.Time
+	size int64
 }
 
 func newDocumentWatcher(path string) (*documentWatcher, error) {
@@ -129,9 +129,8 @@ func (dw *documentWatcher) checkAndNotify() {
 	dw.mod = mod
 	dw.size = size
 	dw.pending = watcherChange{
-		mod:       mod,
-		size:      size,
-		firstSeen: time.Now(),
+		mod:  mod,
+		size: size,
 	}
 
 	select {
@@ -170,11 +169,8 @@ func (dw *documentWatcher) waitForChange(timeout time.Duration) (watcherChange, 
 }
 
 func (dw *documentWatcher) Close() {
-	select {
-	case <-dw.done:
-		return
-	default:
+	dw.closeOnce.Do(func() {
 		close(dw.done)
 		dw.watcher.Close()
-	}
+	})
 }

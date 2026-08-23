@@ -148,30 +148,9 @@ func (a *App) visibleLuaUIIndices() []int {
 	return visible
 }
 
-func (a *App) selectedVisibleLuaUIRow(visible []int) int {
-	for i, index := range visible {
-		if index == a.luaUI.selected {
-			return i
-		}
-	}
-	if len(visible) == 0 {
-		return 0
-	}
-	a.luaUI.selected = visible[clampInt(a.luaUI.scroll, 0, len(visible)-1)]
-	return clampInt(a.luaUI.scroll, 0, len(visible)-1)
-}
-
 func (a *App) updateLuaUISearchQuery(query string) {
 	a.luaUI.query = query
-	visible := a.visibleLuaUIIndices()
-	if len(visible) == 0 {
-		a.luaUI.selected = -1
-		a.luaUI.scroll = 0
-		return
-	}
-	a.luaUI.selected = visible[0]
-	a.luaUI.scroll = 0
-	a.ensureLuaUISelectionVisible()
+	resetModalListSelection(a.visibleLuaUIIndices(), &a.luaUI.selected, &a.luaUI.scroll, a.ensureLuaUISelectionVisible)
 }
 
 func (a *App) insertLuaUISearchText(text string) {
@@ -203,7 +182,7 @@ func (a *App) moveLuaUISelection(delta int) {
 	if len(visible) == 0 {
 		return
 	}
-	row := a.selectedVisibleLuaUIRow(visible)
+	row := modalListSelectedRow(visible, &a.luaUI.selected, a.luaUI.scroll)
 	row = clampInt(row+delta, 0, len(visible)-1)
 	a.luaUI.selected = visible[row]
 	a.ensureLuaUISelectionVisible()
@@ -232,7 +211,8 @@ func (a *App) ensureLuaUISelectionVisible() {
 		a.luaUI.scroll = 0
 		return
 	}
-	a.luaUI.scroll = modalListScrollForSelection(a.luaUI.scroll, a.selectedVisibleLuaUIRow(visible), rows, len(visible))
+	selectedRow := modalListSelectedRow(visible, &a.luaUI.selected, a.luaUI.scroll)
+	a.luaUI.scroll = modalListScrollForSelection(a.luaUI.scroll, selectedRow, rows, len(visible))
 }
 
 func (a *App) activateLuaUISelection() {

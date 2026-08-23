@@ -185,6 +185,19 @@ func (a *App) rowRangeForContentY(minY, maxY float64) (int, int) {
 	return start, end
 }
 
+func (a *App) forEachContinuousPage(minY, maxY float64, visit func(page int, x, y, width, height float64)) {
+	start, end := a.rowRangeForContentY(minY, maxY)
+	for _, row := range a.rows[start:end] {
+		if row.y+row.height < minY || row.y > maxY {
+			continue
+		}
+		for i, page := range row.pages {
+			x, y := a.rowPageScreenOrigin(row, i)
+			visit(page, x, y, row.pageW[i], row.pageH[i])
+		}
+	}
+}
+
 func (a *App) verticalGap() int {
 	if a.config.PageGapVertical >= 0 {
 		return a.config.PageGapVertical

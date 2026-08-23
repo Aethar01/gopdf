@@ -25,14 +25,6 @@ type Rect struct {
 	Y1 float32
 }
 
-func (r Rect) Width() float64 {
-	return float64(r.X1 - r.X0)
-}
-
-func (r Rect) Height() float64 {
-	return float64(r.Y1 - r.Y0)
-}
-
 type Document struct {
 	mu     sync.Mutex
 	handle *C.gopdf_doc
@@ -237,9 +229,13 @@ func (d *Document) Render(page int, scale float64, rotation float64, aaLevel int
 		return nil, consumeError("render page", cerr)
 	}
 	if width <= 0 || height <= 0 || stride <= 0 {
+		if samples != nil {
+			C.gopdf_free_rendered_page(samples)
+		}
 		return &RenderedPage{Image: image.NewRGBA(image.Rect(0, 0, 0, 0)), X: int(x), Y: int(y)}, nil
 	}
 	if int(stride) != int(width)*4 {
+		C.gopdf_free_rendered_page(samples)
 		return nil, fmt.Errorf("render page: unsupported pixmap stride %d for width %d", int(stride), int(width))
 	}
 	if samples == nil {
@@ -341,14 +337,7 @@ func (d *Document) Links(page int) ([]Link, error) {
 	raw := unsafe.Slice(result.links, int(result.link_count))
 	links := make([]Link, len(raw))
 	for i, link := range raw {
-		x, y := float64(link.x), float64(link.y)
-		hasX, hasY := link.has_x != 0 && !math.IsNaN(x), link.has_y != 0 && !math.IsNaN(y)
-		if !hasX {
-			x = 0
-		}
-		if !hasY {
-			y = 0
-		}
+		x, y, hasX, hasY := decodeDestination(link.x, link.y, link.has_x, link.has_y)
 		links[i] = Link{
 			Bounds:   Rect{X0: float32(link.rect.x0), Y0: float32(link.rect.y0), X1: float32(link.rect.x1), Y1: float32(link.rect.y1)},
 			URI:      goString(link.uri),
@@ -381,14 +370,7 @@ func (d *Document) Outline() ([]OutlineItem, error) {
 	raw := unsafe.Slice(result.items, int(result.item_count))
 	items := make([]OutlineItem, len(raw))
 	for i, item := range raw {
-		x, y := float64(item.x), float64(item.y)
-		hasX, hasY := item.has_x != 0 && !math.IsNaN(x), item.has_y != 0 && !math.IsNaN(y)
-		if !hasX {
-			x = 0
-		}
-		if !hasY {
-			y = 0
-		}
+		x, y, hasX, hasY := decodeDestination(item.x, item.y, item.has_x, item.has_y)
 		items[i] = OutlineItem{
 			Title:       goString(item.title),
 			URI:         goString(item.uri),
@@ -404,6 +386,18 @@ func (d *Document) Outline() ([]OutlineItem, error) {
 		}
 	}
 	return items, nil
+}
+
+func decodeDestination(rawX, rawY C.float, rawHasX, rawHasY C.int) (x, y float64, hasX, hasY bool) {
+	x, y = float64(rawX), float64(rawY)
+	hasX, hasY = rawHasX != 0 && !math.IsNaN(x), rawHasY != 0 && !math.IsNaN(y)
+	if !hasX {
+		x = 0
+	}
+	if !hasY {
+		y = 0
+	}
+	return
 }
 
 func copyQuads(raw *C.gopdf_quad, count int) []Quad {

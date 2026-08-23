@@ -4,7 +4,6 @@ import (
 	"container/list"
 	"fmt"
 	"math"
-	"sync"
 	"sync/atomic"
 	"time"
 
@@ -25,21 +24,16 @@ type renderRequest struct {
 }
 
 type renderUpdate struct {
-	generation int
-	page       int
-	scale      float64
-	altColors  bool
-	aaLevel    int
-	cacheKey   string
-	rendered   *mupdf.RenderedPage
-	err        error
+	request  renderRequest
+	rendered *mupdf.RenderedPage
+	err      error
 }
 
 type renderService struct {
 	renderCache        map[string]*renderedPage
 	renderLRU          *list.List
 	renderLRUItems     map[string]*list.Element
-	renderIndex        map[renderVariantKey]map[string]*renderedPage
+	renderIndex        map[renderVariantKey]*renderedPage
 	thumbnailCache     map[renderVariantKey]*renderedPage
 	thumbnailLRU       *list.List
 	thumbnailLRUItems  map[renderVariantKey]*list.Element
@@ -54,7 +48,6 @@ type renderService struct {
 	minRenderBaseScale float64
 	renderGeneration   int
 	renderPending      map[string]renderRequest
-	renderWorker       *renderWorker
 }
 
 type renderVariantKey struct {
@@ -64,12 +57,10 @@ type renderVariantKey struct {
 }
 
 type renderWorker struct {
+	workerLifecycle
 	doc        *mupdf.Document
 	requests   chan renderRequest
 	updates    chan renderUpdate
-	closing    chan struct{}
-	done       chan struct{}
-	closeOnce  sync.Once
 	generation atomic.Int32
 	wanted     atomic.Value
 	visible    atomic.Value
@@ -78,11 +69,10 @@ type renderWorker struct {
 
 func newRenderWorker(doc *mupdf.Document) *renderWorker {
 	w := &renderWorker{
-		doc:      doc,
-		requests: make(chan renderRequest, 128),
-		updates:  make(chan renderUpdate, maxPendingPrefetchRenders),
-		closing:  make(chan struct{}),
-		done:     make(chan struct{}),
+		workerLifecycle: newWorkerLifecycle(),
+		doc:             doc,
+		requests:        make(chan renderRequest, 128),
+		updates:         make(chan renderUpdate, maxPendingPrefetchRenders),
 	}
 	go w.run(doc)
 	return w
@@ -90,7 +80,7 @@ func newRenderWorker(doc *mupdf.Document) *renderWorker {
 
 func (w *renderWorker) Close() {
 	w.Cancel()
-	closeWorker(w.closing, w.done, &w.closeOnce)
+	w.workerLifecycle.Close()
 }
 
 func (w *renderWorker) Cancel() {
@@ -199,7 +189,7 @@ func (w *renderWorker) requestPriority(req renderRequest) int {
 func (w *renderWorker) run(doc *mupdf.Document) {
 	defer close(w.done)
 	if doc == nil {
-		w.send(renderUpdate{err: fmt.Errorf("render worker: no document open")})
+		sendWorkerUpdate(&w.workerLifecycle, w.updates, renderUpdate{err: fmt.Errorf("render worker: no document open")})
 		w.closeOnce.Do(func() { close(w.closing) })
 		return
 	}
@@ -230,16 +220,7 @@ func (w *renderWorker) run(doc *mupdf.Document) {
 		w.activePage.Store(int32(req.page + 1))
 		rendered, err := doc.Render(req.page, req.scale, 0, req.aaLevel)
 		w.activePage.Store(0)
-		w.send(renderUpdate{
-			generation: req.generation,
-			page:       req.page,
-			scale:      req.scale,
-			altColors:  req.altColors,
-			aaLevel:    req.aaLevel,
-			cacheKey:   req.cacheKey,
-			rendered:   rendered,
-			err:        err,
-		})
+		sendWorkerUpdate(&w.workerLifecycle, w.updates, renderUpdate{request: req, rendered: rendered, err: err})
 	}
 }
 
@@ -263,14 +244,6 @@ func (w *renderWorker) popNextRequest(queue []renderRequest) (renderRequest, []r
 	return req, queue, true
 }
 
-func (w *renderWorker) send(update renderUpdate) {
-	select {
-	case <-w.closing:
-		return
-	case w.updates <- update:
-	}
-}
-
 func renderCacheKey(page int, scale float64, altColors bool, aaLevel int) string {
 	return fmt.Sprintf("%d/%.4f/%t/%d", page, scale, altColors, aaLevel)
 }
@@ -282,13 +255,6 @@ func (a *App) initRenderWorker() {
 	a.renderWorker.SetGeneration(a.renderGeneration)
 }
 
-func (rs *renderService) closeRenderWorker() {
-	if rs.renderWorker != nil {
-		rs.renderWorker.Close()
-		rs.renderWorker = nil
-	}
-}
-
 func (a *App) pollRenderUpdates() {
 	if a.renderWorker == nil {
 		return
@@ -296,17 +262,18 @@ func (a *App) pollRenderUpdates() {
 	for {
 		select {
 		case update := <-a.renderWorker.updates:
+			req := update.request
 			if update.rendered != nil {
 				defer update.rendered.Close()
 			}
-			if update.generation != a.renderGeneration {
-				delete(a.renderPending, update.cacheKey)
+			if req.generation != a.renderGeneration {
+				delete(a.renderPending, req.cacheKey)
 				continue
 			}
-			if _, pending := a.renderPending[update.cacheKey]; !pending {
+			if _, pending := a.renderPending[req.cacheKey]; !pending {
 				continue
 			}
-			delete(a.renderPending, update.cacheKey)
+			delete(a.renderPending, req.cacheKey)
 			if update.err != nil {
 				a.logf("render update failed err=%v", update.err)
 				a.message = update.err.Error()
@@ -315,13 +282,13 @@ func (a *App) pollRenderUpdates() {
 			if update.rendered == nil {
 				continue
 			}
-			if update.altColors {
+			if req.altColors {
 				remapPageColors(update.rendered.Image, a.config.AltBackground, a.config.AltForeground)
 			}
-			a.removeRenderCacheEntry(update.cacheKey, true)
+			a.removeRenderCacheEntry(req.cacheKey, true)
 			tex, err := textureFromRGBA(a.renderer, update.rendered.Image)
 			if err != nil {
-				a.logf("render texture failed page=%d err=%v", update.page+1, err)
+				a.logf("render texture failed page=%d err=%v", req.page+1, err)
 				a.message = err.Error()
 				continue
 			}
@@ -333,13 +300,13 @@ func (a *App) pollRenderUpdates() {
 				bytes:     estimatedTextureBytes(bounds.Dx(), bounds.Dy()),
 				pixX:      float64(update.rendered.X),
 				pixY:      float64(update.rendered.Y),
-				key:       update.cacheKey,
-				page:      update.page,
-				scale:     update.scale,
-				altColors: update.altColors,
-				aaLevel:   update.aaLevel,
+				key:       req.cacheKey,
+				page:      req.page,
+				scale:     req.scale,
+				altColors: req.altColors,
+				aaLevel:   req.aaLevel,
 			}
-			a.addRenderCacheEntry(update.cacheKey, rp)
+			a.addRenderCacheEntry(req.cacheKey, rp)
 			a.addThumbnailCacheEntry(rp)
 			a.startPendingMetricLoader()
 			a.pendingRedraw = true
@@ -358,10 +325,6 @@ func (rs *renderService) touchRenderCacheEntry(key string) {
 	}
 }
 
-func (rs *renderService) evictRenderCacheEntry(key string) {
-	rs.removeRenderCacheEntry(key, true)
-}
-
 func (rs *renderService) ensureRenderCacheState() {
 	if rs.renderCache == nil {
 		rs.renderCache = map[string]*renderedPage{}
@@ -373,7 +336,7 @@ func (rs *renderService) ensureRenderCacheState() {
 		rs.renderLRUItems = map[string]*list.Element{}
 	}
 	if rs.renderIndex == nil {
-		rs.renderIndex = map[renderVariantKey]map[string]*renderedPage{}
+		rs.renderIndex = map[renderVariantKey]*renderedPage{}
 		for key, rp := range rs.renderCache {
 			if rp == nil {
 				continue
@@ -396,13 +359,9 @@ func (rs *renderService) ensureRenderCacheState() {
 }
 
 func (rs *renderService) indexRenderPage(key string, rp *renderedPage) {
+	rp.key = key
 	variant := renderVariantKey{page: rp.page, altColors: rp.altColors, aaLevel: rp.aaLevel}
-	pages := rs.renderIndex[variant]
-	if pages == nil {
-		pages = map[string]*renderedPage{}
-		rs.renderIndex[variant] = pages
-	}
-	pages[key] = rp
+	rs.renderIndex[variant] = rp
 }
 
 func (rs *renderService) touchThumbnailCacheEntry(key renderVariantKey) {
@@ -516,12 +475,8 @@ func (rs *renderService) addRenderCacheEntry(key string, rp *renderedPage) {
 
 func (rs *renderService) removeRenderCacheVariants(variant renderVariantKey) {
 	rs.ensureRenderCacheState()
-	keys := make([]string, 0, len(rs.renderIndex[variant]))
-	for key := range rs.renderIndex[variant] {
-		keys = append(keys, key)
-	}
-	for _, key := range keys {
-		rs.removeRenderCacheEntry(key, true)
+	if rp := rs.renderIndex[variant]; rp != nil {
+		rs.removeRenderCacheEntry(rp.key, true)
 	}
 }
 
@@ -536,11 +491,8 @@ func (rs *renderService) removeRenderCacheEntry(key string, destroy bool) {
 		delete(rs.renderLRUItems, key)
 	}
 	variant := renderVariantKey{page: rp.page, altColors: rp.altColors, aaLevel: rp.aaLevel}
-	if pages := rs.renderIndex[variant]; pages != nil {
-		delete(pages, key)
-		if len(pages) == 0 {
-			delete(rs.renderIndex, variant)
-		}
+	if rs.renderIndex[variant] == rp {
+		delete(rs.renderIndex, variant)
 	}
 	if destroy && rp.texture != nil {
 		sdl.DestroyTexture(rp.texture)
@@ -646,11 +598,11 @@ func (a *App) pendingBackgroundRenderCount() int {
 	return count
 }
 
-func (rs *renderService) invalidateRenderRequests() {
-	rs.renderGeneration++
-	rs.renderPending = map[string]renderRequest{}
-	if rs.renderWorker != nil {
-		rs.renderWorker.SetGeneration(rs.renderGeneration)
+func (a *App) invalidateRenderRequests() {
+	a.renderGeneration++
+	a.renderPending = map[string]renderRequest{}
+	if a.renderWorker != nil {
+		a.renderWorker.SetGeneration(a.renderGeneration)
 	}
 }
 
@@ -670,27 +622,27 @@ func (a *App) renderScaleFor(layoutScale float64) float64 {
 	return a.renderBaseScale
 }
 
-func (rs *renderService) clearCache() {
-	for _, rp := range rs.renderCache {
+func (a *App) clearCache() {
+	for _, rp := range a.renderCache {
 		if rp.texture != nil {
 			sdl.DestroyTexture(rp.texture)
 		}
 	}
-	for _, rp := range rs.thumbnailCache {
+	for _, rp := range a.thumbnailCache {
 		if rp.texture != nil {
 			sdl.DestroyTexture(rp.texture)
 		}
 	}
-	rs.renderCache = map[string]*renderedPage{}
-	rs.thumbnailCache = map[renderVariantKey]*renderedPage{}
-	rs.renderCacheBytes = 0
-	rs.thumbnailBytes = 0
-	rs.renderLRU = list.New()
-	rs.thumbnailLRU = list.New()
-	rs.renderLRUItems = map[string]*list.Element{}
-	rs.thumbnailLRUItems = map[renderVariantKey]*list.Element{}
-	rs.renderIndex = map[renderVariantKey]map[string]*renderedPage{}
-	rs.invalidateRenderRequests()
+	a.renderCache = map[string]*renderedPage{}
+	a.thumbnailCache = map[renderVariantKey]*renderedPage{}
+	a.renderCacheBytes = 0
+	a.thumbnailBytes = 0
+	a.renderLRU = list.New()
+	a.thumbnailLRU = list.New()
+	a.renderLRUItems = map[string]*list.Element{}
+	a.thumbnailLRUItems = map[renderVariantKey]*list.Element{}
+	a.renderIndex = map[renderVariantKey]*renderedPage{}
+	a.invalidateRenderRequests()
 }
 
 func (rs *renderService) renderDrawScale(rp *renderedPage, layoutScale float64) float64 {
@@ -798,7 +750,6 @@ func (a *App) ensureRenderBaseScale() {
 
 func (a *App) maybeUpgradeRenderScale(target float64) bool {
 	a.ensureRenderBaseScale()
-	floor := a.renderScaleFloor()
 	if !validRenderScale(target) {
 		return false
 	}
@@ -806,33 +757,16 @@ func (a *App) maybeUpgradeRenderScale(target float64) bool {
 	if target <= a.renderBaseScale*renderUpgradeTolerance {
 		return false
 	}
-	next := math.Max(target, floor)
-	if next <= a.renderBaseScale+0.01 {
-		return false
-	}
-	a.renderBaseScale = next
-	a.logf("upgrade render scale target=%.3f base=%.3f", target, next)
-	a.invalidateRenderRequests()
-	return true
+	return a.applyRenderBaseScaleTarget(target)
 }
 
 func (a *App) maybeDowngradeRenderScale() {
 	a.ensureRenderBaseScale()
-	floor := a.renderScaleFloor()
-	if a.renderBaseScale <= floor {
-		return
-	}
 	target := a.currentRenderTarget()
 	if target*renderDowngradeHeadroom >= a.renderBaseScale {
 		return
 	}
-	next := math.Max(target, floor)
-	if next >= a.renderBaseScale {
-		return
-	}
-	a.renderBaseScale = next
-	a.logf("downgrade render scale target=%.3f base=%.3f", target, next)
-	a.invalidateRenderRequests()
+	a.applyRenderBaseScaleTarget(target)
 }
 
 func (a *App) scheduleRenderScaleTarget(target float64) {
@@ -860,6 +794,14 @@ func (a *App) applyScheduledRenderScaleTarget() bool {
 	target := a.renderScaleTarget
 	a.renderScaleTarget = 0
 	a.renderScaleReadyAt = time.Time{}
+	return a.applyRenderBaseScaleTarget(target)
+}
+
+func (a *App) applyRenderBaseScaleTarget(target float64) bool {
+	a.ensureRenderBaseScale()
+	if !validRenderScale(target) {
+		return false
+	}
 	floor := a.renderScaleFloor()
 	if target > a.renderBaseScale*renderUpgradeTolerance {
 		next := math.Max(target, floor)
