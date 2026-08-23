@@ -25,14 +25,9 @@ type renderRequest struct {
 }
 
 type renderUpdate struct {
-	generation int
-	page       int
-	scale      float64
-	altColors  bool
-	aaLevel    int
-	cacheKey   string
-	rendered   *mupdf.RenderedPage
-	err        error
+	request  renderRequest
+	rendered *mupdf.RenderedPage
+	err      error
 }
 
 type renderService struct {
@@ -229,16 +224,7 @@ func (w *renderWorker) run(doc *mupdf.Document) {
 		w.activePage.Store(int32(req.page + 1))
 		rendered, err := doc.Render(req.page, req.scale, 0, req.aaLevel)
 		w.activePage.Store(0)
-		w.send(renderUpdate{
-			generation: req.generation,
-			page:       req.page,
-			scale:      req.scale,
-			altColors:  req.altColors,
-			aaLevel:    req.aaLevel,
-			cacheKey:   req.cacheKey,
-			rendered:   rendered,
-			err:        err,
-		})
+		w.send(renderUpdate{request: req, rendered: rendered, err: err})
 	}
 }
 
@@ -288,17 +274,18 @@ func (a *App) pollRenderUpdates() {
 	for {
 		select {
 		case update := <-a.renderWorker.updates:
+			req := update.request
 			if update.rendered != nil {
 				defer update.rendered.Close()
 			}
-			if update.generation != a.renderGeneration {
-				delete(a.renderPending, update.cacheKey)
+			if req.generation != a.renderGeneration {
+				delete(a.renderPending, req.cacheKey)
 				continue
 			}
-			if _, pending := a.renderPending[update.cacheKey]; !pending {
+			if _, pending := a.renderPending[req.cacheKey]; !pending {
 				continue
 			}
-			delete(a.renderPending, update.cacheKey)
+			delete(a.renderPending, req.cacheKey)
 			if update.err != nil {
 				a.logf("render update failed err=%v", update.err)
 				a.message = update.err.Error()
@@ -307,13 +294,13 @@ func (a *App) pollRenderUpdates() {
 			if update.rendered == nil {
 				continue
 			}
-			if update.altColors {
+			if req.altColors {
 				remapPageColors(update.rendered.Image, a.config.AltBackground, a.config.AltForeground)
 			}
-			a.removeRenderCacheEntry(update.cacheKey, true)
+			a.removeRenderCacheEntry(req.cacheKey, true)
 			tex, err := textureFromRGBA(a.renderer, update.rendered.Image)
 			if err != nil {
-				a.logf("render texture failed page=%d err=%v", update.page+1, err)
+				a.logf("render texture failed page=%d err=%v", req.page+1, err)
 				a.message = err.Error()
 				continue
 			}
@@ -325,13 +312,13 @@ func (a *App) pollRenderUpdates() {
 				bytes:     estimatedTextureBytes(bounds.Dx(), bounds.Dy()),
 				pixX:      float64(update.rendered.X),
 				pixY:      float64(update.rendered.Y),
-				key:       update.cacheKey,
-				page:      update.page,
-				scale:     update.scale,
-				altColors: update.altColors,
-				aaLevel:   update.aaLevel,
+				key:       req.cacheKey,
+				page:      req.page,
+				scale:     req.scale,
+				altColors: req.altColors,
+				aaLevel:   req.aaLevel,
 			}
-			a.addRenderCacheEntry(update.cacheKey, rp)
+			a.addRenderCacheEntry(req.cacheKey, rp)
 			a.addThumbnailCacheEntry(rp)
 			a.startPendingMetricLoader()
 			a.pendingRedraw = true
