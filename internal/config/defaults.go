@@ -55,6 +55,7 @@ func Default() Config {
 		},
 		MouseTextSelect:       true,
 		NaturalScroll:         false,
+		InvertScroll:          false,
 		InvertSmoothScroll:    false,
 		SmoothScrollDampening: 0.35,
 		SessionDatabase:       true,
