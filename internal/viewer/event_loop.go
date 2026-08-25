@@ -48,6 +48,7 @@ func (a *App) Run() error {
 	a.pendingRedraw = true
 	sdl.StartTextInput(a.window)
 	defer sdl.StopTextInput(a.window)
+	defer a.cancelSmoothScroll()
 	for !a.quit {
 		var event sdl.Event
 		for sdl.PollEvent(&event) {
@@ -55,6 +56,7 @@ func (a *App) Run() error {
 				return err
 			}
 		}
+		a.advanceSmoothScroll()
 		a.pollRenderUpdates()
 		a.pollMetricUpdates()
 		a.pollSearchUpdates()
@@ -103,7 +105,7 @@ func (a *App) openInitialDocument() error {
 }
 
 func (a *App) eventWaitTimeoutMS() int {
-	if a.hasPendingVisibleRender() || a.search.running {
+	if a.hasPendingVisibleRender() || a.search.running || a.smoothScrollActive() {
 		return 16
 	}
 	if len(a.sequence) > 0 {
@@ -151,7 +153,8 @@ func (a *App) handleSDLEvent(event *sdl.Event) error {
 		a.handleSDLTextInput(&e)
 	case sdl.EventMouseWheel:
 		e := event.Wheel()
-		a.handleSDLMouseWheel(&e)
+		a.handleAnimatedMouseWheel(&e)
+		redraw = false
 	case sdl.EventPinchBegin:
 		a.beginPinch()
 	case sdl.EventPinchUpdate:
