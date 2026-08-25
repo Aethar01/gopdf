@@ -34,8 +34,12 @@ type Config struct {
 	ScrollStep           int
 	StatusBarHeight      int
 	StatusBarPadding     int
+	UIFont               string
 	UIFontSize           int
+	UIFontStyle          string
+	UIFontWeight         int
 	UIFontPath           string
+	UIFontPathOverride   string
 	StatusBarLeft        string
 	StatusBarRight       string
 	SequenceTimeoutMS    int
