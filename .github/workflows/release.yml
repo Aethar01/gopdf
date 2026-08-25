@@ -117,13 +117,7 @@ jobs:
           </plist>
           EOF
 
-          iconset="gopdf.iconset"
-          mkdir -p "$iconset"
-          for size in 16 32 128 256 512; do
-            sips -z "$size" "$size" assets/gopdf.png --out "$iconset/icon_${size}x${size}.png"
-            sips -z "$((size * 2))" "$((size * 2))" assets/gopdf.png --out "$iconset/icon_${size}x${size}@2x.png"
-          done
-          iconutil -c icns "$iconset" -o "$app/Contents/Resources/gopdf.icns"
+          cp assets/macos/gopdf.icns "$app/Contents/Resources/gopdf.icns"
 
           dylibbundler -od -b -x "$app/Contents/MacOS/gopdf-bin" -d "$app/Contents/Frameworks" -p "@executable_path/../Frameworks"
           cp "$(brew --prefix sdl3)/lib/libSDL3.dylib" "$app/Contents/Frameworks/libSDL3.dylib"
