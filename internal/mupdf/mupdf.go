@@ -1,7 +1,8 @@
 package mupdf
 
 /*
-#cgo pkg-config: mupdf
+#cgo !darwin pkg-config: mupdf
+#cgo darwin LDFLAGS: -lmupdf -lmupdf-third -lm
 #include <stdlib.h>
 #include "mupdf_bridge.h"
 */
