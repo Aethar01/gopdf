@@ -92,6 +92,7 @@ The first existing configuration file for the current platform is loaded:
 | Linux | Each `$XDG_CONFIG_DIRS/gopdf/config.lua` |
 | Linux | `/etc/xdg/gopdf/config.lua` |
 | macOS | `~/Library/Application Support/gopdf/config.lua` |
+| macOS | `~/.config/gopdf/config.lua` |
 | Windows | `%APPDATA%\gopdf\config.lua` |
 
 Interactive keybinding changes are stored in `autogen.lua`. It is loaded before `config.lua`, so explicit user configuration takes precedence.

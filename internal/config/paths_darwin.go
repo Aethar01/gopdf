@@ -16,7 +16,10 @@ func platformDataDir() string {
 
 func platformConfigPaths() []string {
 	if home, err := os.UserHomeDir(); err == nil {
-		return []string{filepath.Join(home, "Library", "Application Support", "gopdf", "config.lua")}
+		return []string{
+			filepath.Join(home, "Library", "Application Support", "gopdf", "config.lua"),
+			filepath.Join(home, ".config", "gopdf", "config.lua"),
+		}
 	}
 	return nil
 }
