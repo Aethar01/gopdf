@@ -54,7 +54,6 @@ func Default() Config {
 			"middle_down":    "pan",
 		},
 		MouseTextSelect:       true,
-		NaturalScroll:         false,
 		InvertScroll:          false,
 		InvertSmoothScroll:    false,
 		SmoothScrollDampening: 0.35,
