@@ -3,21 +3,21 @@
 package viewer
 
 /*
-#cgo pkg-config: sdl3
 #cgo LDFLAGS: -framework Cocoa
 void gopdfConfigureMacOSWindow(void *window);
 */
 import "C"
 
-import (
-	"unsafe"
-
-	"github.com/jupiterrider/purego-sdl3/sdl"
-)
+import "github.com/jupiterrider/purego-sdl3/sdl"
 
 func configureNativeWindow(window *sdl.Window) {
 	if window == nil {
 		return
 	}
-	C.gopdfConfigureMacOSWindow(unsafe.Pointer(window))
+	properties := sdl.GetWindowProperties(window)
+	nativeWindow := sdl.GetPointerProperty(properties, sdl.PropWindowCocoaWindowPointer, nil)
+	if nativeWindow == nil {
+		return
+	}
+	C.gopdfConfigureMacOSWindow(nativeWindow)
 }
