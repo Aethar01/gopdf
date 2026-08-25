@@ -170,6 +170,7 @@ type inputState struct {
 	pinchBaseZoom  float64
 	pinchTargetLog float64
 	pinchSmoothLog float64
+	smoothScroll   *smoothScrollState
 }
 
 type pendingPasswordPrompt struct {
@@ -497,19 +498,8 @@ func (a *App) handleSDLMouseWheel(e *sdl.MouseWheelEvent) {
 		}
 		return
 	}
-	wx, wy := e.X, e.Y
-	if wx == 0 {
-		wx = float32(e.IntegerX)
-	}
-	if wy == 0 {
-		wy = float32(e.IntegerY)
-	}
-	if e.Direction == sdl.MouseWheelFlipped {
-		wx = -wx
-		wy = -wy
-	}
-	ctrl := sdl.GetModState()&sdl.KeymodCtrl != 0
-	if ctrl {
+	wx, wy := normalizedWheelDeltas(e)
+	if sdl.GetModState()&sdl.KeymodCtrl != 0 {
 		if wy > 0 {
 			a.runMouseBinding("<c-wheel_up>")
 		}
@@ -518,48 +508,7 @@ func (a *App) handleSDLMouseWheel(e *sdl.MouseWheelEvent) {
 		}
 		return
 	}
-	if a.handleSmoothWheel(wx, wy) {
-		return
-	}
-	if a.config.NaturalScroll {
-		wy = -wy
-	}
-	if wy > 0 {
-		a.runMouseBinding("wheel_up")
-	}
-	if wy < 0 {
-		a.runMouseBinding("wheel_down")
-	}
-	if wx > 0 {
-		a.runMouseBinding("wheel_right")
-	}
-	if wx < 0 {
-		a.runMouseBinding("wheel_left")
-	}
-}
-
-func (a *App) handleSmoothWheel(wx, wy float32) bool {
-	if wx == 0 && wy == 0 {
-		return true
-	}
-	if wy > 0 && a.mouseBindings["wheel_up"] != "scroll_up" {
-		return false
-	}
-	if wy < 0 && a.mouseBindings["wheel_down"] != "scroll_down" {
-		return false
-	}
-	if wx > 0 && a.mouseBindings["wheel_right"] != "scroll_right" {
-		return false
-	}
-	if wx < 0 && a.mouseBindings["wheel_left"] != "scroll_left" {
-		return false
-	}
-	dy := -float64(wy) * a.pageStep
-	if a.config.NaturalScroll {
-		dy = -dy
-	}
-	a.scrollBy(float64(wx)*a.pageStep, dy)
-	return true
+	a.runDiscreteMouseWheel(wx, wy)
 }
 
 func (a *App) handleSDLMouseButton(e *sdl.MouseButtonEvent) {
