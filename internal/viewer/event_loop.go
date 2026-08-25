@@ -11,6 +11,9 @@ import (
 
 func (a *App) Run() error {
 	a.logf("init SDL")
+	// On macOS, prefer normal key repeat over the system press-and-hold accent
+	// menu. SDL requires this hint to be set before initialization.
+	sdl.SetHint("SDL_MAC_PRESS_AND_HOLD", "0")
 	if !sdl.Init(sdl.InitVideo) {
 		return fmt.Errorf("SDL init failed: %s", sdl.GetError())
 	}
