@@ -4,6 +4,7 @@ import (
 	"os"
 	"time"
 
+	"gopdf/internal/actions"
 	"gopdf/internal/config"
 	"gopdf/internal/mupdf"
 )
@@ -245,6 +246,20 @@ func (a *App) handleMarkToken(token string) bool {
 		return true
 	}
 	if token != "\"" && token != "'" {
+		// SDL key-repeat events intentionally don't enter pushToken because a
+		// repeated prefix can accidentally turn into a multi-key sequence. Run
+		// unambiguous countable single-key actions here instead. This handles
+		// both the initial keydown and repeats without changing sequence parsing;
+		// pending numeric counts still flow through handleCountToken below.
+		if a.pendingCount == "" {
+			binding := normalizeBinding(token)
+			if action, ok := a.sequenceLookup[binding]; ok && actions.IsCountable(action) && !a.hasPrefix(binding) {
+				a.actionKey = token
+				a.runAction(action)
+				a.actionKey = ""
+				return true
+			}
+		}
 		return false
 	}
 	if !a.config.SessionDatabase {

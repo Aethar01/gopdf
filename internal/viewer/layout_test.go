@@ -112,9 +112,10 @@ func TestPageBackgroundVerticesUseRotatedPageCorners(t *testing.T) {
 	}
 }
 
-func TestSmoothWheelUsesPreciseScrollDelta(t *testing.T) {
+func TestSmoothWheelQueuesPreciseScrollDelta(t *testing.T) {
 	app := testLayoutApp(5)
 	app.pageStep = 64
+	app.config.SmoothScrollDampening = 0.35
 	app.mouseBindings = map[string]string{
 		"wheel_up":    "scroll_up",
 		"wheel_down":  "scroll_down",
@@ -124,30 +125,41 @@ func TestSmoothWheelUsesPreciseScrollDelta(t *testing.T) {
 	app.recomputeLayout(1000, 100)
 	app.scrollY = 100
 
-	if !app.handleSmoothWheel(0.25, 0.5) {
-		t.Fatal("expected default wheel bindings to use smooth scrolling")
-	}
+	app.handleAnimatedMouseWheel(&sdl.MouseWheelEvent{X: 0.25, Y: 0.5})
 
-	assertClose(t, app.scrollX, 16)
-	assertClose(t, app.scrollY, 68)
+	assertClose(t, app.scrollX, 0)
+	assertClose(t, app.scrollY, 100)
+	state := app.smoothScrollState()
+	if state == nil {
+		t.Fatal("expected smooth scroll target")
+	}
+	assertClose(t, state.targetX, 16)
+	assertClose(t, state.targetY, 68)
 }
 
-func TestNaturalScrollInvertsVerticalWheelDelta(t *testing.T) {
+func TestInvertSmoothScrollInvertsBothWheelAxes(t *testing.T) {
 	app := testLayoutApp(5)
 	app.pageStep = 64
-	app.config.NaturalScroll = true
+	app.config.InvertSmoothScroll = true
+	app.config.SmoothScrollDampening = 0.35
 	app.mouseBindings = map[string]string{
-		"wheel_up":   "scroll_up",
-		"wheel_down": "scroll_down",
+		"wheel_up":    "scroll_up",
+		"wheel_down":  "scroll_down",
+		"wheel_left":  "scroll_left",
+		"wheel_right": "scroll_right",
 	}
 	app.recomputeLayout(1000, 100)
+	app.scrollX = 32
 	app.scrollY = 100
 
-	if !app.handleSmoothWheel(0, 0.5) {
-		t.Fatal("expected default wheel bindings to use smooth scrolling")
-	}
+	app.handleAnimatedMouseWheel(&sdl.MouseWheelEvent{X: 0.25, Y: 0.5})
 
-	assertClose(t, app.scrollY, 132)
+	state := app.smoothScrollState()
+	if state == nil {
+		t.Fatal("expected smooth scroll target")
+	}
+	assertClose(t, state.targetX, 16)
+	assertClose(t, state.targetY, 132)
 }
 
 func TestPanCanBeHeldByKey(t *testing.T) {
