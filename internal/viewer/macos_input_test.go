@@ -2,6 +2,7 @@ package viewer
 
 import (
 	"testing"
+	"time"
 
 	"github.com/jupiterrider/purego-sdl3/sdl"
 )
@@ -116,7 +117,20 @@ func TestSmoothWheelOnlyHandlesDefaultScrollBindings(t *testing.T) {
 	}
 }
 
-func TestSmoothTowardMatchesPinchSmoothing(t *testing.T) {
-	assertClose(t, smoothToward(0, 1), 0.35)
-	assertClose(t, smoothToward(10, 20), 13.5)
+func TestSmoothTowardUsesConfiguredDampening(t *testing.T) {
+	assertClose(t, smoothToward(0, 1, 0.35, 16*time.Millisecond), 0.35)
+	assertClose(t, smoothToward(10, 20, 0.5, 16*time.Millisecond), 15)
+}
+
+func TestSmoothTowardNormalizesForElapsedTime(t *testing.T) {
+	oneFrame := smoothToward(0, 1, 0.35, 16*time.Millisecond)
+	twoFrames := smoothToward(0, 1, 0.35, 32*time.Millisecond)
+	steppedTwice := smoothToward(oneFrame, 1, 0.35, 16*time.Millisecond)
+
+	assertClose(t, twoFrames, steppedTwice)
+}
+
+func TestSmoothTowardClampsDampening(t *testing.T) {
+	assertClose(t, smoothToward(0, 1, 2, 16*time.Millisecond), 1)
+	assertClose(t, smoothToward(0, 1, 0, 16*time.Millisecond), 0.01)
 }
