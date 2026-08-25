@@ -5,6 +5,7 @@ go 1.25.0
 require (
 	github.com/ebitengine/purego v0.10.0
 	github.com/fsnotify/fsnotify v1.7.0
+	github.com/go-text/typesetting v0.3.4
 	github.com/jupiterrider/purego-sdl3 v0.0.0-20260315104720-a5f7946e1e34
 	github.com/sqweek/dialog v0.0.0-20260123140253-64c163d53aac
 	github.com/yuin/gopher-lua v1.1.2
