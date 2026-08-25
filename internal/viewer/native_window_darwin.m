@@ -3,9 +3,29 @@
 
 static const void *GoPDFTitlebarHoverControllerKey = &GoPDFTitlebarHoverControllerKey;
 
+@interface GoPDFTitlebarDragView : NSView
+@end
+
+@implementation GoPDFTitlebarDragView
+
+- (BOOL)isOpaque {
+    return NO;
+}
+
+- (void)drawRect:(NSRect)dirtyRect {
+    (void)dirtyRect;
+}
+
+- (void)mouseDown:(NSEvent *)event {
+    [self.window performWindowDragWithEvent:event];
+}
+
+@end
+
 @interface GoPDFTitlebarHoverController : NSObject {
     NSView *_trackingView;
     NSTrackingArea *_trackingArea;
+    GoPDFTitlebarDragView *_dragView;
     NSButton *_buttons[3];
     BOOL _visible;
 }
@@ -36,6 +56,10 @@ static const void *GoPDFTitlebarHoverControllerKey = &GoPDFTitlebarHoverControll
         [self release];
         return nil;
     }
+
+    _dragView = [[GoPDFTitlebarDragView alloc] initWithFrame:_trackingView.bounds];
+    _dragView.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
+    [_trackingView addSubview:_dragView positioned:NSWindowBelow relativeTo:nil];
 
     _trackingArea = [[NSTrackingArea alloc]
         initWithRect:NSZeroRect
@@ -103,6 +127,8 @@ static const void *GoPDFTitlebarHoverControllerKey = &GoPDFTitlebarHoverControll
     if (_trackingArea != nil && _trackingView != nil) {
         [_trackingView removeTrackingArea:_trackingArea];
     }
+    [_dragView removeFromSuperview];
+    [_dragView release];
     [_trackingArea release];
     [_trackingView release];
     for (NSUInteger i = 0; i < 3; i++) {
