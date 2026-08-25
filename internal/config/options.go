@@ -256,15 +256,10 @@ func parseColorOption(raw string) ([3]uint8, error) {
 }
 
 var configOptions = map[string]optionDesc{
-	"status_bar_visible":   boolOption("Show the status bar at startup.", func(c *Config) bool { return c.StatusBarVisible }, func(c *Config, v bool) { c.StatusBarVisible = v }),
-	"mouse_text_select":    boolOption("Enable text selection with the left mouse button.", func(c *Config) bool { return c.MouseTextSelect }, func(c *Config, v bool) { c.MouseTextSelect = v }),
-	"invert_scroll":        boolOption("Invert horizontal and vertical discrete mouse-wheel scrolling.", func(c *Config) bool { return c.InvertScroll }, func(c *Config, v bool) { c.InvertScroll = v }),
-	"invert_smooth_scroll": boolOption("Invert horizontal and vertical smooth wheel or trackpad scrolling.", func(c *Config) bool { return c.InvertSmoothScroll }, func(c *Config, v bool) { c.InvertSmoothScroll = v }),
-	"natural_scroll": boolOption("Deprecated compatibility alias for enabling both invert_scroll and invert_smooth_scroll.", func(c *Config) bool { return c.NaturalScroll }, func(c *Config, v bool) {
-		c.NaturalScroll = v
-		c.InvertScroll = v
-		c.InvertSmoothScroll = v
-	}),
+	"status_bar_visible":    boolOption("Show the status bar at startup.", func(c *Config) bool { return c.StatusBarVisible }, func(c *Config, v bool) { c.StatusBarVisible = v }),
+	"mouse_text_select":     boolOption("Enable text selection with the left mouse button.", func(c *Config) bool { return c.MouseTextSelect }, func(c *Config, v bool) { c.MouseTextSelect = v }),
+	"invert_scroll":         boolOption("Invert horizontal and vertical discrete mouse-wheel scrolling.", func(c *Config) bool { return c.InvertScroll }, func(c *Config, v bool) { c.InvertScroll = v }),
+	"invert_smooth_scroll":  boolOption("Invert horizontal and vertical smooth wheel or trackpad scrolling.", func(c *Config) bool { return c.InvertSmoothScroll }, func(c *Config, v bool) { c.InvertSmoothScroll = v }),
 	"session_database":      boolOption("Persist per-document view state, marks, and recent files.", func(c *Config) bool { return c.SessionDatabase }, func(c *Config, v bool) { c.SessionDatabase = v }),
 	"alt_colors":            boolOption("Start with alternate colors enabled.", func(c *Config) bool { return c.AltColors }, func(c *Config, v bool) { c.AltColors = v }),
 	"dual_page":             boolOption("Start in dual-page mode.", func(c *Config) bool { return c.DualPage }, func(c *Config, v bool) { c.DualPage = v }),
@@ -318,7 +313,7 @@ var configOptions = map[string]optionDesc{
 	}),
 	"render_mode":          stringOption("Initial render mode: continuous or single.", func(c *Config) string { return c.RenderMode }, func(c *Config, v string) { c.RenderMode = NormalizeRenderMode(v) }),
 	"fit_mode":             stringOption("Initial fit mode: page, width, or manual.", func(c *Config) string { return c.FitMode }, func(c *Config, v string) { c.FitMode = NormalizeFitMode(v) }),
-	"anchor_position":      stringOption("Viewport anchor: center, top, or bottom.", func(c *Config) string { return c.AnchorPosition }, func(c *Config, v string) { c.AnchorPosition = v }),
+	"anchor_position":      stringOption("Viewport anchor: center, top, or bottom.", func(c *Config) string { return c.AnchorPosition }, func(c *Config, v string) { c.AnchorPosition = NormalizeAnchorPosition(v) }),
 	"ui_font_path":         stringOption("Path to a UI font; empty uses the built-in default.", func(c *Config) string { return c.UIFontPath }, func(c *Config, v string) { c.UIFontPath = v }),
 	"status_bar_left":      stringOption("Left status bar template.", func(c *Config) string { return c.StatusBarLeft }, func(c *Config, v string) { c.StatusBarLeft = v }),
 	"status_bar_right":     stringOption("Right status bar template.", func(c *Config) string { return c.StatusBarRight }, func(c *Config, v string) { c.StatusBarRight = v }),
