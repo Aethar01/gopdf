@@ -61,7 +61,6 @@ jobs:
 
           mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources" "$app/Contents/Frameworks"
           cp dist/gopdf "$app/Contents/MacOS/gopdf-bin"
-          cp "$(brew --prefix sdl3)/lib/libSDL3.dylib" "$app/Contents/Frameworks/libSDL3.dylib"
           cc -O2 assets/macos/launcher.c -o "$app/Contents/MacOS/GoPDF"
 
           cat > "$app/Contents/Info.plist" <<EOF
@@ -127,6 +126,8 @@ jobs:
           iconutil -c icns "$iconset" -o "$app/Contents/Resources/gopdf.icns"
 
           dylibbundler -od -b -x "$app/Contents/MacOS/gopdf-bin" -d "$app/Contents/Frameworks" -p "@executable_path/../Frameworks"
+          cp "$(brew --prefix sdl3)/lib/libSDL3.dylib" "$app/Contents/Frameworks/libSDL3.dylib"
+          test -f "$app/Contents/Frameworks/libSDL3.dylib"
           if otool -L "$app/Contents/MacOS/gopdf-bin" "$app"/Contents/Frameworks/*.dylib | grep -E '(/opt/homebrew|/usr/local)/'; then
             exit 1
           fi
