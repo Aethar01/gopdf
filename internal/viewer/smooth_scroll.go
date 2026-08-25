@@ -3,34 +3,39 @@ package viewer
 import (
 	"math"
 	"sync"
+	"time"
 
 	"github.com/jupiterrider/purego-sdl3/sdl"
 )
 
 const (
-	gestureSmoothing = 0.35
-	smoothScrollSnap = 0.25
+	smoothScrollFrame = 16 * time.Millisecond
+	smoothScrollSnap  = 0.25
 )
 
 type smoothScrollState struct {
-	targetX  float64
-	targetY  float64
-	appliedX float64
-	appliedY float64
+	targetX     float64
+	targetY     float64
+	appliedX    float64
+	appliedY    float64
+	lastAdvance time.Time
 }
 
 var smoothScrollStates sync.Map // map[*App]*smoothScrollState
 
-func smoothToward(current, target float64) float64 {
-	return current + (target-current)*gestureSmoothing
+func smoothToward(current, target, dampening float64, elapsed time.Duration) float64 {
+	if elapsed <= 0 {
+		return current
+	}
+	dampening = clampFloat(dampening, 0.01, 1)
+	if dampening >= 1 {
+		return target
+	}
+	factor := 1 - math.Pow(1-dampening, float64(elapsed)/float64(smoothScrollFrame))
+	return current + (target-current)*factor
 }
 
-func (a *App) handleAnimatedMouseWheel(e *sdl.MouseWheelEvent) {
-	if a.luaUI.visible || a.keybindMenu.visible || a.outlineMenu.visible {
-		a.runDiscreteMouseWheel(e)
-		return
-	}
-
+func normalizedWheelDeltas(e *sdl.MouseWheelEvent) (float32, float32) {
 	wx, wy := e.X, e.Y
 	if wx == 0 {
 		wx = float32(e.IntegerX)
@@ -42,7 +47,16 @@ func (a *App) handleAnimatedMouseWheel(e *sdl.MouseWheelEvent) {
 		wx = -wx
 		wy = -wy
 	}
+	return wx, wy
+}
 
+func (a *App) handleAnimatedMouseWheel(e *sdl.MouseWheelEvent) {
+	if a.luaUI.visible || a.keybindMenu.visible || a.outlineMenu.visible {
+		a.runDiscreteMouseWheel(e)
+		return
+	}
+
+	wx, wy := normalizedWheelDeltas(e)
 	if sdl.GetModState()&sdl.KeymodCtrl != 0 {
 		a.runDiscreteMouseWheel(e)
 		return
@@ -53,16 +67,30 @@ func (a *App) handleAnimatedMouseWheel(e *sdl.MouseWheelEvent) {
 		return
 	}
 
+	dx := float64(wx) * a.pageStep
 	dy := -float64(wy) * a.pageStep
-	if a.config.NaturalScroll {
+	if a.config.InvertSmoothScroll {
+		dx = -dx
 		dy = -dy
 	}
-	a.queueSmoothScroll(float64(wx)*a.pageStep, dy)
+	a.queueSmoothScroll(dx, dy)
 }
 
 func (a *App) runDiscreteMouseWheel(e *sdl.MouseWheelEvent) {
 	a.cancelSmoothScroll()
-	a.handleSDLMouseWheel(e)
+
+	wx, wy := normalizedWheelDeltas(e)
+	if a.config.InvertScroll {
+		wx = -wx
+		wy = -wy
+	}
+	copy := *e
+	copy.X = wx
+	copy.Y = wy
+	copy.IntegerX = 0
+	copy.IntegerY = 0
+	copy.Direction = sdl.MouseWheelNormal
+	a.handleSDLMouseWheel(&copy)
 	a.pendingRedraw = true
 }
 
@@ -118,8 +146,15 @@ func (a *App) advanceSmoothScroll() bool {
 		return false
 	}
 
-	nextX := smoothToward(a.scrollX, state.targetX)
-	nextY := smoothToward(a.scrollY, state.targetY)
+	now := time.Now()
+	elapsed := smoothScrollFrame
+	if !state.lastAdvance.IsZero() {
+		elapsed = now.Sub(state.lastAdvance)
+	}
+	state.lastAdvance = now
+
+	nextX := smoothToward(a.scrollX, state.targetX, a.config.SmoothScrollDampening, elapsed)
+	nextY := smoothToward(a.scrollY, state.targetY, a.config.SmoothScrollDampening, elapsed)
 	if math.Abs(state.targetX-nextX) <= smoothScrollSnap {
 		nextX = state.targetX
 	}
