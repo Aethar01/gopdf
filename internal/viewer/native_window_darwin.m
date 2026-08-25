@@ -4,11 +4,9 @@
 static const void *GoPDFTitlebarHoverControllerKey = &GoPDFTitlebarHoverControllerKey;
 
 @interface GoPDFTitlebarHoverController : NSObject {
-    NSWindow *_window;
     NSView *_trackingView;
     NSTrackingArea *_trackingArea;
     NSButton *_buttons[3];
-    NSRect _shownFrames[3];
     BOOL _visible;
 }
 
@@ -24,7 +22,6 @@ static const void *GoPDFTitlebarHoverControllerKey = &GoPDFTitlebarHoverControll
         return nil;
     }
 
-    _window = window;
     _buttons[0] = [[window standardWindowButton:NSWindowCloseButton] retain];
     _buttons[1] = [[window standardWindowButton:NSWindowMiniaturizeButton] retain];
     _buttons[2] = [[window standardWindowButton:NSWindowZoomButton] retain];
@@ -40,10 +37,6 @@ static const void *GoPDFTitlebarHoverControllerKey = &GoPDFTitlebarHoverControll
         return nil;
     }
 
-    for (NSUInteger i = 0; i < 3; i++) {
-        _shownFrames[i] = _buttons[i].frame;
-    }
-
     _trackingArea = [[NSTrackingArea alloc]
         initWithRect:NSZeroRect
         options:(NSTrackingMouseEnteredAndExited |
@@ -57,19 +50,6 @@ static const void *GoPDFTitlebarHoverControllerKey = &GoPDFTitlebarHoverControll
     return self;
 }
 
-- (NSRect)hiddenFrameForButtonAtIndex:(NSUInteger)index {
-    NSButton *button = _buttons[index];
-    NSView *superview = button.superview;
-    NSRect frame = _shownFrames[index];
-
-    if (superview.isFlipped) {
-        frame.origin.y = NSMinY(superview.bounds) - NSHeight(frame) - 2.0;
-    } else {
-        frame.origin.y = NSMaxY(superview.bounds) + 2.0;
-    }
-    return frame;
-}
-
 - (void)setTrafficLightsVisible:(BOOL)visible animated:(BOOL)animated {
     if (_visible == visible && animated) {
         return;
@@ -79,15 +59,8 @@ static const void *GoPDFTitlebarHoverControllerKey = &GoPDFTitlebarHoverControll
     if (!animated) {
         for (NSUInteger i = 0; i < 3; i++) {
             NSButton *button = _buttons[i];
-            if (visible) {
-                button.frame = _shownFrames[i];
-                button.alphaValue = 1.0;
-                button.hidden = NO;
-            } else {
-                button.frame = [self hiddenFrameForButtonAtIndex:i];
-                button.alphaValue = 0.0;
-                button.hidden = YES;
-            }
+            button.alphaValue = visible ? 1.0 : 0.0;
+            button.hidden = !visible;
         }
         return;
     }
@@ -95,7 +68,6 @@ static const void *GoPDFTitlebarHoverControllerKey = &GoPDFTitlebarHoverControll
     if (visible) {
         for (NSUInteger i = 0; i < 3; i++) {
             NSButton *button = _buttons[i];
-            button.frame = [self hiddenFrameForButtonAtIndex:i];
             button.alphaValue = 0.0;
             button.hidden = NO;
         }
@@ -106,14 +78,7 @@ static const void *GoPDFTitlebarHoverControllerKey = &GoPDFTitlebarHoverControll
         context.allowsImplicitAnimation = YES;
 
         for (NSUInteger i = 0; i < 3; i++) {
-            NSButton *button = _buttons[i];
-            if (visible) {
-                button.animator.frame = _shownFrames[i];
-                button.animator.alphaValue = 1.0;
-            } else {
-                button.animator.frame = [self hiddenFrameForButtonAtIndex:i];
-                button.animator.alphaValue = 0.0;
-            }
+            _buttons[i].animator.alphaValue = visible ? 1.0 : 0.0;
         }
     } completionHandler:^{
         if (!_visible) {
