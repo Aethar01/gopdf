@@ -2,7 +2,6 @@ package viewer
 
 import (
 	"math"
-	"sync"
 	"time"
 
 	"github.com/jupiterrider/purego-sdl3/sdl"
@@ -20,8 +19,6 @@ type smoothScrollState struct {
 	appliedY    float64
 	lastAdvance time.Time
 }
-
-var smoothScrollStates sync.Map // map[*App]*smoothScrollState
 
 func smoothToward(current, target, dampening float64, elapsed time.Duration) float64 {
 	if elapsed <= 0 {
@@ -132,7 +129,7 @@ func (a *App) queueSmoothScroll(dx, dy float64) {
 			appliedX: a.scrollX,
 			appliedY: a.scrollY,
 		}
-		smoothScrollStates.Store(a, state)
+		a.smoothScroll = state
 	}
 
 	maxX, maxY := a.maxScrollOffsets()
@@ -201,20 +198,15 @@ func (a *App) advanceSmoothScrollBy(elapsed time.Duration) bool {
 }
 
 func (a *App) smoothScrollState() *smoothScrollState {
-	value, ok := smoothScrollStates.Load(a)
-	if !ok {
-		return nil
-	}
-	return value.(*smoothScrollState)
+	return a.smoothScroll
 }
 
 func (a *App) cancelSmoothScroll() {
-	smoothScrollStates.Delete(a)
+	a.smoothScroll = nil
 }
 
 func (a *App) smoothScrollActive() bool {
-	_, ok := smoothScrollStates.Load(a)
-	return ok
+	return a.smoothScroll != nil
 }
 
 func (a *App) maxScrollOffsets() (float64, float64) {
