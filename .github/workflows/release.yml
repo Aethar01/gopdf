@@ -127,6 +127,8 @@ jobs:
 
           dylibbundler -od -b -x "$app/Contents/MacOS/gopdf-bin" -d "$app/Contents/Frameworks" -p "@executable_path/../Frameworks"
           cp "$(brew --prefix sdl3)/lib/libSDL3.dylib" "$app/Contents/Frameworks/libSDL3.dylib"
+          install_name_tool -id "@executable_path/../Frameworks/libSDL3.dylib" "$app/Contents/Frameworks/libSDL3.dylib"
+          codesign --force --sign - "$app/Contents/Frameworks/libSDL3.dylib"
           test -f "$app/Contents/Frameworks/libSDL3.dylib"
           if otool -L "$app/Contents/MacOS/gopdf-bin" "$app"/Contents/Frameworks/*.dylib | grep -E '(/opt/homebrew|/usr/local)/'; then
             exit 1
