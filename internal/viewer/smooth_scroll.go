@@ -1,6 +1,11 @@
 package viewer
 
-import "math"
+import (
+	"math"
+	"sync"
+
+	"github.com/jupiterrider/purego-sdl3/sdl"
+)
 
 const (
 	gestureSmoothing = 0.35
@@ -8,25 +13,85 @@ const (
 )
 
 type smoothScrollState struct {
-	active   bool
 	targetX  float64
 	targetY  float64
 	appliedX float64
 	appliedY float64
 }
 
+var smoothScrollStates sync.Map // map[*App]*smoothScrollState
+
 func smoothToward(current, target float64) float64 {
 	return current + (target-current)*gestureSmoothing
 }
 
+func (a *App) handleAnimatedMouseWheel(e *sdl.MouseWheelEvent) {
+	if a.luaUI.visible || a.keybindMenu.visible || a.outlineMenu.visible {
+		a.cancelSmoothScroll()
+		a.handleSDLMouseWheel(e)
+		return
+	}
+
+	wx, wy := e.X, e.Y
+	if wx == 0 {
+		wx = float32(e.IntegerX)
+	}
+	if wy == 0 {
+		wy = float32(e.IntegerY)
+	}
+	if e.Direction == sdl.MouseWheelFlipped {
+		wx = -wx
+		wy = -wy
+	}
+
+	if sdl.GetModState()&sdl.KeymodCtrl != 0 {
+		a.cancelSmoothScroll()
+		a.handleSDLMouseWheel(e)
+		return
+	}
+
+	if !a.canSmoothWheel(wx, wy) {
+		a.cancelSmoothScroll()
+		a.handleSDLMouseWheel(e)
+		return
+	}
+
+	dy := -float64(wy) * a.pageStep
+	if a.config.NaturalScroll {
+		dy = -dy
+	}
+	a.queueSmoothScroll(float64(wx)*a.pageStep, dy)
+}
+
+func (a *App) canSmoothWheel(wx, wy float32) bool {
+	if wx == 0 && wy == 0 {
+		return true
+	}
+	if wy > 0 && a.mouseBindings["wheel_up"] != "scroll_up" {
+		return false
+	}
+	if wy < 0 && a.mouseBindings["wheel_down"] != "scroll_down" {
+		return false
+	}
+	if wx > 0 && a.mouseBindings["wheel_right"] != "scroll_right" {
+		return false
+	}
+	if wx < 0 && a.mouseBindings["wheel_left"] != "scroll_left" {
+		return false
+	}
+	return true
+}
+
 func (a *App) queueSmoothScroll(dx, dy float64) {
-	state := &a.smoothScroll
-	if !state.active || a.scrollX != state.appliedX || a.scrollY != state.appliedY {
-		state.active = true
-		state.targetX = a.scrollX
-		state.targetY = a.scrollY
-		state.appliedX = a.scrollX
-		state.appliedY = a.scrollY
+	state := a.smoothScrollState()
+	if state == nil || a.scrollX != state.appliedX || a.scrollY != state.appliedY {
+		state = &smoothScrollState{
+			targetX:  a.scrollX,
+			targetY:  a.scrollY,
+			appliedX: a.scrollX,
+			appliedY: a.scrollY,
+		}
+		smoothScrollStates.Store(a, state)
 	}
 
 	maxX, maxY := a.maxScrollOffsets()
@@ -38,13 +103,13 @@ func (a *App) queueSmoothScroll(dx, dy float64) {
 }
 
 func (a *App) advanceSmoothScroll() bool {
-	state := &a.smoothScroll
-	if !state.active {
+	state := a.smoothScrollState()
+	if state == nil {
 		return false
 	}
 
-	// Direct navigation owns the viewport immediately. If anything other than
-	// this smoother moved the scroll position, discard the stale wheel target.
+	// Keyboard navigation, panning, page jumps and relayouts take ownership of
+	// the viewport immediately. An old wheel target must never pull it back.
 	if a.scrollX != state.appliedX || a.scrollY != state.appliedY {
 		a.cancelSmoothScroll()
 		return false
@@ -79,12 +144,21 @@ func (a *App) advanceSmoothScroll() bool {
 	return false
 }
 
+func (a *App) smoothScrollState() *smoothScrollState {
+	value, ok := smoothScrollStates.Load(a)
+	if !ok {
+		return nil
+	}
+	return value.(*smoothScrollState)
+}
+
 func (a *App) cancelSmoothScroll() {
-	a.smoothScroll = smoothScrollState{}
+	smoothScrollStates.Delete(a)
 }
 
 func (a *App) smoothScrollActive() bool {
-	return a.smoothScroll.active
+	_, ok := smoothScrollStates.Load(a)
+	return ok
 }
 
 func (a *App) maxScrollOffsets() (float64, float64) {
