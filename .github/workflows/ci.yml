@@ -70,9 +70,10 @@ jobs:
           app="GoPDF.app"
           mkdir -p "$app/Contents/MacOS" "$app/Contents/Frameworks"
           go build -trimpath -o "$app/Contents/MacOS/gopdf-bin" .
-          cp "$(brew --prefix sdl3)/lib/libSDL3.dylib" "$app/Contents/Frameworks/libSDL3.dylib"
           cc -O2 assets/macos/launcher.c -o "$app/Contents/MacOS/GoPDF"
           dylibbundler -od -b -x "$app/Contents/MacOS/gopdf-bin" -d "$app/Contents/Frameworks" -p "@executable_path/../Frameworks"
+          cp "$(brew --prefix sdl3)/lib/libSDL3.dylib" "$app/Contents/Frameworks/libSDL3.dylib"
+          test -f "$app/Contents/Frameworks/libSDL3.dylib"
           env -u DYLD_LIBRARY_PATH "$app/Contents/MacOS/GoPDF" -v
 
   windows:
