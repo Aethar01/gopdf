@@ -1,9 +1,11 @@
 package viewer
 
 import (
+	"encoding/binary"
 	"fmt"
 	"image"
 	"image/color"
+	"io"
 	"os"
 	"unsafe"
 
@@ -14,35 +16,132 @@ import (
 	"golang.org/x/image/math/fixed"
 )
 
+type fileBackedFontFace struct {
+	font.Face
+	file *os.File
+}
+
+func (f *fileBackedFontFace) Close() error {
+	var faceErr error
+	if closer, ok := f.Face.(interface{ Close() error }); ok {
+		faceErr = closer.Close()
+	}
+	fileErr := f.file.Close()
+	if faceErr != nil {
+		return faceErr
+	}
+	return fileErr
+}
+
+type ttcFontReaderAt struct {
+	source    *os.File
+	directory []byte
+	shift     int64
+}
+
+func (r *ttcFontReaderAt) ReadAt(p []byte, off int64) (int, error) {
+	if off < 0 {
+		return 0, fmt.Errorf("negative font read offset")
+	}
+
+	total := 0
+	if off < r.shift {
+		start := int(off)
+		n := len(p)
+		if remaining := len(r.directory) - start; n > remaining {
+			n = remaining
+		}
+		copy(p[:n], r.directory[start:start+n])
+		total += n
+		p = p[n:]
+		off += int64(n)
+		if len(p) == 0 {
+			return total, nil
+		}
+	}
+
+	n, err := r.source.ReadAt(p, off-r.shift)
+	return total + n, err
+}
+
 func loadFont(path string, size int) font.Face {
 	if path != "" {
-		data, err := os.ReadFile(path)
-		if err == nil {
-			if col, err := opentype.ParseCollection(data); err == nil {
-				if col.NumFonts() > 0 {
-					fnt, err := col.Font(0)
-					if err == nil {
-						face, err := opentype.NewFace(fnt, &opentype.FaceOptions{
-							Size: float64(size),
-							DPI:  72,
-						})
-						if err == nil {
-							return face
-						}
-					}
-				}
-			} else if fnt, err := opentype.Parse(data); err == nil {
-				face, err := opentype.NewFace(fnt, &opentype.FaceOptions{
-					Size: float64(size),
-					DPI:  72,
-				})
-				if err == nil {
-					return face
-				}
-			}
+		if face, err := loadFontFile(path, size); err == nil {
+			return face
 		}
 	}
 	return basicfont.Face7x13
+}
+
+func loadFontFile(path string, size int) (font.Face, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+
+	reader, err := firstOpenTypeFontReader(file)
+	if err != nil {
+		_ = file.Close()
+		return nil, err
+	}
+	fnt, err := opentype.ParseReaderAt(reader)
+	if err != nil {
+		_ = file.Close()
+		return nil, err
+	}
+	face, err := opentype.NewFace(fnt, &opentype.FaceOptions{
+		Size: float64(size),
+		DPI:  72,
+	})
+	if err != nil {
+		_ = file.Close()
+		return nil, err
+	}
+	return &fileBackedFontFace{Face: face, file: file}, nil
+}
+
+func firstOpenTypeFontReader(file *os.File) (io.ReaderAt, error) {
+	var header [16]byte
+	if _, err := file.ReadAt(header[:], 0); err != nil {
+		return nil, err
+	}
+	if string(header[:4]) != "ttcf" {
+		return file, nil
+	}
+	if binary.BigEndian.Uint32(header[8:12]) == 0 {
+		return nil, fmt.Errorf("font collection contains no fonts")
+	}
+	return newTTCFontReaderAt(file, int64(binary.BigEndian.Uint32(header[12:16])))
+}
+
+func newTTCFontReaderAt(file *os.File, fontOffset int64) (io.ReaderAt, error) {
+	var header [12]byte
+	if _, err := file.ReadAt(header[:], fontOffset); err != nil {
+		return nil, err
+	}
+
+	numTables := int(binary.BigEndian.Uint16(header[4:6]))
+	directorySize := 12 + 16*numTables
+	directory := make([]byte, directorySize)
+	if _, err := file.ReadAt(directory, fontOffset); err != nil {
+		return nil, err
+	}
+
+	shift := uint32(directorySize)
+	for i := 0; i < numTables; i++ {
+		offsetPos := 12 + i*16 + 8
+		offset := binary.BigEndian.Uint32(directory[offsetPos : offsetPos+4])
+		if offset > ^uint32(0)-shift {
+			return nil, fmt.Errorf("font table offset overflow")
+		}
+		binary.BigEndian.PutUint32(directory[offsetPos:offsetPos+4], offset+shift)
+	}
+
+	return &ttcFontReaderAt{
+		source:    file,
+		directory: directory,
+		shift:     int64(shift),
+	}, nil
 }
 
 func closeFontFace(face font.Face) {
