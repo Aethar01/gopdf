@@ -24,6 +24,7 @@ func (a *App) Run() error {
 		sdl.Quit()
 		return fmt.Errorf("SDL window creation failed: %s", sdl.GetError())
 	}
+	configureNativeWindow(window)
 	a.logf("created SDL window 1400x900")
 	a.window = window
 	a.renderer = renderer
