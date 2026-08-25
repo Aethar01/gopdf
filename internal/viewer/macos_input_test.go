@@ -38,6 +38,7 @@ func TestRepeatedKeyDoesNotExpandMultiKeySequence(t *testing.T) {
 
 func TestSmoothScrollQueuesTargetWithoutImmediateJump(t *testing.T) {
 	app := testLayoutApp(5)
+	app.config.SmoothScrollDampening = 0.35
 	app.recomputeLayout(1000, 100)
 	app.scrollY = 100
 	defer app.cancelSmoothScroll()
@@ -51,7 +52,7 @@ func TestSmoothScrollQueuesTargetWithoutImmediateJump(t *testing.T) {
 	}
 	assertClose(t, state.targetY, 164)
 
-	if !app.advanceSmoothScroll() {
+	if !app.advanceSmoothScrollBy(smoothScrollFrame) {
 		t.Fatal("expected first animation frame to move the viewport")
 	}
 	assertClose(t, app.scrollY, 122.4)
@@ -59,6 +60,7 @@ func TestSmoothScrollQueuesTargetWithoutImmediateJump(t *testing.T) {
 
 func TestSmoothScrollAccumulatesWheelBurstIntoOneTarget(t *testing.T) {
 	app := testLayoutApp(5)
+	app.config.SmoothScrollDampening = 0.35
 	app.recomputeLayout(1000, 100)
 	app.scrollY = 100
 	defer app.cancelSmoothScroll()
@@ -74,22 +76,23 @@ func TestSmoothScrollAccumulatesWheelBurstIntoOneTarget(t *testing.T) {
 	}
 	assertClose(t, state.targetY, 148)
 
-	app.advanceSmoothScroll()
+	app.advanceSmoothScrollBy(smoothScrollFrame)
 	assertClose(t, app.scrollY, 116.8)
 }
 
 func TestDirectNavigationCancelsPendingSmoothScroll(t *testing.T) {
 	app := testLayoutApp(5)
+	app.config.SmoothScrollDampening = 0.35
 	app.recomputeLayout(1000, 100)
 	app.scrollY = 100
 	defer app.cancelSmoothScroll()
 
 	app.queueSmoothScroll(0, 64)
-	app.advanceSmoothScroll()
+	app.advanceSmoothScrollBy(smoothScrollFrame)
 	app.scrollBy(0, 10)
 	position := app.scrollY
 
-	if app.advanceSmoothScroll() {
+	if app.advanceSmoothScrollBy(smoothScrollFrame) {
 		t.Fatal("expected direct navigation to cancel the pending wheel target")
 	}
 	if app.smoothScrollActive() {
@@ -114,6 +117,26 @@ func TestSmoothWheelOnlyHandlesDefaultScrollBindings(t *testing.T) {
 	app.mouseBindings["wheel_up"] = "next_page"
 	if app.canSmoothWheel(0, 0.5) {
 		t.Fatal("expected custom wheel binding to remain discrete")
+	}
+}
+
+func TestDiscreteWheelDoesNotReenterSmoothScrolling(t *testing.T) {
+	app := testLayoutApp(5)
+	app.mouseBindings = map[string]string{
+		"wheel_up":    "next_page",
+		"wheel_down":  "scroll_down",
+		"wheel_left":  "scroll_left",
+		"wheel_right": "scroll_right",
+	}
+	app.recomputeLayout(1000, 100)
+
+	app.handleAnimatedMouseWheel(&sdl.MouseWheelEvent{Y: 1})
+
+	if app.smoothScrollActive() {
+		t.Fatal("expected custom wheel binding to stay on the discrete path")
+	}
+	if app.page != 1 {
+		t.Fatalf("expected custom wheel binding to advance page, got %d", app.page)
 	}
 }
 
