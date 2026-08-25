@@ -50,15 +50,26 @@ func normalizedWheelDeltas(e *sdl.MouseWheelEvent) (float32, float32) {
 	return wx, wy
 }
 
+func invertWheelDeltas(wx, wy float32, invert bool) (float32, float32) {
+	if invert {
+		return -wx, -wy
+	}
+	return wx, wy
+}
+
 func (a *App) handleAnimatedMouseWheel(e *sdl.MouseWheelEvent) {
 	if a.luaUI.visible || a.keybindMenu.visible || a.outlineMenu.visible {
-		a.runDiscreteMouseWheel(e)
+		a.cancelSmoothScroll()
+		a.handleSDLMouseWheel(e)
+		a.pendingRedraw = true
 		return
 	}
 
 	wx, wy := normalizedWheelDeltas(e)
 	if sdl.GetModState()&sdl.KeymodCtrl != 0 {
-		a.runDiscreteMouseWheel(e)
+		a.cancelSmoothScroll()
+		a.handleSDLMouseWheel(e)
+		a.pendingRedraw = true
 		return
 	}
 
@@ -67,23 +78,15 @@ func (a *App) handleAnimatedMouseWheel(e *sdl.MouseWheelEvent) {
 		return
 	}
 
-	dx := float64(wx) * a.pageStep
-	dy := -float64(wy) * a.pageStep
-	if a.config.InvertSmoothScroll {
-		dx = -dx
-		dy = -dy
-	}
-	a.queueSmoothScroll(dx, dy)
+	wx, wy = invertWheelDeltas(wx, wy, a.config.InvertSmoothScroll)
+	a.queueSmoothScroll(float64(wx)*a.pageStep, -float64(wy)*a.pageStep)
 }
 
 func (a *App) runDiscreteMouseWheel(e *sdl.MouseWheelEvent) {
 	a.cancelSmoothScroll()
 
 	wx, wy := normalizedWheelDeltas(e)
-	if a.config.InvertScroll {
-		wx = -wx
-		wy = -wy
-	}
+	wx, wy = invertWheelDeltas(wx, wy, a.config.InvertScroll)
 	copy := *e
 	copy.X = wx
 	copy.Y = wy
