@@ -27,8 +27,7 @@ func smoothToward(current, target float64) float64 {
 
 func (a *App) handleAnimatedMouseWheel(e *sdl.MouseWheelEvent) {
 	if a.luaUI.visible || a.keybindMenu.visible || a.outlineMenu.visible {
-		a.cancelSmoothScroll()
-		a.handleSDLMouseWheel(e)
+		a.runDiscreteMouseWheel(e)
 		return
 	}
 
@@ -45,14 +44,12 @@ func (a *App) handleAnimatedMouseWheel(e *sdl.MouseWheelEvent) {
 	}
 
 	if sdl.GetModState()&sdl.KeymodCtrl != 0 {
-		a.cancelSmoothScroll()
-		a.handleSDLMouseWheel(e)
+		a.runDiscreteMouseWheel(e)
 		return
 	}
 
 	if !a.canSmoothWheel(wx, wy) {
-		a.cancelSmoothScroll()
-		a.handleSDLMouseWheel(e)
+		a.runDiscreteMouseWheel(e)
 		return
 	}
 
@@ -61,6 +58,12 @@ func (a *App) handleAnimatedMouseWheel(e *sdl.MouseWheelEvent) {
 		dy = -dy
 	}
 	a.queueSmoothScroll(float64(wx)*a.pageStep, dy)
+}
+
+func (a *App) runDiscreteMouseWheel(e *sdl.MouseWheelEvent) {
+	a.cancelSmoothScroll()
+	a.handleSDLMouseWheel(e)
+	a.pendingRedraw = true
 }
 
 func (a *App) canSmoothWheel(wx, wy float32) bool {
