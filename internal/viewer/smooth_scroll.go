@@ -74,7 +74,7 @@ func (a *App) handleAnimatedMouseWheel(e *sdl.MouseWheelEvent) {
 	}
 
 	if !a.canSmoothWheel(wx, wy) {
-		a.runDiscreteMouseWheel(e)
+		a.runDiscreteMouseWheel(wx, wy)
 		return
 	}
 
@@ -82,19 +82,26 @@ func (a *App) handleAnimatedMouseWheel(e *sdl.MouseWheelEvent) {
 	a.queueSmoothScroll(float64(wx)*a.pageStep, -float64(wy)*a.pageStep)
 }
 
-func (a *App) runDiscreteMouseWheel(e *sdl.MouseWheelEvent) {
+func (a *App) runDiscreteMouseWheel(wx, wy float32) {
 	a.cancelSmoothScroll()
-
-	wx, wy := normalizedWheelDeltas(e)
 	wx, wy = invertWheelDeltas(wx, wy, a.config.InvertScroll)
-	copy := *e
-	copy.X = wx
-	copy.Y = wy
-	copy.IntegerX = 0
-	copy.IntegerY = 0
-	copy.Direction = sdl.MouseWheelNormal
-	a.handleSDLMouseWheel(&copy)
+	a.dispatchDiscreteWheel(wx, wy)
 	a.pendingRedraw = true
+}
+
+func (a *App) dispatchDiscreteWheel(wx, wy float32) {
+	if wy > 0 {
+		a.runMouseBinding("wheel_up")
+	}
+	if wy < 0 {
+		a.runMouseBinding("wheel_down")
+	}
+	if wx > 0 {
+		a.runMouseBinding("wheel_right")
+	}
+	if wx < 0 {
+		a.runMouseBinding("wheel_left")
+	}
 }
 
 func (a *App) canSmoothWheel(wx, wy float32) bool {
@@ -142,19 +149,27 @@ func (a *App) advanceSmoothScroll() bool {
 		return false
 	}
 
-	// Keyboard navigation, panning, page jumps and relayouts take ownership of
-	// the viewport immediately. An old wheel target must never pull it back.
-	if a.scrollX != state.appliedX || a.scrollY != state.appliedY {
-		a.cancelSmoothScroll()
-		return false
-	}
-
 	now := time.Now()
 	elapsed := smoothScrollFrame
 	if !state.lastAdvance.IsZero() {
 		elapsed = now.Sub(state.lastAdvance)
 	}
 	state.lastAdvance = now
+	return a.advanceSmoothScrollBy(elapsed)
+}
+
+func (a *App) advanceSmoothScrollBy(elapsed time.Duration) bool {
+	state := a.smoothScrollState()
+	if state == nil {
+		return false
+	}
+
+	// Keyboard navigation, panning, page jumps and relayouts take ownership of
+	// the viewport immediately. An old wheel target must never pull it back.
+	if a.scrollX != state.appliedX || a.scrollY != state.appliedY {
+		a.cancelSmoothScroll()
+		return false
+	}
 
 	nextX := smoothToward(a.scrollX, state.targetX, a.config.SmoothScrollDampening, elapsed)
 	nextY := smoothToward(a.scrollY, state.targetY, a.config.SmoothScrollDampening, elapsed)
