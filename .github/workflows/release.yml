@@ -34,11 +34,9 @@ jobs:
       - name: Set up environment
         run: |
           MUPDF_PREFIX="$(brew --prefix mupdf)"
-          SDL3_PREFIX="$(brew --prefix sdl3)"
-
           echo "CGO_CFLAGS=-I${MUPDF_PREFIX}/include" >> "$GITHUB_ENV"
           echo "CGO_LDFLAGS=-L${MUPDF_PREFIX}/lib" >> "$GITHUB_ENV"
-          echo "DYLD_LIBRARY_PATH=${SDL3_PREFIX}/lib:${MUPDF_PREFIX}/lib:$DYLD_LIBRARY_PATH" >> "$GITHUB_ENV"
+          echo "DYLD_LIBRARY_PATH=${MUPDF_PREFIX}/lib:$DYLD_LIBRARY_PATH" >> "$GITHUB_ENV"
 
       - name: Verify native dependencies
         run: |
@@ -62,7 +60,9 @@ jobs:
           app="GoPDF.app"
 
           mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources" "$app/Contents/Frameworks"
-          cp dist/gopdf "$app/Contents/MacOS/GoPDF"
+          cp dist/gopdf "$app/Contents/MacOS/gopdf-bin"
+          cp "$(brew --prefix sdl3)/lib/libSDL3.dylib" "$app/Contents/Frameworks/libSDL3.dylib"
+          cc -O2 assets/macos/launcher.c -o "$app/Contents/MacOS/GoPDF"
 
           cat > "$app/Contents/Info.plist" <<EOF
           <?xml version="1.0" encoding="UTF-8"?>
@@ -126,11 +126,11 @@ jobs:
           done
           iconutil -c icns "$iconset" -o "$app/Contents/Resources/gopdf.icns"
 
-          dylibbundler -od -b -x "$app/Contents/MacOS/GoPDF" -d "$app/Contents/Frameworks" -p "@executable_path/../Frameworks"
-          if otool -L "$app/Contents/MacOS/GoPDF" "$app"/Contents/Frameworks/*.dylib | grep -E '(/opt/homebrew|/usr/local)/'; then
+          dylibbundler -od -b -x "$app/Contents/MacOS/gopdf-bin" -d "$app/Contents/Frameworks" -p "@executable_path/../Frameworks"
+          if otool -L "$app/Contents/MacOS/gopdf-bin" "$app"/Contents/Frameworks/*.dylib | grep -E '(/opt/homebrew|/usr/local)/'; then
             exit 1
           fi
-          "$app/Contents/MacOS/GoPDF" -v
+          env -u DYLD_LIBRARY_PATH "$app/Contents/MacOS/GoPDF" -v
           codesign --force --deep --sign - "$app"
 
           mkdir -p "${name}.dmgroot"
