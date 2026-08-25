@@ -1,25 +1,25 @@
 package viewer
 
-import (
-	"math"
-	"time"
-)
+import "math"
 
 const (
-	smoothScrollResponse = 36.0
-	smoothScrollSnap     = 0.25
+	gestureSmoothing = 0.35
+	smoothScrollSnap = 0.25
 )
 
 type smoothScrollState struct {
-	active  bool
-	targetX float64
-	targetY float64
+	active   bool
+	targetX  float64
+	targetY  float64
 	appliedX float64
 	appliedY float64
-	last    time.Time
 }
 
-func (a *App) queueSmoothScroll(dx, dy float64, now time.Time) {
+func smoothToward(current, target float64) float64 {
+	return current + (target-current)*gestureSmoothing
+}
+
+func (a *App) queueSmoothScroll(dx, dy float64) {
 	state := &a.smoothScroll
 	if !state.active || a.scrollX != state.appliedX || a.scrollY != state.appliedY {
 		state.active = true
@@ -27,7 +27,6 @@ func (a *App) queueSmoothScroll(dx, dy float64, now time.Time) {
 		state.targetY = a.scrollY
 		state.appliedX = a.scrollX
 		state.appliedY = a.scrollY
-		state.last = now
 	}
 
 	maxX, maxY := a.maxScrollOffsets()
@@ -38,29 +37,21 @@ func (a *App) queueSmoothScroll(dx, dy float64, now time.Time) {
 	}
 }
 
-func (a *App) advanceSmoothScroll(now time.Time) bool {
+func (a *App) advanceSmoothScroll() bool {
 	state := &a.smoothScroll
 	if !state.active {
 		return false
 	}
 
-	// Any direct navigation (keyboard scrolling, panning, page jumps, relayouts)
-	// owns the viewport immediately. Do not let an old wheel target pull the
-	// document back afterward.
+	// Direct navigation owns the viewport immediately. If anything other than
+	// this smoother moved the scroll position, discard the stale wheel target.
 	if a.scrollX != state.appliedX || a.scrollY != state.appliedY {
 		a.cancelSmoothScroll()
 		return false
 	}
 
-	dt := now.Sub(state.last)
-	if dt <= 0 {
-		return false
-	}
-	state.last = now
-
-	alpha := 1 - math.Exp(-smoothScrollResponse*dt.Seconds())
-	nextX := a.scrollX + (state.targetX-a.scrollX)*alpha
-	nextY := a.scrollY + (state.targetY-a.scrollY)*alpha
+	nextX := smoothToward(a.scrollX, state.targetX)
+	nextY := smoothToward(a.scrollY, state.targetY)
 	if math.Abs(state.targetX-nextX) <= smoothScrollSnap {
 		nextX = state.targetX
 	}
