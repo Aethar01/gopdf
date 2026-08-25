@@ -48,9 +48,10 @@ jobs:
       - name: Set up environment
         run: |
           MUPDF_PREFIX="$(brew --prefix mupdf)"
+          SDL3_PREFIX="$(brew --prefix sdl3)"
           echo "CGO_CFLAGS=-I${MUPDF_PREFIX}/include" >> "$GITHUB_ENV"
           echo "CGO_LDFLAGS=-L${MUPDF_PREFIX}/lib" >> "$GITHUB_ENV"
-          echo "DYLD_LIBRARY_PATH=${MUPDF_PREFIX}/lib:$DYLD_LIBRARY_PATH" >> "$GITHUB_ENV"
+          echo "DYLD_LIBRARY_PATH=${SDL3_PREFIX}/lib:${MUPDF_PREFIX}/lib:$DYLD_LIBRARY_PATH" >> "$GITHUB_ENV"
 
       - name: Verify native dependencies
         run: |
