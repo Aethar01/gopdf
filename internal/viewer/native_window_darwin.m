@@ -1,5 +1,4 @@
 #import <Cocoa/Cocoa.h>
-#import <SDL3/SDL.h>
 
 static void gopdfApplyMacOSWindowStyle(NSWindow *window) {
     if (window == nil) {
@@ -12,17 +11,7 @@ static void gopdfApplyMacOSWindowStyle(NSWindow *window) {
 }
 
 void gopdfConfigureMacOSWindow(void *windowPointer) {
-    SDL_Window *sdlWindow = (SDL_Window *)windowPointer;
-    if (sdlWindow == NULL) {
-        return;
-    }
-
-    SDL_PropertiesID properties = SDL_GetWindowProperties(sdlWindow);
-    NSWindow *window = (__bridge NSWindow *)SDL_GetPointerProperty(
-        properties,
-        SDL_PROP_WINDOW_COCOA_WINDOW_POINTER,
-        NULL
-    );
+    NSWindow *window = (__bridge NSWindow *)windowPointer;
     if (window == nil) {
         return;
     }
