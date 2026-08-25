@@ -6,9 +6,15 @@ import (
 	"image"
 	"image/color"
 	"io"
+	"log"
+	"net/url"
 	"os"
+	"strconv"
+	"strings"
 	"unsafe"
 
+	textfont "github.com/go-text/typesetting/font"
+	"github.com/go-text/typesetting/fontscan"
 	"github.com/jupiterrider/purego-sdl3/sdl"
 	"golang.org/x/image/font"
 	"golang.org/x/image/font/basicfont"
@@ -66,20 +72,81 @@ func (r *ttcFontReaderAt) ReadAt(p []byte, off int64) (int, error) {
 
 func loadFont(path string, size int) font.Face {
 	if path != "" {
-		if face, err := loadFontFile(path, size); err == nil {
+		var face font.Face
+		var err error
+		if strings.HasPrefix(path, "gopdf-font://") {
+			face, err = loadSystemFont(path, size)
+		} else {
+			face, err = loadFontFile(path, size)
+		}
+		if err == nil {
 			return face
 		}
 	}
 	return basicfont.Face7x13
 }
 
+func loadSystemFont(selector string, size int) (font.Face, error) {
+	location, err := resolveSystemFont(selector)
+	if err != nil {
+		return nil, err
+	}
+	return loadFontFileAt(location.File, size, int(location.Index))
+}
+
+func resolveSystemFont(selector string) (fontscan.Location, error) {
+	u, err := url.Parse(selector)
+	if err != nil {
+		return fontscan.Location{}, err
+	}
+	family := strings.TrimSpace(u.Query().Get("family"))
+	if family == "" {
+		return fontscan.Location{}, fmt.Errorf("empty UI font family")
+	}
+	weight, err := strconv.Atoi(u.Query().Get("weight"))
+	if err != nil || weight < 100 || weight > 900 {
+		weight = 400
+	}
+	style := textfont.StyleNormal
+	switch strings.ToLower(u.Query().Get("style")) {
+	case "italic", "oblique":
+		style = textfont.StyleItalic
+	}
+
+	fontMap := fontscan.NewFontMap(log.New(io.Discard, "", 0))
+	if err := fontMap.UseSystemFonts(""); err != nil {
+		return fontscan.Location{}, err
+	}
+	fontMap.SetQuery(fontscan.Query{
+		Families: []string{family},
+		Aspect: textfont.Aspect{
+			Style:   style,
+			Weight:  textfont.Weight(weight),
+			Stretch: textfont.StretchNormal,
+		},
+	})
+	face := fontMap.ResolveFace('M')
+	if face == nil || face.Font == nil {
+		return fontscan.Location{}, fmt.Errorf("no installed font matches %q", family)
+	}
+	location := fontMap.FontLocation(face.Font)
+	if location.File == "" {
+		return fontscan.Location{}, fmt.Errorf("no installed font location for %q", family)
+	}
+	return location, nil
+}
+
 func loadFontFile(path string, size int) (font.Face, error) {
+	return loadFontFileAt(path, size, 0)
+}
+
+func loadFontFileAt(path string, size, collectionIndex int) (font.Face, error) {
 	file, err := os.Open(path)
 	if err != nil {
 		return nil, err
 	}
 
-	reader, err := firstOpenTypeFontReader(file)
+	reader, err := openTypeFontReaderAt(file, collectionIndex)
 	if err != nil {
 		_ = file.Close()
 		return nil, err
@@ -101,17 +168,35 @@ func loadFontFile(path string, size int) (font.Face, error) {
 }
 
 func firstOpenTypeFontReader(file *os.File) (io.ReaderAt, error) {
-	var header [16]byte
+	return openTypeFontReaderAt(file, 0)
+}
+
+func openTypeFontReaderAt(file *os.File, collectionIndex int) (io.ReaderAt, error) {
+	if collectionIndex < 0 {
+		return nil, fmt.Errorf("negative font collection index")
+	}
+	var header [12]byte
 	if _, err := file.ReadAt(header[:], 0); err != nil {
 		return nil, err
 	}
 	if string(header[:4]) != "ttcf" {
+		if collectionIndex != 0 {
+			return nil, fmt.Errorf("font is not a collection")
+		}
 		return file, nil
 	}
-	if binary.BigEndian.Uint32(header[8:12]) == 0 {
+	numFonts := int(binary.BigEndian.Uint32(header[8:12]))
+	if numFonts == 0 {
 		return nil, fmt.Errorf("font collection contains no fonts")
 	}
-	return newTTCFontReaderAt(file, int64(binary.BigEndian.Uint32(header[12:16])))
+	if collectionIndex >= numFonts {
+		return nil, fmt.Errorf("font collection index %d out of range %d", collectionIndex, numFonts)
+	}
+	var offsetBytes [4]byte
+	if _, err := file.ReadAt(offsetBytes[:], int64(12+collectionIndex*4)); err != nil {
+		return nil, err
+	}
+	return newTTCFontReaderAt(file, int64(binary.BigEndian.Uint32(offsetBytes[:])))
 }
 
 func newTTCFontReaderAt(file *os.File, fontOffset int64) (io.ReaderAt, error) {
