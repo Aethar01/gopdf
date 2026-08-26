@@ -59,7 +59,7 @@ func (a *App) inputPositionAt(x, y float64, dragging bool) (int, bool) {
 		display = strings.Repeat("*", utf8.RuneCountInString(display))
 	}
 	endX := startX + float64(measureText(a.fontFace, display))
-	if !dragging && (x < startX-3 || x > maxFloat64(endX+5, startX+8)) {
+	if !dragging && (x < startX-3 || x > inputMaxFloat64(endX+5, startX+8)) {
 		return 0, false
 	}
 	if x <= startX {
@@ -76,7 +76,7 @@ func (a *App) inputPositionAt(x, y float64, dragging bool) (int, bool) {
 	return len(runes), true
 }
 
-func maxFloat64(a, b float64) float64 {
+func inputMaxFloat64(a, b float64) float64 {
 	if a > b {
 		return a
 	}
