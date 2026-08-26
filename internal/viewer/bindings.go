@@ -46,7 +46,7 @@ func keyToken(key sdl.Keycode, mod sdl.Keymod) (string, bool) {
 	if isModifierKey(key) {
 		return "", false
 	}
-	ctrl := mod&sdl.KeymodCtrl != 0
+	ctrl := mod&sdl.KeymodCtrl != 0 || (key == sdl.KeycodeC && mod&sdl.KeymodGui != 0)
 	shift := mod&sdl.KeymodShift != 0
 	if ctrl {
 		if base, ok := baseKeyName(key); ok {
