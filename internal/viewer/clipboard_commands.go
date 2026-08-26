@@ -3,6 +3,18 @@ package viewer
 import "fmt"
 
 func (a *App) copyActiveTextInputToClipboard() bool {
+	if a.mode != modeNormal {
+		text, ok := a.input.SelectedText()
+		if !ok || text == "" {
+			return true
+		}
+		if err := setSDLClipboardText(text); err != nil {
+			a.message = "clipboard unavailable"
+			return true
+		}
+		a.message = fmt.Sprintf("copied %d chars", len(text))
+		return true
+	}
 	text, active := a.activeTextInputValue()
 	if !active {
 		return false
@@ -19,6 +31,19 @@ func (a *App) copyActiveTextInputToClipboard() bool {
 }
 
 func (a *App) cutActiveTextInputToClipboard() bool {
+	if a.mode != modeNormal {
+		text, ok := a.input.SelectedText()
+		if !ok || text == "" {
+			return true
+		}
+		if err := setSDLClipboardText(text); err != nil {
+			a.message = "clipboard unavailable"
+			return true
+		}
+		a.editInput(func(input *textInput) { input.DeleteSelection() })
+		a.message = fmt.Sprintf("cut %d chars", len(text))
+		return true
+	}
 	text, active := a.activeTextInputValue()
 	if !active {
 		return false
@@ -35,8 +60,6 @@ func (a *App) cutActiveTextInputToClipboard() bool {
 		a.updateOutlineSearchQuery("")
 	case a.luaUI.visible && a.luaUI.searching:
 		a.updateLuaUISearchQuery("")
-	case a.mode != modeNormal:
-		a.editInput(func(input *textInput) { input.Reset() })
 	}
 	a.message = fmt.Sprintf("cut %d chars", len(text))
 	return true
