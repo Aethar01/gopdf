@@ -125,7 +125,19 @@ func (a *App) eventWaitTimeoutMS() int {
 	return 100
 }
 
+func (a *App) convertPointerEventToRenderCoordinates(event *sdl.Event) {
+	if a.renderer == nil || event == nil {
+		return
+	}
+	switch event.Type() {
+	case sdl.EventMouseButtonDown, sdl.EventMouseButtonUp, sdl.EventMouseMotion:
+		sdl.ConvertEventToRenderCoordinates(a.renderer, event)
+	}
+}
+
 func (a *App) handleSDLEvent(event *sdl.Event) error {
+	a.convertPointerEventToRenderCoordinates(event)
+
 	redraw := true
 	switch event.Type() {
 	case sdl.EventQuit:
