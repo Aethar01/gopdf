@@ -44,6 +44,8 @@ var registry = []Action{
 	{Name: "next_completion"},
 	{Name: "prev_completion", Keys: []string{"<S-Tab>"}},
 	{Name: "copy_selection", Keys: []string{"<C-c>"}},
+	{Name: "cut", Keys: []string{"<C-x>"}},
+	{Name: "paste", Keys: []string{"<C-v>"}},
 	{Name: "close", Keys: []string{"<Esc>"}},
 	{Name: "jump_forward", Keys: []string{"<C-i>"}},
 	{Name: "jump_backward", Keys: []string{"<C-o>"}},
