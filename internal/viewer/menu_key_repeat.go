@@ -6,12 +6,19 @@ import (
 	"github.com/jupiterrider/purego-sdl3/sdl"
 )
 
-// repeatableMenuAction returns the action for a repeated keydown only when the
-// binding is an unambiguous countable single-key action. This mirrors the
-// normal document input path: held navigation keys may repeat, while repeated
-// prefixes cannot accidentally complete a multi-key sequence.
+// repeatableMenuAction returns the action for a repeated keydown only when a
+// menu is active and the binding is an unambiguous countable single-key
+// action. This mirrors the normal document input path: held navigation keys
+// may repeat, while repeated prefixes cannot accidentally complete a multi-key
+// sequence.
 func (a *App) repeatableMenuAction(e *sdl.KeyboardEvent) (string, bool) {
 	if e == nil || !e.Repeat {
+		return "", false
+	}
+	if !a.luaUI.visible && !a.keybindMenu.visible && !a.outlineMenu.visible {
+		return "", false
+	}
+	if a.keybindMenu.visible && a.keybindMenu.capturing {
 		return "", false
 	}
 	token, ok := keyToken(e.Key, e.Mod)
