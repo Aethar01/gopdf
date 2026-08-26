@@ -197,7 +197,7 @@ func (a *App) runBuiltinAction(action string) error {
 		})
 	case "quit":
 		a.quit = true
-	case "copy_selection":
+	case "copy":
 		if !a.copyActiveTextInputToClipboard() {
 			a.copyPersistentSelectionToClipboard()
 		}
