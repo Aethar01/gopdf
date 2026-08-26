@@ -26,30 +26,78 @@ func TestGuiClipboardShortcutsUseDModifierBindings(t *testing.T) {
 	}
 }
 
-func TestClipboardEditingMainTextInput(t *testing.T) {
+func TestTextInputSelectionMovementAndEditing(t *testing.T) {
+	var input textInput
+	input.Set("hello world")
+	input.SetCursor(5, false)
+	input.MoveSelecting(-2, true)
+	if got, ok := input.SelectedText(); !ok || got != "lo" {
+		t.Fatalf("expected selected text lo, got %q, %v", got, ok)
+	}
+	input.InsertText("XX")
+	if input.Value != "helXX world" || input.Cursor != 5 || input.HasSelection() {
+		t.Fatalf("expected insertion to replace selection, got value=%q cursor=%d anchor=%d", input.Value, input.Cursor, input.Anchor)
+	}
+
+	input.Set("one two three")
+	input.SetCursor(13, false)
+	input.MoveWordLeftSelecting(true)
+	if got, ok := input.SelectedText(); !ok || got != "three" {
+		t.Fatalf("expected shift-word selection three, got %q, %v", got, ok)
+	}
+	input.Backspace()
+	if input.Value != "one two " || input.HasSelection() {
+		t.Fatalf("expected backspace to delete selection, got %q", input.Value)
+	}
+}
+
+func TestClipboardEditingMainTextInputUsesSelection(t *testing.T) {
 	withTestClipboard(t)
 	app := &App{inputState: inputState{mode: modeCommand}}
 	app.input.Set("hello")
+	app.input.SetCursor(1, false)
+	app.input.SetCursor(4, true)
 
-	if !app.copyActiveTextInputToClipboard() || sdlGetClipboardText() != "hello" {
-		t.Fatalf("expected copy to place input text on clipboard")
+	if !app.copyActiveTextInputToClipboard() || sdlGetClipboardText() != "ell" {
+		t.Fatalf("expected copy to place selected input text on clipboard, got %q", sdlGetClipboardText())
 	}
 	if app.input.Value != "hello" {
 		t.Fatalf("copy changed input: %q", app.input.Value)
 	}
 
-	if !app.cutActiveTextInputToClipboard() || app.input.Value != "" {
-		t.Fatalf("expected cut to clear input, got %q", app.input.Value)
+	if !app.cutActiveTextInputToClipboard() || app.input.Value != "ho" {
+		t.Fatalf("expected cut to delete selection, got %q", app.input.Value)
 	}
-	if sdlGetClipboardText() != "hello" {
+	if sdlGetClipboardText() != "ell" {
 		t.Fatalf("expected cut text on clipboard, got %q", sdlGetClipboardText())
 	}
 
 	sdlSetClipboardText("paste")
 	app.input.Set("hi")
-	app.input.Cursor = 1
+	app.input.SetCursor(1, false)
 	if !app.pasteIntoActiveTextInput() || app.input.Value != "hpastei" {
 		t.Fatalf("expected cursor-aware paste, got %q", app.input.Value)
+	}
+
+	app.input.Set("abcdef")
+	app.input.SetCursor(2, false)
+	app.input.SetCursor(5, true)
+	sdlSetClipboardText("X")
+	if !app.pasteIntoActiveTextInput() || app.input.Value != "abXf" {
+		t.Fatalf("expected paste to replace selection, got %q", app.input.Value)
+	}
+}
+
+func TestClipboardCopyWithoutTextInputSelectionIsNoop(t *testing.T) {
+	withTestClipboard(t)
+	sdlSetClipboardText("existing")
+	app := &App{inputState: inputState{mode: modeCommand}}
+	app.input.Set("hello")
+	if !app.copyActiveTextInputToClipboard() {
+		t.Fatal("expected active input to consume copy")
+	}
+	if got := sdlGetClipboardText(); got != "existing" {
+		t.Fatalf("expected clipboard to remain unchanged without selection, got %q", got)
 	}
 }
 
