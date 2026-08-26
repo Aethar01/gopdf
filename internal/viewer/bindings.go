@@ -46,14 +46,22 @@ func keyToken(key sdl.Keycode, mod sdl.Keymod) (string, bool) {
 	if isModifierKey(key) {
 		return "", false
 	}
-	ctrl := mod&sdl.KeymodCtrl != 0 || (mod&sdl.KeymodGui != 0 && (key == sdl.KeycodeC || key == sdl.KeycodeX || key == sdl.KeycodeV))
+	ctrl := mod&sdl.KeymodCtrl != 0
+	gui := mod&sdl.KeymodGui != 0
 	shift := mod&sdl.KeymodShift != 0
-	if ctrl {
+	if ctrl || gui {
 		if base, ok := baseKeyName(key); ok {
-			if shift {
-				return "<c-s-" + base + ">", true
+			modifiers := make([]string, 0, 3)
+			if ctrl {
+				modifiers = append(modifiers, "c")
 			}
-			return "<c-" + base + ">", true
+			if gui {
+				modifiers = append(modifiers, "d")
+			}
+			if shift {
+				modifiers = append(modifiers, "s")
+			}
+			return "<" + strings.Join(append(modifiers, base), "-") + ">", true
 		}
 	}
 	if token, ok := specialKeyToken(key); ok {
