@@ -79,6 +79,7 @@ func (a *App) Run() error {
 				if err := a.handleSDLEvent(&event); err != nil {
 					return err
 				}
+			}
 		}
 	}
 	a.logf("viewer exiting")
@@ -260,6 +261,7 @@ func (a *App) drawFrame() error {
 		if err := a.drawLuaUI(a.renderer); err != nil {
 			return err
 		}
+	}
 	sdl.RenderPresent(a.renderer)
 	return nil
 }
