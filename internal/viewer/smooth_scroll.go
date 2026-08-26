@@ -13,11 +13,11 @@ const (
 )
 
 type smoothScrollState struct {
-	targetX     float64
-	targetY     float64
-	appliedX    float64
-	appliedY    float64
-	lastAdvance time.Time
+	targetX       float64
+	targetY       float64
+	appliedX      float64
+	appliedY      float64
+	lastAdvanceNS uint64
 }
 
 func smoothToward(current, target, dampening float64, elapsed time.Duration) float64 {
@@ -76,7 +76,7 @@ func (a *App) handleAnimatedMouseWheel(e *sdl.MouseWheelEvent) {
 	}
 
 	wx, wy = invertWheelDeltas(wx, wy, a.config.InvertSmoothScroll)
-	a.queueSmoothScroll(float64(wx)*a.pageStep, -float64(wy)*a.pageStep)
+	a.queueSmoothScrollAt(float64(wx)*a.pageStep, -float64(wy)*a.pageStep, e.Timestamp)
 }
 
 func (a *App) runDiscreteMouseWheel(wx, wy float32) {
@@ -121,15 +121,29 @@ func (a *App) canSmoothWheel(wx, wy float32) bool {
 }
 
 func (a *App) queueSmoothScroll(dx, dy float64) {
+	a.queueSmoothScrollAt(dx, dy, 0)
+}
+
+func (a *App) queueSmoothScrollAt(dx, dy float64, timestampNS uint64) {
+	// Wheel events can be delivered in bursts when the event queue is drained.
+	// Advance to each event's original SDL timestamp before moving the target so
+	// changes in event cadence do not turn into changes in scroll velocity.
+	if timestampNS != 0 {
+		a.advanceSmoothScrollTo(timestampNS)
+	}
+
 	state := a.smoothScrollState()
 	if state == nil || a.scrollX != state.appliedX || a.scrollY != state.appliedY {
 		state = &smoothScrollState{
-			targetX:  a.scrollX,
-			targetY:  a.scrollY,
-			appliedX: a.scrollX,
-			appliedY: a.scrollY,
+			targetX:       a.scrollX,
+			targetY:       a.scrollY,
+			appliedX:      a.scrollX,
+			appliedY:      a.scrollY,
+			lastAdvanceNS: timestampNS,
 		}
 		a.smoothScroll = state
+	} else if state.lastAdvanceNS == 0 && timestampNS != 0 {
+		state.lastAdvanceNS = timestampNS
 	}
 
 	maxX, maxY := a.maxScrollOffsets()
@@ -141,17 +155,24 @@ func (a *App) queueSmoothScroll(dx, dy float64) {
 }
 
 func (a *App) advanceSmoothScroll() bool {
+	return a.advanceSmoothScrollTo(sdl.GetTicksNS())
+}
+
+func (a *App) advanceSmoothScrollTo(timestampNS uint64) bool {
 	state := a.smoothScrollState()
-	if state == nil {
+	if state == nil || timestampNS == 0 {
+		return false
+	}
+	if state.lastAdvanceNS == 0 {
+		state.lastAdvanceNS = timestampNS
+		return false
+	}
+	if timestampNS <= state.lastAdvanceNS {
 		return false
 	}
 
-	now := time.Now()
-	elapsed := smoothScrollFrame
-	if !state.lastAdvance.IsZero() {
-		elapsed = now.Sub(state.lastAdvance)
-	}
-	state.lastAdvance = now
+	elapsed := time.Duration(timestampNS - state.lastAdvanceNS)
+	state.lastAdvanceNS = timestampNS
 	return a.advanceSmoothScrollBy(elapsed)
 }
 
