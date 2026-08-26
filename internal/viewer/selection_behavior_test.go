@@ -9,14 +9,14 @@ import (
 	"github.com/jupiterrider/purego-sdl3/sdl"
 )
 
-func TestGuiClipboardShortcutsNormalizeToControlBindings(t *testing.T) {
+func TestGuiClipboardShortcutsUseDModifierBindings(t *testing.T) {
 	tests := []struct {
 		key  sdl.Keycode
 		want string
 	}{
-		{key: sdl.KeycodeC, want: "<c-c>"},
-		{key: sdl.KeycodeX, want: "<c-x>"},
-		{key: sdl.KeycodeV, want: "<c-v>"},
+		{key: sdl.KeycodeC, want: "<d-c>"},
+		{key: sdl.KeycodeX, want: "<d-x>"},
+		{key: sdl.KeycodeV, want: "<d-v>"},
 	}
 	for _, tt := range tests {
 		got, ok := keyToken(tt.key, sdl.KeymodGui)
