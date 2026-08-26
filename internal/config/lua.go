@@ -458,7 +458,9 @@ func newLuaModule(L *lua.LState, rt *Runtime, cfg *Config) *lua.LTable {
 			},
 		},
 	})
-	L.SetField(mod, "options", newLuaOptionsTable(L, rt, cfg))
+	options := newLuaOptionsTable(L, rt, cfg)
+	L.SetField(mod, "options", options)
+	L.SetField(mod, "o", options)
 	for _, action := range actions.Names() {
 		name := action
 		L.SetField(mod, name, newLuaActionValue(L, rt, name))
