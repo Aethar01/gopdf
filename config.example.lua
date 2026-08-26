@@ -34,6 +34,7 @@ gopdf.options.pinch_sensitivity = 1 -- Trackpad pinch zoom sensitivity; 1 preser
 gopdf.options.recent_files_max = 20 -- Maximum recent files retained and displayed.
 gopdf.options.render_mode = "continuous" -- Initial render mode: continuous or single.
 gopdf.options.render_oversample = 1 -- Render scale multiplier; values above 1 supersample.
+gopdf.options.scroll_off = 0 -- Minimum number of rows kept visible above and below the selected item in UI menus, like Vim's scrolloff.
 gopdf.options.scroll_step = 64 -- Keyboard and mouse scroll distance in pixels.
 gopdf.options.sequence_timeout_ms = 700 -- Maximum delay between keys in a binding sequence.
 gopdf.options.session_database = true -- Persist per-document view state, marks, and recent files.
