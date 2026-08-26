@@ -54,7 +54,7 @@ yay -S gopdf-git
 Install the release matching Intel or Apple silicon, or use Homebrew:
 
 ```bash
-brew install Aethar01/homebrew-gopdf/gopdf
+brew install Aethar01/gopdf/gopdf
 ```
 
 </details>
