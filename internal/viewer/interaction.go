@@ -231,7 +231,7 @@ func (a *App) refreshSelection() {
 }
 
 func (a *App) copySelectionToClipboard() {
-	if strings.TrimSpace(a.selection.text) == "" {
+	if !a.config.CopyOnSelect || strings.TrimSpace(a.selection.text) == "" {
 		return
 	}
 	if err := setSDLClipboardText(a.selection.text); err != nil {
@@ -327,6 +327,9 @@ func openExternalURL(uri string) error {
 }
 
 func (a *App) drawSelection(renderer *sdl.Renderer) {
+	if !a.config.CopyOnSelect && len(a.selection.quads) == 0 && strings.TrimSpace(a.selection.text) != "" {
+		a.refreshSelection()
+	}
 	if len(a.selection.quads) == 0 {
 		return
 	}
