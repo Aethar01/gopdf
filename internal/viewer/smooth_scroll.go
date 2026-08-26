@@ -8,8 +8,18 @@ import (
 )
 
 const (
-	smoothScrollFrame = 16 * time.Millisecond
-	smoothScrollSnap  = 0.25
+	smoothScrollFrame     = 16 * time.Millisecond
+	smoothScrollSnap      = 0.25
+	modalSmoothScrollSnap = 0.01
+)
+
+type modalSmoothScrollKind uint8
+
+const (
+	modalSmoothScrollNone modalSmoothScrollKind = iota
+	modalSmoothScrollLuaUI
+	modalSmoothScrollKeybindMenu
+	modalSmoothScrollOutlineMenu
 )
 
 type smoothScrollState struct {
@@ -17,6 +27,10 @@ type smoothScrollState struct {
 	targetY     float64
 	appliedX    float64
 	appliedY    float64
+	modalKind   modalSmoothScrollKind
+	targetRow   float64
+	appliedRow  float64
+	appliedScroll int
 	lastAdvance time.Time
 }
 
@@ -54,11 +68,17 @@ func invertWheelDeltas(wx, wy float32, invert bool) (float32, float32) {
 	return wx, wy
 }
 
+func modalWheelRows(e *sdl.MouseWheelEvent) float64 {
+	wy := e.Y
+	if wy == 0 {
+		wy = float32(e.IntegerY)
+	}
+	return -float64(wy)
+}
+
 func (a *App) handleAnimatedMouseWheel(e *sdl.MouseWheelEvent) {
-	if a.luaUI.visible || a.keybindMenu.visible || a.outlineMenu.visible {
-		a.cancelSmoothScroll()
-		a.handleSDLMouseWheel(e)
-		a.pendingRedraw = true
+	if kind := a.activeModalSmoothScrollKind(); kind != modalSmoothScrollNone {
+		a.queueModalSmoothScroll(kind, modalWheelRows(e))
 		return
 	}
 
@@ -120,9 +140,75 @@ func (a *App) canSmoothWheel(wx, wy float32) bool {
 	return true
 }
 
+func (a *App) activeModalSmoothScrollKind() modalSmoothScrollKind {
+	if a.luaUI.visible {
+		return modalSmoothScrollLuaUI
+	}
+	if a.keybindMenu.visible {
+		return modalSmoothScrollKeybindMenu
+	}
+	if a.outlineMenu.visible {
+		return modalSmoothScrollOutlineMenu
+	}
+	return modalSmoothScrollNone
+}
+
+func (a *App) modalSmoothScrollBounds(kind modalSmoothScrollKind) (*int, int, bool) {
+	switch kind {
+	case modalSmoothScrollLuaUI:
+		if !a.luaUI.visible {
+			return nil, 0, false
+		}
+		_, rows := a.luaUIGeometry()
+		return &a.luaUI.scroll, max(0, len(a.visibleLuaUIIndices())-rows), true
+	case modalSmoothScrollKeybindMenu:
+		if !a.keybindMenu.visible {
+			return nil, 0, false
+		}
+		_, rows := a.keybindMenuListGeometry()
+		return &a.keybindMenu.scroll, max(0, len(a.keybindMenu.rows)-rows), true
+	case modalSmoothScrollOutlineMenu:
+		if !a.outlineMenu.visible {
+			return nil, 0, false
+		}
+		_, rows := a.outlineMenuGeometry()
+		return &a.outlineMenu.scroll, max(0, len(a.visibleOutlineIndices())-rows), true
+	default:
+		return nil, 0, false
+	}
+}
+
+func (a *App) queueModalSmoothScroll(kind modalSmoothScrollKind, deltaRows float64) {
+	if deltaRows == 0 {
+		return
+	}
+	scroll, maxScroll, ok := a.modalSmoothScrollBounds(kind)
+	if !ok || maxScroll == 0 {
+		a.cancelSmoothScroll()
+		return
+	}
+	*scroll = clampInt(*scroll, 0, maxScroll)
+
+	state := a.smoothScrollState()
+	if state == nil || state.modalKind != kind || state.appliedScroll != *scroll {
+		state = &smoothScrollState{
+			modalKind:     kind,
+			targetRow:     float64(*scroll),
+			appliedRow:    float64(*scroll),
+			appliedScroll: *scroll,
+		}
+		a.smoothScroll = state
+	}
+
+	state.targetRow = clampFloat(state.targetRow+deltaRows, 0, float64(maxScroll))
+	if state.targetRow == state.appliedRow {
+		a.cancelSmoothScroll()
+	}
+}
+
 func (a *App) queueSmoothScroll(dx, dy float64) {
 	state := a.smoothScrollState()
-	if state == nil || a.scrollX != state.appliedX || a.scrollY != state.appliedY {
+	if state == nil || state.modalKind != modalSmoothScrollNone || a.scrollX != state.appliedX || a.scrollY != state.appliedY {
 		state = &smoothScrollState{
 			targetX:  a.scrollX,
 			targetY:  a.scrollY,
@@ -160,6 +246,9 @@ func (a *App) advanceSmoothScrollBy(elapsed time.Duration) bool {
 	if state == nil {
 		return false
 	}
+	if state.modalKind != modalSmoothScrollNone {
+		return a.advanceModalSmoothScrollBy(state, elapsed)
+	}
 
 	// Keyboard navigation, panning, page jumps and relayouts take ownership of
 	// the viewport immediately. An old wheel target must never pull it back.
@@ -191,6 +280,44 @@ func (a *App) advanceSmoothScrollBy(elapsed time.Duration) bool {
 		a.cancelSmoothScroll()
 	}
 	if a.scrollX != oldX || a.scrollY != oldY {
+		a.pendingRedraw = true
+		return true
+	}
+	return false
+}
+
+func (a *App) advanceModalSmoothScrollBy(state *smoothScrollState, elapsed time.Duration) bool {
+	scroll, maxScroll, ok := a.modalSmoothScrollBounds(state.modalKind)
+	if !ok {
+		a.cancelSmoothScroll()
+		return false
+	}
+	if *scroll != state.appliedScroll {
+		// Keyboard selection changes and scrollbar drags are immediate. Do not
+		// let an older trackpad target pull the list back afterward.
+		a.cancelSmoothScroll()
+		return false
+	}
+
+	state.targetRow = clampFloat(state.targetRow, 0, float64(maxScroll))
+	state.appliedRow = clampFloat(state.appliedRow, 0, float64(maxScroll))
+	next := smoothToward(state.appliedRow, state.targetRow, a.config.SmoothScrollDampening, elapsed)
+	if math.Abs(state.targetRow-next) <= modalSmoothScrollSnap {
+		next = state.targetRow
+	}
+
+	oldScroll := *scroll
+	state.appliedRow = next
+	state.appliedScroll = clampInt(int(math.Round(next)), 0, maxScroll)
+	*scroll = state.appliedScroll
+
+	if state.appliedRow == state.targetRow {
+		finalScroll := clampInt(int(math.Round(state.targetRow)), 0, maxScroll)
+		state.appliedScroll = finalScroll
+		*scroll = finalScroll
+		a.cancelSmoothScroll()
+	}
+	if *scroll != oldScroll {
 		a.pendingRedraw = true
 		return true
 	}
