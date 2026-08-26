@@ -1,9 +1,12 @@
 package actions
 
+import "runtime"
+
 type Action struct {
-	Name      string
-	Countable bool
-	Keys      []string
+	Name       string
+	Countable  bool
+	Keys       []string
+	DarwinKeys []string
 }
 
 var registry = []Action{
@@ -43,9 +46,9 @@ var registry = []Action{
 	{Name: "show_completion", Keys: []string{"<Tab>"}},
 	{Name: "next_completion"},
 	{Name: "prev_completion", Keys: []string{"<S-Tab>"}},
-	{Name: "copy", Keys: []string{"<C-c>"}},
-	{Name: "cut", Keys: []string{"<C-x>"}},
-	{Name: "paste", Keys: []string{"<C-v>"}},
+	{Name: "copy", Keys: []string{"<C-c>"}, DarwinKeys: []string{"<D-c>"}},
+	{Name: "cut", Keys: []string{"<C-x>"}, DarwinKeys: []string{"<D-x>"}},
+	{Name: "paste", Keys: []string{"<C-v>"}, DarwinKeys: []string{"<D-v>"}},
 	{Name: "close", Keys: []string{"<Esc>"}},
 	{Name: "jump_forward", Keys: []string{"<C-i>"}},
 	{Name: "jump_backward", Keys: []string{"<C-o>"}},
@@ -76,14 +79,25 @@ func Names() []string {
 	return names
 }
 
-func DefaultBindings() map[string]string {
+func DefaultKeysForOS(action Action, goos string) []string {
+	if goos == "darwin" && len(action.DarwinKeys) > 0 {
+		return action.DarwinKeys
+	}
+	return action.Keys
+}
+
+func DefaultBindingsForOS(goos string) map[string]string {
 	bindings := map[string]string{}
 	for _, action := range registry {
-		for _, key := range action.Keys {
+		for _, key := range DefaultKeysForOS(action, goos) {
 			bindings[key] = action.Name
 		}
 	}
 	return bindings
+}
+
+func DefaultBindings() map[string]string {
+	return DefaultBindingsForOS(runtime.GOOS)
 }
 
 func IsBuiltin(name string) bool {
