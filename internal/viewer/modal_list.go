@@ -170,14 +170,19 @@ func modalListScrollForSelection(scroll, selected, rows, total int) int {
 	if rows < 1 {
 		rows = 1
 	}
-	scrollOff := min(max(0, modalListScrollOff), max(0, (rows-1)/2))
+	maxScroll := max(0, total-rows)
+	scrollOff := max(0, modalListScrollOff)
+	if scrollOff*2 >= rows {
+		middleRow := (rows - 1) / 2
+		return clampInt(selected-middleRow, 0, maxScroll)
+	}
 	if selected < scroll+scrollOff {
 		scroll = selected - scrollOff
 	}
 	if selected >= scroll+rows-scrollOff {
 		scroll = selected - rows + scrollOff + 1
 	}
-	return clampInt(scroll, 0, max(0, total-rows))
+	return clampInt(scroll, 0, maxScroll)
 }
 
 func pointInRect(x, y int, rect sdl.FRect) bool {
