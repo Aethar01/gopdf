@@ -43,7 +43,7 @@ var registry = []Action{
 	{Name: "show_completion", Keys: []string{"<Tab>"}},
 	{Name: "next_completion"},
 	{Name: "prev_completion", Keys: []string{"<S-Tab>"}},
-	{Name: "copy_selection", Keys: []string{"<C-c>"}},
+	{Name: "copy", Keys: []string{"<C-c>"}},
 	{Name: "cut", Keys: []string{"<C-x>"}},
 	{Name: "paste", Keys: []string{"<C-v>"}},
 	{Name: "close", Keys: []string{"<Esc>"}},
