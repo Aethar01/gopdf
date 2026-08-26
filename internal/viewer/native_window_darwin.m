@@ -10,7 +10,12 @@ static void gopdfApplyMacOSWindowStyleProperties(NSWindow *window) {
 
     window.titleVisibility = NSWindowTitleHidden;
     window.titlebarAppearsTransparent = YES;
-    window.styleMask |= NSWindowStyleMaskFullSizeContentView;
+
+    if ((window.styleMask & NSWindowStyleMaskFullSizeContentView) == 0) {
+        NSRect frame = window.frame;
+        window.styleMask |= NSWindowStyleMaskFullSizeContentView;
+        [window setFrame:frame display:NO];
+    }
 }
 
 @interface GoPDFTitlebarDragView : NSView
