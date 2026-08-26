@@ -3,21 +3,21 @@ package viewer
 import (
 	"unicode"
 	"unicode/utf8"
-
-	"github.com/jupiterrider/purego-sdl3/sdl"
 )
 
 type textInput struct {
-	Value          string
-	Cursor         int
-	Anchor         int
-	mouseSelecting bool
+	Value           string
+	Cursor          int
+	Anchor          int
+	selectionActive bool
+	mouseSelecting  bool
 }
 
 func (t *textInput) Reset() {
 	t.Value = ""
 	t.Cursor = 0
 	t.Anchor = 0
+	t.selectionActive = false
 	t.mouseSelecting = false
 }
 
@@ -25,6 +25,7 @@ func (t *textInput) Set(value string) {
 	t.Value = value
 	t.Cursor = utf8.RuneCountInString(value)
 	t.Anchor = t.Cursor
+	t.selectionActive = false
 	t.mouseSelecting = false
 }
 
@@ -41,6 +42,7 @@ func (t *textInput) InsertText(text string) {
 	t.Value = left + text + right
 	t.Cursor += utf8.RuneCountInString(text)
 	t.Anchor = t.Cursor
+	t.selectionActive = false
 }
 
 func (t *textInput) ReplaceRange(start, end int, value string) {
@@ -49,6 +51,7 @@ func (t *textInput) ReplaceRange(start, end int, value string) {
 	t.Value = left + value + after
 	t.Cursor = start + utf8.RuneCountInString(value)
 	t.Anchor = t.Cursor
+	t.selectionActive = false
 }
 
 func (t *textInput) Backspace() {
@@ -63,6 +66,7 @@ func (t *textInput) Backspace() {
 	t.Value = left[:len(left)-size] + right
 	t.Cursor--
 	t.Anchor = t.Cursor
+	t.selectionActive = false
 }
 
 func (t *textInput) Delete() {
@@ -77,6 +81,7 @@ func (t *textInput) Delete() {
 	_, after := splitAtRune(right, 1)
 	t.Value = left + after
 	t.Anchor = t.Cursor
+	t.selectionActive = false
 }
 
 func (t *textInput) DeleteWordLeft() {
@@ -92,10 +97,11 @@ func (t *textInput) DeleteWordLeft() {
 	t.Value = string(runes[:start]) + string(runes[end:])
 	t.Cursor = start
 	t.Anchor = start
+	t.selectionActive = false
 }
 
 func (t *textInput) Move(delta int) {
-	t.MoveSelecting(delta, textInputShiftDown())
+	t.MoveSelecting(delta, false)
 }
 
 func (t *textInput) MoveSelecting(delta int, extend bool) {
@@ -113,7 +119,7 @@ func (t *textInput) MoveSelecting(delta int, extend bool) {
 }
 
 func (t *textInput) MoveWordLeft() {
-	t.MoveWordLeftSelecting(textInputShiftDown())
+	t.MoveWordLeftSelecting(false)
 }
 
 func (t *textInput) MoveWordLeftSelecting(extend bool) {
@@ -131,7 +137,7 @@ func (t *textInput) MoveWordLeftSelecting(extend bool) {
 }
 
 func (t *textInput) MoveWordRight() {
-	t.MoveWordRightSelecting(textInputShiftDown())
+	t.MoveWordRightSelecting(false)
 }
 
 func (t *textInput) MoveWordRightSelecting(extend bool) {
@@ -150,14 +156,21 @@ func (t *textInput) MoveWordRightSelecting(extend bool) {
 
 func (t *textInput) SetCursor(pos int, extend bool) {
 	pos = clampInt(pos, 0, utf8.RuneCountInString(t.Value))
-	if !extend {
-		t.Anchor = pos
+	if extend {
+		if !t.selectionActive {
+			t.Anchor = t.Cursor
+		}
+		t.Cursor = pos
+		t.selectionActive = t.Cursor != t.Anchor
+		return
 	}
 	t.Cursor = pos
+	t.Anchor = pos
+	t.selectionActive = false
 }
 
 func (t textInput) HasSelection() bool {
-	return t.Cursor != t.Anchor
+	return t.selectionActive && t.Cursor != t.Anchor
 }
 
 func (t textInput) SelectionRange() (int, int, bool) {
@@ -194,6 +207,7 @@ func (t *textInput) DeleteSelection() bool {
 	t.Value = left + right
 	t.Cursor = start
 	t.Anchor = start
+	t.selectionActive = false
 	return true
 }
 
@@ -220,8 +234,4 @@ func wordRightPosition(runes []rune, pos int) int {
 		pos++
 	}
 	return pos
-}
-
-func textInputShiftDown() bool {
-	return sdl.GetModState()&sdl.KeymodShift != 0
 }
