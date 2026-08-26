@@ -10,6 +10,7 @@ gopdf.options.anchor_position = "center" -- Viewport anchor: center, top, or bot
 gopdf.options.anti_aliasing = 8 -- MuPDF antialiasing level from 0 through 8.
 gopdf.options.background = {220, 220, 220} -- Viewer background color.
 gopdf.options.completion_max_items = 10 -- Maximum command-completion rows.
+gopdf.options.copy_on_select = true -- Copy selected text to the clipboard when the mouse selection is released.
 gopdf.options.dual_page = false -- Start in dual-page mode.
 gopdf.options.first_page_offset = true -- Treat the first page as a standalone cover in dual-page mode.
 gopdf.options.fit_mode = "page" -- Initial fit mode: page, width, or manual.
@@ -92,6 +93,7 @@ gopdf.bind("R", gopdf.rotate_ccw)
 gopdf.bind("<C-g>", gopdf.goto_page_prompt)
 gopdf.bind("<Tab>", gopdf.show_completion)
 gopdf.bind("<S-Tab>", gopdf.prev_completion)
+gopdf.bind("<C-c>", gopdf.copy_selection)
 gopdf.bind("<Esc>", gopdf.close)
 gopdf.bind("<C-i>", gopdf.jump_forward)
 gopdf.bind("<C-o>", gopdf.jump_backward)
