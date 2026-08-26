@@ -163,6 +163,9 @@ func (a *App) handleSDLEvent(event *sdl.Event) error {
 		redraw = false
 	case sdl.EventKeyDown:
 		e := event.Key()
+		if _, ok := a.repeatableMenuAction(&e); ok {
+			e.Repeat = false
+		}
 		if !a.handleTextInputSelectionKey(&e) {
 			a.handleSDLKeyDown(&e)
 		}
