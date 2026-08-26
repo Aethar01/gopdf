@@ -642,6 +642,109 @@ void gopdf_free_outline_result(gopdf_outline_result *result) {
 	result->item_count = 0;
 }
 
+typedef struct {
+	fz_point p1;
+	fz_point hdir;
+	float length;
+	float tangent;
+} gopdf_selection_line;
+
+static float gopdf_selection_dot(fz_point a, fz_point b) {
+	return a.x * b.x + a.y * b.y;
+}
+
+static fz_point gopdf_selection_sub(fz_point a, fz_point b) {
+	fz_point out = { a.x - b.x, a.y - b.y };
+	return out;
+}
+
+static int gopdf_selection_find_line(fz_stext_page *text, fz_point point, gopdf_selection_line *out) {
+	fz_stext_block *block;
+	fz_stext_line *line;
+	int found = 0;
+	float best_horizontal = INFINITY;
+	float best_perpendicular = INFINITY;
+
+	for (block = text->first_block; block != NULL; block = block->next) {
+		if (block->type != FZ_STEXT_BLOCK_TEXT) {
+			continue;
+		}
+		for (line = block->u.t.first_line; line != NULL; line = line->next) {
+			fz_point p1;
+			fz_point p2;
+			fz_point delta;
+			fz_point hdir;
+			fz_point vdir;
+			float length;
+			float tangent;
+			float horizontal_distance;
+			float perpendicular_distance;
+
+			if (line->first_char == NULL || line->last_char == NULL) {
+				continue;
+			}
+
+			hdir = line->dir;
+			vdir.x = -hdir.y;
+			vdir.y = hdir.x;
+			p1.x = (line->first_char->quad.ll.x + line->first_char->quad.ul.x) / 2;
+			p1.y = (line->first_char->quad.ll.y + line->first_char->quad.ul.y) / 2;
+			p2.x = (line->last_char->quad.lr.x + line->last_char->quad.ur.x) / 2;
+			p2.y = (line->last_char->quad.lr.y + line->last_char->quad.ur.y) / 2;
+			delta = gopdf_selection_sub(p2, p1);
+			length = gopdf_selection_dot(delta, hdir);
+			if (length <= 0.01f) {
+				continue;
+			}
+
+			delta = gopdf_selection_sub(point, p1);
+			tangent = gopdf_selection_dot(delta, hdir);
+			perpendicular_distance = fabsf(gopdf_selection_dot(delta, vdir));
+			if (tangent < 0) {
+				horizontal_distance = -tangent;
+			} else if (tangent > length) {
+				horizontal_distance = tangent - length;
+			} else {
+				horizontal_distance = 0;
+			}
+
+			if (!found || horizontal_distance < best_horizontal ||
+				(horizontal_distance == best_horizontal && perpendicular_distance < best_perpendicular)) {
+				found = 1;
+				best_horizontal = horizontal_distance;
+				best_perpendicular = perpendicular_distance;
+				out->p1 = p1;
+				out->hdir = hdir;
+				out->length = length;
+				out->tangent = tangent;
+			}
+		}
+	}
+
+	return found;
+}
+
+static fz_point gopdf_selection_normalize_point(fz_stext_page *text, fz_point point) {
+	gopdf_selection_line candidate;
+	float tangent;
+	const float edge_epsilon = 0.01f;
+
+	if (!gopdf_selection_find_line(text, point, &candidate)) {
+		return point;
+	}
+
+	tangent = candidate.tangent;
+	if (tangent < edge_epsilon) {
+		tangent = edge_epsilon;
+	} else if (tangent > candidate.length - edge_epsilon) {
+		tangent = candidate.length - edge_epsilon;
+	}
+
+	point.x = candidate.p1.x + candidate.hdir.x * tangent;
+	point.y = candidate.p1.y + candidate.hdir.y * tangent;
+	return point;
+}
+
 int gopdf_extract_selection(gopdf_doc *handle, int page_number, float ax, float ay, float bx, float by, gopdf_selection *out, char **err) {
 	fz_page *page = NULL;
 	fz_stext_page *text = NULL;
@@ -664,6 +767,8 @@ int gopdf_extract_selection(gopdf_doc *handle, int page_number, float ax, float 
 	fz_try(handle->ctx) {
 		page = fz_load_page(handle->ctx, handle->doc, page_number);
 		text = fz_new_stext_page_from_page(handle->ctx, page, NULL);
+		a = gopdf_selection_normalize_point(text, a);
+		b = gopdf_selection_normalize_point(text, b);
 		copied = fz_copy_selection(handle->ctx, text, a, b, 0);
 		quads = fz_malloc_array(handle->ctx, cap, fz_quad);
 		for (;;) {
