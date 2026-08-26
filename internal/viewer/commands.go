@@ -197,6 +197,8 @@ func (a *App) runBuiltinAction(action string) error {
 		})
 	case "quit":
 		a.quit = true
+	case "copy_selection":
+		a.copyPersistentSelectionToClipboard()
 	case "close":
 		a.closeActiveUI()
 	case "show_completion":
@@ -273,6 +275,10 @@ func (a *App) closeActiveUI() {
 	}
 	if a.search.query != "" || len(a.search.order) > 0 || a.search.running {
 		a.clearSearch()
+		return
+	}
+	if !a.config.CopyOnSelect && (a.selection.text != "" || len(a.selection.quads) > 0) {
+		a.clearSelection()
 		return
 	}
 	a.sequence = nil
