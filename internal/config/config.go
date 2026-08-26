@@ -32,6 +32,7 @@ type Config struct {
 	PageGapVertical       int
 	PageGapHorizontal     int
 	ScrollStep            int
+	ScrollOff             int
 	StatusBarHeight       int
 	StatusBarPadding      int
 	UIFont                string
