@@ -4,6 +4,8 @@ import "github.com/jupiterrider/purego-sdl3/sdl"
 
 const modalScrollbarWidth = 8
 
+var modalListScrollOff int
+
 func handleModalListMouseMotion(e *sdl.MouseMotionEvent, dragging bool, scroll, selected *int, drag func(int), hover func(int, int)) bool {
 	if dragging {
 		old := *scroll
@@ -40,6 +42,7 @@ func resetModalListSelection(visible []int, selected, scroll *int, ensureVisible
 }
 
 func (a *App) modalListGeometry(widthPct, heightPct int) (sdl.FRect, int) {
+	modalListScrollOff = max(0, a.config.ScrollOff)
 	viewportW, viewportH := a.viewportSize()
 	widthPct = clampInt(widthPct, 20, 100)
 	heightPct = clampInt(heightPct, 20, 100)
@@ -167,11 +170,12 @@ func modalListScrollForSelection(scroll, selected, rows, total int) int {
 	if rows < 1 {
 		rows = 1
 	}
-	if selected < scroll {
-		scroll = selected
+	scrollOff := min(max(0, modalListScrollOff), max(0, (rows-1)/2))
+	if selected < scroll+scrollOff {
+		scroll = selected - scrollOff
 	}
-	if selected >= scroll+rows {
-		scroll = selected - rows + 1
+	if selected >= scroll+rows-scrollOff {
+		scroll = selected - rows + scrollOff + 1
 	}
 	return clampInt(scroll, 0, max(0, total-rows))
 }
