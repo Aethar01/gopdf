@@ -198,7 +198,13 @@ func (a *App) runBuiltinAction(action string) error {
 	case "quit":
 		a.quit = true
 	case "copy_selection":
-		a.copyPersistentSelectionToClipboard()
+		if !a.copyActiveTextInputToClipboard() {
+			a.copyPersistentSelectionToClipboard()
+		}
+	case "cut":
+		a.cutActiveTextInputToClipboard()
+	case "paste":
+		a.pasteIntoActiveTextInput()
 	case "close":
 		a.closeActiveUI()
 	case "show_completion":
