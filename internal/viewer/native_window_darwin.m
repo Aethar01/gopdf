@@ -3,6 +3,21 @@
 
 static const void *GoPDFTitlebarHoverControllerKey = &GoPDFTitlebarHoverControllerKey;
 
+static void gopdfApplyMacOSWindowStyleProperties(NSWindow *window) {
+    if (window == nil) {
+        return;
+    }
+
+    window.titleVisibility = NSWindowTitleHidden;
+    window.titlebarAppearsTransparent = YES;
+
+    if ((window.styleMask & NSWindowStyleMaskFullSizeContentView) == 0) {
+        NSRect frame = window.frame;
+        window.styleMask |= NSWindowStyleMaskFullSizeContentView;
+        [window setFrame:frame display:NO];
+    }
+}
+
 @interface GoPDFTitlebarDragView : NSView
 @end
 
@@ -23,6 +38,7 @@ static const void *GoPDFTitlebarHoverControllerKey = &GoPDFTitlebarHoverControll
 @end
 
 @interface GoPDFTitlebarHoverController : NSObject {
+    NSWindow *_window;
     NSView *_trackingView;
     NSTrackingArea *_trackingArea;
     GoPDFTitlebarDragView *_dragView;
@@ -42,19 +58,58 @@ static const void *GoPDFTitlebarHoverControllerKey = &GoPDFTitlebarHoverControll
         return nil;
     }
 
-    _buttons[0] = [[window standardWindowButton:NSWindowCloseButton] retain];
-    _buttons[1] = [[window standardWindowButton:NSWindowMiniaturizeButton] retain];
-    _buttons[2] = [[window standardWindowButton:NSWindowZoomButton] retain];
-
-    if (_buttons[0] == nil || _buttons[1] == nil || _buttons[2] == nil) {
+    _window = window;
+    if (![self rebuildTitlebarViews]) {
         [self release];
         return nil;
     }
 
+    [[NSNotificationCenter defaultCenter]
+        addObserver:self
+        selector:@selector(windowDidExitFullScreen:)
+        name:NSWindowDidExitFullScreenNotification
+        object:window];
+
+    return self;
+}
+
+- (void)tearDownTitlebarViews {
+    if (_trackingArea != nil && _trackingView != nil) {
+        [_trackingView removeTrackingArea:_trackingArea];
+    }
+
+    [_dragView removeFromSuperview];
+    [_dragView release];
+    _dragView = nil;
+
+    [_trackingArea release];
+    _trackingArea = nil;
+
+    [_trackingView release];
+    _trackingView = nil;
+
+    for (NSUInteger i = 0; i < 3; i++) {
+        [_buttons[i] release];
+        _buttons[i] = nil;
+    }
+}
+
+- (BOOL)rebuildTitlebarViews {
+    [self tearDownTitlebarViews];
+
+    _buttons[0] = [[_window standardWindowButton:NSWindowCloseButton] retain];
+    _buttons[1] = [[_window standardWindowButton:NSWindowMiniaturizeButton] retain];
+    _buttons[2] = [[_window standardWindowButton:NSWindowZoomButton] retain];
+
+    if (_buttons[0] == nil || _buttons[1] == nil || _buttons[2] == nil) {
+        [self tearDownTitlebarViews];
+        return NO;
+    }
+
     _trackingView = [[_buttons[0] superview] retain];
     if (_trackingView == nil) {
-        [self release];
-        return nil;
+        [self tearDownTitlebarViews];
+        return NO;
     }
 
     _dragView = [[GoPDFTitlebarDragView alloc] initWithFrame:_trackingView.bounds];
@@ -71,7 +126,7 @@ static const void *GoPDFTitlebarHoverControllerKey = &GoPDFTitlebarHoverControll
     [_trackingView addTrackingArea:_trackingArea];
 
     [self setTrafficLightsVisible:NO animated:NO];
-    return self;
+    return YES;
 }
 
 - (void)setTrafficLightsVisible:(BOOL)visible animated:(BOOL)animated {
@@ -123,17 +178,16 @@ static const void *GoPDFTitlebarHoverControllerKey = &GoPDFTitlebarHoverControll
     [self setTrafficLightsVisible:NO animated:YES];
 }
 
+- (void)windowDidExitFullScreen:(NSNotification *)notification {
+    (void)notification;
+
+    gopdfApplyMacOSWindowStyleProperties(_window);
+    [self rebuildTitlebarViews];
+}
+
 - (void)dealloc {
-    if (_trackingArea != nil && _trackingView != nil) {
-        [_trackingView removeTrackingArea:_trackingArea];
-    }
-    [_dragView removeFromSuperview];
-    [_dragView release];
-    [_trackingArea release];
-    [_trackingView release];
-    for (NSUInteger i = 0; i < 3; i++) {
-        [_buttons[i] release];
-    }
+    [[NSNotificationCenter defaultCenter] removeObserver:self];
+    [self tearDownTitlebarViews];
     [super dealloc];
 }
 
@@ -144,9 +198,7 @@ static void gopdfApplyMacOSWindowStyle(NSWindow *window) {
         return;
     }
 
-    window.titleVisibility = NSWindowTitleHidden;
-    window.titlebarAppearsTransparent = YES;
-    window.styleMask |= NSWindowStyleMaskFullSizeContentView;
+    gopdfApplyMacOSWindowStyleProperties(window);
 
     GoPDFTitlebarHoverController *controller =
         [[GoPDFTitlebarHoverController alloc] initWithWindow:window];
