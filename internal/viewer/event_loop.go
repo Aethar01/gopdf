@@ -79,7 +79,6 @@ func (a *App) Run() error {
 				if err := a.handleSDLEvent(&event); err != nil {
 					return err
 				}
-			}
 		}
 	}
 	a.logf("viewer exiting")
@@ -179,10 +178,16 @@ func (a *App) handleSDLEvent(event *sdl.Event) error {
 		a.endPinch()
 	case sdl.EventMouseButtonDown, sdl.EventMouseButtonUp:
 		e := event.Button()
-		a.handleSDLMouseButton(&e)
+		if !a.handleInputMouseButton(&e) {
+			a.handleSDLMouseButton(&e)
+		}
 	case sdl.EventMouseMotion:
 		e := event.Motion()
-		redraw = a.handleSDLMouseMotion(&e)
+		if a.handleInputMouseMotion(&e) {
+			redraw = true
+		} else {
+			redraw = a.handleSDLMouseMotion(&e)
+		}
 	case sdl.EventDropFile:
 		e := event.Drop()
 		a.handleDroppedFile(e.Data())
@@ -255,7 +260,6 @@ func (a *App) drawFrame() error {
 		if err := a.drawLuaUI(a.renderer); err != nil {
 			return err
 		}
-	}
 	sdl.RenderPresent(a.renderer)
 	return nil
 }
