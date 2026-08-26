@@ -163,7 +163,9 @@ func (a *App) handleSDLEvent(event *sdl.Event) error {
 		redraw = false
 	case sdl.EventKeyDown:
 		e := event.Key()
-		a.handleSDLKeyDown(&e)
+		if !a.handleTextInputSelectionKey(&e) {
+			a.handleSDLKeyDown(&e)
+		}
 	case sdl.EventTextInput:
 		e := event.Text()
 		a.handleSDLTextInput(&e)
