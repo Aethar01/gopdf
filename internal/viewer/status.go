@@ -3,6 +3,7 @@ package viewer
 import (
 	"fmt"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/jupiterrider/purego-sdl3/sdl"
 )
@@ -17,6 +18,9 @@ func (a *App) drawStatusBar(renderer *sdl.Renderer) error {
 	right := a.formatStatusBar(a.config.StatusBarRight)
 	pad := a.config.StatusBarPadding
 	vertOffset := (h + a.fontFace.Metrics().Ascent.Ceil() - a.fontFace.Metrics().Descent.Ceil()) / 2
+	if err := a.drawInputSelection(renderer, y, pad, vertOffset); err != nil {
+		return err
+	}
 	if err := a.drawText(renderer, left, pad, y+vertOffset, a.foregroundColor()); err != nil {
 		return err
 	}
@@ -84,6 +88,32 @@ func (a *App) pageLabel(page int) string {
 		return a.pageMetrics[page].label
 	}
 	return fmt.Sprintf("%d", page+1)
+}
+
+func (a *App) drawInputSelection(renderer *sdl.Renderer, barY, pad, vertOffset int) error {
+	if a.mode == modeNormal {
+		return nil
+	}
+	start, end, ok := a.input.SelectionRange()
+	if !ok {
+		return nil
+	}
+	display := a.input.Value
+	if a.mode == modePassword {
+		display = strings.Repeat("*", utf8.RuneCountInString(display))
+	}
+	left, rest := splitAtRune(display, start)
+	selected, _ := splitAtRune(rest, end-start)
+	prefix := a.inputPrefix()
+	x := pad + measureText(a.fontFace, prefix+left)
+	w := measureText(a.fontFace, selected)
+	if w < 1 {
+		w = 1
+	}
+	mt := a.fontFace.Metrics()
+	top := barY + vertOffset - mt.Ascent.Ceil()
+	bottom := barY + vertOffset + mt.Descent.Ceil()
+	return fillRect(renderer, sdl.FRect{X: float32(x), Y: float32(top), W: float32(w), H: float32(max(1, bottom-top))}, a.highlightBackgroundColor())
 }
 
 func (a *App) drawInputCursor(renderer *sdl.Renderer, barY, pad, vertOffset int) error {

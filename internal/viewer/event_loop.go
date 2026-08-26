@@ -163,7 +163,9 @@ func (a *App) handleSDLEvent(event *sdl.Event) error {
 		redraw = false
 	case sdl.EventKeyDown:
 		e := event.Key()
-		a.handleSDLKeyDown(&e)
+		if !a.handleTextInputSelectionKey(&e) {
+			a.handleSDLKeyDown(&e)
+		}
 	case sdl.EventTextInput:
 		e := event.Text()
 		a.handleSDLTextInput(&e)
@@ -179,10 +181,16 @@ func (a *App) handleSDLEvent(event *sdl.Event) error {
 		a.endPinch()
 	case sdl.EventMouseButtonDown, sdl.EventMouseButtonUp:
 		e := event.Button()
-		a.handleSDLMouseButton(&e)
+		if !a.handleInputMouseButton(&e) {
+			a.handleSDLMouseButton(&e)
+		}
 	case sdl.EventMouseMotion:
 		e := event.Motion()
-		redraw = a.handleSDLMouseMotion(&e)
+		if a.handleInputMouseMotion(&e) {
+			redraw = true
+		} else {
+			redraw = a.handleSDLMouseMotion(&e)
+		}
 	case sdl.EventDropFile:
 		e := event.Drop()
 		a.handleDroppedFile(e.Data())
