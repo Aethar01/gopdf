@@ -61,7 +61,7 @@ func TestMouseDragSelectsStatusBarTextInput(t *testing.T) {
 		t.Fatal("expected mouse down in input to start selection")
 	}
 
-	motion := sdl.MouseMotionEvent{Type: sdl.EventMouseMotion, State: uint32(sdl.ButtonLMask), X: startX + float32(measureText(app.fontFace, "hel")), Y: y}
+	motion := sdl.MouseMotionEvent{Type: sdl.EventMouseMotion, State: sdl.MouseButtonFlags(sdl.ButtonLMask), X: startX + float32(measureText(app.fontFace, "hel")), Y: y}
 	if !app.handleInputMouseMotion(&motion) {
 		t.Fatal("expected mouse drag to extend input selection")
 	}
