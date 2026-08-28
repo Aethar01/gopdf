@@ -67,3 +67,33 @@ func TestRepeatableMenuActionIgnoredWhileCapturingKeybind(t *testing.T) {
 		t.Fatalf("expected key capture repeat to remain ignored, got %q", action)
 	}
 }
+
+func TestOutlineSearchRepeatsBackspace(t *testing.T) {
+	app := &App{uiState: uiState{outlineMenu: outlineMenuState{
+		visible:   true,
+		searching: true,
+		query:     "abc",
+	}}}
+	e := sdl.KeyboardEvent{CommonEvent: sdl.CommonEvent{Type: sdl.EventKeyDown}, Key: sdl.KeycodeBackspace, Repeat: true}
+
+	app.handleOutlineMenuKey(&e)
+
+	if app.outlineMenu.query != "ab" {
+		t.Fatalf("expected repeated outline backspace to edit query, got %q", app.outlineMenu.query)
+	}
+}
+
+func TestLuaUISearchRepeatsBackspace(t *testing.T) {
+	app := &App{uiState: uiState{luaUI: luaUIState{
+		visible:   true,
+		searching: true,
+		query:     "abc",
+	}}}
+	e := sdl.KeyboardEvent{CommonEvent: sdl.CommonEvent{Type: sdl.EventKeyDown}, Key: sdl.KeycodeBackspace, Repeat: true}
+
+	app.handleLuaUIKey(&e)
+
+	if app.luaUI.query != "ab" {
+		t.Fatalf("expected repeated Lua UI backspace to edit query, got %q", app.luaUI.query)
+	}
+}

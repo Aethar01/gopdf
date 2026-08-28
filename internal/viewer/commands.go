@@ -82,6 +82,7 @@ func (a *App) runAction(action string) {
 }
 
 func (a *App) runBuiltinAction(action string) error {
+	defer a.syncTextInput()
 	switch action {
 	case "next_page":
 		a.nextPage()

@@ -4,6 +4,7 @@ import (
 	_ "embed"
 	"log"
 	"math"
+	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -285,6 +286,7 @@ func (a *App) Close() {
 	a.saveDocumentSession()
 	a.document.Close()
 	a.closeDocumentResources()
+	a.stopTextInput()
 	a.sdlState.Close()
 }
 
@@ -318,7 +320,7 @@ func (a *App) closeDocumentWorkers() {
 }
 
 func (a *App) handleSDLKeyDown(e *sdl.KeyboardEvent) {
-	if e.Repeat && e.Key == a.lastKeyUpCode && time.Since(a.lastKeyUpAt) < 100*time.Millisecond {
+	if runtime.GOOS == "darwin" && e.Repeat && e.Key == a.lastKeyUpCode && time.Since(a.lastKeyUpAt) < 100*time.Millisecond {
 		if a.ignoreText == "" {
 			if token, ok := keyToken(e.Key, e.Mod); ok && utf8.RuneCountInString(token) == 1 {
 				a.ignoreText = token

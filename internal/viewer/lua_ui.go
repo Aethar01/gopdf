@@ -41,6 +41,7 @@ func (a *App) ShowUI(overlay config.UIOverlay) error {
 
 func (a *App) CloseUI() {
 	a.closeLuaUI(false)
+	a.syncTextInput()
 }
 
 func (a *App) UIVisible() bool {
@@ -77,24 +78,8 @@ func (a *App) SetUISelected(selected int) {
 }
 
 func (a *App) handleLuaUIKey(e *sdl.KeyboardEvent) bool {
-	if e.Type != sdl.EventKeyDown || e.Repeat {
+	if a.handleModalSearchKey(e, &a.luaUI.searching, a.backspaceLuaUISearch, a.closeLuaUISearch) {
 		return true
-	}
-	if a.luaUI.searching {
-		switch e.Key {
-		case sdl.KeycodeBackspace:
-			a.backspaceLuaUISearch()
-			return true
-		case sdl.KeycodeEscape:
-			a.closeLuaUISearch()
-			return true
-		case sdl.KeycodeReturn, sdl.KeycodeKpEnter:
-			a.luaUI.searching = false
-			return true
-		}
-		if token, ok := keyToken(e.Key, e.Mod); ok && !strings.HasPrefix(token, "<") && len([]rune(token)) == 1 {
-			return true
-		}
 	}
 	switch e.Key {
 	case sdl.KeycodeDown:

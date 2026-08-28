@@ -23,15 +23,15 @@ const (
 )
 
 type smoothScrollState struct {
-	targetX     float64
-	targetY     float64
-	appliedX    float64
-	appliedY    float64
-	modalKind   modalSmoothScrollKind
-	targetRow   float64
-	appliedRow  float64
+	targetX       float64
+	targetY       float64
+	appliedX      float64
+	appliedY      float64
+	modalKind     modalSmoothScrollKind
+	targetRow     float64
+	appliedRow    float64
 	appliedScroll int
-	lastAdvance time.Time
+	lastAdvance   time.Time
 }
 
 func smoothToward(current, target, dampening float64, elapsed time.Duration) float64 {

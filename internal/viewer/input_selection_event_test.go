@@ -46,11 +46,11 @@ func TestCtrlShiftArrowExtendsSelectionByWord(t *testing.T) {
 
 func TestMouseDragSelectsStatusBarTextInput(t *testing.T) {
 	app := &App{
-		config: config.Config{StatusBarHeight: 28, StatusBarPadding: 8},
+		config:          config.Config{StatusBarHeight: 28, StatusBarPadding: 8},
 		viewStateFields: viewStateFields{statusBarShown: true},
-		layoutState: layoutState{winW: 500, winH: 200},
-		inputState: inputState{mode: modeCommand},
-		sdlState: sdlState{fontFace: basicfont.Face7x13},
+		layoutState:     layoutState{winW: 500, winH: 200},
+		inputState:      inputState{mode: modeCommand},
+		sdlState:        sdlState{fontFace: basicfont.Face7x13},
 	}
 	app.input.Set("hello")
 

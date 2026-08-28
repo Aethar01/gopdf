@@ -237,24 +237,8 @@ func (a *App) expandSelectedOutline() {
 }
 
 func (a *App) handleOutlineMenuKey(e *sdl.KeyboardEvent) bool {
-	if e.Type != sdl.EventKeyDown || e.Repeat {
+	if a.handleModalSearchKey(e, &a.outlineMenu.searching, a.backspaceOutlineSearch, a.closeOutlineSearch) {
 		return true
-	}
-	if a.outlineMenu.searching {
-		switch e.Key {
-		case sdl.KeycodeBackspace:
-			a.backspaceOutlineSearch()
-			return true
-		case sdl.KeycodeEscape:
-			a.closeOutlineSearch()
-			return true
-		case sdl.KeycodeReturn, sdl.KeycodeKpEnter:
-			a.outlineMenu.searching = false
-			return true
-		}
-		if token, ok := keyToken(e.Key, e.Mod); ok && !strings.HasPrefix(token, "<") && len([]rune(token)) == 1 {
-			return true
-		}
 	}
 	if token, ok := keyToken(e.Key, e.Mod); ok {
 		if action, ok := a.sequenceLookup[normalizeBinding(token)]; ok {

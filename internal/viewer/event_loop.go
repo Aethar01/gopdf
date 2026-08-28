@@ -50,8 +50,8 @@ func (a *App) Run() error {
 	}
 	a.recomputeLayout(a.viewportSize())
 	a.pendingRedraw = true
-	sdl.StartTextInput(a.window)
-	defer sdl.StopTextInput(a.window)
+	a.syncTextInput()
+	defer a.stopTextInput()
 	defer a.cancelSmoothScroll()
 	for !a.quit {
 		var event sdl.Event
@@ -137,6 +137,7 @@ func (a *App) convertPointerEventToRenderCoordinates(event *sdl.Event) {
 
 func (a *App) handleSDLEvent(event *sdl.Event) error {
 	a.convertPointerEventToRenderCoordinates(event)
+	defer a.syncTextInput()
 
 	redraw := true
 	switch event.Type() {
@@ -156,6 +157,9 @@ func (a *App) handleSDLEvent(event *sdl.Event) error {
 		redraw = false
 	case sdl.EventWindowLeaveFullscreen:
 		a.fullscreen = false
+		redraw = false
+	case sdl.EventWindowFocusLost:
+		a.stopPan()
 		redraw = false
 	case sdl.EventKeyUp:
 		e := event.Key()
@@ -205,6 +209,40 @@ func (a *App) handleSDLEvent(event *sdl.Event) error {
 		a.pendingRedraw = true
 	}
 	return nil
+}
+
+func (a *App) textInputNeeded() bool {
+	return a.mode != modeNormal ||
+		(a.outlineMenu.visible && a.outlineMenu.searching) ||
+		(a.luaUI.visible && a.luaUI.searching)
+}
+
+func (a *App) syncTextInput() {
+	if a.window == nil {
+		return
+	}
+	want := a.textInputNeeded()
+	if want == sdl.TextInputActive(a.window) {
+		return
+	}
+	if want {
+		if !sdl.StartTextInput(a.window) {
+			a.logf("start text input failed: %s", sdl.GetError())
+		}
+		return
+	}
+	if !sdl.StopTextInput(a.window) {
+		a.logf("stop text input failed: %s", sdl.GetError())
+	}
+}
+
+func (a *App) stopTextInput() {
+	if a.window == nil || !sdl.TextInputActive(a.window) {
+		return
+	}
+	if !sdl.StopTextInput(a.window) {
+		a.logf("stop text input failed: %s", sdl.GetError())
+	}
 }
 
 // The SDL binding currently does not expose Event.Pinch(). SDL_Event stores

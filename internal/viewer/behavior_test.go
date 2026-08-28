@@ -879,6 +879,32 @@ func TestBuiltinPromptActionsEnterExpectedModes(t *testing.T) {
 	}
 }
 
+func TestTextInputNeededOnlyForActiveTextEntry(t *testing.T) {
+	tests := []struct {
+		name string
+		app  App
+		want bool
+	}{
+		{name: "normal", want: false},
+		{name: "command prompt", app: App{inputState: inputState{mode: modeCommand}}, want: true},
+		{name: "goto prompt", app: App{inputState: inputState{mode: modeGotoPage}}, want: true},
+		{name: "search prompt", app: App{inputState: inputState{mode: modeSearch}}, want: true},
+		{name: "password prompt", app: App{inputState: inputState{mode: modePassword}}, want: true},
+		{name: "outline menu", app: App{uiState: uiState{outlineMenu: outlineMenuState{visible: true}}}, want: false},
+		{name: "outline search", app: App{uiState: uiState{outlineMenu: outlineMenuState{visible: true, searching: true}}}, want: true},
+		{name: "lua menu", app: App{uiState: uiState{luaUI: luaUIState{visible: true}}}, want: false},
+		{name: "lua search", app: App{uiState: uiState{luaUI: luaUIState{visible: true, searching: true}}}, want: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.app.textInputNeeded(); got != tt.want {
+				t.Fatalf("textInputNeeded() = %t, want %t", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestInputEditingKeepsRuneCursorPositions(t *testing.T) {
 	app := &App{inputState: inputState{input: textInput{Value: "ab", Cursor: 1}}}
 	app.input.InsertRune('界')

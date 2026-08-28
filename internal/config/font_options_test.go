@@ -4,15 +4,15 @@ import "testing"
 
 func TestParseUIFontWeight(t *testing.T) {
 	tests := map[string]int{
-		"100":       100,
-		"normal":    400,
-		"regular":   400,
-		"medium":    500,
-		"semibold":  600,
-		"semi-bold": 600,
-		"bold":      700,
+		"100":        100,
+		"normal":     400,
+		"regular":    400,
+		"medium":     500,
+		"semibold":   600,
+		"semi-bold":  600,
+		"bold":       700,
 		"extra-bold": 800,
-		"black":     900,
+		"black":      900,
 	}
 	for input, want := range tests {
 		got, err := parseUIFontWeight(input)

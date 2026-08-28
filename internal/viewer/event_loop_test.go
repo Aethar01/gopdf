@@ -80,6 +80,19 @@ func TestHandleSDLEventRedrawsExposedWindow(t *testing.T) {
 	}
 }
 
+func TestHandleSDLEventFocusLossStopsKeyPanning(t *testing.T) {
+	app := &App{interactionState: interactionState{panning: true, panKey: " "}}
+	event := sdl.Event{}
+	binary.NativeEndian.PutUint32(event[:], uint32(sdl.EventWindowFocusLost))
+
+	if err := app.handleSDLEvent(&event); err != nil {
+		t.Fatalf("handle focus lost event: %v", err)
+	}
+	if app.panning || app.panKey != "" {
+		t.Fatalf("expected focus loss to stop key panning, panning=%v panKey=%q", app.panning, app.panKey)
+	}
+}
+
 func TestHandleSDLEventPinchUpdatesZoom(t *testing.T) {
 	app := &App{
 		config:          config.Config{PinchSensitivity: 2, MinZoom: 0.5, MaxZoom: 8},
