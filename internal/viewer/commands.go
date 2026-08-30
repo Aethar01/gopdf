@@ -318,6 +318,9 @@ func (a *App) RunCommand(command string) error {
 func (a *App) applyConfigState(cfg config.Config, preserveManualFit bool) {
 	currentFitMode := a.fitMode
 	a.config = cfg
+	if !cfg.SmoothScroll {
+		a.cancelSmoothScroll()
+	}
 	a.fitMode = sanitizeFitMode(cfg.FitMode)
 	if preserveManualFit && currentFitMode == "manual" {
 		a.fitMode = currentFitMode

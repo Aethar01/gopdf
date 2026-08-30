@@ -10,8 +10,30 @@ func TestScrollOptionDefaults(t *testing.T) {
 	if cfg.InvertSmoothScroll {
 		t.Fatal("expected invert_smooth_scroll to default to false")
 	}
+	if !cfg.SmoothScroll {
+		t.Fatal("expected smooth_scroll to default to true")
+	}
 	if cfg.SmoothScrollDampening != 0.35 {
 		t.Fatalf("expected smooth_scroll_dampening=0.35, got %v", cfg.SmoothScrollDampening)
+	}
+}
+
+func TestSmoothScrollOptionCanBeDisabled(t *testing.T) {
+	cfg := Default()
+	desc := configOptions["smooth_scroll"]
+
+	if err := desc.applyText(&cfg, "off"); err != nil {
+		t.Fatal(err)
+	}
+	if cfg.SmoothScroll {
+		t.Fatal("expected smooth_scroll to be disabled")
+	}
+
+	if err := desc.applyText(&cfg, "on"); err != nil {
+		t.Fatal(err)
+	}
+	if !cfg.SmoothScroll {
+		t.Fatal("expected smooth_scroll to be enabled")
 	}
 }
 

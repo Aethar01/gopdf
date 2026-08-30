@@ -77,6 +77,12 @@ func modalWheelRows(e *sdl.MouseWheelEvent) float64 {
 }
 
 func (a *App) handleAnimatedMouseWheel(e *sdl.MouseWheelEvent) {
+	if !a.config.SmoothScroll {
+		a.cancelSmoothScroll()
+		a.handleSDLMouseWheel(e)
+		a.pendingRedraw = true
+		return
+	}
 	if kind := a.activeModalSmoothScrollKind(); kind != modalSmoothScrollNone {
 		a.queueModalSmoothScroll(kind, modalWheelRows(e))
 		return
@@ -244,6 +250,10 @@ func (a *App) advanceSmoothScroll() bool {
 func (a *App) advanceSmoothScrollBy(elapsed time.Duration) bool {
 	state := a.smoothScrollState()
 	if state == nil {
+		return false
+	}
+	if !a.config.SmoothScroll {
+		a.cancelSmoothScroll()
 		return false
 	}
 	if state.modalKind != modalSmoothScrollNone {

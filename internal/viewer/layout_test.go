@@ -162,6 +162,27 @@ func TestInvertSmoothScrollInvertsBothWheelAxes(t *testing.T) {
 	assertClose(t, state.targetY, 132)
 }
 
+func TestDisabledSmoothScrollUsesDiscreteWheelPath(t *testing.T) {
+	app := testLayoutApp(5)
+	app.config.SmoothScroll = false
+	app.pageStep = 64
+	app.mouseBindings = map[string]string{
+		"wheel_up":    "scroll_up",
+		"wheel_down":  "scroll_down",
+		"wheel_left":  "scroll_left",
+		"wheel_right": "scroll_right",
+	}
+	app.recomputeLayout(1000, 100)
+	app.scrollY = 100
+
+	app.handleAnimatedMouseWheel(&sdl.MouseWheelEvent{Y: 1})
+
+	assertClose(t, app.scrollY, 36)
+	if app.smoothScrollActive() {
+		t.Fatal("expected disabled smooth scrolling to leave no animation state")
+	}
+}
+
 func TestPanCanBeHeldByKey(t *testing.T) {
 	app := testLayoutApp(5)
 	app.actionKey = " "
@@ -250,7 +271,7 @@ func testLayoutApp(pageCount int) *App {
 	return &App{
 		documentState:   documentState{pageCount: pageCount},
 		viewStateFields: viewStateFields{zoom: 1, fitMode: "manual", renderMode: "continuous", firstPageOffset: true},
-		config:          config.Config{PageGap: -1, PageGapHorizontal: -1, PageGapVertical: -1, SpreadGap: -1},
+		config:          config.Config{PageGap: -1, PageGapHorizontal: -1, PageGapVertical: -1, SpreadGap: -1, SmoothScroll: true},
 		metricsService:  metricsService{pageMetrics: metrics},
 	}
 }

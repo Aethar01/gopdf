@@ -258,6 +258,7 @@ func parseColorOption(raw string) ([3]uint8, error) {
 var configOptions = map[string]optionDesc{
 	"status_bar_visible":     boolOption("Show the status bar at startup.", func(c *Config) bool { return c.StatusBarVisible }, func(c *Config, v bool) { c.StatusBarVisible = v }),
 	"mouse_text_select":      boolOption("Enable text selection with the left mouse button.", func(c *Config) bool { return c.MouseTextSelect }, func(c *Config, v bool) { c.MouseTextSelect = v }),
+	"smooth_scroll":          boolOption("Animate mouse-wheel and trackpad scrolling, including scrollable UI lists.", func(c *Config) bool { return c.SmoothScroll }, func(c *Config, v bool) { c.SmoothScroll = v }),
 	"invert_scroll":          boolOption("Invert horizontal and vertical discrete mouse-wheel scrolling.", func(c *Config) bool { return c.InvertScroll }, func(c *Config, v bool) { c.InvertScroll = v }),
 	"invert_smooth_scroll":   boolOption("Invert horizontal and vertical smooth wheel or trackpad scrolling.", func(c *Config) bool { return c.InvertSmoothScroll }, func(c *Config, v bool) { c.InvertSmoothScroll = v }),
 	"session_database":       boolOption("Persist per-document view state, marks, and recent files.", func(c *Config) bool { return c.SessionDatabase }, func(c *Config, v bool) { c.SessionDatabase = v }),

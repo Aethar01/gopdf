@@ -56,6 +56,7 @@ func Default() Config {
 		},
 		MouseTextSelect:       true,
 		CopyOnSelect:          true,
+		SmoothScroll:          true,
 		InvertScroll:          false,
 		InvertSmoothScroll:    false,
 		SmoothScrollDampening: 0.35,
