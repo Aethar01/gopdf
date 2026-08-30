@@ -20,6 +20,21 @@ func Load(explicitPath string) (Config, error) {
 }
 
 func Open(explicitPath, docPath string, verbose ...bool) (*Runtime, error) {
+	options := OpenOptions{}
+	if len(verbose) > 0 {
+		options.Verbose = verbose[0]
+	}
+	return OpenWithOptions(explicitPath, docPath, options)
+}
+
+type OpenOptions struct {
+	Verbose         bool
+	PluginPaths     []string
+	DisabledPlugins []string
+	NoPlugins       bool
+}
+
+func OpenWithOptions(explicitPath, docPath string, options OpenOptions) (*Runtime, error) {
 	docPath = AbsoluteDocumentPath(docPath)
 	docName := ""
 	if docPath != "" {
@@ -30,7 +45,18 @@ func Open(explicitPath, docPath string, verbose ...bool) (*Runtime, error) {
 		docPath:      docPath,
 		docName:      docName,
 		docMeta:      loadDocumentMeta(docPath),
-		verbose:      len(verbose) > 0 && verbose[0],
+		verbose:      options.Verbose,
+		jobs:         map[int]pluginJob{},
+		jobResults:   make(chan pluginJobResult, 32),
+	}
+	var pluginPaths []string
+	if !options.NoPlugins {
+		pluginPaths = append(pluginPaths, options.PluginPaths...)
+		pluginPaths = append(pluginPaths, PluginPaths()...)
+	}
+	rt.pluginCatalog = discoverPluginCatalog(pluginPaths, options.DisabledPlugins)
+	for _, warning := range rt.pluginCatalog.warnings {
+		rt.logf("%s", warning)
 	}
 	if err := rt.Reload(); err != nil {
 		return nil, err
@@ -59,14 +85,21 @@ func unique(paths []string) []string {
 }
 
 func (r *Runtime) Close() {
-	if r.state != nil {
-		r.state.Close()
-		r.state = nil
-	}
+	r.cancelPluginJobs()
+	r.closeLuaState()
 }
 
 func (r *Runtime) Config() Config {
 	return r.cfg
+}
+
+func (r *Runtime) ConsumeDirty() bool {
+	if r == nil {
+		return false
+	}
+	dirty := r.dirty
+	r.dirty = false
+	return dirty
 }
 
 func (r *Runtime) AttachHost(host Host) {
@@ -104,15 +137,21 @@ func (r *Runtime) Reload() error {
 	oldConfig := r.cfg
 	oldCallbacks := r.callbacks
 	oldCallbackSeq := r.callbackSeq
+	oldPlugins := r.plugins
+	oldJobs := r.jobs
+	oldPluginGeneration := r.pluginGeneration
 	oldDirty := r.dirty
 	committed := false
 	r.state = nil
+	r.plugins = nil
 	r.cfg = Default()
 	r.callbacks = map[string]*lua.LFunction{}
 	r.callbackSeq = 0
 	r.dirty = false
+	r.jobs = make(map[int]pluginJob)
 	defer func() {
 		if committed {
+			cancelPluginJobMap(oldJobs)
 			if oldState != nil {
 				oldState.Close()
 			}
@@ -123,16 +162,22 @@ func (r *Runtime) Reload() error {
 		r.cfg = oldConfig
 		r.callbacks = oldCallbacks
 		r.callbackSeq = oldCallbackSeq
+		r.plugins = oldPlugins
+		r.jobs = oldJobs
+		r.pluginGeneration = oldPluginGeneration
 		r.dirty = oldDirty
 	}()
 	autogenPath := r.autogenPath()
 	if autogenPath != "" {
 		if info, err := os.Stat(autogenPath); err == nil && !info.IsDir() {
 			r.logf("apply autogen config %q", autogenPath)
+			r.loadingAutogen = true
 			if err := r.applyLuaConfig(autogenPath); err != nil {
+				r.loadingAutogen = false
 				r.Close()
 				return err
 			}
+			r.loadingAutogen = false
 			r.cfg.AutogenPath = autogenPath
 		} else if err != nil && !os.IsNotExist(err) {
 			return err
@@ -170,6 +215,14 @@ func (r *Runtime) Reload() error {
 	return nil
 }
 
+func (r *Runtime) closeLuaState() {
+	if r.state != nil {
+		r.state.Close()
+		r.state = nil
+	}
+	r.plugins = nil
+}
+
 func (r *Runtime) logf(format string, args ...any) {
 	if r != nil && r.verbose {
 		log.Printf(format, args...)
@@ -189,13 +242,26 @@ func (r *Runtime) RunAction(action string) (bool, bool, error) {
 	}
 	fn, ok := r.callbacks[action]
 	if !ok {
-		return false, false, nil
+		if r.pluginAction(action) == nil {
+			return false, false, nil
+		}
+		r.dirty = false
+		err := r.runPluginAction(action)
+		return true, r.dirty, err
 	}
 	r.dirty = false
 	if err := r.callLua(lua.P{Fn: fn, NRet: 0, Protect: true}); err != nil {
 		return true, r.dirty, err
 	}
 	return true, r.dirty, nil
+}
+
+func (r *Runtime) runPluginAction(action string) error {
+	pluginAction := r.pluginAction(action)
+	if pluginAction == nil {
+		return fmt.Errorf("unknown action: %s", action)
+	}
+	return r.callLua(lua.P{Fn: pluginAction.function, NRet: 0, Protect: true})
 }
 
 func (r *Runtime) Eval(code string) (bool, error) {
@@ -210,8 +276,12 @@ func (r *Runtime) Eval(code string) (bool, error) {
 	return r.dirty, nil
 }
 
-func (r *Runtime) RunUISelect(callback string, index int, value string) error {
-	return r.runCallback(callback, lua.LNumber(index), lua.LString(value))
+func (r *Runtime) RunUISelect(callback string, index int, value string, text ...string) error {
+	args := []lua.LValue{lua.LNumber(index), lua.LString(value)}
+	if len(text) > 0 {
+		args = append(args, lua.LString(text[0]))
+	}
+	return r.runCallback(callback, args...)
 }
 
 func (r *Runtime) RunUIClose(callback string) error {

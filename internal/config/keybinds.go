@@ -11,16 +11,16 @@ import (
 )
 
 func (r *Runtime) SetKeyBinding(key, action string) error {
-	if !isBuiltinAction(action) {
-		return fmt.Errorf("cannot persist non-builtin action %q", action)
+	if !r.actionExists(action) {
+		return fmt.Errorf("cannot persist unknown action %q", action)
 	}
 	r.setKeyBinding(key, action)
 	return r.WriteAutogen()
 }
 
 func (r *Runtime) RebindKey(oldKey, newKey, action string) error {
-	if !isBuiltinAction(action) {
-		return fmt.Errorf("cannot persist non-builtin action %q", action)
+	if !r.actionExists(action) {
+		return fmt.Errorf("cannot persist unknown action %q", action)
 	}
 	if oldKey != "" && oldKey != newKey {
 		r.unbindKey(oldKey)
@@ -78,16 +78,24 @@ func generatedKeybindLua(bindings map[string]string) string {
 		if isDefault && current == def {
 			continue
 		}
-		if !isBuiltinAction(current) {
+		if isBuiltinAction(current) {
+			fmt.Fprintf(&b, "gopdf.bind(%q, gopdf.%s)\n", key, current)
 			continue
 		}
-		fmt.Fprintf(&b, "gopdf.bind(%q, gopdf.%s)\n", key, current)
+		if isPluginActionName(current) {
+			fmt.Fprintf(&b, "gopdf.bind(%q, %q)\n", key, current)
+		}
 	}
 	return b.String()
 }
 
 func isBuiltinAction(action string) bool {
 	return actions.IsBuiltin(action)
+}
+
+func isPluginActionName(action string) bool {
+	parts := strings.Split(action, ".")
+	return len(parts) == 2 && validPluginID(parts[0]) && validPluginMemberName(parts[1])
 }
 
 func Actions() []string {

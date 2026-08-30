@@ -103,31 +103,33 @@ func TestClipboardCopyWithoutTextInputSelectionIsNoop(t *testing.T) {
 
 func TestClipboardEditingOutlineSearch(t *testing.T) {
 	withTestClipboard(t)
-	app := &App{uiState: uiState{outlineMenu: outlineMenuState{visible: true, searching: true, query: "needle"}}}
+	view := &uiView{visible: true, modal: true, searching: true, query: "needle"}
+	app := &App{uiState: uiState{views: uiManager{active: view}}}
 
-	if !app.cutActiveTextInputToClipboard() || app.outlineMenu.query != "" {
-		t.Fatalf("expected cut to clear outline query, got %q", app.outlineMenu.query)
+	if !app.cutActiveTextInputToClipboard() || view.query != "" {
+		t.Fatalf("expected cut to clear outline query, got %q", view.query)
 	}
 	if sdlGetClipboardText() != "needle" {
 		t.Fatalf("expected outline query on clipboard, got %q", sdlGetClipboardText())
 	}
 
 	sdlSetClipboardText("filter")
-	if !app.pasteIntoActiveTextInput() || app.outlineMenu.query != "filter" {
-		t.Fatalf("expected paste into outline query, got %q", app.outlineMenu.query)
+	if !app.pasteIntoActiveTextInput() || view.query != "filter" {
+		t.Fatalf("expected paste into outline query, got %q", view.query)
 	}
 }
 
-func TestClipboardEditingLuaUISearch(t *testing.T) {
+func TestClipboardEditingPluginUISearch(t *testing.T) {
 	withTestClipboard(t)
-	app := &App{uiState: uiState{luaUI: luaUIState{visible: true, searching: true, query: "menu"}}}
+	view := &uiView{visible: true, modal: true, searching: true, query: "menu"}
+	app := &App{uiState: uiState{views: uiManager{active: view}}}
 
 	if !app.copyActiveTextInputToClipboard() || sdlGetClipboardText() != "menu" {
 		t.Fatalf("expected Lua UI query on clipboard, got %q", sdlGetClipboardText())
 	}
 	sdlSetClipboardText(" item")
-	if !app.pasteIntoActiveTextInput() || app.luaUI.query != "menu item" {
-		t.Fatalf("expected paste into Lua UI query, got %q", app.luaUI.query)
+	if !app.pasteIntoActiveTextInput() || view.query != "menu item" {
+		t.Fatalf("expected paste into plugin UI query, got %q", view.query)
 	}
 }
 

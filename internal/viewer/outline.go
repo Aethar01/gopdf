@@ -8,22 +8,16 @@ import (
 )
 
 type outlineMenuState struct {
-	visible              bool
-	selected             int
-	scroll               int
+	view                 *uiView
 	expanded             map[int]bool
 	visibleIndices       []int
 	visibleQuery         string
 	visibleExpandedCount int
-	draggingScrollbar    bool
-	scrollbarDragOffsetY int
-	searching            bool
-	query                string
 }
 
 func (a *App) toggleOutlineMenu() {
-	if a.outlineMenu.visible {
-		a.outlineMenu.visible = false
+	if a.outlineMenu.view != nil && a.outlineMenu.view.visible {
+		a.closeUIView(a.outlineMenu.view, false)
 		return
 	}
 	a.closeAllUI()
@@ -33,23 +27,55 @@ func (a *App) toggleOutlineMenu() {
 			a.outline = outline
 		}
 	}
-	a.outlineMenu.visible = true
-	a.outlineMenu.selected = -1
-	a.outlineMenu.scroll = 0
-	a.outlineMenu.expanded = map[int]bool{}
-	if len(a.outline) == 0 {
-		return
-	}
-	a.outlineMenu.selected = a.outlineIndexForPage(a.page)
-	for i, item := range a.outline {
-		if item.HasChildren && item.Depth < a.config.OutlineInitialDepth {
-			a.outlineMenu.expanded[i] = true
+	a.outlineMenu = outlineMenuState{expanded: map[int]bool{}}
+	a.outlineMenu.view = a.newOutlineView()
+	if len(a.outline) > 0 {
+		a.outlineMenu.view.selected = a.outlineIndexForPage(a.page)
+		for i, item := range a.outline {
+			if item.HasChildren && item.Depth < a.config.OutlineInitialDepth {
+				a.outlineMenu.expanded[i] = true
+			}
+		}
+		selected := a.outlineMenu.view.selected
+		for selected >= 0 && selected < len(a.outline) && a.outline[selected].Parent >= 0 {
+			selected = a.outline[selected].Parent
+			a.outlineMenu.expanded[selected] = true
 		}
 	}
-	for parent := a.outline[a.outlineMenu.selected].Parent; parent >= 0; parent = a.outline[parent].Parent {
-		a.outlineMenu.expanded[parent] = true
+	a.refreshOutlineView()
+	a.showUIView(a.outlineMenu.view)
+}
+
+func (a *App) newOutlineView() *uiView {
+	view := &uiView{
+		id:            "core:outline",
+		owner:         "core",
+		modal:         true,
+		searchable:    true,
+		widthPercent:  a.config.OutlineWidthPercent,
+		heightPercent: a.config.OutlineHeightPercent,
 	}
-	a.ensureOutlineSelectionVisible()
+	view.header = func(a *App, view *uiView, visible int) string {
+		if view.searching || view.query != "" {
+			return fmt.Sprintf("Outline /%s (%d/%d)", view.query, visible, len(a.outline))
+		}
+		return fmt.Sprintf("Outline (%d)", len(a.outline))
+	}
+	view.empty = func(_ *App, view *uiView) string {
+		if view.query != "" {
+			return "No matching outline entries"
+		}
+		return "No PDF outline found"
+	}
+	view.geometry = func(a *App) (sdl.FRect, int) { return a.outlineMenuGeometry() }
+	view.onKey = func(a *App, e *sdl.KeyboardEvent) bool { return a.handleOutlineViewKey(view, e) }
+	view.onMouseButton = func(a *App, e *sdl.MouseButtonEvent) bool { return a.handleOutlineViewMouseButton(view, e) }
+	view.onMouseMotion = func(a *App, e *sdl.MouseMotionEvent) bool { return a.handleGenericUIViewMouseMotion(view, e) }
+	view.onQueryChanged = func(a *App, _ *uiView) {
+		a.invalidateVisibleOutlineIndices()
+		a.refreshOutlineView()
+	}
+	return view
 }
 
 func (a *App) outlineIndexForPage(page int) int {
@@ -65,7 +91,10 @@ func (a *App) outlineIndexForPage(page int) int {
 }
 
 func (a *App) visibleOutlineIndices() []int {
-	query := strings.ToLower(strings.TrimSpace(a.outlineMenu.query))
+	query := ""
+	if a.outlineMenu.view != nil {
+		query = strings.ToLower(strings.TrimSpace(a.outlineMenu.view.query))
+	}
 	expandedCount := len(a.outlineMenu.expanded)
 	if a.outlineMenu.visibleIndices != nil && a.outlineMenu.visibleQuery == query && a.outlineMenu.visibleExpandedCount == expandedCount {
 		return a.outlineMenu.visibleIndices
@@ -103,81 +132,113 @@ func (a *App) invalidateVisibleOutlineIndices() {
 	a.outlineMenu.visibleExpandedCount = 0
 }
 
+func (a *App) refreshOutlineView() {
+	view := a.outlineMenu.view
+	if view == nil {
+		return
+	}
+	visible := a.visibleOutlineIndices()
+	rows := make([]uiRow, 0, len(visible))
+	for _, index := range visible {
+		item := a.outline[index]
+		marker := "  "
+		if item.HasChildren {
+			marker = "+ "
+			if a.outlineMenu.expanded[index] {
+				marker = "- "
+			}
+		}
+		indent := strings.Repeat("  ", item.Depth)
+		text := indent + marker + strings.TrimSpace(item.Title)
+		if strings.TrimSpace(text) == strings.TrimSpace(indent+marker) {
+			text += "untitled"
+		}
+		secondary := ""
+		if item.Page >= 0 {
+			secondary = fmt.Sprintf("%d", item.Page+1)
+		}
+		rows = append(rows, uiRow{index: index, text: text, value: item.Title, secondary: secondary})
+	}
+	view.rows = rows
+	view.selected = clampOutlineSelection(view.selected, visible)
+	a.ensureUIViewSelectionVisible(view)
+}
+
+func clampOutlineSelection(selected int, visible []int) int {
+	for _, index := range visible {
+		if index == selected {
+			return selected
+		}
+	}
+	if len(visible) == 0 {
+		return -1
+	}
+	return visible[0]
+}
+
 func (a *App) updateOutlineSearchQuery(query string) {
-	a.outlineMenu.query = query
+	if a.outlineMenu.view == nil {
+		return
+	}
+	a.outlineMenu.view.query = query
 	a.invalidateVisibleOutlineIndices()
-	resetModalListSelection(a.visibleOutlineIndices(), &a.outlineMenu.selected, &a.outlineMenu.scroll, a.ensureOutlineSelectionVisible)
+	a.refreshOutlineView()
 }
 
 func (a *App) insertOutlineSearchText(text string) {
-	if !a.outlineMenu.visible || !a.outlineMenu.searching {
+	if a.outlineMenu.view == nil || !a.outlineMenu.view.searching {
 		return
 	}
-	a.updateOutlineSearchQuery(a.outlineMenu.query + text)
+	a.updateOutlineSearchQuery(a.outlineMenu.view.query + text)
 }
 
 func (a *App) backspaceOutlineSearch() {
-	if !a.outlineMenu.visible || !a.outlineMenu.searching || a.outlineMenu.query == "" {
+	if a.outlineMenu.view == nil || !a.outlineMenu.view.searching || a.outlineMenu.view.query == "" {
 		return
 	}
-	runes := []rune(a.outlineMenu.query)
+	runes := []rune(a.outlineMenu.view.query)
 	a.updateOutlineSearchQuery(string(runes[:len(runes)-1]))
 }
 
 func (a *App) closeOutlineSearch() bool {
-	if !a.outlineMenu.searching && a.outlineMenu.query == "" {
+	if a.outlineMenu.view == nil || (!a.outlineMenu.view.searching && a.outlineMenu.view.query == "") {
 		return false
 	}
-	a.outlineMenu.searching = false
+	a.outlineMenu.view.searching = false
 	a.updateOutlineSearchQuery("")
 	return true
 }
 
 func (a *App) ensureOutlineSelectionVisible() {
-	visible := a.visibleOutlineIndices()
-	if len(visible) == 0 {
-		a.outlineMenu.scroll = 0
-		return
-	}
-	_, rows := a.outlineMenuGeometry()
-	row := modalListSelectedRow(visible, &a.outlineMenu.selected, a.outlineMenu.scroll)
-	a.outlineMenu.scroll = modalListScrollForSelection(a.outlineMenu.scroll, row, rows, len(visible))
+	a.refreshOutlineView()
 }
 
 func (a *App) moveOutlineSelection(delta int) {
-	visible := a.visibleOutlineIndices()
-	if len(visible) == 0 {
-		return
-	}
-	row := modalListSelectedRow(visible, &a.outlineMenu.selected, a.outlineMenu.scroll)
-	row = clampInt(row+delta, 0, len(visible)-1)
-	a.outlineMenu.selected = visible[row]
-	a.ensureOutlineSelectionVisible()
+	a.moveUIViewSelection(a.outlineMenu.view, delta)
 }
 
 func (a *App) scrollOutlineMenu(delta int) {
+	if a.outlineMenu.view == nil {
+		return
+	}
 	_, rows := a.outlineMenuGeometry()
-	maxScroll := max(0, len(a.visibleOutlineIndices())-rows)
-	a.outlineMenu.scroll = clampInt(a.outlineMenu.scroll+delta, 0, maxScroll)
+	scrollUIView(a.outlineMenu.view, delta, rows)
 }
 
 func (a *App) startOutlineScrollbarDrag(x, y int) bool {
-	rect, rows := a.outlineMenuGeometry()
-	visible := a.visibleOutlineIndices()
-	return modalListStartScrollbarDrag(rect, a.outlineMenuRowHeight(), rows, len(visible), x, y, &a.outlineMenu.scroll, &a.outlineMenu.scrollbarDragOffsetY, &a.outlineMenu.draggingScrollbar)
+	return a.uiViewStartScrollbarDrag(a.outlineMenu.view, x, y)
 }
 
 func (a *App) dragOutlineScrollbar(y int) {
-	rect, rows := a.outlineMenuGeometry()
-	visible := a.visibleOutlineIndices()
-	modalListDragScrollbar(rect, a.outlineMenuRowHeight(), rows, len(visible), y, &a.outlineMenu.scroll, a.outlineMenu.scrollbarDragOffsetY)
+	a.uiViewDragScrollbar(a.outlineMenu.view, y)
 }
 
 func (a *App) activateSelectedOutline() {
-	if a.outlineMenu.selected < 0 || a.outlineMenu.selected >= len(a.outline) {
+	view := a.outlineMenu.view
+	if view == nil || view.selected < 0 || view.selected >= len(a.outline) {
 		return
 	}
-	item := a.outline[a.outlineMenu.selected]
+	item := a.outline[view.selected]
 	if item.External {
 		if item.URI == "" {
 			return
@@ -186,14 +247,14 @@ func (a *App) activateSelectedOutline() {
 			a.message = err.Error()
 			return
 		}
-		a.outlineMenu.visible = false
+		a.closeUIView(view, false)
 		a.message = item.URI
 		return
 	}
 	if item.Page < 0 {
 		return
 	}
-	a.outlineMenu.visible = false
+	a.closeUIView(view, false)
 	if item.HasX || item.HasY {
 		x, y := item.X, item.Y
 		bounds := a.pageMetrics[item.Page].bounds
@@ -210,41 +271,53 @@ func (a *App) activateSelectedOutline() {
 }
 
 func (a *App) collapseSelectedOutline() {
-	selected := a.outlineMenu.selected
-	if selected < 0 || selected >= len(a.outline) {
+	view := a.outlineMenu.view
+	if view == nil || view.selected < 0 || view.selected >= len(a.outline) {
 		return
 	}
+	selected := view.selected
 	if a.outline[selected].HasChildren && a.outlineMenu.expanded[selected] {
 		delete(a.outlineMenu.expanded, selected)
 		a.invalidateVisibleOutlineIndices()
-		a.ensureOutlineSelectionVisible()
+		a.refreshOutlineView()
 		return
 	}
 	if parent := a.outline[selected].Parent; parent >= 0 {
-		a.outlineMenu.selected = parent
+		view.selected = parent
 		a.ensureOutlineSelectionVisible()
 	}
 }
 
 func (a *App) expandSelectedOutline() {
-	selected := a.outlineMenu.selected
-	if selected < 0 || selected >= len(a.outline) || !a.outline[selected].HasChildren {
+	view := a.outlineMenu.view
+	if view == nil || view.selected < 0 || view.selected >= len(a.outline) || !a.outline[view.selected].HasChildren {
 		return
 	}
-	a.outlineMenu.expanded[selected] = true
+	a.outlineMenu.expanded[view.selected] = true
 	a.invalidateVisibleOutlineIndices()
-	a.ensureOutlineSelectionVisible()
+	a.refreshOutlineView()
 }
 
-func (a *App) handleOutlineMenuKey(e *sdl.KeyboardEvent) bool {
-	if a.handleModalSearchKey(e, &a.outlineMenu.searching, a.backspaceOutlineSearch, a.closeOutlineSearch) {
+func (a *App) handleOutlineViewKey(view *uiView, e *sdl.KeyboardEvent) bool {
+	if a.handleUIViewSearchKey(view, e) {
+		return true
+	}
+	if e.Type != sdl.EventKeyDown || e.Repeat {
+		return true
+	}
+	if e.Key == sdl.KeycodeDown {
+		a.moveOutlineSelection(1)
+		return true
+	}
+	if e.Key == sdl.KeycodeUp {
+		a.moveOutlineSelection(-1)
 		return true
 	}
 	if token, ok := keyToken(e.Key, e.Mod); ok {
 		if action, ok := a.sequenceLookup[normalizeBinding(token)]; ok {
-			prevMode := a.mode
-			a.runOutlineMenuAction(action)
-			if (action == "search_prompt" || action == "search_prompt_backward" || prevMode == modeNormal && a.mode != modeNormal) && len([]rune(token)) == 1 {
+			wasSearching := view.searching
+			a.runOutlineViewAction(action)
+			if !wasSearching && view.searching && len([]rune(token)) == 1 {
 				a.ignoreText = token
 			}
 		}
@@ -252,7 +325,7 @@ func (a *App) handleOutlineMenuKey(e *sdl.KeyboardEvent) bool {
 	return true
 }
 
-func (a *App) runOutlineMenuAction(action string) {
+func (a *App) runOutlineViewAction(action string) {
 	switch action {
 	case "scroll_down":
 		a.moveOutlineSelection(1)
@@ -265,8 +338,10 @@ func (a *App) runOutlineMenuAction(action string) {
 	case "confirm":
 		a.activateSelectedOutline()
 	case "search_prompt", "search_prompt_backward":
-		a.outlineMenu.searching = true
-		a.updateOutlineSearchQuery("")
+		if a.outlineMenu.view != nil && a.outlineMenu.view.searchable {
+			a.outlineMenu.view.searching = true
+			a.updateOutlineSearchQuery("")
+		}
 	case "close", "outline":
 		if a.closeOutlineSearch() {
 			return
@@ -277,33 +352,27 @@ func (a *App) runOutlineMenuAction(action string) {
 	}
 }
 
-func (a *App) clickOutlineMenu(x, y int) {
-	if a.startOutlineScrollbarDrag(x, y) {
-		return
+func (a *App) handleOutlineViewMouseButton(view *uiView, e *sdl.MouseButtonEvent) bool {
+	if e.Type == sdl.EventMouseButtonUp && e.Button == uint8(sdl.ButtonLeft) {
+		view.draggingScrollbar = false
+		return true
 	}
-	rect, rows := a.outlineMenuGeometry()
-	rowHeight := a.outlineMenuRowHeight()
-	visible := a.visibleOutlineIndices()
-	index, ok := a.modalListIndexAt(rect, rows, rowHeight, x, y, a.outlineMenu.scroll, len(visible))
-	if !ok {
-		if float32(x) < rect.X || float32(x) > rect.X+rect.W || float32(y) < rect.Y || float32(y) > rect.Y+rect.H {
-			a.outlineMenu.visible = false
-		}
-		return
+	if e.Type != sdl.EventMouseButtonDown || e.Button != uint8(sdl.ButtonLeft) {
+		return true
 	}
-	a.outlineMenu.selected = visible[index]
-	a.activateSelectedOutline()
-}
-
-func (a *App) hoverOutlineMenu(x, y int) {
-	rect, rows := a.outlineMenuGeometry()
-	rowHeight := a.outlineMenuRowHeight()
-	visible := a.visibleOutlineIndices()
-	index, ok := a.modalListIndexAt(rect, rows, rowHeight, x, y, a.outlineMenu.scroll, len(visible))
-	if !ok {
-		return
+	if a.uiViewStartScrollbarDrag(view, int(e.X), int(e.Y)) {
+		return true
 	}
-	a.outlineMenu.selected = visible[index]
+	if item, ok := a.uiViewIndexAt(view, int(e.X), int(e.Y)); ok {
+		view.selected = item.index
+		a.activateSelectedOutline()
+		return true
+	}
+	rect, _ := view.frameGeometry(a)
+	if !pointInRect(int(e.X), int(e.Y), rect) {
+		a.closeUIView(view, true)
+	}
+	return true
 }
 
 func (a *App) outlineMenuGeometry() (sdl.FRect, int) {
@@ -312,82 +381,4 @@ func (a *App) outlineMenuGeometry() (sdl.FRect, int) {
 
 func (a *App) outlineMenuRowHeight() int {
 	return a.modalListRowHeight()
-}
-
-func (a *App) drawOutlineMenu(renderer *sdl.Renderer) error {
-	rect, rows := a.outlineMenuGeometry()
-	if err := a.drawModalListFrame(renderer, rect); err != nil {
-		return err
-	}
-	rowHeight := a.outlineMenuRowHeight()
-	baselineOffset := a.modalListBaselineOffset(rowHeight)
-	visible := a.visibleOutlineIndices()
-	header := fmt.Sprintf(" Outline (%d)", len(a.outline))
-	if a.outlineMenu.searching || a.outlineMenu.query != "" {
-		header = fmt.Sprintf(" Outline /%s (%d/%d)", a.outlineMenu.query, len(visible), len(a.outline))
-	}
-	if err := a.drawText(renderer, a.truncateModalListText(header, int(rect.W)-24), int(rect.X)+12, int(rect.Y)+baselineOffset, a.foregroundColor()); err != nil {
-		return err
-	}
-	if len(visible) == 0 {
-		text := "No PDF outline found"
-		if a.outlineMenu.query != "" {
-			text = "No matching outline entries"
-		}
-		if err := a.drawText(renderer, text, int(rect.X)+16, int(rect.Y)+rowHeight+baselineOffset, a.foregroundColor()); err != nil {
-			return err
-		}
-		return nil
-	}
-	maxScroll := max(0, len(visible)-rows)
-	a.outlineMenu.scroll = clampInt(a.outlineMenu.scroll, 0, maxScroll)
-	for row := 0; row < rows; row++ {
-		visibleIndex := a.outlineMenu.scroll + row
-		if visibleIndex >= len(visible) {
-			break
-		}
-		outlineIndex := visible[visibleIndex]
-		item := a.outline[outlineIndex]
-		y := int(rect.Y) + rowHeight + row*rowHeight
-		if outlineIndex == a.outlineMenu.selected {
-			if err := a.drawModalListSelection(renderer, rect, y, rowHeight); err != nil {
-				return err
-			}
-		}
-		marker := "  "
-		if item.HasChildren {
-			marker = "+ "
-			if a.outlineMenu.expanded[outlineIndex] {
-				marker = "- "
-			}
-		}
-		page := ""
-		if item.Page >= 0 {
-			page = fmt.Sprintf("%d", item.Page+1)
-		}
-		indent := strings.Repeat("  ", item.Depth)
-		text := indent + marker + strings.TrimSpace(item.Title)
-		if strings.TrimSpace(text) == strings.TrimSpace(indent+marker) {
-			text += "untitled"
-		}
-		pageW := measureText(a.fontFace, page)
-		maxTextW := int(rect.W) - 36 - pageW
-		text = a.truncateModalListText(text, maxTextW)
-		clr := a.foregroundColor()
-		if outlineIndex == a.outlineMenu.selected {
-			clr = a.highlightForegroundColor()
-		}
-		if err := a.drawText(renderer, text, int(rect.X)+16, y+baselineOffset, clr); err != nil {
-			return err
-		}
-		if page != "" {
-			if err := a.drawText(renderer, page, int(rect.X+rect.W)-16-pageW, y+baselineOffset, clr); err != nil {
-				return err
-			}
-		}
-	}
-	if err := a.drawModalListScrollbar(renderer, rect, rowHeight, rows, len(visible), a.outlineMenu.scroll); err != nil {
-		return err
-	}
-	return nil
 }

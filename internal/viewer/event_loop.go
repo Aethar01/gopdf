@@ -51,6 +51,9 @@ func (a *App) Run() error {
 	a.recomputeLayout(a.viewportSize())
 	a.pendingRedraw = true
 	a.syncTextInput()
+	if a.runtime != nil {
+		a.emitPluginEvent("app_ready", a.documentEventPayload())
+	}
 	defer a.stopTextInput()
 	defer a.cancelSmoothScroll()
 	for !a.quit {
@@ -61,6 +64,12 @@ func (a *App) Run() error {
 			}
 		}
 		a.advanceSmoothScroll()
+		if a.runtime != nil {
+			if a.runtime.PollPluginJobs() {
+				a.applyRuntimeChanges("job")
+				a.pendingRedraw = true
+			}
+		}
 		a.pollRenderUpdates()
 		a.pollMetricUpdates()
 		a.pollSearchUpdates()
@@ -109,7 +118,7 @@ func (a *App) openInitialDocument() error {
 }
 
 func (a *App) eventWaitTimeoutMS() int {
-	if a.hasPendingVisibleRender() || a.search.running || a.smoothScrollActive() {
+	if a.hasPendingVisibleRender() || a.search.running || a.smoothScrollActive() || a.runtime != nil && a.runtime.PluginJobsActive() {
 		return 16
 	}
 	if len(a.sequence) > 0 {
@@ -188,7 +197,20 @@ func (a *App) handleSDLEvent(event *sdl.Event) error {
 		a.endPinch()
 	case sdl.EventMouseButtonDown, sdl.EventMouseButtonUp:
 		e := event.Button()
-		if !a.handleInputMouseButton(&e) {
+		consumed := false
+		if a.runtime != nil {
+			payload := a.pluginMouseEventPayload(&e)
+			if e.Type == sdl.EventMouseButtonDown {
+				consumed = a.emitPluginEvent("mouse_button_pre", payload)
+			}
+			if !consumed {
+				consumed = a.handleInputMouseButton(&e)
+			}
+			if !consumed {
+				a.handleSDLMouseButton(&e)
+			}
+			a.emitPluginEvent("mouse_button", payload)
+		} else if !a.handleInputMouseButton(&e) {
 			a.handleSDLMouseButton(&e)
 		}
 	case sdl.EventMouseMotion:
@@ -211,10 +233,41 @@ func (a *App) handleSDLEvent(event *sdl.Event) error {
 	return nil
 }
 
+func (a *App) pluginMouseEventPayload(e *sdl.MouseButtonEvent) map[string]any {
+	button, _ := mouseButtonName(e.Button)
+	phase := "up"
+	if e.Type == sdl.EventMouseButtonDown {
+		phase = "down"
+	}
+	mod := sdl.GetModState()
+	page, point, ok := a.pagePointAtScreen(float64(e.X), float64(e.Y))
+	payload := map[string]any{
+		"phase":  phase,
+		"button": button,
+		"x":      float64(e.X),
+		"y":      float64(e.Y),
+		"modifiers": map[string]any{
+			"ctrl":  mod&sdl.KeymodCtrl != 0,
+			"shift": mod&sdl.KeymodShift != 0,
+			"alt":   mod&sdl.KeymodAlt != 0,
+			"gui":   mod&sdl.KeymodGui != 0,
+		},
+		"inside_document": ok,
+	}
+	if ok {
+		payload["page"] = page + 1
+		payload["page_x"] = point.X
+		payload["page_y"] = point.Y
+	}
+	return payload
+}
+
 func (a *App) textInputNeeded() bool {
 	return a.mode != modeNormal ||
-		(a.outlineMenu.visible && a.outlineMenu.searching) ||
-		(a.luaUI.visible && a.luaUI.searching)
+		func() bool {
+			view := a.activeModalUIView()
+			return view != nil && view.searching
+		}()
 }
 
 func (a *App) syncTextInput() {
@@ -285,23 +338,8 @@ func (a *App) drawFrame() error {
 			return err
 		}
 	}
-	if a.completion.visible {
-		if err := a.drawCompletion(a.renderer); err != nil {
-			return err
-		}
-	}
-	if a.keybindMenu.visible {
-		if err := a.drawKeybindMenu(a.renderer); err != nil {
-			return err
-		}
-	}
-	if a.outlineMenu.visible {
-		if err := a.drawOutlineMenu(a.renderer); err != nil {
-			return err
-		}
-	}
-	if a.luaUI.visible {
-		if err := a.drawLuaUI(a.renderer); err != nil {
+	if view := a.activeUIView(); view != nil {
+		if err := a.drawUIView(a.renderer, view); err != nil {
 			return err
 		}
 	}

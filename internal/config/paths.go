@@ -6,6 +6,10 @@ func DataDir() string {
 	return platformDataDir()
 }
 
+func PluginPaths() []string {
+	return unique(platformPluginPaths())
+}
+
 func AbsoluteDocumentPath(path string) string {
 	if path == "" || filepath.IsAbs(path) {
 		return path

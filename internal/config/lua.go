@@ -21,10 +21,12 @@ var luaFunctionReferences = map[string]LuaReferenceEntry{}
 var luaFunctionReferencesMu sync.Mutex
 
 func (r *Runtime) applyLuaConfig(path string) error {
-	L := r.initLuaState()
+	L := r.state
+	if L == nil {
+		L = r.initLuaState()
+	}
 	if err := L.DoFile(path); err != nil {
-		L.Close()
-		r.state = nil
+		r.closeLuaState()
 		return fmt.Errorf("%s: %w", path, err)
 	}
 	return nil
@@ -32,11 +34,15 @@ func (r *Runtime) applyLuaConfig(path string) error {
 
 func (r *Runtime) initLuaState() *lua.LState {
 	if r.state != nil {
-		r.state.Close()
-		r.state = nil
+		r.closeLuaState()
 	}
 	L := lua.NewState()
 	r.state = L
+	r.pluginGeneration++
+	if r.plugins == nil {
+		r.plugins = newPluginState(r)
+	}
+	installPluginPackagePath(L, r)
 	mod := newLuaModule(L, r, &r.cfg)
 	L.SetGlobal("gopdf", mod)
 	L.SetGlobal("bind", L.GetField(mod, "bind"))
@@ -76,7 +82,8 @@ func newLuaModule(L *lua.LState, rt *Runtime, cfg *Config) *lua.LTable {
 	mod := L.NewTable()
 	L.SetField(mod, "document", newLuaDocumentTable(L, rt))
 	L.SetField(mod, "cache", newLuaCacheTable(L, rt))
-	L.SetField(mod, "ui", newLuaUITable(L, rt))
+	L.SetField(mod, "ui", newLuaViewAPI(L, rt))
+	L.SetField(mod, "plugin", newLuaPluginAPI(L, rt))
 	registerLuaFunctions(L, mod, "gopdf.", []luaFunctionSpec{
 		{
 			Signature:   "gopdf.bind(key, action)",
@@ -214,6 +221,23 @@ func newLuaModule(L *lua.LState, rt *Runtime, cfg *Config) *lua.LTable {
 				}
 				L.Push(lua.LNumber(rt.host.PageCount()))
 				return 1
+			},
+		},
+		{
+			Signature:   "gopdf.goto_document_point(spec)",
+			Description: "Move to a 1-based page and document coordinate.",
+			Function: func(L *lua.LState) int {
+				if rt.host == nil {
+					L.RaiseError("goto_document_point: viewer host unavailable")
+				}
+				spec, ok := L.CheckAny(1).(*lua.LTable)
+				if !ok {
+					L.RaiseError("goto_document_point: expected table")
+				}
+				if err := rt.host.GotoDocumentPoint(int(lua.LVAsNumber(spec.RawGetString("page"))), float64(lua.LVAsNumber(spec.RawGetString("x"))), float64(lua.LVAsNumber(spec.RawGetString("y")))); err != nil {
+					L.RaiseError("goto_document_point: %v", err)
+				}
+				return 0
 			},
 		},
 		{
@@ -482,12 +506,16 @@ func newLuaOptionsTable(L *lua.LState, rt *Runtime, cfg *Config) *lua.LTable {
 	}))
 	L.SetField(mt, "__index", L.NewFunction(func(L *lua.LState) int {
 		name := strings.ToLower(strings.TrimSpace(L.CheckString(2)))
-		value, err := luaSettingValue(L, name, cfg)
-		if err != nil {
-			L.RaiseError("options.%s: %v", name, err)
+		if desc, ok := configOptions[name]; ok {
+			L.Push(desc.get(L, cfg))
+			return 1
 		}
-		L.Push(value)
-		return 1
+		if value, ok := rt.pluginOption(name); ok {
+			L.Push(value.value)
+			return 1
+		}
+		L.RaiseError("options.%s: unknown setting", name)
+		return 0
 	}))
 	L.SetMetatable(tbl, mt)
 	return tbl
@@ -554,83 +582,133 @@ func newLuaCacheTable(L *lua.LState, rt *Runtime) *lua.LTable {
 	return tbl
 }
 
-func newLuaUITable(L *lua.LState, rt *Runtime) *lua.LTable {
+func newLuaViewAPI(L *lua.LState, rt *Runtime) *lua.LTable {
 	tbl := L.NewTable()
-	show := func(L *lua.LState) int {
-		if rt.host == nil {
-			L.RaiseError("ui.show: viewer host unavailable")
-		}
+	create := func(L *lua.LState) int {
 		spec, ok := L.CheckAny(1).(*lua.LTable)
 		if !ok {
-			L.RaiseError("ui.show: expected table")
+			L.RaiseError("ui.create: expected table")
 		}
-		overlay := UIOverlay{
-			Title:    lua.LVAsString(spec.RawGetString("title")),
-			Rows:     luaTableStrings(spec.RawGetString("rows")),
-			Selected: 1,
-		}
-		if selected := spec.RawGetString("selected"); selected.Type() == lua.LTNumber {
-			overlay.Selected = int(lua.LVAsNumber(selected))
-		}
-		if fn, ok := spec.RawGetString("on_select").(*lua.LFunction); ok {
-			overlay.OnSelect = rt.registerCallback(fn)
-		}
-		if fn, ok := spec.RawGetString("on_close").(*lua.LFunction); ok {
-			overlay.OnClose = rt.registerCallback(fn)
-		}
-		if err := rt.host.ShowUI(overlay); err != nil {
-			L.RaiseError("ui.show: %v", err)
-		}
-		return 0
+		overlay := uiOverlayFromLuaSpec(L, rt, spec)
+		rt.uiSeq++
+		overlay.ID = fmt.Sprintf("lua:%s:%d", overlay.ID, rt.uiSeq)
+		L.Push(newLuaView(L, rt, overlay))
+		return 1
 	}
 	registerLuaFunctions(L, tbl, "gopdf.ui.", []luaFunctionSpec{
 		{
-			Signature:   "gopdf.ui.show(spec)",
-			Description: "Show a searchable modal list overlay.",
-			Function:    show},
-		{
-			Signature:   "gopdf.ui.close()",
-			Description: "Close the active Lua overlay without on_close.",
-			Function: func(L *lua.LState) int {
-				if rt.host == nil {
-					L.RaiseError("ui.close: viewer host unavailable")
-				}
-				rt.host.CloseUI()
-				return 0
-			},
-		},
-		{
-			Signature:   "gopdf.ui.visible()",
-			Description: "Return whether a Lua overlay is visible.",
-			Function: func(L *lua.LState) int {
-				L.Push(lua.LBool(rt.host != nil && rt.host.UIVisible()))
-				return 1
-			},
-		},
-		{
-			Signature:   "gopdf.ui.set_rows(rows)",
-			Description: "Replace overlay rows.",
-			Function: func(L *lua.LState) int {
-				if rt.host == nil {
-					L.RaiseError("ui.set_rows: viewer host unavailable")
-				}
-				rt.host.SetUIRows(luaTableStrings(L.CheckAny(1)))
-				return 0
-			},
-		},
-		{
-			Signature:   "gopdf.ui.set_selected(index)",
-			Description: "Select a 1-based overlay row.",
-			Function: func(L *lua.LState) int {
-				if rt.host == nil {
-					L.RaiseError("ui.set_selected: viewer host unavailable")
-				}
-				rt.host.SetUISelected(L.CheckInt(1))
-				return 0
-			},
-		},
+			Signature:   "gopdf.ui.create(spec)",
+			Description: "Create a list view using the same UI model as built-in viewer screens.",
+			Function:    create},
 	})
 	return tbl
+}
+
+func uiOverlayFromLuaSpec(L *lua.LState, rt *Runtime, spec *lua.LTable) UIOverlay {
+	overlay := UIOverlay{
+		ID:         lua.LVAsString(spec.RawGetString("id")),
+		Title:      lua.LVAsString(spec.RawGetString("title")),
+		Rows:       luaTableUIRows(spec.RawGetString("rows")),
+		Selected:   1,
+		Searchable: true,
+	}
+	if selected := spec.RawGetString("selected"); selected.Type() == lua.LTNumber {
+		overlay.Selected = int(lua.LVAsNumber(selected))
+	}
+	if scroll := spec.RawGetString("scroll"); scroll.Type() == lua.LTNumber {
+		overlay.Scroll = int(lua.LVAsNumber(scroll))
+	}
+	if query := spec.RawGetString("query"); query.Type() == lua.LTString {
+		overlay.Query = query.String()
+	}
+	if searchable := spec.RawGetString("searchable"); searchable.Type() == lua.LTBool {
+		overlay.Searchable = lua.LVAsBool(searchable)
+	}
+	if fn, ok := spec.RawGetString("on_select").(*lua.LFunction); ok {
+		overlay.OnSelect = rt.registerCallback(fn)
+	}
+	if fn, ok := spec.RawGetString("on_close").(*lua.LFunction); ok {
+		overlay.OnClose = rt.registerCallback(fn)
+	}
+	return overlay
+}
+
+func newLuaView(L *lua.LState, rt *Runtime, overlay UIOverlay) *lua.LTable {
+	view := L.NewTable()
+	L.SetField(view, "id", lua.LString(overlay.ID))
+	L.SetField(view, "title", lua.LString(overlay.Title))
+	L.SetField(view, "show", L.NewFunction(func(L *lua.LState) int {
+		if rt.host == nil {
+			L.RaiseError("ui.view.show: viewer host unavailable")
+		}
+		if err := rt.host.ShowUI(overlay); err != nil {
+			L.RaiseError("ui.view.show: %v", err)
+		}
+		return 0
+	}))
+	L.SetField(view, "close", L.NewFunction(func(L *lua.LState) int {
+		if rt.host != nil && rt.host.UIVisible(overlay.ID) {
+			rt.host.CloseUI(overlay.ID)
+		}
+		return 0
+	}))
+	L.SetField(view, "set_rows", L.NewFunction(func(L *lua.LState) int {
+		overlay.Rows = luaTableUIRows(L.CheckAny(2))
+		if rt.host != nil && rt.host.UIVisible(overlay.ID) {
+			rt.host.SetUIRows(overlay.ID, overlay.Rows)
+		}
+		return 0
+	}))
+	L.SetField(view, "set_selected", L.NewFunction(func(L *lua.LState) int {
+		overlay.Selected = L.CheckInt(2)
+		if rt.host != nil && rt.host.UIVisible(overlay.ID) {
+			rt.host.SetUISelected(overlay.ID, overlay.Selected)
+		}
+		return 0
+	}))
+	L.SetField(view, "set_scroll", L.NewFunction(func(L *lua.LState) int {
+		overlay.Scroll = L.CheckInt(2)
+		if rt.host != nil && rt.host.UIVisible(overlay.ID) {
+			rt.host.SetUIScroll(overlay.ID, overlay.Scroll)
+		}
+		return 0
+	}))
+	L.SetField(view, "set_query", L.NewFunction(func(L *lua.LState) int {
+		overlay.Query = L.CheckString(2)
+		if rt.host != nil && rt.host.UIVisible(overlay.ID) {
+			rt.host.SetUIQuery(overlay.ID, overlay.Query)
+		}
+		return 0
+	}))
+	L.SetField(view, "visible", L.NewFunction(func(L *lua.LState) int {
+		L.Push(lua.LBool(rt.host != nil && rt.host.UIVisible(overlay.ID)))
+		return 1
+	}))
+	L.SetField(view, "selected", L.NewFunction(func(L *lua.LState) int {
+		if rt.host != nil && rt.host.UIVisible(overlay.ID) {
+			L.Push(lua.LNumber(rt.host.UISelected(overlay.ID)))
+		} else {
+			L.Push(lua.LNumber(overlay.Selected))
+		}
+		return 1
+	}))
+	L.SetField(view, "scroll", L.NewFunction(func(L *lua.LState) int {
+		if rt.host != nil && rt.host.UIVisible(overlay.ID) {
+			L.Push(lua.LNumber(rt.host.UIScroll(overlay.ID)))
+		} else {
+			L.Push(lua.LNumber(overlay.Scroll))
+		}
+		return 1
+	}))
+	L.SetField(view, "query", L.NewFunction(func(L *lua.LState) int {
+		if rt.host != nil && rt.host.UIVisible(overlay.ID) {
+			L.Push(lua.LString(rt.host.UIQuery(overlay.ID)))
+		} else {
+			L.Push(lua.LString(overlay.Query))
+		}
+		return 1
+	}))
+	return view
 }
 
 func registerLuaFunctions(L *lua.LState, table *lua.LTable, prefix string, functions []luaFunctionSpec) {
@@ -668,6 +746,39 @@ func luaTableStrings(value lua.LValue) []string {
 		values = append(values, lua.LVAsString(tbl.RawGetInt(i)))
 	}
 	return values
+}
+
+func luaTableUIRows(value lua.LValue) []UIListRow {
+	tbl, ok := value.(*lua.LTable)
+	if !ok {
+		return nil
+	}
+	rows := make([]UIListRow, 0, tbl.Len())
+	for i := 1; i <= tbl.Len(); i++ {
+		item := tbl.RawGetInt(i)
+		if text, ok := item.(lua.LString); ok {
+			rows = append(rows, UIListRow{Text: string(text), Value: string(text)})
+			continue
+		}
+		spec, ok := item.(*lua.LTable)
+		if !ok {
+			continue
+		}
+		text := lua.LVAsString(spec.RawGetString("text"))
+		value := lua.LVAsString(spec.RawGetString("value"))
+		if value == "" {
+			value = text
+		}
+		rows = append(rows, UIListRow{
+			Text:      text,
+			Value:     value,
+			ID:        lua.LVAsString(spec.RawGetString("id")),
+			Secondary: lua.LVAsString(spec.RawGetString("secondary")),
+			Depth:     int(lua.LVAsNumber(spec.RawGetString("depth"))),
+			Disabled:  lua.LVAsBool(spec.RawGetString("disabled")),
+		})
+	}
+	return rows
 }
 
 func newLuaStatusBarTable(L *lua.LState, rt *Runtime, cfg *Config) *lua.LTable {
@@ -730,10 +841,7 @@ func newLuaActionValue(L *lua.LState, rt *Runtime, action string) *lua.LTable {
 	L.SetField(tbl, "__gopdf_action", lua.LString(action))
 	mt := L.NewTable()
 	L.SetField(mt, "__call", L.NewFunction(func(L *lua.LState) int {
-		if rt.host == nil {
-			L.RaiseError("%s: cannot execute during config load; pass gopdf.%s to bind(...) or call it from a callback", action, action)
-		}
-		if err := rt.host.ExecuteAction(action); err != nil {
+		if err := rt.executeAction(action); err != nil {
 			L.RaiseError("%s: %v", action, err)
 		}
 		return 0
@@ -759,10 +867,11 @@ func luaActionName(rt *Runtime, value lua.LValue) (string, error) {
 		return "", fmt.Errorf("expected action string, action value, or function")
 	}
 	action := value.String()
-	for _, candidate := range actions.Names() {
-		if action == candidate {
-			return action, nil
-		}
+	if rt.actionExists(action) {
+		return action, nil
+	}
+	if rt.loadingAutogen && isPluginActionName(action) {
+		return action, nil
 	}
 	return "", fmt.Errorf("unknown action %q", action)
 }
@@ -795,8 +904,18 @@ func (r *Runtime) unbindMouse(event string) {
 }
 
 func (r *Runtime) setOption(name string, value lua.LValue) error {
-	if err := applyLuaSetting(name, value, &r.cfg); err != nil {
-		return err
+	name = normalizeOptionName(name)
+	if desc, ok := configOptions[name]; ok {
+		if err := desc.apply(&r.cfg, value); err != nil {
+			return err
+		}
+	} else {
+		if _, ok := r.pluginOption(name); !ok {
+			return fmt.Errorf("unknown setting")
+		}
+		if err := r.setPluginOptionValue(name, value); err != nil {
+			return err
+		}
 	}
 	r.dirty = true
 	return nil

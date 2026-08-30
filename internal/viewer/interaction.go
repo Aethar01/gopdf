@@ -172,17 +172,41 @@ func (a *App) renderMargin() float64 {
 }
 
 func (a *App) pagePointAtScreen(sx, sy float64) (int, mupdf.Point, bool) {
-	for _, hit := range a.visiblePageHits() {
-		if sx < hit.x || sy < hit.y || sx > hit.x+hit.width || sy > hit.y+hit.height {
-			continue
-		}
-		originX, originY := rotatedBoundsOrigin(a.pageMetrics[hit.page].bounds, a.scale, a.rotation)
-		transformedX := sx - hit.x + originX
-		transformedY := sy - hit.y + originY
-		pageX, pageY := inverseTransformPoint(transformedX, transformedY, a.scale, a.rotation)
-		return hit.page, mupdf.Point{X: pageX, Y: pageY}, true
+	page, transformedX, transformedY, ok := a.pageGeometryAtScreen(sx, sy)
+	if !ok || page < 0 || page >= len(a.pageMetrics) {
+		return 0, mupdf.Point{}, false
 	}
-	return 0, mupdf.Point{}, false
+	originX, originY := rotatedBoundsOrigin(a.pageMetrics[page].bounds, a.scale, a.rotation)
+	pageX, pageY := inverseTransformPoint(transformedX+originX, transformedY+originY, a.scale, a.rotation)
+	return page, mupdf.Point{X: pageX, Y: pageY}, true
+}
+
+func (a *App) pageGeometryAtScreen(sx, sy float64) (int, float64, float64, bool) {
+	if len(a.rows) == 0 {
+		return 0, 0, 0, false
+	}
+	if a.renderMode == "single" {
+		if a.page < 0 || a.page >= len(a.pageToRow) {
+			return 0, 0, 0, false
+		}
+		row := a.rows[a.pageToRow[a.page]]
+		for i, page := range row.pages {
+			x, y := a.rowPageScreenOrigin(row, i)
+			if sx >= x && sy >= y && sx <= x+row.pageW[i] && sy <= y+row.pageH[i] {
+				return page, sx - x, sy - y, true
+			}
+		}
+		return 0, 0, 0, false
+	}
+	for _, row := range a.rows {
+		for i, page := range row.pages {
+			x, y := a.rowPageScreenOrigin(row, i)
+			if sx >= x && sy >= y && sx <= x+row.pageW[i] && sy <= y+row.pageH[i] {
+				return page, sx - x, sy - y, true
+			}
+		}
+	}
+	return 0, 0, 0, false
 }
 
 func (a *App) visiblePageHits() []pageHit {
@@ -228,6 +252,15 @@ func (a *App) refreshSelection() {
 	}
 	a.selection.text = sel.Text
 	a.selection.quads = sel.Quads
+	a.emitSelectionChanged()
+}
+
+func (a *App) emitSelectionChanged() {
+	page := 0
+	if a.selection.active || a.selection.text != "" || len(a.selection.quads) > 0 {
+		page = a.selection.page + 1
+	}
+	a.emitPluginEvent("selection_changed", map[string]any{"page": page, "text": a.selection.text, "active": a.selection.active})
 }
 
 func (a *App) copySelectionToClipboard() {

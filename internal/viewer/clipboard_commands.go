@@ -55,11 +55,8 @@ func (a *App) cutActiveTextInputToClipboard() bool {
 		a.message = "clipboard unavailable"
 		return true
 	}
-	switch {
-	case a.outlineMenu.visible && a.outlineMenu.searching:
-		a.updateOutlineSearchQuery("")
-	case a.luaUI.visible && a.luaUI.searching:
-		a.updateLuaUISearchQuery("")
+	if view := a.activeModalUIView(); view != nil && view.searching {
+		a.setUIViewQuery(view, "")
 	}
 	a.message = fmt.Sprintf("cut %d chars", len(text))
 	return true
@@ -74,26 +71,20 @@ func (a *App) pasteIntoActiveTextInput() bool {
 	if text == "" {
 		return true
 	}
-	switch {
-	case a.outlineMenu.visible && a.outlineMenu.searching:
-		a.updateOutlineSearchQuery(a.outlineMenu.query + text)
-	case a.luaUI.visible && a.luaUI.searching:
-		a.updateLuaUISearchQuery(a.luaUI.query + text)
-	case a.mode != modeNormal:
+	if view := a.activeModalUIView(); view != nil && view.searching {
+		a.setUIViewQuery(view, view.query+text)
+	} else if a.mode != modeNormal {
 		a.editInput(func(input *textInput) { input.InsertText(text) })
 	}
 	return true
 }
 
 func (a *App) activeTextInputValue() (string, bool) {
-	switch {
-	case a.outlineMenu.visible && a.outlineMenu.searching:
-		return a.outlineMenu.query, true
-	case a.luaUI.visible && a.luaUI.searching:
-		return a.luaUI.query, true
-	case a.mode != modeNormal:
-		return a.input.Value, true
-	default:
-		return "", false
+	if view := a.activeModalUIView(); view != nil && view.searching {
+		return view.query, true
 	}
+	if a.mode != modeNormal {
+		return a.input.Value, true
+	}
+	return "", false
 }

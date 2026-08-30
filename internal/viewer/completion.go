@@ -13,11 +13,10 @@ import (
 )
 
 type completionState struct {
-	visible  bool
-	items    []completionItem
-	selected int
-	start    int
-	end      int
+	view  *uiView
+	items []completionItem
+	start int
+	end   int
 }
 
 type completionItem struct {
@@ -30,7 +29,7 @@ func (a *App) showCompletion() {
 	if a.mode != modeCommand {
 		return
 	}
-	if a.completion.visible {
+	if a.completion.view != nil && a.completion.view.visible {
 		a.moveCompletion(1)
 		return
 	}
@@ -38,14 +37,23 @@ func (a *App) showCompletion() {
 	if len(items) == 0 {
 		return
 	}
-	a.completion = completionState{visible: len(items) > 1, items: items, start: start, end: end}
+	a.completion = completionState{items: items, start: start, end: end}
 	if len(items) == 1 {
 		a.acceptCompletion()
+		return
 	}
+	rows := make([]uiRow, len(items))
+	for i, item := range items {
+		rows[i] = uiRow{index: i, text: item.display, value: item.value}
+	}
+	view := &uiView{id: "completion", owner: "core", rows: rows, selected: 0, modal: false}
+	view.draw = func(a *App, renderer *sdl.Renderer) error { return a.drawCompletion(renderer) }
+	a.completion.view = view
+	a.showUIView(view)
 }
 
 func (a *App) moveCompletion(delta int) {
-	if !a.completion.visible {
+	if a.completion.view == nil || !a.completion.view.visible {
 		a.showCompletion()
 		return
 	}
@@ -54,7 +62,8 @@ func (a *App) moveCompletion(delta int) {
 		a.closeCompletion()
 		return
 	}
-	a.completion.selected = (a.completion.selected + delta + n) % n
+	a.completion.view.selected = (a.completion.view.selected + delta + n) % n
+	a.pendingRedraw = true
 }
 
 func (a *App) acceptCompletion() {
@@ -62,13 +71,18 @@ func (a *App) acceptCompletion() {
 		a.closeCompletion()
 		return
 	}
-	item := a.completion.items[clampInt(a.completion.selected, 0, len(a.completion.items)-1)]
+	selected := 0
+	if a.completion.view != nil {
+		selected = a.completion.view.selected
+	}
+	item := a.completion.items[clampInt(selected, 0, len(a.completion.items)-1)]
 	a.input.ReplaceRange(a.completion.start, a.completion.end, item.value)
 	a.closeCompletion()
 }
 
 func (a *App) closeCompletion() {
-	if a.completion.visible || len(a.completion.items) > 0 {
+	if a.completion.view != nil || len(a.completion.items) > 0 {
+		a.closeUIView(a.completion.view, false)
 		a.completion = completionState{}
 		a.pendingRedraw = true
 	}
@@ -80,7 +94,7 @@ func (a *App) commandCompletions() ([]completionItem, int, int) {
 	cmdEnd := commandNameEndRune(a.input.Value, cmdStart)
 	if a.input.Cursor <= cmdEnd {
 		prefix := strings.TrimSpace(sliceRunes(a.input.Value, cmdStart, a.input.Cursor))
-		return prefixedCommandCompletions(prefix), cmdStart, cmdEnd
+		return a.prefixedCommandCompletions(prefix), cmdStart, cmdEnd
 	}
 	cmd := strings.TrimSpace(sliceRunes(a.input.Value, cmdStart, cmdEnd))
 	argStart := nextNonSpaceRune(a.input.Value, cmdEnd)
@@ -91,6 +105,26 @@ func (a *App) commandCompletions() ([]completionItem, int, int) {
 	arg := sliceRunes(a.input.Value, argStart, a.input.Cursor)
 	if cmd == "open" {
 		return a.openPathCompletions(arg), argStart, argEnd
+	}
+	if cmd == "set" && a.runtime != nil {
+		items := []completionItem{}
+		for _, name := range a.runtime.OptionNames() {
+			if strings.HasPrefix(name, arg) {
+				items = append(items, completionItem{value: name, display: name})
+			}
+		}
+		if len(items) > 0 {
+			return items, argStart, argEnd
+		}
+	}
+	if a.runtime != nil {
+		if values := a.runtime.CommandCompletions(cmd, arg); len(values) > 0 {
+			items := make([]completionItem, 0, len(values))
+			for _, value := range values {
+				items = append(items, completionItem{value: value, display: value})
+			}
+			return items, argStart, argEnd
+		}
 	}
 	if validArgs := commands.ArgCompletionValues(cmd); len(validArgs) > 0 {
 		items := []completionItem{}
@@ -106,11 +140,18 @@ func (a *App) commandCompletions() ([]completionItem, int, int) {
 	return nil, 0, 0
 }
 
-func prefixedCommandCompletions(prefix string) []completionItem {
+func (a *App) prefixedCommandCompletions(prefix string) []completionItem {
 	items := []completionItem{}
 	for _, spec := range commands.All() {
 		if strings.HasPrefix(spec.Name, prefix) {
 			items = append(items, completionItem{value: spec.Name, display: spec.Name})
+		}
+	}
+	if a.runtime != nil {
+		for _, name := range a.runtime.CommandNames() {
+			if strings.HasPrefix(name, prefix) {
+				items = append(items, completionItem{value: name, display: name})
+			}
 		}
 	}
 	return items
@@ -292,9 +333,9 @@ func (a *App) visibleCompletionRows() []completionRow {
 	}
 	maxItems := max(1, a.config.CompletionMaxItems)
 	if len(items) <= maxItems {
-		return completionRowsForRange(items, 0, len(items), a.completion.selected)
+		return completionRowsForRange(items, 0, len(items), a.completion.view.selected)
 	}
-	selected := clampInt(a.completion.selected, 0, len(items)-1)
+	selected := clampInt(a.completion.view.selected, 0, len(items)-1)
 	start := clampInt(selected-maxItems/2, 0, len(items)-maxItems)
 	end := start + maxItems
 	showTop := start > 0

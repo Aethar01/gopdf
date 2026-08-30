@@ -18,4 +18,5 @@ func (a *App) copyPersistentSelectionToClipboard() {
 
 func (a *App) clearSelection() {
 	a.selection = textSelection{}
+	a.emitSelectionChanged()
 }

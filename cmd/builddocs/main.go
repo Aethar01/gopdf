@@ -27,9 +27,6 @@ func main() {
 	}
 	for path, content := range outputs {
 		if *check {
-			if path == "docs/reference.md" {
-				continue
-			}
 			existing, err := os.ReadFile(path)
 			if err != nil || !bytes.Equal(existing, content) {
 				fatal(fmt.Errorf("%s is stale; run go generate ./...", path))
@@ -67,6 +64,15 @@ func renderReference() string {
 	for _, ref := range config.LuaReferences() {
 		fmt.Fprintf(&b, "| %s | %s |\n", markdownCode(ref.Signature), ref.Description)
 	}
+	b.WriteString("\n### UI views\n\n")
+	b.WriteString("Create views with `local view = gopdf.ui.create(spec)`, then call `view:show()`. The specification supports `id`, `title`, `rows`, `selected`, `scroll`, `query`, `searchable`, `on_select`, and `on_close`. A row may be a string or a table with `text`, `value`, `id`, `secondary`, `depth`, and `disabled`.\n\n")
+	b.WriteString("View methods are `show()`, `close()`, `visible()`, `set_rows(rows)`, `set_selected(index)`, `set_scroll(scroll)`, `set_query(query)`, `selected()`, `scroll()`, and `query()`. Selection indices are 1-based.\n")
+	b.WriteString("\n### Plugins\n\n")
+	b.WriteString("Plugins are discovered without being executed. Enable one explicitly with `local plugin = require(\"plugin-id\")`; only the required plugin and its declared dependencies execute. The plugin entrypoint must call `gopdf.plugin.register(\"plugin-id\"[, spec])`.\n\n")
+	b.WriteString("A plugin manifest is `gopdf-plugin.json` with `id`, `version`, `api`, `module`, and `dependencies`. `module` selects the Lua entrypoint (`lua/<module>.lua` or `lua/<module>/init.lua`). Plugin methods include `register_action`, `register_command`, `on`, `off`, and `job`. Registered actions use `plugin-id.action`; commands use `:plugin-id-command`; options use `plugin-id.option`.\n\n")
+	b.WriteString("Each plugin has an isolated cache and search root for its local Lua modules. Requiring another discovered plugin by ID is allowed only when that ID appears in `dependencies`.\n\n")
+	b.WriteString("Supported events are `app_ready`, `document_open_pre`, `document_opened`, `document_close_pre`, `document_closed`, `document_reloaded`, `config_reloaded`, `mouse_button_pre`, `mouse_button`, `selection_changed`, `option_changed`, and `shutdown`. Jobs accept an argv-based specification with `command`, `args`, `cwd`, and `timeout_ms`.\n\n")
+	b.WriteString("Plugin search paths are the platform data/config plugin directories. Add higher-precedence directories with `--plugin-dir`, disable IDs with `--disable-plugin`, or disable all plugin discovery with `--no-plugins`.\n")
 	b.WriteString("\n## Bindable actions\n\n")
 	b.WriteString("Every action is available as `gopdf.<action>`, can be passed to `gopdf.bind`, and can be called from a runtime Lua callback.\n\n")
 	b.WriteString("| Action | Default keys | Countable |\n|---|---|---|\n")
@@ -81,7 +87,7 @@ func renderReference() string {
 	b.WriteString("- `gopdf.document`: `path`, `name`, `extension`, `exists`, `size_bytes`, and `page_count`.\n")
 	b.WriteString("- `gopdf.status_bar`: `left`, `right`, `height`, and `visible`.\n")
 	b.WriteString("- `gopdf.options`: all entries from the configuration-options table.\n")
-	b.WriteString("- `gopdf.cache` and `gopdf.ui`: functions are listed above.\n")
+	b.WriteString("- `gopdf.cache`, `gopdf.ui`, and `gopdf.plugin`: functions are listed above.\n")
 	return b.String()
 }
 

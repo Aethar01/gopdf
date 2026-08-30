@@ -72,7 +72,7 @@ func (a *App) runAction(action string) {
 			return
 		}
 		if dirty {
-			a.applyConfig(a.runtime.Config())
+			a.applyRuntimeChanges("action")
 		}
 		return
 	}
@@ -166,10 +166,10 @@ func (a *App) runBuiltinAction(action string) error {
 	case "keybinds":
 		a.toggleKeybindMenu()
 	case "confirm":
-		if a.completion.visible {
+		if a.completion.view != nil && a.completion.view.visible {
 			a.acceptCompletion()
-		} else if a.outlineMenu.visible {
-			a.activateSelectedOutline()
+		} else if view := a.activeModalUIView(); view != nil {
+			a.activateUIView(view)
 		} else if a.mode != modeNormal {
 			a.commitInputMode()
 		}
@@ -237,9 +237,7 @@ func (a *App) runBuiltinAction(action string) error {
 }
 
 func (a *App) closeAllUI() {
-	a.luaUI.visible = false
-	a.keybindMenu.visible = false
-	a.outlineMenu.visible = false
+	a.closeAllUIViews()
 	if a.mode != modeNormal {
 		a.closeCompletion()
 		if a.mode == modePassword {
@@ -255,20 +253,12 @@ func (a *App) closeAllUI() {
 }
 
 func (a *App) closeActiveUI() {
-	if a.luaUI.visible {
-		a.closeLuaUI(true)
-		return
-	}
-	if a.keybindMenu.visible {
-		a.keybindMenu = keybindMenuState{}
-		return
-	}
-	if a.outlineMenu.visible {
-		a.outlineMenu.visible = false
+	if view := a.activeModalUIView(); view != nil {
+		a.closeUIView(view, true)
 		return
 	}
 	if a.mode != modeNormal {
-		if a.completion.visible {
+		if a.completion.view != nil && a.completion.view.visible {
 			a.closeCompletion()
 			return
 		}
@@ -303,6 +293,18 @@ func (a *App) GotoPage(page int) error {
 		return nil
 	}
 	a.alignPageToAnchor(clampInt(page-1, 0, a.pageCount-1))
+	return nil
+}
+
+func (a *App) GotoDocumentPoint(page int, x, y float64) error {
+	if a.pageCount == 0 {
+		return nil
+	}
+	if page < 1 || page > a.pageCount {
+		return fmt.Errorf("page %d out of range", page)
+	}
+	a.alignPageToDocumentPoint(page-1, x, y)
+	a.pendingRedraw = true
 	return nil
 }
 
@@ -573,11 +575,20 @@ func (a *App) runCommand(input string) {
 			return
 		}
 		if dirty {
-			a.applyConfig(a.runtime.Config())
+			a.applyRuntimeChanges("command")
 		}
 	case "help":
 		a.showCommandHelp()
 	default:
+		if a.runtime != nil {
+			if handled, err := a.runtime.RunPluginCommand(name, args); handled {
+				if err != nil {
+					a.message = err.Error()
+				}
+				a.applyRuntimeChanges("command")
+				return
+			}
+		}
 		a.message = "unknown command: " + name
 	}
 }
@@ -604,19 +615,20 @@ func (a *App) reloadConfig() {
 		a.message = err.Error()
 		return
 	}
+	a.views.removeOwner("lua")
 	cfg := a.runtime.Config()
 	a.applyConfig(cfg)
+	a.emitPluginEvent("config_reloaded", a.documentEventPayload())
 	a.message = boolWord(cfg.ConfigPath != "", "config reloaded", "defaults reloaded")
 }
 
 func (a *App) showCommandHelp() {
 	a.closeAllUI()
-	a.luaUI = luaUIState{
-		visible: true,
-		title:   "Commands",
-		rows:    commandmeta.HelpRows(),
+	rows := commandmeta.HelpRows()
+	if a.runtime != nil {
+		rows = append(rows, a.runtime.CommandHelpRows()...)
 	}
-	a.pendingRedraw = true
+	a.showCoreList("commands", "Commands", rows, nil)
 }
 
 func (a *App) showRecentFiles() {
@@ -630,19 +642,12 @@ func (a *App) showRecentFiles() {
 		return
 	}
 	a.closeAllUI()
-	a.luaUI = luaUIState{
-		visible:  true,
-		title:    "Recent Files",
-		rows:     paths,
-		selected: 0,
-		onSelectBuiltin: func(path string) {
-			a.CloseUI()
-			if err := a.Open(path); err != nil {
-				a.message = err.Error()
-			}
-		},
-	}
-	a.pendingRedraw = true
+	a.showCoreList("recent-files", "Recent Files", paths, func(path string) {
+		a.CloseUI("recent-files")
+		if err := a.Open(path); err != nil {
+			a.message = err.Error()
+		}
+	})
 }
 
 func (a *App) runSet(input string) {
@@ -652,14 +657,17 @@ func (a *App) runSet(input string) {
 	}
 	input = strings.TrimSpace(input)
 	if input == "" {
-		rows := make([]string, 0, len(config.OptionNames()))
-		for _, name := range config.OptionNames() {
+		names := config.OptionNames()
+		if a.runtime != nil {
+			names = a.runtime.OptionNames()
+		}
+		rows := make([]string, 0, len(names))
+		for _, name := range names {
 			value, _ := a.runtime.OptionValue(name)
 			rows = append(rows, name+"="+value)
 		}
 		a.closeAllUI()
-		a.luaUI = luaUIState{visible: true, title: "Options", rows: rows, selected: 0}
-		a.pendingRedraw = true
+		a.showCoreList("options", "Options", rows, nil)
 		return
 	}
 	if name, value, ok := strings.Cut(input, "="); ok {
@@ -667,7 +675,7 @@ func (a *App) runSet(input string) {
 			a.message = err.Error()
 			return
 		}
-		a.applyConfig(a.runtime.Config())
+		a.applyRuntimeChanges("set")
 		name = strings.TrimSpace(name)
 		current, _ := a.runtime.OptionValue(name)
 		a.message = name + "=" + current
@@ -678,7 +686,7 @@ func (a *App) runSet(input string) {
 			a.message = err.Error()
 			return
 		}
-		a.applyConfig(a.runtime.Config())
+		a.applyRuntimeChanges("set")
 		name = strings.TrimSpace(name)
 		current, _ := a.runtime.OptionValue(name)
 		a.message = name + "=" + current

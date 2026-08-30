@@ -8,7 +8,8 @@ import (
 
 func TestRepeatableMenuActionAllowsHeldNavigation(t *testing.T) {
 	app := testLayoutApp(5)
-	app.outlineMenu.visible = true
+	view := &uiView{visible: true, modal: true}
+	app.views.active = view
 	app.sequenceLookup = map[string]string{
 		normalizeBinding("<Down>"): "scroll_down",
 	}
@@ -32,7 +33,8 @@ func TestRepeatableMenuActionRequiresActiveMenu(t *testing.T) {
 
 func TestRepeatableMenuActionRejectsMultiKeyPrefix(t *testing.T) {
 	app := testLayoutApp(5)
-	app.luaUI.visible = true
+	view := &uiView{visible: true, modal: true}
+	app.views.active = view
 	app.sequenceLookup = map[string]string{
 		normalizeBinding("j"):   "scroll_down",
 		normalizeBinding("j j"): "first_page",
@@ -45,7 +47,8 @@ func TestRepeatableMenuActionRejectsMultiKeyPrefix(t *testing.T) {
 
 func TestRepeatableMenuActionRejectsNonCountableAction(t *testing.T) {
 	app := testLayoutApp(5)
-	app.keybindMenu.visible = true
+	view := &uiView{visible: true, modal: true}
+	app.views.active = view
 	app.sequenceLookup = map[string]string{
 		normalizeBinding("<CR>"): "confirm",
 	}
@@ -57,7 +60,9 @@ func TestRepeatableMenuActionRejectsNonCountableAction(t *testing.T) {
 
 func TestRepeatableMenuActionIgnoredWhileCapturingKeybind(t *testing.T) {
 	app := testLayoutApp(5)
-	app.keybindMenu.visible = true
+	view := &uiView{visible: true, modal: true}
+	app.views.active = view
+	app.keybindMenu.view = view
 	app.keybindMenu.capturing = true
 	app.sequenceLookup = map[string]string{
 		normalizeBinding("<Down>"): "scroll_down",
@@ -68,32 +73,26 @@ func TestRepeatableMenuActionIgnoredWhileCapturingKeybind(t *testing.T) {
 	}
 }
 
-func TestOutlineSearchRepeatsBackspace(t *testing.T) {
-	app := &App{uiState: uiState{outlineMenu: outlineMenuState{
-		visible:   true,
-		searching: true,
-		query:     "abc",
-	}}}
+func TestUIViewSearchRepeatsBackspace(t *testing.T) {
+	view := &uiView{visible: true, modal: true, searchable: true, searching: true, query: "abc"}
+	app := &App{uiState: uiState{views: uiManager{active: view}}}
 	e := sdl.KeyboardEvent{CommonEvent: sdl.CommonEvent{Type: sdl.EventKeyDown}, Key: sdl.KeycodeBackspace, Repeat: true}
 
-	app.handleOutlineMenuKey(&e)
+	app.handleUIViewSearchKey(view, &e)
 
-	if app.outlineMenu.query != "ab" {
-		t.Fatalf("expected repeated outline backspace to edit query, got %q", app.outlineMenu.query)
+	if view.query != "ab" {
+		t.Fatalf("expected repeated backspace to edit query, got %q", view.query)
 	}
 }
 
-func TestLuaUISearchRepeatsBackspace(t *testing.T) {
-	app := &App{uiState: uiState{luaUI: luaUIState{
-		visible:   true,
-		searching: true,
-		query:     "abc",
-	}}}
+func TestPluginUIViewSearchRepeatsBackspace(t *testing.T) {
+	view := &uiView{visible: true, modal: true, searchable: true, searching: true, query: "abc"}
+	app := &App{uiState: uiState{views: uiManager{active: view}}}
 	e := sdl.KeyboardEvent{CommonEvent: sdl.CommonEvent{Type: sdl.EventKeyDown}, Key: sdl.KeycodeBackspace, Repeat: true}
 
-	app.handleLuaUIKey(&e)
+	app.handleGenericUIViewKey(view, &e)
 
-	if app.luaUI.query != "ab" {
-		t.Fatalf("expected repeated Lua UI backspace to edit query, got %q", app.luaUI.query)
+	if view.query != "ab" {
+		t.Fatalf("expected repeated plugin UI backspace to edit query, got %q", view.query)
 	}
 }

@@ -63,27 +63,49 @@ type Config struct {
 }
 
 type Runtime struct {
-	explicitPath string
-	docPath      string
-	docName      string
-	docMeta      documentMeta
-	cfg          Config
-	state        *lua.LState
-	host         Host
-	callbacks    map[string]*lua.LFunction
-	callbackSeq  int
-	luaCallDepth int
-	deferredOpen string
-	dirty        bool
-	verbose      bool
+	explicitPath     string
+	docPath          string
+	docName          string
+	docMeta          documentMeta
+	cfg              Config
+	state            *lua.LState
+	host             Host
+	callbacks        map[string]*lua.LFunction
+	callbackSeq      int
+	uiSeq            int
+	luaCallDepth     int
+	deferredOpen     string
+	dirty            bool
+	verbose          bool
+	pluginCatalog    *pluginCatalog
+	plugins          *pluginState
+	jobs             map[int]pluginJob
+	jobResults       chan pluginJobResult
+	nextJobID        int
+	pluginGeneration int
+	loadingPlugin    string
+	loadingAutogen   bool
 }
 
 type UIOverlay struct {
-	Title    string
-	Rows     []string
-	Selected int
-	OnSelect string
-	OnClose  string
+	ID         string
+	Title      string
+	Rows       []UIListRow
+	Selected   int
+	Scroll     int
+	Query      string
+	Searchable bool
+	OnSelect   string
+	OnClose    string
+}
+
+type UIListRow struct {
+	Text      string
+	Value     string
+	ID        string
+	Secondary string
+	Depth     int
+	Disabled  bool
 }
 
 type documentMeta struct {
@@ -98,13 +120,19 @@ type Host interface {
 	ExecuteAction(action string) error
 	Open(path string) error
 	ShowUI(overlay UIOverlay) error
-	CloseUI()
-	UIVisible() bool
-	SetUIRows(rows []string)
-	SetUISelected(selected int)
+	CloseUI(id string)
+	UIVisible(id string) bool
+	SetUIRows(id string, rows []UIListRow)
+	SetUISelected(id string, selected int)
+	SetUIScroll(id string, scroll int)
+	SetUIQuery(id string, query string)
+	UISelected(id string) int
+	UIScroll(id string) int
+	UIQuery(id string) string
 	Page() int
 	PageCount() int
 	GotoPage(page int) error
+	GotoDocumentPoint(page int, x, y float64) error
 	Message() string
 	SetMessage(message string)
 	RunCommand(command string) error

@@ -13,15 +13,11 @@ import (
 const newKeybindLabel = "New keybind..."
 
 type keybindMenuState struct {
-	visible              bool
-	selected             int
-	scroll               int
-	draggingScrollbar    bool
-	scrollbarDragOffsetY int
-	capturing            bool
-	selectingAction      bool
-	captureAction        string
-	rows                 []keybindRow
+	view            *uiView
+	capturing       bool
+	selectingAction bool
+	captureAction   string
+	rows            []keybindRow
 }
 
 type keybindRow struct {
@@ -30,14 +26,15 @@ type keybindRow struct {
 }
 
 func (a *App) toggleKeybindMenu() {
-	if a.keybindMenu.visible {
-		a.keybindMenu = keybindMenuState{}
+	if a.keybindMenu.view != nil && a.keybindMenu.view.visible {
+		a.closeUIView(a.keybindMenu.view, false)
 		return
 	}
 	a.closeAllUI()
-	a.keybindMenu.selected = -1
+	a.keybindMenu = keybindMenuState{view: a.newKeybindView()}
+	a.keybindMenu.view.selected = -1
 	a.refreshKeybindRows()
-	a.keybindMenu.visible = true
+	a.showUIView(a.keybindMenu.view)
 }
 
 func (a *App) refreshKeybindRows() {
@@ -56,19 +53,24 @@ func (a *App) refreshKeybindRows() {
 		return rows[i].action < rows[j].action
 	})
 	a.keybindMenu.rows = rows
-	a.keybindMenu.selected = clampInt(a.keybindMenu.selected, -1, max(-1, len(rows)-1))
+	a.keybindMenu.view.rows = keybindUIRows(rows)
+	a.keybindMenu.view.selected = clampInt(a.keybindMenu.view.selected, -1, max(-1, len(rows)-1))
 	a.ensureKeybindSelectionVisible()
 }
 
 func (a *App) refreshKeybindActionRows() {
 	actions := config.Actions()
+	if a.runtime != nil {
+		actions = a.runtime.ActionNames()
+	}
 	sort.Strings(actions)
 	rows := make([]keybindRow, 0, len(actions))
 	for _, action := range actions {
 		rows = append(rows, keybindRow{action: action})
 	}
 	a.keybindMenu.rows = rows
-	a.keybindMenu.selected = clampInt(a.keybindMenu.selected, 0, max(0, len(rows)-1))
+	a.keybindMenu.view.rows = keybindUIRows(rows)
+	a.keybindMenu.view.selected = clampInt(a.keybindMenu.view.selected, 0, max(0, len(rows)-1))
 	a.ensureKeybindSelectionVisible()
 }
 
@@ -101,10 +103,10 @@ func (a *App) handleKeybindMenuKey(e *sdl.KeyboardEvent) bool {
 }
 
 func (a *App) deleteSelectedKeybind() {
-	if a.runtime == nil || a.keybindMenu.selected < 0 || a.keybindMenu.selected >= len(a.keybindMenu.rows) {
+	if a.runtime == nil || a.keybindMenu.view == nil || a.keybindMenu.view.selected < 0 || a.keybindMenu.view.selected >= len(a.keybindMenu.rows) {
 		return
 	}
-	row := a.keybindMenu.rows[a.keybindMenu.selected]
+	row := a.keybindMenu.rows[a.keybindMenu.view.selected]
 	if row.key == "" {
 		return
 	}
@@ -129,8 +131,8 @@ func (a *App) runKeybindMenuAction(action string) {
 	case "close", "keybinds":
 		if a.keybindMenu.selectingAction {
 			a.keybindMenu.selectingAction = false
-			a.keybindMenu.selected = -1
-			a.keybindMenu.scroll = 0
+			a.keybindMenu.view.selected = -1
+			a.keybindMenu.view.scroll = 0
 			a.refreshKeybindRows()
 			return
 		}
@@ -141,14 +143,14 @@ func (a *App) runKeybindMenuAction(action string) {
 }
 
 func (a *App) confirmKeybindMenuSelection() {
-	if !a.keybindMenu.selectingAction && a.keybindMenu.selected == -1 {
+	if !a.keybindMenu.selectingAction && a.keybindMenu.view.selected == -1 {
 		a.startNewKeybind()
 		return
 	}
 	if len(a.keybindMenu.rows) == 0 {
 		return
 	}
-	row := a.keybindMenu.rows[a.keybindMenu.selected]
+	row := a.keybindMenu.rows[a.keybindMenu.view.selected]
 	if a.keybindMenu.selectingAction {
 		a.keybindMenu.captureAction = row.action
 		a.keybindMenu.capturing = true
@@ -160,16 +162,16 @@ func (a *App) confirmKeybindMenuSelection() {
 
 func (a *App) startNewKeybind() {
 	a.keybindMenu.selectingAction = true
-	a.keybindMenu.selected = 0
-	a.keybindMenu.scroll = 0
+	a.keybindMenu.view.selected = 0
+	a.keybindMenu.view.scroll = 0
 	a.refreshKeybindRows()
 }
 
 func (a *App) rebindSelectedKey(key string) {
-	if a.runtime == nil || a.keybindMenu.selected < 0 || a.keybindMenu.selected >= len(a.keybindMenu.rows) {
+	if a.runtime == nil || a.keybindMenu.view == nil || a.keybindMenu.view.selected < 0 || a.keybindMenu.view.selected >= len(a.keybindMenu.rows) {
 		return
 	}
-	row := a.keybindMenu.rows[a.keybindMenu.selected]
+	row := a.keybindMenu.rows[a.keybindMenu.view.selected]
 	action := row.action
 	if a.keybindMenu.captureAction != "" {
 		action = a.keybindMenu.captureAction
@@ -207,56 +209,62 @@ func (a *App) moveKeybindSelection(delta int) {
 	if !a.keybindMenu.selectingAction {
 		minSelection = -1
 	}
-	a.keybindMenu.selected = clampInt(a.keybindMenu.selected+delta, minSelection, len(a.keybindMenu.rows)-1)
-	a.ensureKeybindSelectionVisible()
+	if a.keybindMenu.view.selected < minSelection {
+		a.keybindMenu.view.selected = minSelection
+	}
+	_, rows := a.keybindMenuListGeometry()
+	if a.keybindMenu.selectingAction {
+		a.moveUIViewSelection(a.keybindMenu.view, delta)
+		return
+	}
+	a.keybindMenu.view.selected = clampInt(a.keybindMenu.view.selected+delta, minSelection, len(a.keybindMenu.rows)-1)
+	if a.keybindMenu.view.selected >= 0 {
+		a.keybindMenu.view.scroll = modalListScrollForSelection(a.keybindMenu.view.scroll, a.keybindMenu.view.selected, rows, len(a.keybindMenu.rows))
+	}
 }
 
 func (a *App) scrollKeybindMenu(delta int) {
 	_, rows := a.keybindMenuListGeometry()
-	a.keybindMenu.scroll = clampInt(a.keybindMenu.scroll+delta, 0, max(0, len(a.keybindMenu.rows)-rows))
+	scrollUIView(a.keybindMenu.view, delta, rows)
 }
 
 func (a *App) ensureKeybindSelectionVisible() {
-	_, rows := a.keybindMenuListGeometry()
-	if a.keybindMenu.selected < 0 {
-		a.keybindMenu.scroll = 0
+	if a.keybindMenu.view.selected < 0 {
+		a.keybindMenu.view.scroll = 0
 		return
 	}
-	a.keybindMenu.scroll = modalListScrollForSelection(a.keybindMenu.scroll, a.keybindMenu.selected, rows, len(a.keybindMenu.rows))
+	a.ensureUIViewSelectionVisible(a.keybindMenu.view)
 }
 
 func (a *App) startKeybindScrollbarDrag(x, y int) bool {
-	rect, rows := a.keybindMenuListGeometry()
-	return modalListStartScrollbarDrag(rect, a.keybindMenuRowHeight(), rows, len(a.keybindMenu.rows), x, y, &a.keybindMenu.scroll, &a.keybindMenu.scrollbarDragOffsetY, &a.keybindMenu.draggingScrollbar)
+	return a.uiViewStartScrollbarDrag(a.keybindMenu.view, x, y)
 }
 
 func (a *App) dragKeybindScrollbar(y int) {
-	rect, rows := a.keybindMenuListGeometry()
-	modalListDragScrollbar(rect, a.keybindMenuRowHeight(), rows, len(a.keybindMenu.rows), y, &a.keybindMenu.scroll, a.keybindMenu.scrollbarDragOffsetY)
+	a.uiViewDragScrollbar(a.keybindMenu.view, y)
 }
 
 func (a *App) clickKeybindMenu(x, y int) {
-	if a.startKeybindScrollbarDrag(x, y) {
+	view := a.keybindMenu.view
+	if a.uiViewStartScrollbarDrag(view, x, y) {
 		return
 	}
 	menuRect, _ := a.keybindMenuGeometry()
 	if !a.keybindMenu.selectingAction {
 		if pointInRect(x, y, a.keybindNewButtonRect(menuRect)) {
-			a.keybindMenu.selected = -1
+			view.selected = -1
 			a.startNewKeybind()
 			return
 		}
 	}
-	rect, rows := a.keybindMenuListGeometry()
-	rowHeight := a.keybindMenuRowHeight()
-	index, ok := a.modalListIndexAt(rect, rows, rowHeight, x, y, a.keybindMenu.scroll, len(a.keybindMenu.rows))
+	item, ok := a.uiViewIndexAt(view, x, y)
 	if !ok {
 		if !pointInRect(x, y, menuRect) {
-			a.keybindMenu = keybindMenuState{}
+			a.closeUIView(view, false)
 		}
 		return
 	}
-	a.keybindMenu.selected = index
+	view.selected = item.index
 	a.confirmKeybindMenuSelection()
 }
 
@@ -264,17 +272,11 @@ func (a *App) hoverKeybindMenu(x, y int) {
 	if !a.keybindMenu.selectingAction {
 		menuRect, _ := a.keybindMenuGeometry()
 		if pointInRect(x, y, a.keybindNewButtonRect(menuRect)) {
-			a.keybindMenu.selected = -1
+			a.keybindMenu.view.selected = -1
 			return
 		}
 	}
-	rect, rows := a.keybindMenuListGeometry()
-	rowHeight := a.keybindMenuRowHeight()
-	index, ok := a.modalListIndexAt(rect, rows, rowHeight, x, y, a.keybindMenu.scroll, len(a.keybindMenu.rows))
-	if !ok {
-		return
-	}
-	a.keybindMenu.selected = index
+	a.uiViewHover(a.keybindMenu.view, x, y)
 }
 
 func (a *App) keybindMenuGeometry() (sdl.FRect, int) {
@@ -313,7 +315,7 @@ func (a *App) drawKeybindMenu(renderer *sdl.Renderer) error {
 		header = fmt.Sprintf(" Select action (%d)", len(a.keybindMenu.rows))
 	}
 	if a.keybindMenu.capturing && len(a.keybindMenu.rows) > 0 {
-		action := a.keybindMenu.rows[a.keybindMenu.selected].action
+		action := a.keybindMenu.rows[a.keybindMenu.view.selected].action
 		if a.keybindMenu.captureAction != "" {
 			action = a.keybindMenu.captureAction
 		}
@@ -325,7 +327,7 @@ func (a *App) drawKeybindMenu(renderer *sdl.Renderer) error {
 	listRect, listRows := a.keybindMenuListGeometry()
 	if !a.keybindMenu.selectingAction {
 		button := a.keybindNewButtonRect(rect)
-		if a.keybindMenu.selected == -1 {
+		if a.keybindMenu.view.selected == -1 {
 			if err := a.drawModalListSelection(renderer, rect, int(button.Y), rowHeight); err != nil {
 				return err
 			}
@@ -337,37 +339,75 @@ func (a *App) drawKeybindMenu(renderer *sdl.Renderer) error {
 			}
 		}
 		clr := a.foregroundColor()
-		if a.keybindMenu.selected == -1 {
+		if a.keybindMenu.view.selected == -1 {
 			clr = a.highlightForegroundColor()
 		}
 		if err := a.drawText(renderer, "+ "+newKeybindLabel, int(button.X)+10, int(button.Y)+baselineOffset, clr); err != nil {
 			return err
 		}
 	}
-	for row := 0; row < listRows; row++ {
-		index := a.keybindMenu.scroll + row
-		if index >= len(a.keybindMenu.rows) {
-			break
+	view := a.keybindListView()
+	return a.drawUIListItems(renderer, listRect, listRows, view, view.visibleRows())
+}
+
+func (a *App) newKeybindView() *uiView {
+	view := &uiView{
+		id:            "core:keybinds",
+		owner:         "core",
+		modal:         true,
+		searchable:    false,
+		widthPercent:  76,
+		heightPercent: 80,
+		listGeometry: func(a *App) (sdl.FRect, int) {
+			return a.keybindMenuListGeometry()
+		},
+		draw: func(a *App, renderer *sdl.Renderer) error {
+			return a.drawKeybindMenu(renderer)
+		},
+	}
+	view.onKey = func(a *App, e *sdl.KeyboardEvent) bool { return a.handleKeybindMenuKey(e) }
+	view.onMouseButton = func(a *App, e *sdl.MouseButtonEvent) bool {
+		if e.Type == sdl.EventMouseButtonUp && e.Button == uint8(sdl.ButtonLeft) {
+			view.draggingScrollbar = false
+			return true
 		}
-		y := int(listRect.Y) + rowHeight + row*rowHeight
-		if index == a.keybindMenu.selected {
-			if err := a.drawModalListSelection(renderer, listRect, y, rowHeight); err != nil {
-				return err
-			}
+		if e.Type == sdl.EventMouseButtonDown && e.Button == uint8(sdl.ButtonLeft) {
+			a.clickKeybindMenu(int(e.X), int(e.Y))
 		}
-		clr := a.foregroundColor()
-		if index == a.keybindMenu.selected {
-			clr = a.highlightForegroundColor()
+		return true
+	}
+	view.onMouseMotion = func(a *App, e *sdl.MouseMotionEvent) bool {
+		if view.draggingScrollbar {
+			old := view.scroll
+			a.dragKeybindScrollbar(int(e.Y))
+			return old != view.scroll
 		}
-		row := a.keybindMenu.rows[index]
+		oldSelected := view.selected
+		a.hoverKeybindMenu(int(e.X), int(e.Y))
+		return oldSelected != view.selected
+	}
+	return view
+}
+
+func keybindUIRows(rows []keybindRow) []uiRow {
+	items := make([]uiRow, 0, len(rows))
+	for index, row := range rows {
 		text := row.action
-		if !a.keybindMenu.selectingAction {
-			text = fmt.Sprintf("%-12s %s", row.key, row.action)
-		}
-		text = a.truncateModalListText(text, int(listRect.W)-32)
-		if err := a.drawText(renderer, text, int(listRect.X)+16, y+baselineOffset, clr); err != nil {
-			return err
+		items = append(items, uiRow{index: index, text: text, value: row.action})
+	}
+	return items
+}
+
+func (a *App) keybindListView() *uiView {
+	view := a.keybindMenu.view
+	if view == nil {
+		return nil
+	}
+	view.rows = keybindUIRows(a.keybindMenu.rows)
+	if !a.keybindMenu.selectingAction {
+		for index, row := range a.keybindMenu.rows {
+			view.rows[index].text = fmt.Sprintf("%-12s %s", row.key, row.action)
 		}
 	}
-	return a.drawModalListScrollbar(renderer, listRect, rowHeight, listRows, len(a.keybindMenu.rows), a.keybindMenu.scroll)
+	return view
 }

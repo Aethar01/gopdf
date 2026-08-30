@@ -28,10 +28,22 @@ func run() error {
 	var startPage int
 	var printVersion bool
 	var verbose bool
+	var noPlugins bool
+	var pluginDirs []string
+	var disabledPlugins []string
 	flag.StringVar(&cfgPath, "config", "", "path to config.lua")
 	flag.IntVar(&startPage, "page", 1, "1-based page to open")
 	flag.BoolVar(&printVersion, "v", false, "print version")
 	flag.BoolVar(&verbose, "V", false, "enable verbose logging")
+	flag.BoolVar(&noPlugins, "no-plugins", false, "disable Lua plugin loading")
+	flag.Func("plugin-dir", "add a Lua plugin directory", func(path string) error {
+		pluginDirs = append(pluginDirs, path)
+		return nil
+	})
+	flag.Func("disable-plugin", "disable a Lua plugin by name", func(name string) error {
+		disabledPlugins = append(disabledPlugins, name)
+		return nil
+	})
 	flag.Parse()
 	pageSet := false
 	flag.Visit(func(f *flag.Flag) {
@@ -65,7 +77,12 @@ func run() error {
 		log.Printf("startup config=%q page=%d doc=%q", cfgPath, startPage, docPath)
 	}
 
-	runtime, err := config.Open(cfgPath, docPath, verbose)
+	runtime, err := config.OpenWithOptions(cfgPath, docPath, config.OpenOptions{
+		Verbose:         verbose,
+		PluginPaths:     pluginDirs,
+		DisabledPlugins: disabledPlugins,
+		NoPlugins:       noPlugins,
+	})
 	if err != nil {
 		return fmt.Errorf("load config: %w", err)
 	}

@@ -107,10 +107,11 @@ type documentState struct {
 	docPassword string
 	doc         *mupdf.Document
 
-	pageCount int
-	page      int
-	pageLinks map[int][]mupdf.Link
-	outline   []mupdf.OutlineItem
+	pageCount  int
+	page       int
+	generation int
+	pageLinks  map[int][]mupdf.Link
+	outline    []mupdf.OutlineItem
 
 	initialDocPath   string
 	initialStartPage int
@@ -193,9 +194,9 @@ type interactionState struct {
 type uiState struct {
 	pendingRedraw bool
 	search        searchState
+	views         uiManager
 	outlineMenu   outlineMenuState
 	keybindMenu   keybindMenuState
-	luaUI         luaUIState
 	completion    completionState
 }
 
@@ -283,11 +284,45 @@ func (a *App) setWindowTitle() {
 }
 
 func (a *App) Close() {
+	hadDocument := a.doc != nil
+	payload := a.documentEventPayload()
+	if hadDocument && a.runtime != nil {
+		a.emitPluginEvent("document_close_pre", payload)
+	}
 	a.saveDocumentSession()
 	a.document.Close()
 	a.closeDocumentResources()
+	if hadDocument && a.runtime != nil {
+		a.emitPluginEvent("document_closed", payload)
+	}
+	if a.runtime != nil {
+		a.emitPluginEvent("shutdown", map[string]any{})
+	}
 	a.stopTextInput()
 	a.sdlState.Close()
+}
+
+func (a *App) emitPluginEvent(event string, payload map[string]any) bool {
+	if a.runtime == nil {
+		return false
+	}
+	consumed := a.runtime.EmitPluginEvent(event, payload)
+	a.applyRuntimeChanges(event)
+	return consumed
+}
+
+func (a *App) applyRuntimeChanges(source string) {
+	if a.runtime == nil || !a.runtime.ConsumeDirty() {
+		return
+	}
+	a.applyConfig(a.runtime.Config())
+	if source == "option_changed" {
+		return
+	}
+	a.runtime.EmitPluginEvent("option_changed", map[string]any{"source": source})
+	if a.runtime.ConsumeDirty() {
+		a.applyConfig(a.runtime.Config())
+	}
 }
 
 func (a *App) closeDocumentResources() {
@@ -328,13 +363,8 @@ func (a *App) handleSDLKeyDown(e *sdl.KeyboardEvent) {
 		}
 		return
 	}
-	if a.luaUI.visible && a.handleLuaUIKey(e) {
-		return
-	}
-	if a.keybindMenu.visible && a.handleKeybindMenuKey(e) {
-		return
-	}
-	if a.outlineMenu.visible && a.handleOutlineMenuKey(e) {
+	if view := a.activeModalUIView(); view != nil && view.onKey != nil {
+		view.onKey(a, e)
 		return
 	}
 	if a.mode != modeNormal {
@@ -414,7 +444,7 @@ func (a *App) handleInputModeBinding(token string) bool {
 	if !ok {
 		return false
 	}
-	if a.completion.visible {
+	if a.completion.view != nil && a.completion.view.visible {
 		switch action {
 		case "confirm", "show_completion", "next_completion", "prev_completion", "close":
 		default:
@@ -448,18 +478,10 @@ func (a *App) handleSDLTextInput(e *sdl.TextInputEvent) {
 			return
 		}
 	}
-	if a.outlineMenu.visible && a.outlineMenu.searching {
-		a.insertOutlineSearchText(text)
-		return
-	}
-	if a.luaUI.visible && a.luaUI.searching {
-		a.insertLuaUISearchText(text)
-		return
-	}
-	if a.keybindMenu.visible || a.luaUI.visible {
-		return
-	}
-	if a.outlineMenu.visible && !a.outlineMenu.searching {
+	if view := a.activeModalUIView(); view != nil {
+		if view.searching && view.searchable {
+			a.setUIViewQuery(view, view.query+text)
+		}
 		return
 	}
 	if a.mode == modeNormal {
@@ -473,30 +495,16 @@ func (a *App) handleSDLTextInput(e *sdl.TextInputEvent) {
 }
 
 func (a *App) handleSDLMouseWheel(e *sdl.MouseWheelEvent) {
-	if a.luaUI.visible {
-		if e.Y < 0 {
-			a.scrollLuaUI(1)
-		} else if e.Y > 0 {
-			a.scrollLuaUI(-1)
-		}
-		return
-	}
-	if a.keybindMenu.visible {
-		if e.Y < 0 {
-			a.scrollKeybindMenu(1)
-		} else if e.Y > 0 {
-			a.scrollKeybindMenu(-1)
-		}
-		return
-	}
-	if a.outlineMenu.visible {
-		_, rows := a.outlineMenuGeometry()
-		if rows > 0 {
-			if e.Y < 0 {
-				a.scrollOutlineMenu(1)
-			} else if e.Y > 0 {
-				a.scrollOutlineMenu(-1)
+	if view := a.activeModalUIView(); view != nil {
+		_, wy := normalizedWheelDeltas(e)
+		if wy != 0 {
+			_, rows := view.contentGeometry(a)
+			delta := -1
+			if wy < 0 {
+				delta = 1
 			}
+			scrollUIView(view, delta, rows)
+			a.pendingRedraw = true
 		}
 		return
 	}
@@ -514,33 +522,9 @@ func (a *App) handleSDLMouseWheel(e *sdl.MouseWheelEvent) {
 }
 
 func (a *App) handleSDLMouseButton(e *sdl.MouseButtonEvent) {
-	if a.luaUI.visible {
-		if e.Type == sdl.EventMouseButtonUp && e.Button == uint8(sdl.ButtonLeft) {
-			a.luaUI.draggingScrollbar = false
-			return
-		}
-		if e.Type == sdl.EventMouseButtonDown && e.Button == uint8(sdl.ButtonLeft) {
-			a.clickLuaUI(int(e.X), int(e.Y))
-		}
-		return
-	}
-	if a.keybindMenu.visible {
-		if e.Type == sdl.EventMouseButtonUp && e.Button == uint8(sdl.ButtonLeft) {
-			a.keybindMenu.draggingScrollbar = false
-			return
-		}
-		if e.Type == sdl.EventMouseButtonDown && e.Button == uint8(sdl.ButtonLeft) {
-			a.clickKeybindMenu(int(e.X), int(e.Y))
-		}
-		return
-	}
-	if a.outlineMenu.visible {
-		if e.Type == sdl.EventMouseButtonUp && e.Button == uint8(sdl.ButtonLeft) {
-			a.outlineMenu.draggingScrollbar = false
-			return
-		}
-		if e.Type == sdl.EventMouseButtonDown && e.Button == uint8(sdl.ButtonLeft) {
-			a.clickOutlineMenu(int(e.X), int(e.Y))
+	if view := a.activeModalUIView(); view != nil {
+		if view.onMouseButton != nil {
+			view.onMouseButton(a, e)
 		}
 		return
 	}
@@ -569,11 +553,13 @@ func (a *App) handleSDLMouseButton(e *sdl.MouseButtonEvent) {
 		if a.tryActivateLinkAt(float64(e.X), float64(e.Y)) {
 			a.selection.active = false
 			a.selection.quads = nil
+			a.emitSelectionChanged()
 			return
 		}
 		page, point, ok := a.pagePointAtScreen(float64(e.X), float64(e.Y))
 		if ok {
 			a.selection = textSelection{active: true, page: page, anchor: point, focus: point}
+			a.emitSelectionChanged()
 		}
 		return
 	}
@@ -581,18 +567,16 @@ func (a *App) handleSDLMouseButton(e *sdl.MouseButtonEvent) {
 		a.copySelectionToClipboard()
 		a.selection.active = false
 		a.selection.quads = nil
+		a.emitSelectionChanged()
 	}
 }
 
 func (a *App) handleSDLMouseMotion(e *sdl.MouseMotionEvent) bool {
-	if a.luaUI.visible {
-		return handleModalListMouseMotion(e, a.luaUI.draggingScrollbar, &a.luaUI.scroll, &a.luaUI.selected, a.dragLuaUIScrollbar, a.hoverLuaUI)
-	}
-	if a.keybindMenu.visible {
-		return handleModalListMouseMotion(e, a.keybindMenu.draggingScrollbar, &a.keybindMenu.scroll, &a.keybindMenu.selected, a.dragKeybindScrollbar, a.hoverKeybindMenu)
-	}
-	if a.outlineMenu.visible {
-		return handleModalListMouseMotion(e, a.outlineMenu.draggingScrollbar, &a.outlineMenu.scroll, &a.outlineMenu.selected, a.dragOutlineScrollbar, a.hoverOutlineMenu)
+	if view := a.activeModalUIView(); view != nil {
+		if view.onMouseMotion != nil {
+			return view.onMouseMotion(a, e)
+		}
+		return a.uiViewHover(view, int(e.X), int(e.Y))
 	}
 	if a.panning && (a.panButton == 0 || uint32(e.State)&buttonMask(a.panButton) != 0) {
 		oldX, oldY := a.scrollX, a.scrollY
@@ -670,7 +654,7 @@ func (a *App) runCountAction(token string) bool {
 		return false
 	}
 	action, ok := a.sequenceLookup[normalizeBinding(token)]
-	if !ok || !actions.IsCountable(action) {
+	if !ok || !a.isCountableAction(action) {
 		return false
 	}
 	for range count {
@@ -679,8 +663,15 @@ func (a *App) runCountAction(token string) bool {
 	return true
 }
 
+func (a *App) isCountableAction(action string) bool {
+	if a.runtime != nil {
+		return a.runtime.IsCountableAction(action)
+	}
+	return actions.IsCountable(action)
+}
+
 func (a *App) commitInputMode() {
-	if a.completion.visible {
+	if a.completion.view != nil && a.completion.view.visible {
 		a.acceptCompletion()
 		return
 	}
