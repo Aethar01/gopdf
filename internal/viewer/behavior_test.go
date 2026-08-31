@@ -945,20 +945,21 @@ func TestBuiltinPromptActionsEnterExpectedModes(t *testing.T) {
 }
 
 func TestTextInputNeededOnlyForActiveTextEntry(t *testing.T) {
-	modalApp := func(searching bool) App {
+	modalApp := func(searching bool) *App {
 		view := &uiView{visible: true, modal: true, searching: searching}
-		return App{uiState: uiState{views: uiManager{active: view}}}
+		return &App{uiState: uiState{views: uiManager{active: view}}}
 	}
+	// App carries a mutex, so cases hold pointers rather than copies.
 	tests := []struct {
 		name string
-		app  App
+		app  *App
 		want bool
 	}{
-		{name: "normal", want: false},
-		{name: "command prompt", app: App{inputState: inputState{mode: modeCommand}}, want: true},
-		{name: "goto prompt", app: App{inputState: inputState{mode: modeGotoPage}}, want: true},
-		{name: "search prompt", app: App{inputState: inputState{mode: modeSearch}}, want: true},
-		{name: "password prompt", app: App{inputState: inputState{mode: modePassword}}, want: true},
+		{name: "normal", app: &App{}, want: false},
+		{name: "command prompt", app: &App{inputState: inputState{mode: modeCommand}}, want: true},
+		{name: "goto prompt", app: &App{inputState: inputState{mode: modeGotoPage}}, want: true},
+		{name: "search prompt", app: &App{inputState: inputState{mode: modeSearch}}, want: true},
+		{name: "password prompt", app: &App{inputState: inputState{mode: modePassword}}, want: true},
 		{name: "modal menu", app: modalApp(false), want: false},
 		{name: "modal search", app: modalApp(true), want: true},
 	}

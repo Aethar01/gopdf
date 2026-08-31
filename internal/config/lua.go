@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"log"
 	"strings"
 	"sync"
 
@@ -37,6 +38,7 @@ func (r *Runtime) initLuaState() *lua.LState {
 		r.closeLuaState()
 	}
 	L := lua.NewState()
+	PreloadPortableLuaModules(L)
 	r.state = L
 	r.pluginGeneration++
 	if r.plugins == nil {
@@ -51,21 +53,6 @@ func (r *Runtime) initLuaState() *lua.LState {
 	L.SetGlobal("unbind_mouse", L.GetField(mod, "unbind_mouse"))
 	L.SetGlobal("options", L.GetField(mod, "options"))
 	return L
-}
-
-func newLuaDocumentTable(L *lua.LState, rt *Runtime) *lua.LTable {
-	document := L.NewTable()
-	L.SetField(document, "path", lua.LString(rt.docPath))
-	L.SetField(document, "name", lua.LString(rt.docName))
-	L.SetField(document, "extension", lua.LString(rt.docMeta.ext))
-	L.SetField(document, "exists", lua.LBool(rt.docMeta.exists))
-	if rt.docMeta.exists {
-		L.SetField(document, "size_bytes", lua.LNumber(rt.docMeta.sizeBytes))
-	}
-	if rt.docMeta.hasPages {
-		L.SetField(document, "page_count", lua.LNumber(rt.docMeta.pageCount))
-	}
-	return document
 }
 
 func (r *Runtime) updateLuaDocument() {
@@ -84,6 +71,11 @@ func newLuaModule(L *lua.LState, rt *Runtime, cfg *Config) *lua.LTable {
 	L.SetField(mod, "cache", newLuaCacheTable(L, rt))
 	L.SetField(mod, "ui", newLuaViewAPI(L, rt))
 	L.SetField(mod, "plugin", newLuaPluginAPI(L, rt))
+	L.SetField(mod, "platform", NewLuaPlatformModule(L))
+	L.SetField(mod, "path", NewLuaPathModule(L))
+	L.SetField(mod, "json", NewLuaJSONModule(L))
+	L.SetField(mod, "clipboard", newLuaClipboardTable(L, rt))
+	L.SetField(mod, "formats", newLuaFormatsTable(L, rt))
 	registerLuaFunctions(L, mod, "gopdf.", []luaFunctionSpec{
 		{
 			Signature:   "gopdf.bind(key, action)",
@@ -174,21 +166,95 @@ func newLuaModule(L *lua.LState, rt *Runtime, cfg *Config) *lua.LTable {
 			},
 		},
 		{
-			Signature:   "gopdf.pick_file([callback])",
-			Description: "Open the native PDF picker; returns a path or invokes callback.",
+			Signature:   "gopdf.pick_file(callback)",
+			Description: "Open the native document picker and invoke callback with a structured result. The picker is filtered to the formats this build can open.",
 			Function: func(L *lua.LState) int {
-				path, err := filepicker.PickPDF()
+				fn, ok := L.Get(1).(*lua.LFunction)
+				if !ok {
+					L.RaiseError("pick_file: expected callback")
+				}
+				var extensions []string
+				if host, ok := rt.host.(DocumentFormatHost); ok {
+					extensions = host.SupportedExtensions()
+				}
+				path, err := filepicker.PickDocument(extensions)
+				result := L.NewTable()
+				L.SetField(result, "success", lua.LBool(err == nil && path != ""))
+				L.SetField(result, "path", lua.LString(path))
+				L.SetField(result, "cancelled", lua.LBool(err == nil && path == ""))
 				if err != nil {
+					L.SetField(result, "error", lua.LString(err.Error()))
+				} else {
+					L.SetField(result, "error", lua.LString(""))
+				}
+				if err := rt.callLua(lua.P{Fn: fn, NRet: 0, Protect: true}, result); err != nil {
 					L.RaiseError("pick_file: %v", err)
 				}
-				if fn, ok := L.Get(1).(*lua.LFunction); ok && path != "" {
-					if err := rt.state.CallByParam(lua.P{Fn: fn, NRet: 0, Protect: true}, lua.LString(path)); err != nil {
-						L.RaiseError("pick_file: %v", err)
-					}
-					return 0
+				return 0
+			},
+		},
+		{
+			Signature:   "gopdf.pick_directory(callback)",
+			Description: "Open the native directory picker and invoke callback with a structured result.",
+			Function: func(L *lua.LState) int {
+				fn, ok := L.Get(1).(*lua.LFunction)
+				if !ok {
+					L.RaiseError("pick_directory: expected callback")
 				}
-				L.Push(lua.LString(path))
+				path := ""
+				var err error
+				if picker, ok := rt.host.(DirectoryPicker); ok {
+					path, err = picker.PickDirectory()
+				} else {
+					path, err = filepicker.PickDirectory()
+				}
+				result := luaTableFromMap(L, map[string]any{"success": err == nil && path != "", "path": path, "cancelled": err == nil && path == "", "error": errorString(err)})
+				if err := rt.callLua(lua.P{Fn: fn, NRet: 0, Protect: true}, result); err != nil {
+					L.RaiseError("pick_directory: %v", err)
+				}
+				return 0
+			},
+		},
+		{
+			Signature:   "gopdf.schedule(callback)",
+			Description: "Schedule a callback on the main Lua thread after the current dispatch.",
+			Function: func(L *lua.LState) int {
+				fn, ok := L.Get(1).(*lua.LFunction)
+				if !ok {
+					L.RaiseError("schedule: expected callback")
+				}
+				id, err := rt.schedule(fn)
+				if err != nil {
+					L.RaiseError("schedule: %v", err)
+				}
+				L.Push(newPluginOperationHandle(L, rt, id))
 				return 1
+			},
+		},
+		{
+			Signature:   "gopdf.log(level, message)",
+			Description: "Write a plugin diagnostic without changing the user-facing message.",
+			Function: func(L *lua.LState) int {
+				level := strings.ToLower(strings.TrimSpace(L.CheckString(1)))
+				if level != "debug" && level != "info" && level != "warn" && level != "error" {
+					L.RaiseError("log: invalid level %q", level)
+				}
+				log.Printf("plugin=%s level=%s %s", rt.diagnosticPluginID(), level, L.CheckString(2))
+				return 0
+			},
+		},
+		{
+			Signature:   "gopdf.open_external(uri_or_path)",
+			Description: "Open a URI or path with the operating system's default application.",
+			Function: func(L *lua.LState) int {
+				opener, ok := rt.host.(ExternalOpener)
+				if !ok {
+					L.RaiseError("open_external: viewer host unavailable")
+				}
+				if err := opener.OpenExternal(L.CheckString(1)); err != nil {
+					L.RaiseError("open_external: %v", err)
+				}
+				return 0
 			},
 		},
 		{

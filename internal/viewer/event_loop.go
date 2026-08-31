@@ -65,8 +65,8 @@ func (a *App) Run() error {
 		}
 		a.advanceSmoothScroll()
 		if a.runtime != nil {
-			if a.runtime.PollPluginJobs() {
-				a.applyRuntimeChanges("job")
+			if a.runtime.PollPluginOperations() {
+				a.applyRuntimeChanges("plugin operation")
 				a.pendingRedraw = true
 			}
 		}
@@ -77,6 +77,7 @@ func (a *App) Run() error {
 		a.expireSequence()
 		a.prefetchVisiblePages()
 		a.adjustRenderBaseScaleForExtremeZoom(a.scale)
+		a.emitViewStateEvents()
 		if a.pendingRedraw {
 			if err := a.drawFrame(); err != nil {
 				return err
@@ -118,7 +119,7 @@ func (a *App) openInitialDocument() error {
 }
 
 func (a *App) eventWaitTimeoutMS() int {
-	if a.hasPendingVisibleRender() || a.search.running || a.smoothScrollActive() || a.runtime != nil && a.runtime.PluginJobsActive() {
+	if a.hasPendingVisibleRender() || a.search.running || a.smoothScrollActive() || a.runtime != nil && a.runtime.PluginOperationsActive() {
 		return 16
 	}
 	if len(a.sequence) > 0 {

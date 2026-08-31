@@ -84,8 +84,12 @@ type Runtime struct {
 	jobs             map[int]pluginJob
 	jobResults       chan pluginJobResult
 	nextJobID        int
+	operations       map[int]*pluginOperation
+	operationResults chan pluginOperationResult
+	nextOperationID  int
 	pluginGeneration int
 	loadingPlugin    string
+	activePlugin     string
 	loadingAutogen   bool
 }
 
@@ -164,4 +168,27 @@ type Host interface {
 	CacheLimit() int
 	SetCacheLimit(limit int) error
 	ClearCache()
+}
+
+type ClipboardGetter interface {
+	GetClipboard() string
+}
+
+type ClipboardSetter interface {
+	SetClipboard(text string) error
+}
+
+type ExternalOpener interface {
+	OpenExternal(uri string) error
+}
+
+type DirectoryPicker interface {
+	PickDirectory() (string, error)
+}
+
+// DocumentFormatHost reports which formats the document engine can open. It is
+// optional so hosts without a document engine still satisfy Host.
+type DocumentFormatHost interface {
+	SupportedExtensions() []string
+	SupportsPath(path string) bool
 }

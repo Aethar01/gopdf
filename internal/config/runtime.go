@@ -41,13 +41,15 @@ func OpenWithOptions(explicitPath, docPath string, options OpenOptions) (*Runtim
 		docName = filepath.Base(docPath)
 	}
 	rt := &Runtime{
-		explicitPath: explicitPath,
-		docPath:      docPath,
-		docName:      docName,
-		docMeta:      loadDocumentMeta(docPath),
-		verbose:      options.Verbose,
-		jobs:         map[int]pluginJob{},
-		jobResults:   make(chan pluginJobResult, 32),
+		explicitPath:     explicitPath,
+		docPath:          docPath,
+		docName:          docName,
+		docMeta:          loadDocumentMeta(docPath),
+		verbose:          options.Verbose,
+		jobs:             map[int]pluginJob{},
+		jobResults:       make(chan pluginJobResult, 32),
+		operations:       map[int]*pluginOperation{},
+		operationResults: make(chan pluginOperationResult, 64),
 	}
 	var pluginPaths []string
 	if !options.NoPlugins {
@@ -83,6 +85,7 @@ func unique(paths []string) []string {
 }
 
 func (r *Runtime) Close() {
+	r.cancelPluginOperations()
 	r.cancelPluginJobs()
 	r.closeLuaState()
 }
@@ -138,6 +141,7 @@ func (r *Runtime) Reload() error {
 	oldPlugins := r.plugins
 	oldPluginCatalog := r.pluginCatalog
 	oldJobs := r.jobs
+	oldOperations := r.operations
 	oldPluginGeneration := r.pluginGeneration
 	oldDirty := r.dirty
 	committed := false
@@ -152,8 +156,10 @@ func (r *Runtime) Reload() error {
 	r.callbackSeq = 0
 	r.dirty = false
 	r.jobs = make(map[int]pluginJob)
+	r.operations = make(map[int]*pluginOperation)
 	defer func() {
 		if committed {
+			cancelPluginOperationMap(oldOperations)
 			cancelPluginJobMap(oldJobs)
 			if oldState != nil {
 				oldState.Close()
@@ -168,6 +174,7 @@ func (r *Runtime) Reload() error {
 		r.plugins = oldPlugins
 		r.pluginCatalog = oldPluginCatalog
 		r.jobs = oldJobs
+		r.operations = oldOperations
 		r.pluginGeneration = oldPluginGeneration
 		r.dirty = oldDirty
 	}()
@@ -272,7 +279,7 @@ func (r *Runtime) runPluginAction(action string) error {
 	if pluginAction == nil {
 		return fmt.Errorf("unknown action: %s", action)
 	}
-	return r.callLua(lua.P{Fn: pluginAction.function, NRet: 0, Protect: true})
+	return r.callPluginLua(pluginAction.plugin, lua.P{Fn: pluginAction.function, NRet: 0, Protect: true})
 }
 
 func (r *Runtime) Eval(code string) (bool, error) {

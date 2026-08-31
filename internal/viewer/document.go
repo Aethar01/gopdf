@@ -255,6 +255,8 @@ func (a *App) initDocumentMetrics(doc *mupdf.Document, pages int, startPage int)
 }
 
 func (a *App) installDocument(doc *mupdf.Document, path string, pages, startPage int) {
+	a.documentAPIMu.Lock()
+	defer a.documentAPIMu.Unlock()
 	a.generation++
 	a.docPath = path
 	a.docName = filepath.Base(path)
@@ -271,6 +273,7 @@ func (a *App) installDocument(doc *mupdf.Document, path string, pages, startPage
 	a.renderBaseScale = 0
 	a.pageLinks = map[int][]mupdf.Link{}
 	a.outline = nil
+	a.viewEvents = viewStateEvents{}
 	a.selection = textSelection{}
 }
 

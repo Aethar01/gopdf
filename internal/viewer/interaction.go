@@ -267,7 +267,7 @@ func (a *App) copySelectionToClipboard() {
 	if !a.config.CopyOnSelect || strings.TrimSpace(a.selection.text) == "" {
 		return
 	}
-	if err := setSDLClipboardText(a.selection.text); err != nil {
+	if err := a.SetClipboard(a.selection.text); err != nil {
 		a.message = "clipboard unavailable"
 		return
 	}
@@ -314,6 +314,12 @@ func (a *App) isLinkAt(sx, sy float64) bool {
 }
 
 func (a *App) linksForPage(page int) ([]mupdf.Link, error) {
+	a.documentAPIMu.Lock()
+	defer a.documentAPIMu.Unlock()
+	return a.linksForPageLocked(page)
+}
+
+func (a *App) linksForPageLocked(page int) ([]mupdf.Link, error) {
 	if links, ok := a.pageLinks[page]; ok {
 		return links, nil
 	}
@@ -330,7 +336,7 @@ func (a *App) activateLink(link mupdf.Link) {
 		if link.URI == "" {
 			return
 		}
-		if err := openExternalURL(link.URI); err != nil {
+		if err := a.OpenExternal(link.URI); err != nil {
 			a.message = err.Error()
 			return
 		}
@@ -346,7 +352,7 @@ func (a *App) activateLink(link mupdf.Link) {
 	}
 }
 
-func openExternalURL(uri string) error {
+func (a *App) OpenExternal(uri string) error {
 	var cmd *exec.Cmd
 	switch runtime.GOOS {
 	case "darwin":

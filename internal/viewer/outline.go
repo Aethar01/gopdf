@@ -243,7 +243,7 @@ func (a *App) activateSelectedOutline() {
 		if item.URI == "" {
 			return
 		}
-		if err := openExternalURL(item.URI); err != nil {
+		if err := a.OpenExternal(item.URI); err != nil {
 			a.message = err.Error()
 			return
 		}

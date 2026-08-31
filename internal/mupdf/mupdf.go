@@ -96,6 +96,19 @@ type OutlineItem struct {
 	HasChildren bool
 }
 
+type Metadata struct {
+	Format           string
+	Encryption       string
+	Title            string
+	Author           string
+	Subject          string
+	Keywords         string
+	Creator          string
+	Producer         string
+	CreationDate     string
+	ModificationDate string
+}
+
 func (d *Document) ensureOpenLocked() error {
 	if d == nil || d.handle == nil {
 		return fmt.Errorf("document is closed")
@@ -206,6 +219,33 @@ func (d *Document) PageLabel(page int) (string, error) {
 	}
 	defer C.free(unsafe.Pointer(label))
 	return C.GoString(label), nil
+}
+
+func (d *Document) Metadata() (Metadata, error) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if err := d.ensureOpenLocked(); err != nil {
+		return Metadata{}, err
+	}
+	values := make([]string, 10)
+	keys := []string{"format", "encryption", "info:Title", "info:Author", "info:Subject", "info:Keywords", "info:Creator", "info:Producer", "info:CreationDate", "info:ModDate"}
+	for i, key := range keys {
+		ckey := C.CString(key)
+		var value, cerr *C.char
+		ok := C.gopdf_lookup_metadata(d.handle, ckey, &value, &cerr)
+		C.free(unsafe.Pointer(ckey))
+		if ok == 0 {
+			return Metadata{}, consumeError("lookup metadata", cerr)
+		}
+		if value != nil {
+			values[i] = C.GoString(value)
+			C.gopdf_free_string(value)
+		}
+	}
+	return Metadata{
+		Format: values[0], Encryption: values[1], Title: values[2], Author: values[3], Subject: values[4],
+		Keywords: values[5], Creator: values[6], Producer: values[7], CreationDate: values[8], ModificationDate: values[9],
+	}, nil
 }
 
 func (d *Document) Render(page int, scale float64, rotation float64, aaLevel int) (*RenderedPage, error) {

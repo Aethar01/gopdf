@@ -19,7 +19,7 @@ import (
 	lua "github.com/yuin/gopher-lua"
 )
 
-const pluginAPIVersion = 1
+const pluginAPIVersion = 2
 
 type pluginManifest struct {
 	ID           string   `json:"id"`
@@ -55,6 +55,7 @@ type pluginInstance struct {
 }
 
 type pluginAction struct {
+	plugin      string
 	name        string
 	fullName    string
 	description string
@@ -63,6 +64,7 @@ type pluginAction struct {
 }
 
 type pluginCommand struct {
+	plugin         string
 	name           string
 	fullName       string
 	description    string
@@ -374,6 +376,7 @@ func (r *Runtime) rollbackPluginLoad(id string) {
 			delete(r.jobs, jobID)
 		}
 	}
+	r.cancelPluginOperationsFor(id)
 	if r.state == nil {
 		return
 	}
@@ -492,6 +495,11 @@ func (r *Runtime) registerPlugin(L *lua.LState, id string, spec *lua.LTable) (*l
 	L.SetField(module, "id", lua.LString(id))
 	L.SetField(module, "version", lua.LString(manifest.Version))
 	L.SetField(module, "actions", instance.actionsTable)
+	L.SetField(module, "fs", newLuaPluginFS(L, instance))
+	L.SetField(module, "timer", newLuaPluginTimer(L, instance))
+	L.SetField(module, "storage", newLuaPluginStorage(L, id))
+	L.SetField(module, "http", newLuaPluginHTTP(L, instance))
+	L.SetField(module, "document", newLuaPluginDocument(L, instance))
 	if err := r.registerPluginOptions(L, instance, spec); err != nil {
 		return nil, err
 	}
@@ -686,7 +694,7 @@ func (instance *pluginInstance) registerAction(L *lua.LState) int {
 		countable = lua.LVAsBool(metadata.RawGetString("countable"))
 	}
 	token := newLuaActionValue(L, instance.runtime, fullName)
-	instance.actions[name] = pluginAction{name: name, fullName: fullName, description: description, countable: countable, function: fn}
+	instance.actions[name] = pluginAction{plugin: instance.manifest.ID, name: name, fullName: fullName, description: description, countable: countable, function: fn}
 	instance.actionsTable.RawSetString(name, token)
 	L.Push(token)
 	return 1
@@ -714,7 +722,7 @@ func (instance *pluginInstance) registerCommand(L *lua.LState) int {
 		}
 		completions = luaTableStrings(metadata.RawGetString("arg_completions"))
 	}
-	instance.commands[name] = pluginCommand{name: name, fullName: fullName, description: description, argCompletions: completions, function: fn}
+	instance.commands[name] = pluginCommand{plugin: instance.manifest.ID, name: name, fullName: fullName, description: description, argCompletions: completions, function: fn}
 	L.Push(lua.LString(fullName))
 	return 1
 }
@@ -780,6 +788,11 @@ func (instance *pluginInstance) startJob(L *lua.LState) int {
 	L.SetField(handle, "cancel", L.NewFunction(func(L *lua.LState) int {
 		instance.runtime.cancelPluginJob(id)
 		return 0
+	}))
+	L.SetField(handle, "active", L.NewFunction(func(L *lua.LState) int {
+		job, ok := instance.runtime.jobs[id]
+		L.Push(lua.LBool(ok && job.generation == instance.runtime.pluginGeneration))
+		return 1
 	}))
 	L.Push(handle)
 	return 1
@@ -861,7 +874,7 @@ func (r *Runtime) executeAction(action string) error {
 		return fmt.Errorf("%s: cannot execute during config load; pass it to bind(...) or call it from a callback", action)
 	}
 	if pluginAction := r.pluginAction(action); pluginAction != nil {
-		return r.callLua(lua.P{Fn: pluginAction.function, NRet: 0, Protect: true})
+		return r.callPluginLua(pluginAction.plugin, lua.P{Fn: pluginAction.function, NRet: 0, Protect: true})
 	}
 	return r.host.ExecuteAction(action)
 }
@@ -877,7 +890,7 @@ func (r *Runtime) runPluginCommand(name, args string) (bool, error) {
 				continue
 			}
 			context := luaCommandContext(r.state, name, args)
-			if err := r.callLua(lua.P{Fn: command.function, NRet: 0, Protect: true}, context); err != nil {
+			if err := r.callPluginLua(command.plugin, lua.P{Fn: command.function, NRet: 0, Protect: true}, context); err != nil {
 				return true, err
 			}
 			return true, nil
@@ -1058,7 +1071,7 @@ func (r *Runtime) setPluginOptionValue(name string, value lua.LValue) error {
 
 func validPluginEvent(event string) bool {
 	switch event {
-	case "app_ready", "document_open_pre", "document_opened", "document_close_pre", "document_closed", "document_reloaded", "config_reloaded", "mouse_button_pre", "mouse_button", "selection_changed", "option_changed", "shutdown":
+	case "app_ready", "document_open_pre", "document_opened", "document_close_pre", "document_closed", "document_reloaded", "config_reloaded", "mouse_button_pre", "mouse_button", "selection_changed", "page_changed", "zoom_changed", "option_changed", "shutdown":
 		return true
 	default:
 		return false
@@ -1096,7 +1109,7 @@ func (r *Runtime) emitPluginEventCallbacks(event string, payload map[string]any)
 				continue
 			}
 			top := r.state.GetTop()
-			err := r.callLua(lua.P{Fn: subscription.fn, NRet: 1, Protect: true}, luaTableFromMap(r.state, payload))
+			err := r.callPluginLua(id, lua.P{Fn: subscription.fn, NRet: 1, Protect: true}, luaTableFromMap(r.state, payload))
 			if err != nil {
 				r.deferredOpen = ""
 				r.logf("plugin %s event %s: %v", id, event, err)
@@ -1179,6 +1192,21 @@ func (r *Runtime) startPluginJob(pluginID string, spec *lua.LTable, callback *lu
 	args := luaTableStrings(spec.RawGetString("args"))
 	cwd := lua.LVAsString(spec.RawGetString("cwd"))
 	timeoutMS := int(lua.LVAsNumber(spec.RawGetString("timeout_ms")))
+	stdin := lua.LVAsString(spec.RawGetString("stdin"))
+	env := map[string]string{}
+	if envTable, ok := spec.RawGetString("env").(*lua.LTable); ok {
+		var envErr error
+		envTable.ForEach(func(key, value lua.LValue) {
+			if key.Type() != lua.LTString || value.Type() != lua.LTString {
+				envErr = fmt.Errorf("env must contain string keys and values")
+				return
+			}
+			env[lua.LVAsString(key)] = lua.LVAsString(value)
+		})
+		if envErr != nil {
+			return 0, envErr
+		}
+	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	if timeoutMS > 0 {
@@ -1194,13 +1222,22 @@ func (r *Runtime) startPluginJob(pluginID string, spec *lua.LTable, callback *lu
 	id := r.nextJobID
 	job := pluginJob{id: id, plugin: pluginID, generation: r.pluginGeneration, cancel: cancel, callback: callback}
 	r.jobs[id] = job
-	go runPluginJob(ctx, r.jobResults, job, command, args, cwd)
+	go runPluginJob(ctx, r.jobResults, job, command, args, cwd, env, stdin)
 	return id, nil
 }
 
-func runPluginJob(ctx context.Context, results chan<- pluginJobResult, job pluginJob, command string, args []string, cwd string) {
+func runPluginJob(ctx context.Context, results chan<- pluginJobResult, job pluginJob, command string, args []string, cwd string, env map[string]string, stdin string) {
 	cmd := exec.CommandContext(ctx, command, args...)
 	cmd.Dir = cwd
+	if len(env) > 0 {
+		cmd.Env = os.Environ()
+		for key, value := range env {
+			cmd.Env = append(cmd.Env, key+"="+value)
+		}
+	}
+	if stdin != "" {
+		cmd.Stdin = strings.NewReader(stdin)
+	}
 	stdout := &limitedBuffer{limit: 4 << 20}
 	stderr := &limitedBuffer{limit: 4 << 20}
 	cmd.Stdout = stdout
@@ -1265,8 +1302,9 @@ func (r *Runtime) pollPluginJobs() bool {
 			r.state.SetField(resultTable, "stderr", lua.LString(result.stderr))
 			r.state.SetField(resultTable, "error", lua.LString(result.err))
 			r.state.SetField(resultTable, "timed_out", lua.LBool(result.timedOut))
+			r.state.SetField(resultTable, "cancelled", lua.LFalse)
 			r.state.SetField(resultTable, "success", lua.LBool(result.err == "" && !result.timedOut && result.code == 0))
-			if err := r.callLua(lua.P{Fn: job.callback, NRet: 0, Protect: true}, resultTable); err != nil {
+			if err := r.callPluginLua(job.plugin, lua.P{Fn: job.callback, NRet: 0, Protect: true}, resultTable); err != nil {
 				r.logf("plugin %s job %d: %v", result.plugin, result.id, err)
 			}
 			changed = true

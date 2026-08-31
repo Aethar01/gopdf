@@ -1,0 +1,174 @@
+package config
+
+import (
+	"context"
+
+	lua "github.com/yuin/gopher-lua"
+)
+
+func newLuaDocumentTable(L *lua.LState, rt *Runtime) *lua.LTable {
+	document := L.NewTable()
+	L.SetField(document, "path", lua.LString(rt.docPath))
+	L.SetField(document, "name", lua.LString(rt.docName))
+	L.SetField(document, "extension", lua.LString(rt.docMeta.ext))
+	L.SetField(document, "exists", lua.LBool(rt.docMeta.exists))
+	if rt.docMeta.exists {
+		L.SetField(document, "size_bytes", lua.LNumber(rt.docMeta.sizeBytes))
+	}
+	if rt.docMeta.hasPages {
+		L.SetField(document, "page_count", lua.LNumber(rt.docMeta.pageCount))
+	}
+	L.SetField(document, "metadata", L.NewFunction(func(L *lua.LState) int {
+		host, ok := rt.host.(DocumentMetadataHost)
+		if !ok {
+			L.RaiseError("document.metadata: viewer host unavailable")
+		}
+		value, err := host.Metadata()
+		if err != nil {
+			L.RaiseError("document.metadata: %v", err)
+		}
+		L.Push(luaDocumentMetadata(L, value))
+		return 1
+	}))
+	L.SetField(document, "outline", L.NewFunction(func(L *lua.LState) int {
+		host, ok := rt.host.(DocumentOutlineHost)
+		if !ok {
+			L.RaiseError("document.outline: viewer host unavailable")
+		}
+		value, err := host.Outline()
+		if err != nil {
+			L.RaiseError("document.outline: %v", err)
+		}
+		L.Push(luaOutlineItems(L, value))
+		return 1
+	}))
+	L.SetField(document, "selection", L.NewFunction(func(L *lua.LState) int {
+		host, ok := rt.host.(DocumentSelectionHost)
+		if !ok {
+			L.RaiseError("document.selection: viewer host unavailable")
+		}
+		value, err := host.Selection()
+		if err != nil {
+			L.RaiseError("document.selection: %v", err)
+		}
+		L.Push(luaDocumentSelection(L, value))
+		return 1
+	}))
+	L.SetField(document, "page_info", L.NewFunction(func(L *lua.LState) int {
+		host, ok := rt.host.(DocumentPageInfoHost)
+		if !ok {
+			L.RaiseError("document.page_info: viewer host unavailable")
+		}
+		value, err := host.PageInfo(L.CheckInt(1))
+		if err != nil {
+			L.RaiseError("document.page_info: %v", err)
+		}
+		L.Push(luaPageInfo(L, value))
+		return 1
+	}))
+	return document
+}
+
+func newLuaPluginDocument(L *lua.LState, instance *pluginInstance) *lua.LTable {
+	document := L.NewTable()
+	L.SetField(document, "page_text", L.NewFunction(func(L *lua.LState) int {
+		page := L.CheckInt(2)
+		callback, ok := L.Get(3).(*lua.LFunction)
+		if !ok {
+			L.RaiseError("plugin %s document.page_text: expected callback", instance.manifest.ID)
+		}
+		host, ok := instance.runtime.host.(DocumentPageTextHost)
+		if !ok {
+			L.RaiseError("plugin %s document.page_text: viewer host unavailable", instance.manifest.ID)
+		}
+		id := instance.runtime.startPluginOperation(instance.manifest.ID, "document.page_text", callback, func(ctx context.Context) map[string]any {
+			if err := ctx.Err(); err != nil {
+				return operationError(err)
+			}
+			text, err := host.PageText(page)
+			if err != nil {
+				return operationError(err)
+			}
+			return map[string]any{"success": true, "error": "", "page": page, "text": text}
+		})
+		L.Push(newPluginOperationHandle(L, instance.runtime, id))
+		return 1
+	}))
+	L.SetField(document, "page_links", L.NewFunction(func(L *lua.LState) int {
+		page := L.CheckInt(2)
+		callback, ok := L.Get(3).(*lua.LFunction)
+		if !ok {
+			L.RaiseError("plugin %s document.page_links: expected callback", instance.manifest.ID)
+		}
+		host, ok := instance.runtime.host.(DocumentPageLinksHost)
+		if !ok {
+			L.RaiseError("plugin %s document.page_links: viewer host unavailable", instance.manifest.ID)
+		}
+		id := instance.runtime.startPluginOperation(instance.manifest.ID, "document.page_links", callback, func(ctx context.Context) map[string]any {
+			if err := ctx.Err(); err != nil {
+				return operationError(err)
+			}
+			links, err := host.PageLinks(page)
+			if err != nil {
+				return operationError(err)
+			}
+			values := make([]map[string]any, len(links))
+			for i, link := range links {
+				values[i] = pageLinkMap(link)
+			}
+			return map[string]any{"success": true, "error": "", "page": page, "links": values}
+		})
+		L.Push(newPluginOperationHandle(L, instance.runtime, id))
+		return 1
+	}))
+	return document
+}
+
+func luaDocumentMetadata(L *lua.LState, value DocumentMetadata) *lua.LTable {
+	return luaTableFromMap(L, map[string]any{"format": value.Format, "encryption": value.Encryption, "title": value.Title, "author": value.Author, "subject": value.Subject, "keywords": value.Keywords, "creator": value.Creator, "producer": value.Producer, "creation_date": value.CreationDate, "modification_date": value.ModificationDate})
+}
+
+func luaOutlineItems(L *lua.LState, items []DocumentOutlineItem) *lua.LTable {
+	table := L.NewTable()
+	for _, item := range items {
+		value := luaTableFromMap(L, map[string]any{"title": item.Title, "uri": item.URI, "external": item.External, "page": item.Page})
+		setOptionalNumber(L, value, "x", item.X)
+		setOptionalNumber(L, value, "y", item.Y)
+		L.SetField(value, "children", luaOutlineItems(L, item.Children))
+		table.Append(value)
+	}
+	return table
+}
+
+func luaDocumentSelection(L *lua.LState, value DocumentSelection) *lua.LTable {
+	quads := make([]any, len(value.Quads))
+	for i, quad := range value.Quads {
+		quads[i] = rectMap(quad)
+	}
+	return luaTableFromMap(L, map[string]any{"active": value.Active, "page": value.Page, "text": value.Text, "quads": quads})
+}
+
+func luaPageInfo(L *lua.LState, value DocumentPageInfo) *lua.LTable {
+	return luaTableFromMap(L, map[string]any{"page": value.Page, "label": value.Label, "width": value.Width, "height": value.Height, "bounds": rectMap(value.Bounds)})
+}
+
+func pageLinkMap(value DocumentPageLink) map[string]any {
+	result := map[string]any{"bounds": rectMap(value.Bounds), "uri": value.URI, "external": value.External, "page": value.Page}
+	if value.X != nil {
+		result["x"] = *value.X
+	}
+	if value.Y != nil {
+		result["y"] = *value.Y
+	}
+	return result
+}
+
+func rectMap(value DocumentRect) map[string]any {
+	return map[string]any{"x0": value.X0, "y0": value.Y0, "x1": value.X1, "y1": value.Y1}
+}
+
+func setOptionalNumber(L *lua.LState, table *lua.LTable, key string, value *float64) {
+	if value != nil {
+		L.SetField(table, key, lua.LNumber(*value))
+	}
+}

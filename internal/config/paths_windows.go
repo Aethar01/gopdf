@@ -15,15 +15,12 @@ func platformDataDir() string {
 }
 
 func platformPluginPaths() []string {
-	paths := make([]string, 0, 3)
+	paths := make([]string, 0, 2)
 	if dir := os.Getenv("LOCALAPPDATA"); dir != "" {
 		paths = append(paths, filepath.Join(dir, "gopdf", "plugins"))
 	}
 	if dir := os.Getenv("APPDATA"); dir != "" {
 		paths = append(paths, filepath.Join(dir, "gopdf", "plugins"))
-	}
-	if home, err := os.UserHomeDir(); err == nil {
-		paths = append(paths, filepath.Join(home, ".config", "gopdf", "plugins"))
 	}
 	return paths
 }

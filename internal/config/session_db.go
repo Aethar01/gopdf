@@ -325,7 +325,7 @@ func initSessionDatabase(db *sql.DB) error {
 			return err
 		}
 	}
-	return nil
+	return initPluginStorage(db)
 }
 
 func isDuplicateColumnError(err error) bool {

@@ -1,6 +1,6 @@
 # gopdf
 
-A minimal, keyboard-driven PDF viewer backed by MuPDF and configured with Lua.
+A minimal, keyboard-driven document viewer backed by MuPDF and configured with Lua.
 
 gopdf provides Vim-style navigation, continuous and single-page layouts, dual-page spreads, text search and selection, outlines, links, persistent sessions and marks, configurable colors, commands, and scriptable keybindings without a permanent toolbar.
 
@@ -69,7 +69,7 @@ The release provides an installer with optional PDF file association and a porta
 ## Usage
 
 ```bash
-gopdf /path/to/file.pdf      # open a PDF
+gopdf /path/to/file.pdf      # open a document
 gopdf --page 20 file.pdf     # start on page 20
 gopdf --config custom.lua file.pdf
 gopdf -v                     # print version

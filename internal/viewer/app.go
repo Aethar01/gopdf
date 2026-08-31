@@ -7,6 +7,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 	"unicode/utf8"
 
@@ -102,10 +103,12 @@ type documentWorkers struct {
 }
 
 type documentState struct {
-	docPath     string
-	docName     string
-	docPassword string
-	doc         *mupdf.Document
+	documentAPIMu sync.Mutex
+	viewEvents    viewStateEvents
+	docPath       string
+	docName       string
+	docPassword   string
+	doc           *mupdf.Document
 
 	pageCount  int
 	page       int
@@ -328,6 +331,8 @@ func (a *App) applyRuntimeChanges(source string) {
 func (a *App) closeDocumentResources() {
 	a.closeDocumentWorkers()
 	a.clearCache()
+	a.documentAPIMu.Lock()
+	defer a.documentAPIMu.Unlock()
 	if a.doc != nil {
 		a.doc.Close()
 		a.doc = nil
@@ -422,7 +427,7 @@ func (a *App) handleSDLKeyDown(e *sdl.KeyboardEvent) {
 func (a *App) handleInputEditKey(e *sdl.KeyboardEvent) bool {
 	ctrl := e.Mod&sdl.KeymodCtrl != 0
 	if ctrl && e.Key == sdl.KeycodeV {
-		a.editInput(func(input *textInput) { input.InsertText(sdlGetClipboardText()) })
+		a.editInput(func(input *textInput) { input.InsertText(a.GetClipboard()) })
 		return true
 	}
 	if ctrl && e.Key == sdl.KeycodeW {

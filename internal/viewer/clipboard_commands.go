@@ -8,7 +8,7 @@ func (a *App) copyActiveTextInputToClipboard() bool {
 		if !ok || text == "" {
 			return true
 		}
-		if err := setSDLClipboardText(text); err != nil {
+		if err := a.SetClipboard(text); err != nil {
 			a.message = "clipboard unavailable"
 			return true
 		}
@@ -22,7 +22,7 @@ func (a *App) copyActiveTextInputToClipboard() bool {
 	if text == "" {
 		return true
 	}
-	if err := setSDLClipboardText(text); err != nil {
+	if err := a.SetClipboard(text); err != nil {
 		a.message = "clipboard unavailable"
 		return true
 	}
@@ -36,7 +36,7 @@ func (a *App) cutActiveTextInputToClipboard() bool {
 		if !ok || text == "" {
 			return true
 		}
-		if err := setSDLClipboardText(text); err != nil {
+		if err := a.SetClipboard(text); err != nil {
 			a.message = "clipboard unavailable"
 			return true
 		}
@@ -51,7 +51,7 @@ func (a *App) cutActiveTextInputToClipboard() bool {
 	if text == "" {
 		return true
 	}
-	if err := setSDLClipboardText(text); err != nil {
+	if err := a.SetClipboard(text); err != nil {
 		a.message = "clipboard unavailable"
 		return true
 	}
@@ -67,7 +67,7 @@ func (a *App) pasteIntoActiveTextInput() bool {
 	if !active {
 		return false
 	}
-	text := sdlGetClipboardText()
+	text := a.GetClipboard()
 	if text == "" {
 		return true
 	}

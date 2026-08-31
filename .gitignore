@@ -32,3 +32,6 @@ AppDir
 
 # Generated documentation site output
 /docs/reference.md
+
+# Generated documentation tool binary
+/builddocs

@@ -10,6 +10,7 @@ import (
 	commandmeta "gopdf/internal/commands"
 	"gopdf/internal/config"
 	"gopdf/internal/filepicker"
+	"gopdf/internal/mupdf"
 
 	"github.com/jupiterrider/purego-sdl3/sdl"
 )
@@ -219,7 +220,7 @@ func (a *App) runBuiltinAction(action string) error {
 	case "jump_backward":
 		a.jumpBackward()
 	case "open_file_picker":
-		path, err := filepicker.PickPDF()
+		path, err := filepicker.PickDocument(mupdf.SupportedExtensions())
 		if err != nil {
 			return err
 		}
@@ -287,6 +288,10 @@ func (a *App) closeActiveUI() {
 }
 
 func (a *App) ExecuteAction(action string) error { return a.runBuiltinAction(action) }
+
+func (a *App) PickDirectory() (string, error) {
+	return filepicker.PickDirectory()
+}
 
 func (a *App) Page() int { return a.page + 1 }
 

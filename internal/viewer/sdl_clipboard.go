@@ -9,6 +9,14 @@ import (
 var sdlSetClipboardText func(string) bool
 var sdlGetClipboardText = sdl.GetClipboardText
 
+func (a *App) GetClipboard() string {
+	return sdlGetClipboardText()
+}
+
+func (a *App) SetClipboard(text string) error {
+	return setSDLClipboardText(text)
+}
+
 func setSDLClipboardText(text string) error {
 	if sdlSetClipboardText == nil {
 		if err := loadSDLSetClipboardText(); err != nil {
