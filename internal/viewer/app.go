@@ -257,7 +257,7 @@ func New(docPath string, runtime *config.Runtime, startPage int, iconBytes []byt
 		app.initialStartPage = startPage
 		app.initialPageSet = opts.StartPageExplicit
 	}
-	app.recomputeLayout(1400, 900-app.config.StatusBarHeight)
+	app.recomputeLayout(1400, 900-app.statusBarHeight())
 	if app.doc != nil {
 		app.ensureRenderBaseScale()
 		app.alignPageToAnchor(startPage)

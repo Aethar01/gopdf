@@ -759,16 +759,16 @@ func TestRenderWorkerSkipsUnwantedRequests(t *testing.T) {
 }
 
 func TestViewportAndContentOffsets(t *testing.T) {
-	app := &App{layoutState: layoutState{winW: 800, winH: 600}, config: config.Config{StatusBarHeight: 28}, viewStateFields: viewStateFields{statusBarShown: true}}
+	app := &App{layoutState: layoutState{winW: 800, winH: 600}, sdlState: sdlState{fontFace: basicfont.Face7x13}, viewStateFields: viewStateFields{statusBarShown: true}}
 	w, h := app.viewportSize()
-	if w != 800 || h != 572 {
+	if w != 800 || h != 583 {
 		t.Fatalf("expected status bar to reduce viewport height, got %dx%d", w, h)
 	}
 
 	app.statusBarShown = false
 	app.mode = modeCommand
 	w, h = app.viewportSize()
-	if w != 800 || h != 572 {
+	if w != 800 || h != 583 {
 		t.Fatalf("expected input mode to reserve status bar height, got %dx%d", w, h)
 	}
 
@@ -786,11 +786,28 @@ func TestViewportAndContentOffsets(t *testing.T) {
 	assertClose(t, y, 0)
 }
 
+func TestStatusBarHeightFitsFont(t *testing.T) {
+	app := &App{
+		sdlState:        sdlState{fontFace: basicfont.Face7x13},
+		layoutState:     layoutState{winW: 800, winH: 600},
+		viewStateFields: viewStateFields{statusBarShown: true},
+	}
+
+	metrics := basicfont.Face7x13.Metrics()
+	wantHeight := max(metrics.Height.Ceil(), metrics.Ascent.Ceil()+metrics.Descent.Ceil()) + 4
+	if got := app.statusBarHeight(); got != wantHeight {
+		t.Fatalf("expected status bar height %d to fit font, got %d", wantHeight, got)
+	}
+	if _, got := app.viewportSize(); got != app.winH-wantHeight {
+		t.Fatalf("expected viewport to reserve expanded status bar height, got %d", got)
+	}
+}
+
 func TestToggleStatusBarKeepsConfiguredAnchorPosition(t *testing.T) {
 	app := testLayoutApp(5)
 	app.winW = 800
 	app.winH = 600
-	app.config.StatusBarHeight = 28
+	app.fontFace = basicfont.Face7x13
 	app.recomputeLayout(app.viewportSize())
 	app.scrollY = 75
 	anchor := app.captureViewportAnchor()

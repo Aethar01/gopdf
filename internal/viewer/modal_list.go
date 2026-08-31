@@ -58,7 +58,7 @@ func (a *App) modalListGeometry(widthPct, heightPct int) (sdl.FRect, int) {
 }
 
 func (a *App) modalListRowHeight() int {
-	return max(a.fontFace.Metrics().Height.Ceil()+4, a.config.StatusBarHeight)
+	return a.statusBarHeight()
 }
 
 func (a *App) modalListBaselineOffset(rowHeight int) int {

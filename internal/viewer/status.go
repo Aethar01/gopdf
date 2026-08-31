@@ -9,7 +9,7 @@ import (
 )
 
 func (a *App) drawStatusBar(renderer *sdl.Renderer) error {
-	h := a.config.StatusBarHeight
+	h := a.statusBarHeight()
 	y := a.winH - h
 	if err := fillRect(renderer, sdl.FRect{X: 0, Y: float32(y), W: float32(a.winW), H: float32(h)}, a.statusBarColor()); err != nil {
 		return err
@@ -32,6 +32,14 @@ func (a *App) drawStatusBar(renderer *sdl.Renderer) error {
 		return err
 	}
 	return nil
+}
+
+func (a *App) statusBarHeight() int {
+	if a.fontFace == nil {
+		return 4
+	}
+	metrics := a.fontFace.Metrics()
+	return max(metrics.Height.Ceil(), metrics.Ascent.Ceil()+metrics.Descent.Ceil()) + 4
 }
 
 func (a *App) formatStatusBar(template string) string {

@@ -289,7 +289,6 @@ var configOptions = map[string]optionDesc{
 		c.PageGapHorizontal = v
 		c.SpreadGap = v
 	}),
-	"status_bar_height":   intOption("Status bar height in pixels.", func(c *Config) int { return c.StatusBarHeight }, func(c *Config, v int) { c.StatusBarHeight = v }),
 	"status_bar_padding":  intOption("Horizontal status bar padding in pixels.", func(c *Config) int { return c.StatusBarPadding }, func(c *Config, v int) { c.StatusBarPadding = v }),
 	"ui_font_size":        intOption("UI font size in pixels.", func(c *Config) int { return c.UIFontSize }, func(c *Config, v int) { c.UIFontSize = v }),
 	"sequence_timeout_ms": intOption("Maximum delay between keys in a binding sequence.", func(c *Config) int { return c.SequenceTimeoutMS }, func(c *Config, v int) { c.SequenceTimeoutMS = v }),

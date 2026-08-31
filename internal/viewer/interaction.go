@@ -147,7 +147,7 @@ func (a *App) rowPageScreenOrigin(row rowLayout, pageIndex int) (float64, float6
 func (a *App) viewportSize() (int, int) {
 	h := a.winH
 	if a.statusVisible() {
-		h -= a.config.StatusBarHeight
+		h -= a.statusBarHeight()
 	}
 	if h < 1 {
 		h = 1

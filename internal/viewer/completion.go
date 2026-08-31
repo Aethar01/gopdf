@@ -257,7 +257,7 @@ func (a *App) drawCompletion(renderer *sdl.Renderer) error {
 	x := 8 + measureText(a.fontFace, a.inputPrefix()+left)
 	x = clampInt(x, 8, max(8, a.winW-width-8))
 	height := len(rows) * rowHeight
-	y := a.winH - a.config.StatusBarHeight - height - 4
+	y := a.winH - a.statusBarHeight() - height - 4
 	y = max(8, y)
 	rect := sdl.FRect{X: float32(x), Y: float32(y), W: float32(width), H: float32(height)}
 	if err := a.drawModalListFrame(renderer, rect); err != nil {

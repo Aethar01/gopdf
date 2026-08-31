@@ -79,7 +79,7 @@ func renderReference() string {
 	}
 	b.WriteString("\n## Lua tables\n\n")
 	b.WriteString("- `gopdf.document`: `path`, `name`, `extension`, `exists`, `size_bytes`, and `page_count`.\n")
-	b.WriteString("- `gopdf.status_bar`: `left`, `right`, `height`, and `visible`.\n")
+	b.WriteString("- `gopdf.status_bar`: `left`, `right`, and `visible`.\n")
 	b.WriteString("- `gopdf.options`: all entries from the configuration-options table.\n")
 	b.WriteString("- `gopdf.cache` and `gopdf.ui`: functions are listed above.\n")
 	return b.String()

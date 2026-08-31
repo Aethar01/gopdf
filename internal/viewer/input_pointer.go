@@ -47,7 +47,7 @@ func (a *App) handleInputMouseMotion(e *sdl.MouseMotionEvent) bool {
 }
 
 func (a *App) inputPositionAt(x, y float64, dragging bool) (int, bool) {
-	barY := a.winH - a.config.StatusBarHeight
+	barY := a.winH - a.statusBarHeight()
 	if !dragging && (y < float64(barY) || y > float64(a.winH)) {
 		return 0, false
 	}

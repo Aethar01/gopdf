@@ -681,8 +681,6 @@ func newLuaStatusBarTable(L *lua.LState, rt *Runtime, cfg *Config) *lua.LTable {
 			cfg.StatusBarLeft = lua.LVAsString(value)
 		case "right":
 			cfg.StatusBarRight = lua.LVAsString(value)
-		case "height":
-			cfg.StatusBarHeight = int(lua.LVAsNumber(value))
 		case "visible":
 			if rt.host != nil {
 				rt.host.SetStatusBarVisible(lua.LVAsBool(value))
@@ -700,8 +698,6 @@ func newLuaStatusBarTable(L *lua.LState, rt *Runtime, cfg *Config) *lua.LTable {
 			L.Push(lua.LString(cfg.StatusBarLeft))
 		case "right":
 			L.Push(lua.LString(cfg.StatusBarRight))
-		case "height":
-			L.Push(lua.LNumber(cfg.StatusBarHeight))
 		case "visible":
 			if rt.host != nil {
 				L.Push(lua.LBool(rt.host.StatusBarVisible()))
