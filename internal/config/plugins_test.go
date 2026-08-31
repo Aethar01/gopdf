@@ -322,6 +322,73 @@ return M
 	}
 }
 
+func TestPluginCatalogRefreshesOnReload(t *testing.T) {
+	root := t.TempDir()
+	rt, err := OpenWithOptions(filepath.Join(t.TempDir(), "missing.lua"), "", OpenOptions{PluginPaths: []string{root}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rt.Close()
+
+	dir := filepath.Join(root, "late")
+	if err := os.MkdirAll(filepath.Join(dir, "lua", "late"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "gopdf-plugin.json"), []byte(`{"id":"late","api":1}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "lua", "late", "init.lua"), []byte(`return gopdf.plugin.register("late")`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := rt.Reload(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := rt.Eval(`require("late")`); err != nil {
+		t.Fatalf("new plugin was not discovered after reload: %v", err)
+	}
+
+	if err := os.RemoveAll(dir); err != nil {
+		t.Fatal(err)
+	}
+	if err := rt.Reload(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := rt.Eval(`require("late")`); err == nil {
+		t.Fatal("removed plugin remained discoverable after reload")
+	}
+}
+
+func TestPluginEventsFollowDependencyActivationOrder(t *testing.T) {
+	dependencyRoot := writeTestPlugin(t, "zzz", `
+local M = gopdf.plugin.register("zzz")
+M:on("app_ready", function() gopdf.message(gopdf.message() .. "dependency,") end)
+return M
+`)
+	pluginRoot := writeTestPlugin(t, "aaa", `
+local M = gopdf.plugin.register("aaa")
+M:on("app_ready", function() gopdf.message(gopdf.message() .. "dependent") end)
+return M
+`)
+	manifestPath := filepath.Join(pluginRoot, "aaa", "gopdf-plugin.json")
+	if err := os.WriteFile(manifestPath, []byte(`{"id":"aaa","version":"0.1.0","api":1,"dependencies":["zzz"]}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	rt, err := OpenWithOptions(filepath.Join(t.TempDir(), "missing.lua"), "", OpenOptions{PluginPaths: []string{pluginRoot, dependencyRoot}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rt.Close()
+	if _, err := rt.Eval(`require("aaa")`); err != nil {
+		t.Fatal(err)
+	}
+	host := &stubHost{}
+	rt.AttachHost(host)
+	rt.EmitPluginEvent("app_ready", map[string]any{})
+	if host.message != "dependency,dependent" {
+		t.Fatalf("unexpected event order %q", host.message)
+	}
+}
+
 func writeTestPlugin(t *testing.T, id, source string) string {
 	t.Helper()
 	root := t.TempDir()

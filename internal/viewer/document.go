@@ -155,6 +155,7 @@ func (a *App) openDocumentWithPassword(path string, opts openDocumentOptions, pa
 	var configErr error
 	if opts.reloadConfig {
 		configErr = a.runtime.SetDocument(path, pages)
+		a.removeStaleLuaViews(a.runtime.Generation())
 	}
 	a.applyConfigState(a.runtime.Config(), false)
 	a.message = a.config.NormalMessage
@@ -193,7 +194,7 @@ func (a *App) resetForNewDocument(password string) {
 	a.search = searchState{}
 	a.outlineMenu = outlineMenuState{}
 	a.keybindMenu = keybindMenuState{}
-	a.closeAllUIViews()
+	a.closeAllUIViews(true)
 	a.completion = completionState{}
 	a.mode = modeNormal
 	a.input.Reset()

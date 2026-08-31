@@ -237,7 +237,11 @@ func (a *App) runBuiltinAction(action string) error {
 }
 
 func (a *App) closeAllUI() {
-	a.closeAllUIViews()
+	a.closeAllUIWithCallbacks(true)
+}
+
+func (a *App) closeAllUIWithCallbacks(callCallbacks bool) {
+	a.closeAllUIViews(callCallbacks)
 	if a.mode != modeNormal {
 		a.closeCompletion()
 		if a.mode == modePassword {
@@ -611,11 +615,16 @@ func unescapeCommandArg(arg string) string {
 }
 
 func (a *App) reloadConfig() {
-	if err := a.runtime.Reload(); err != nil {
+	oldActive := a.activeUIView()
+	err := a.runtime.Reload()
+	a.removeStaleLuaViews(a.runtime.Generation())
+	if err != nil {
+		if oldActive != nil && a.views.views[oldActive.id] == oldActive {
+			a.showUIView(oldActive)
+		}
 		a.message = err.Error()
 		return
 	}
-	a.views.removeOwner("lua")
 	cfg := a.runtime.Config()
 	a.applyConfig(cfg)
 	a.emitPluginEvent("config_reloaded", a.documentEventPayload())

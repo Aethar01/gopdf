@@ -39,6 +39,7 @@ type pluginCatalog struct {
 type pluginState struct {
 	runtime          *Runtime
 	active           map[string]*pluginInstance
+	activationOrder  []string
 	nextSubscription int
 }
 
@@ -360,6 +361,12 @@ func pluginLocalModulePath(manifest pluginManifest, name string) (string, string
 func (r *Runtime) rollbackPluginLoad(id string) {
 	if r.plugins != nil {
 		delete(r.plugins.active, id)
+		for i, activeID := range r.plugins.activationOrder {
+			if activeID == id {
+				r.plugins.activationOrder = append(r.plugins.activationOrder[:i], r.plugins.activationOrder[i+1:]...)
+				break
+			}
+		}
 	}
 	for jobID, job := range r.jobs {
 		if job.plugin == id && job.generation == r.pluginGeneration {
@@ -531,6 +538,7 @@ func (r *Runtime) registerPlugin(L *lua.LState, id string, spec *lua.LTable) (*l
 	}))
 	L.SetMetatable(module, metatable)
 	r.plugins.active[id] = instance
+	r.plugins.activationOrder = append(r.plugins.activationOrder, id)
 	return module, nil
 }
 
@@ -1073,11 +1081,7 @@ func (r *Runtime) emitPluginEvent(event string, payload map[string]any) bool {
 }
 
 func (r *Runtime) emitPluginEventCallbacks(event string, payload map[string]any) bool {
-	ids := make([]string, 0, len(r.plugins.active))
-	for id := range r.plugins.active {
-		ids = append(ids, id)
-	}
-	sort.Strings(ids)
+	ids := append([]string(nil), r.plugins.activationOrder...)
 	consumed := false
 	for _, id := range ids {
 		instance := r.plugins.active[id]

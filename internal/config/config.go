@@ -78,6 +78,8 @@ type Runtime struct {
 	dirty            bool
 	verbose          bool
 	pluginCatalog    *pluginCatalog
+	pluginPaths      []string
+	disabledPlugins  []string
 	plugins          *pluginState
 	jobs             map[int]pluginJob
 	jobResults       chan pluginJobResult
@@ -97,6 +99,7 @@ type UIOverlay struct {
 	Searchable bool
 	OnSelect   string
 	OnClose    string
+	Generation int
 }
 
 type UIListRow struct {

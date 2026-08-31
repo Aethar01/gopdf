@@ -9,7 +9,11 @@ import (
 )
 
 func (a *App) ShowUI(spec config.UIOverlay) error {
-	a.closeAllUI()
+	callCallbacks := true
+	if active := a.activeUIView(); active != nil && active.owner == "lua" && active.generation != spec.Generation {
+		callCallbacks = false
+	}
+	a.closeAllUIWithCallbacks(callCallbacks)
 	view := a.createLuaListView(spec)
 	view.onKey = func(a *App, e *sdl.KeyboardEvent) bool { return a.handleGenericUIViewKey(view, e) }
 	view.onMouseButton = func(a *App, e *sdl.MouseButtonEvent) bool { return a.handleGenericUIViewMouseButton(view, e) }
@@ -20,7 +24,7 @@ func (a *App) ShowUI(spec config.UIOverlay) error {
 
 func (a *App) CloseUI(id string) {
 	view := a.views.views[id]
-	a.closeUIView(view, false)
+	a.closeUIView(view, true)
 }
 
 func (a *App) UIVisible(id string) bool {
@@ -41,7 +45,11 @@ func (a *App) SetUISelected(id string, selected int) {
 	if view == nil {
 		return
 	}
-	view.selected = clampInt(selected-1, 0, max(0, len(view.rows)-1))
+	if len(view.rows) == 0 {
+		view.selected = -1
+	} else {
+		view.selected = clampInt(selected-1, 0, len(view.rows)-1)
+	}
 	a.ensureUIViewSelectionVisible(view)
 	a.pendingRedraw = true
 }
@@ -189,10 +197,15 @@ func (a *App) scrollUIViewBy(view *uiView, delta int) {
 }
 
 func (a *App) activateUIView(view *uiView) {
-	if view == nil || view.selected < 0 || view.selected >= len(view.rows) || view.rows[view.selected].disabled || view.onSelect == nil {
+	if view == nil || view.onSelect == nil {
 		return
 	}
-	view.onSelect(a, view.rows[view.selected])
+	for _, row := range view.visibleRows() {
+		if row.index == view.selected && !row.disabled {
+			view.onSelect(a, row)
+			return
+		}
+	}
 }
 
 func (a *App) handleGenericUIViewMouseButton(view *uiView, e *sdl.MouseButtonEvent) bool {

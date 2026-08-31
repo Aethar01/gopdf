@@ -12,6 +12,7 @@ import (
 
 type uiRow struct {
 	index     int
+	id        string
 	text      string
 	value     string
 	secondary string
@@ -23,6 +24,7 @@ type uiRow struct {
 type uiView struct {
 	id                   string
 	owner                string
+	generation           int
 	title                string
 	rows                 []uiRow
 	selected             int
@@ -90,18 +92,6 @@ func (m *uiManager) closeAll() {
 	m.active = nil
 }
 
-func (m *uiManager) removeOwner(owner string) {
-	for id, view := range m.views {
-		if view.owner != owner {
-			continue
-		}
-		delete(m.views, id)
-		if m.active == view {
-			m.active = nil
-		}
-	}
-}
-
 func (v *uiView) visibleRows() []uiRow {
 	query := strings.ToLower(strings.TrimSpace(v.query))
 	if query == "" {
@@ -147,6 +137,13 @@ func (a *App) activeModalUIView() *uiView {
 
 func (a *App) showUIView(view *uiView) {
 	a.views.show(view)
+	items := view.visibleRows()
+	if len(items) == 0 {
+		view.selected = -1
+		view.scroll = 0
+	} else {
+		uiViewSelectedRow(view, items)
+	}
 	a.pendingRedraw = true
 }
 
@@ -162,9 +159,39 @@ func (a *App) closeUIView(view *uiView, callCallback bool) {
 	}
 }
 
-func (a *App) closeAllUIViews() {
+func (a *App) closeAllUIViews(callCallbacks bool) {
+	visible := make([]*uiView, 0, 1)
+	for _, view := range a.views.views {
+		if view.visible {
+			visible = append(visible, view)
+		}
+	}
 	a.views.closeAll()
 	a.pendingRedraw = true
+	a.syncTextInput()
+	if callCallbacks {
+		for _, view := range visible {
+			if view.onClose != nil {
+				view.onClose(a)
+			}
+		}
+	}
+}
+
+func (a *App) removeStaleLuaViews(generation int) {
+	for id, view := range a.views.views {
+		if view.owner != "lua" || view.generation == generation {
+			continue
+		}
+		delete(a.views.views, id)
+		view.visible = false
+		if a.views.active == view {
+			a.views.active = nil
+		}
+		if state := a.smoothScrollState(); state != nil && state.modalView == view {
+			a.cancelSmoothScroll()
+		}
+	}
 }
 
 func (a *App) setUIViewRows(view *uiView, rows []uiRow) {
@@ -394,7 +421,7 @@ func (a *App) uiViewHover(view *uiView, x, y int) bool {
 func uiRowsFromConfig(rows []config.UIListRow) []uiRow {
 	result := make([]uiRow, len(rows))
 	for i, row := range rows {
-		result[i] = uiRow{index: i, text: row.Text, value: row.Value, secondary: row.Secondary, depth: row.Depth, disabled: row.Disabled}
+		result[i] = uiRow{index: i, id: row.ID, text: row.Text, value: row.Value, secondary: row.Secondary, depth: row.Depth, disabled: row.Disabled}
 	}
 	return result
 }
@@ -408,7 +435,11 @@ func uiRowsFromStrings(rows []string) []uiRow {
 }
 
 func (a *App) createCoreListView(id, title string, rows []uiRow, widthPercent, heightPercent int) *uiView {
-	view := &uiView{id: id, owner: "core", title: title, rows: rows, selected: 0, searchable: true, modal: true, widthPercent: widthPercent, heightPercent: heightPercent}
+	selected := -1
+	if len(rows) > 0 {
+		selected = 0
+	}
+	view := &uiView{id: id, owner: "core", title: title, rows: rows, selected: selected, searchable: true, modal: true, widthPercent: widthPercent, heightPercent: heightPercent}
 	a.views.add(view)
 	return view
 }
@@ -425,12 +456,17 @@ func (a *App) showCoreList(id, title string, rows []string, onSelect func(string
 }
 
 func (a *App) createLuaListView(spec config.UIOverlay) *uiView {
+	selected := -1
+	if len(spec.Rows) > 0 {
+		selected = clampInt(spec.Selected-1, 0, len(spec.Rows)-1)
+	}
 	view := &uiView{
 		id:            spec.ID,
 		owner:         "lua",
+		generation:    spec.Generation,
 		title:         spec.Title,
 		rows:          uiRowsFromConfig(spec.Rows),
-		selected:      clampInt(spec.Selected-1, 0, max(0, len(spec.Rows)-1)),
+		selected:      selected,
 		scroll:        max(0, spec.Scroll),
 		query:         spec.Query,
 		searchable:    spec.Searchable,
@@ -444,7 +480,7 @@ func (a *App) createLuaListView(spec config.UIOverlay) *uiView {
 	if spec.OnSelect != "" {
 		callback := spec.OnSelect
 		view.onSelect = func(a *App, row uiRow) {
-			if err := a.runtime.RunUISelect(callback, row.index+1, row.value, row.text); err != nil {
+			if err := a.runtime.RunUISelect(callback, row.index+1, row.value, row.text, row.id); err != nil {
 				a.message = err.Error()
 			}
 			a.applyRuntimeChanges("ui_select")

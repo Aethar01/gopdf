@@ -54,10 +54,8 @@ func OpenWithOptions(explicitPath, docPath string, options OpenOptions) (*Runtim
 		pluginPaths = append(pluginPaths, options.PluginPaths...)
 		pluginPaths = append(pluginPaths, PluginPaths()...)
 	}
-	rt.pluginCatalog = discoverPluginCatalog(pluginPaths, options.DisabledPlugins)
-	for _, warning := range rt.pluginCatalog.warnings {
-		rt.logf("%s", warning)
-	}
+	rt.pluginPaths = unique(pluginPaths)
+	rt.disabledPlugins = append([]string(nil), options.DisabledPlugins...)
 	if err := rt.Reload(); err != nil {
 		return nil, err
 	}
@@ -138,12 +136,17 @@ func (r *Runtime) Reload() error {
 	oldCallbacks := r.callbacks
 	oldCallbackSeq := r.callbackSeq
 	oldPlugins := r.plugins
+	oldPluginCatalog := r.pluginCatalog
 	oldJobs := r.jobs
 	oldPluginGeneration := r.pluginGeneration
 	oldDirty := r.dirty
 	committed := false
 	r.state = nil
 	r.plugins = nil
+	r.pluginCatalog = discoverPluginCatalog(r.pluginPaths, r.disabledPlugins)
+	for _, warning := range r.pluginCatalog.warnings {
+		r.logf("%s", warning)
+	}
 	r.cfg = Default()
 	r.callbacks = map[string]*lua.LFunction{}
 	r.callbackSeq = 0
@@ -163,6 +166,7 @@ func (r *Runtime) Reload() error {
 		r.callbacks = oldCallbacks
 		r.callbackSeq = oldCallbackSeq
 		r.plugins = oldPlugins
+		r.pluginCatalog = oldPluginCatalog
 		r.jobs = oldJobs
 		r.pluginGeneration = oldPluginGeneration
 		r.dirty = oldDirty
@@ -213,6 +217,13 @@ func (r *Runtime) Reload() error {
 	r.logf("no user config loaded")
 	committed = true
 	return nil
+}
+
+func (r *Runtime) Generation() int {
+	if r == nil {
+		return 0
+	}
+	return r.pluginGeneration
 }
 
 func (r *Runtime) closeLuaState() {
@@ -278,8 +289,8 @@ func (r *Runtime) Eval(code string) (bool, error) {
 
 func (r *Runtime) RunUISelect(callback string, index int, value string, text ...string) error {
 	args := []lua.LValue{lua.LNumber(index), lua.LString(value)}
-	if len(text) > 0 {
-		args = append(args, lua.LString(text[0]))
+	for _, detail := range text {
+		args = append(args, lua.LString(detail))
 	}
 	return r.runCallback(callback, args...)
 }

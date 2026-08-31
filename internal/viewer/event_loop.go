@@ -197,22 +197,7 @@ func (a *App) handleSDLEvent(event *sdl.Event) error {
 		a.endPinch()
 	case sdl.EventMouseButtonDown, sdl.EventMouseButtonUp:
 		e := event.Button()
-		consumed := false
-		if a.runtime != nil {
-			payload := a.pluginMouseEventPayload(&e)
-			if e.Type == sdl.EventMouseButtonDown {
-				consumed = a.emitPluginEvent("mouse_button_pre", payload)
-			}
-			if !consumed {
-				consumed = a.handleInputMouseButton(&e)
-			}
-			if !consumed {
-				a.handleSDLMouseButton(&e)
-			}
-			a.emitPluginEvent("mouse_button", payload)
-		} else if !a.handleInputMouseButton(&e) {
-			a.handleSDLMouseButton(&e)
-		}
+		a.handleMouseButtonEvent(&e)
 	case sdl.EventMouseMotion:
 		e := event.Motion()
 		if a.handleInputMouseMotion(&e) {
@@ -231,6 +216,24 @@ func (a *App) handleSDLEvent(event *sdl.Event) error {
 		a.pendingRedraw = true
 	}
 	return nil
+}
+
+func (a *App) handleMouseButtonEvent(e *sdl.MouseButtonEvent) {
+	if a.runtime == nil {
+		if !a.handleInputMouseButton(e) {
+			a.handleSDLMouseButton(e)
+		}
+		return
+	}
+	payload := a.pluginMouseEventPayload(e)
+	consumed := a.emitPluginEvent("mouse_button_pre", payload)
+	if !consumed {
+		consumed = a.handleInputMouseButton(e)
+	}
+	if !consumed {
+		a.handleSDLMouseButton(e)
+	}
+	a.emitPluginEvent("mouse_button", payload)
 }
 
 func (a *App) pluginMouseEventPayload(e *sdl.MouseButtonEvent) map[string]any {

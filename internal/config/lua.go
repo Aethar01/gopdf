@@ -611,6 +611,7 @@ func uiOverlayFromLuaSpec(L *lua.LState, rt *Runtime, spec *lua.LTable) UIOverla
 		Rows:       luaTableUIRows(spec.RawGetString("rows")),
 		Selected:   1,
 		Searchable: true,
+		Generation: rt.pluginGeneration,
 	}
 	if selected := spec.RawGetString("selected"); selected.Type() == lua.LTNumber {
 		overlay.Selected = int(lua.LVAsNumber(selected))
