@@ -1172,3 +1172,41 @@ options.highlight_background = { 25, 26, 27 }
 		}
 	}
 }
+
+// --no-config starts from built-in defaults: neither the user's file nor the
+// generated settings file is read.
+func TestNoConfigIgnoresConfigurationFiles(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config.lua")
+	if err := os.WriteFile(configPath, []byte(`gopdf.options.scroll_off = 12`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	loaded, err := OpenWithOptions(configPath, "", OpenOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer loaded.Close()
+	if loaded.Config().ScrollOff != 12 {
+		t.Fatalf("control case did not apply the config: ScrollOff = %d", loaded.Config().ScrollOff)
+	}
+
+	skipped, err := OpenWithOptions(configPath, "", OpenOptions{NoConfig: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer skipped.Close()
+	if got, want := skipped.Config().ScrollOff, Default().ScrollOff; got != want {
+		t.Fatalf("ScrollOff = %d, want the default %d", got, want)
+	}
+	if skipped.Config().ConfigPath != "" {
+		t.Errorf("ConfigPath = %q, want empty", skipped.Config().ConfigPath)
+	}
+	if skipped.Config().AutogenPath != "" {
+		t.Errorf("AutogenPath = %q, want empty", skipped.Config().AutogenPath)
+	}
+	// The Lua runtime still exists, so plugins and callbacks remain usable.
+	if _, err := skipped.Eval(`assert(type(gopdf) == "table")`); err != nil {
+		t.Fatalf("no-config runtime is unusable: %v", err)
+	}
+}

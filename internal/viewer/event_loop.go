@@ -70,8 +70,12 @@ func (a *App) Run() error {
 				a.pendingRedraw = true
 			}
 		}
+		if a.pollInstanceCommands() {
+			a.pendingRedraw = true
+		}
 		a.pollRenderUpdates()
 		a.pollMetricUpdates()
+		a.flushPendingInstanceJump()
 		a.pollSearchUpdates()
 		a.pollDocumentUpdate()
 		a.expireSequence()

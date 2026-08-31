@@ -147,6 +147,7 @@ func (a *App) openDocumentWithPassword(path string, opts openDocumentOptions, pa
 
 	a.document.record(path)
 	a.installDocument(doc, path, pages, startPage)
+	a.rebindInstanceServer()
 	a.resetForNewDocument(password)
 
 	a.initDocumentMetrics(doc, pages, startPage)
@@ -317,6 +318,7 @@ func (a *App) softReloadDocument(path string, state viewState) error {
 	a.closeDocumentResources()
 
 	a.installDocument(doc, path, pages, startPage)
+	a.rebindInstanceServer()
 
 	a.initDocumentMetrics(doc, pages, startPage)
 	a.logf("soft reloaded document path=%q pages=%d page=%d", path, pages, startPage+1)

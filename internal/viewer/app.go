@@ -13,6 +13,7 @@ import (
 
 	"gopdf/internal/actions"
 	"gopdf/internal/config"
+	"gopdf/internal/instance"
 	"gopdf/internal/mupdf"
 
 	"github.com/jupiterrider/purego-sdl3/sdl"
@@ -105,10 +106,15 @@ type documentWorkers struct {
 type documentState struct {
 	documentAPIMu sync.Mutex
 	viewEvents    viewStateEvents
-	docPath       string
-	docName       string
-	docPassword   string
-	doc           *mupdf.Document
+	// instanceServer is nil unless single-instance handling is enabled.
+	singleInstance      bool
+	instanceServer      *instance.Server
+	instanceAddress     string
+	pendingInstanceJump *instanceJump
+	docPath             string
+	docName             string
+	docPassword         string
+	doc                 *mupdf.Document
 
 	pageCount  int
 	page       int

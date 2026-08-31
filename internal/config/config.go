@@ -80,6 +80,7 @@ type Runtime struct {
 	pluginCatalog    *pluginCatalog
 	pluginPaths      []string
 	disabledPlugins  []string
+	noConfig         bool
 	plugins          *pluginState
 	jobs             map[int]pluginJob
 	jobResults       chan pluginJobResult

@@ -28,10 +28,16 @@ func Open(explicitPath, docPath string, verbose ...bool) (*Runtime, error) {
 }
 
 type OpenOptions struct {
-	Verbose         bool
-	PluginPaths     []string
+	Verbose bool
+	// PluginPaths are searched ahead of the platform directories.
+	PluginPaths []string
+	// DisabledPlugins are discovered but refuse to load.
 	DisabledPlugins []string
-	NoPlugins       bool
+	// NoPlugins skips plugin discovery entirely.
+	NoPlugins bool
+	// NoConfig starts from built-in defaults, loading neither the user's
+	// configuration nor the generated settings file.
+	NoConfig bool
 }
 
 func OpenWithOptions(explicitPath, docPath string, options OpenOptions) (*Runtime, error) {
@@ -58,6 +64,7 @@ func OpenWithOptions(explicitPath, docPath string, options OpenOptions) (*Runtim
 	}
 	rt.pluginPaths = unique(pluginPaths)
 	rt.disabledPlugins = append([]string(nil), options.DisabledPlugins...)
+	rt.noConfig = options.NoConfig
 	if err := rt.Reload(); err != nil {
 		return nil, err
 	}
@@ -178,6 +185,15 @@ func (r *Runtime) Reload() error {
 		r.pluginGeneration = oldPluginGeneration
 		r.dirty = oldDirty
 	}()
+	// --no-config means built-in defaults only: neither the user's file nor the
+	// generated one is read, and nothing is written back.
+	if r.noConfig {
+		r.initLuaState()
+		r.dirty = false
+		r.logf("configuration disabled")
+		committed = true
+		return nil
+	}
 	autogenPath := r.autogenPath()
 	if autogenPath != "" {
 		if info, err := os.Stat(autogenPath); err == nil && !info.IsDir() {

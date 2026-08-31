@@ -70,13 +70,39 @@ The release provides an installer with optional PDF file association and a porta
 
 ```bash
 gopdf /path/to/file.pdf      # open a document
-gopdf --page 20 file.pdf     # start on page 20
+gopdf --goto 20 file.pdf     # start on page 20
 gopdf --config custom.lua file.pdf
+gopdf --no-config file.pdf   # built-in defaults only
+gopdf --no-plugins file.pdf  # skip plugin loading
 gopdf -v                     # print version
 gopdf -V                     # enable verbose logs
 ```
 
 Use `F1` to inspect or edit keybindings and `:help` to view available commands.
+
+### Single instance
+
+Instances are per document: each window can be reached by whoever opens the
+same file.
+
+```bash
+gopdf --unique file.pdf                  # reuse the window showing file.pdf
+gopdf --unique --goto 42 file.pdf        # ... and go to page 42
+gopdf --unique --goto 42:100:250 f.pdf   # ... to a point on page 42
+gopdf --goto 42 file.pdf                 # always a new window, opened at 42
+```
+
+`X` and `Y` are points from the page's top-left corner.
+
+With no window showing that document, `--unique` simply opens one, applying any
+`--goto` as it starts. A different document is a different instance, so opening
+two files gives two windows. The address follows the document, so a window that
+switches files becomes reachable under the new one.
+
+Sockets are created mode 0600 under `$XDG_RUNTIME_DIR/gopdf` on Linux, the
+per-user temporary directory on macOS, and `%LOCALAPPDATA%\gopdf` on Windows,
+and are named by a hash of the document path. One left behind by a crash is
+reclaimed automatically.
 
 ## Configuration
 
