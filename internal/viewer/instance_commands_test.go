@@ -158,3 +158,50 @@ func TestSingleInstanceWithoutADocumentDoesNotListen(t *testing.T) {
 		t.Fatal("a window with no document has nothing to be addressed by")
 	}
 }
+
+// A command the viewer does not know must fail the caller, not exit cleanly.
+// This also guards the message prefix the check depends on.
+func TestInstanceRunReportsUnknownCommand(t *testing.T) {
+	app := testLayoutApp(3)
+	err := app.applyInstanceRun("definitely-not-a-command")
+	if err == nil {
+		t.Fatal("an unknown command reported success")
+	}
+	if !strings.Contains(err.Error(), "unknown command") {
+		t.Fatalf("err = %v, want it to name the unknown command", err)
+	}
+	// The dispatcher's wording is what the check keys on; if it changes, this
+	// fails rather than silently letting typos succeed.
+	if !strings.HasPrefix(app.message, unknownCommandPrefix) {
+		t.Fatalf("viewer message = %q, want the %q prefix", app.message, unknownCommandPrefix)
+	}
+	if err := app.applyInstanceRun(""); err == nil {
+		t.Error("an empty command should be rejected")
+	}
+}
+
+// The window keeps its last message, so a failure must not be attributed to a
+// later command, and a silent command must not wipe what is on screen.
+func TestInstanceRunDoesNotInheritAStaleMessage(t *testing.T) {
+	app := testLayoutApp(3)
+	if err := app.applyInstanceRun("definitely-not-a-command"); err == nil {
+		t.Fatal("the first unknown command should fail")
+	}
+	// A valid command must now succeed even though the failure is still shown.
+	if err := app.applyInstanceRun("fit page"); err != nil {
+		t.Fatalf("a valid command inherited the previous failure: %v", err)
+	}
+	// The same typo must fail again rather than being deduplicated.
+	if err := app.applyInstanceRun("definitely-not-a-command"); err == nil {
+		t.Fatal("a repeated unknown command should fail again")
+	}
+
+	// A command that reports nothing leaves the existing message alone.
+	app.message = "something the user should still see"
+	if err := app.applyInstanceRun("fit page"); err != nil {
+		t.Fatal(err)
+	}
+	if app.message != "something the user should still see" {
+		t.Fatalf("message = %q, want it preserved", app.message)
+	}
+}

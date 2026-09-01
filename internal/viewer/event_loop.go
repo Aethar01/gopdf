@@ -53,6 +53,7 @@ func (a *App) Run() error {
 	a.syncTextInput()
 	if a.runtime != nil {
 		a.emitPluginEvent("app_ready", a.documentEventPayload())
+		a.flushPendingInstanceCommand()
 	}
 	defer a.stopTextInput()
 	defer a.cancelSmoothScroll()

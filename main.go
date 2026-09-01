@@ -32,6 +32,7 @@ func run() error {
 	var noConfig bool
 	var unique bool
 	var gotoSpec string
+	var command string
 	flag.StringVar(&cfgPath, "config", "", "path to config.lua")
 	flag.BoolVar(&printVersion, "v", false, "print version")
 	flag.BoolVar(&verbose, "V", false, "enable verbose logging")
@@ -39,6 +40,7 @@ func run() error {
 	flag.BoolVar(&noConfig, "no-config", false, "start from built-in defaults, ignoring configuration files")
 	flag.BoolVar(&unique, "unique", false, "reuse the window already showing this document, if there is one")
 	flag.StringVar(&gotoSpec, "goto", "", "open at PAGE, or at X:Y points from the top-left corner of PAGE")
+	flag.StringVar(&command, "command", "", "run a viewer command, as typed after ':'")
 	flag.Parse()
 
 	if printVersion {
@@ -85,7 +87,7 @@ func run() error {
 	// With --unique, a window already showing this document does the work and
 	// this process exits. Any other document is a different instance.
 	if unique && docPath != "" {
-		handled, err := handOffToRunningInstance(docPath, target)
+		handled, err := handOffToRunningInstance(docPath, target, command)
 		if err != nil {
 			return err
 		}
@@ -119,6 +121,9 @@ func run() error {
 	if target != nil && target.HasPoint {
 		app.QueueStartupJump(target.Page, target.X, target.Y, target.HasPoint)
 	}
+	// No window was showing this document, so this process runs the command
+	// itself once its plugins are ready.
+	app.QueueStartupCommand(command)
 
 	return app.Run()
 }
@@ -126,7 +131,7 @@ func run() error {
 // handOffToRunningInstance asks the window already showing docPath to do the
 // work. It reports whether the request was accepted; no such window is not an
 // error, since the caller then opens one.
-func handOffToRunningInstance(docPath string, target *instance.Request) (bool, error) {
+func handOffToRunningInstance(docPath string, target *instance.Request, command string) (bool, error) {
 	address, err := instance.AddressFor(docPath)
 	if err != nil {
 		return false, nil
@@ -140,6 +145,12 @@ func handOffToRunningInstance(docPath string, target *instance.Request) (bool, e
 	}
 	if _, err := instance.Send(address, request); err != nil {
 		return false, fmt.Errorf("hand off to running gopdf: %w", err)
+	}
+	// The command runs after the open so it acts on the requested document.
+	if command != "" {
+		if _, err := instance.Send(address, instance.Request{Command: "run", Text: command}); err != nil {
+			return false, fmt.Errorf("run %q: %w", command, err)
+		}
 	}
 	return true, nil
 }

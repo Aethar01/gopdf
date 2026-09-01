@@ -2,6 +2,7 @@ package viewer
 
 import (
 	"fmt"
+	"strings"
 
 	"gopdf/internal/instance"
 
@@ -104,9 +105,36 @@ func (a *App) applyInstanceRequest(request instance.Request) error {
 	switch request.Command {
 	case "open":
 		return a.applyInstanceOpen(request)
+	case "run":
+		return a.applyInstanceRun(request.Text)
 	default:
 		return fmt.Errorf("unknown command %q", request.Command)
 	}
+}
+
+const unknownCommandPrefix = "unknown command: "
+
+func (a *App) applyInstanceRun(command string) error {
+	if command == "" {
+		return fmt.Errorf("run: empty command")
+	}
+	// Clear first: the window keeps the last message indefinitely, so without
+	// this a stale failure would be blamed on the command that follows it.
+	previous := a.message
+	a.message = ""
+	// Built-in and plugin commands share this entry point, so an outside tool
+	// can drive anything the command line can.
+	if err := a.RunCommand(command); err != nil {
+		return err
+	}
+	if strings.HasPrefix(a.message, unknownCommandPrefix) {
+		return fmt.Errorf("%s", a.message)
+	}
+	if a.message == "" {
+		// The command said nothing, so leave the window as it was.
+		a.message = previous
+	}
+	return nil
 }
 
 func (a *App) applyInstanceOpen(request instance.Request) error {
@@ -176,6 +204,27 @@ func (a *App) pageRelativeToDocument(page int, x, y float64) (float64, float64) 
 	}
 	bounds := a.pageMetrics[index].bounds
 	return x + float64(bounds.X0), y + float64(bounds.Y0)
+}
+
+// QueueStartupCommand defers a --command until plugins have loaded, so asking
+// a viewer that is not running yet to do something still works.
+func (a *App) QueueStartupCommand(command string) {
+	if command != "" {
+		a.pendingInstanceCommand = command
+	}
+}
+
+// flushPendingInstanceCommand runs a queued startup command. It is called once
+// the document and plugins are ready.
+func (a *App) flushPendingInstanceCommand() {
+	if a.pendingInstanceCommand == "" {
+		return
+	}
+	command := a.pendingInstanceCommand
+	a.pendingInstanceCommand = ""
+	if err := a.RunCommand(command); err != nil {
+		a.logf("startup command %q: %v", command, err)
+	}
 }
 
 // QueueStartupJump defers a --goto until the document has loaded. The viewer

@@ -107,14 +107,15 @@ type documentState struct {
 	documentAPIMu sync.Mutex
 	viewEvents    viewStateEvents
 	// instanceServer is nil unless single-instance handling is enabled.
-	singleInstance      bool
-	instanceServer      *instance.Server
-	instanceAddress     string
-	pendingInstanceJump *instanceJump
-	docPath             string
-	docName             string
-	docPassword         string
-	doc                 *mupdf.Document
+	singleInstance         bool
+	instanceServer         *instance.Server
+	instanceAddress        string
+	pendingInstanceJump    *instanceJump
+	pendingInstanceCommand string
+	docPath                string
+	docName                string
+	docPassword            string
+	doc                    *mupdf.Document
 
 	pageCount  int
 	page       int

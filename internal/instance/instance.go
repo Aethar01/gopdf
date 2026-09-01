@@ -1,9 +1,6 @@
 // Package instance lets one gopdf process hand work to another that is already
-// running: opening a document in the existing window instead of a new one, and
-// moving to a page or a point on it.
-//
-// The transport is a Unix domain socket, which Windows has supported since
-// version 1803, so the same code serves every platform.
+// running: opening a document in the existing window instead of a new one,
+// moving to a page or a point on it, and running a viewer command there.
 package instance
 
 import (
@@ -31,7 +28,7 @@ const replyTimeout = 10 * time.Second
 
 // Request is one command for a running instance.
 type Request struct {
-	// Command is "open" or "ping".
+	// Command is "open", "run", or "ping".
 	Command string `json:"command"`
 	// Path is the document to open, absolute.
 	Path string `json:"path,omitempty"`
@@ -41,6 +38,9 @@ type Request struct {
 	X        float64 `json:"x,omitempty"`
 	Y        float64 `json:"y,omitempty"`
 	HasPoint bool    `json:"has_point,omitempty"`
+	// Text is the viewer command line for the "run" command, without its
+	// leading colon.
+	Text string `json:"text,omitempty"`
 }
 
 // Response is what the running instance reports back.

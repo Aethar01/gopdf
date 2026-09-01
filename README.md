@@ -90,6 +90,7 @@ gopdf --unique file.pdf                  # reuse the window showing file.pdf
 gopdf --unique --goto 42 file.pdf        # ... and go to page 42
 gopdf --unique --goto 42:100:250 f.pdf   # ... to a point on page 42
 gopdf --goto 42 file.pdf                 # always a new window, opened at 42
+gopdf --unique --command "reload-config" f.pdf   # run a command in that window
 ```
 
 `X` and `Y` are points from the page's top-left corner.
