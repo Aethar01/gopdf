@@ -171,7 +171,9 @@ func (r *Runtime) schedule(callback *lua.LFunction) (int, error) {
 }
 
 func (r *Runtime) PollPluginOperations() bool {
-	return r.pollPluginOperations() || r.pollPluginJobs()
+	operations := r.pollPluginOperations()
+	jobs := r.pollPluginJobs()
+	return operations || jobs
 }
 
 func (r *Runtime) PluginOperationsActive() bool { return r.pluginOperationsActive() }

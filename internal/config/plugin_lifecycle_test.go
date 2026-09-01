@@ -10,6 +10,7 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestPluginFSSymlinkHandling(t *testing.T) {
@@ -372,6 +373,38 @@ assert(by_name["broken"].size_bytes == 0)
 for _, entry in ipairs(sample.unfollowed.entries) do
   if entry.name == "broken" then assert(entry.error == "" and entry.type == "symlink") end
 end
+`); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// PollPluginOperations must drain operations and jobs in the same call. A
+// short-circuit would leave job callbacks waiting behind unrelated work.
+func TestPollDrainsOperationsAndJobsTogether(t *testing.T) {
+	rt := openPluginRuntime(t, fmt.Sprintf(`
+local M = gopdf.plugin.register("sample")
+M.timer_fired = false
+M.job_done = false
+M.timer:after(1, function() M.timer_fired = true end)
+M:job({command=%q, env={GOPDF_PLUGIN_JOB_SLEEP_MS="1"}}, function() M.job_done = true end)
+return M
+`, os.Args[0]))
+
+	// Wait for both to be ready, then poll exactly once.
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		if len(rt.operationResults) > 0 && len(rt.jobResults) > 0 {
+			break
+		}
+		time.Sleep(time.Millisecond)
+	}
+	if len(rt.operationResults) == 0 || len(rt.jobResults) == 0 {
+		t.Skip("could not get an operation and a job ready at the same time")
+	}
+	rt.PollPluginOperations()
+	if _, err := rt.Eval(`
+assert(sample.timer_fired, "the timer callback did not run")
+assert(sample.job_done, "the job callback was skipped by the same poll")
 `); err != nil {
 		t.Fatal(err)
 	}
