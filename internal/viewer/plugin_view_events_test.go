@@ -30,7 +30,7 @@ func viewEventApp(t *testing.T, pageCount int) *App {
 	if err := os.MkdirAll(filepath.Join(dir, "lua", "viewevents"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, "gopdf-plugin.json"), []byte(`{"id":"viewevents","version":"0.1.0","api":2}`), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "gopdf-plugin.json"), []byte(`{"id":"viewevents","version":"0.1.0"}`), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(dir, "lua", "viewevents", "init.lua"), []byte(viewEventPlugin), 0o644); err != nil {

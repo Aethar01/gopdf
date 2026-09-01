@@ -2,7 +2,7 @@ package config
 
 import lua "github.com/yuin/gopher-lua"
 
-// PreloadPortableLuaModules installs the API 2 synchronous modules in package.preload.
+// PreloadPortableLuaModules installs the synchronous modules in package.preload.
 func PreloadPortableLuaModules(L *lua.LState) {
 	preloadLuaModule(L, "gopdf.platform", NewLuaPlatformModule)
 	preloadLuaModule(L, "gopdf.path", NewLuaPathModule)

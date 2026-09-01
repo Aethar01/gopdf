@@ -67,7 +67,7 @@ func NewLuaPathModule(L *lua.LState) *lua.LTable {
 		},
 	}
 	// Short names remain useful when requiring the standalone module; gopdf.path
-	// documents the explicit API 2 names below.
+	// documents the explicit names below.
 	functions["base"] = functions["basename"]
 	functions["dir"] = functions["dirname"]
 	functions["ext"] = functions["extension"]

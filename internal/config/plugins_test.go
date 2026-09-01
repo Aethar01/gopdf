@@ -156,7 +156,7 @@ func TestPluginManifestModuleSelectsEntrypoint(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(dir, "lua", "entry"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, "gopdf-plugin.json"), []byte(`{"id":"sample","api":1,"module":"entry.main"}`), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "gopdf-plugin.json"), []byte(`{"id":"sample","module":"entry.main"}`), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(dir, "lua", "entry", "main.lua"), []byte(`return gopdf.plugin.register("sample")`), 0o644); err != nil {
@@ -334,7 +334,7 @@ func TestPluginCatalogRefreshesOnReload(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(dir, "lua", "late"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, "gopdf-plugin.json"), []byte(`{"id":"late","api":1}`), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "gopdf-plugin.json"), []byte(`{"id":"late"}`), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(dir, "lua", "late", "init.lua"), []byte(`return gopdf.plugin.register("late")`), 0o644); err != nil {
@@ -370,7 +370,7 @@ M:on("app_ready", function() gopdf.message(gopdf.message() .. "dependent") end)
 return M
 `)
 	manifestPath := filepath.Join(pluginRoot, "aaa", "gopdf-plugin.json")
-	if err := os.WriteFile(manifestPath, []byte(`{"id":"aaa","version":"0.1.0","api":1,"dependencies":["zzz"]}`), 0o644); err != nil {
+	if err := os.WriteFile(manifestPath, []byte(`{"id":"aaa","version":"0.1.0","dependencies":["zzz"]}`), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	rt, err := OpenWithOptions(filepath.Join(t.TempDir(), "missing.lua"), "", OpenOptions{PluginPaths: []string{pluginRoot, dependencyRoot}})
@@ -396,7 +396,7 @@ func writeTestPlugin(t *testing.T, id, source string) string {
 	if err := os.MkdirAll(filepath.Join(dir, "lua", id), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	manifest := `{"id":"` + id + `","version":"0.1.0","api":1}`
+	manifest := `{"id":"` + id + `","version":"0.1.0"}`
 	if err := os.WriteFile(filepath.Join(dir, "gopdf-plugin.json"), []byte(manifest), 0o644); err != nil {
 		t.Fatal(err)
 	}

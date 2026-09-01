@@ -191,19 +191,19 @@ assert(sample.cancelled_result == nil and not sample.cancelled_handle:active())
 	}
 }
 
-func TestPluginManifestAPIVersions(t *testing.T) {
+// A manifest needs only an id, and anything it carries beyond the fields gopdf
+// reads is ignored rather than gating what the plugin gets.
+func TestPluginManifestIgnoresUnknownFields(t *testing.T) {
 	for _, testCase := range []struct {
-		name      string
-		manifest  string
-		loadable  bool
-		wantError string
+		name     string
+		manifest string
 	}{
-		{name: "api 1 still loads", manifest: `{"id":"sample","version":"0.1.0","api":1}`, loadable: true},
-		{name: "api 2 loads", manifest: `{"id":"sample","version":"0.1.0","api":2}`, loadable: true},
-		{name: "omitted api defaults to current", manifest: `{"id":"sample","version":"0.1.0"}`, loadable: true},
-		{name: "future api is not discovered", manifest: `{"id":"sample","version":"0.1.0","api":3}`, wantError: "requires unsupported API 3"},
+		{name: "minimal", manifest: `{"id":"sample"}`},
+		{name: "with version", manifest: `{"id":"sample","version":"0.1.0"}`},
+		{name: "unknown fields", manifest: `{"id":"sample","nonsense":true,"extra":[1,2]}`},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
+			setTestDataDir(t)
 			root := t.TempDir()
 			dir := filepath.Join(root, "sample")
 			if err := os.MkdirAll(filepath.Join(dir, "lua", "sample"), 0o755); err != nil {
@@ -223,24 +223,12 @@ return M`
 				t.Fatal(err)
 			}
 			t.Cleanup(rt.Close)
-			_, err = rt.Eval(`sample = require("sample")`)
-			if testCase.loadable {
-				if err != nil {
-					t.Fatalf("plugin did not load: %v", err)
-				}
-				// API 1 plugins reach the same module surface; nothing is gated by version.
-				if _, err := rt.Eval(`assert(sample.storage:get("key") == "value" and sample.fs and sample.http and sample.timer)`); err != nil {
-					t.Fatal(err)
-				}
-				return
+			if _, err := rt.Eval(`sample = require("sample")`); err != nil {
+				t.Fatalf("plugin did not load: %v", err)
 			}
-			// A plugin needing a newer API is dropped at discovery with a warning
-			// rather than failing at require time.
-			if err == nil {
-				t.Fatal("expected requiring a future-API plugin to fail")
-			}
-			if !containsSubstring(rt.pluginCatalog.warnings, testCase.wantError) {
-				t.Fatalf("warnings = %v, want one containing %q", rt.pluginCatalog.warnings, testCase.wantError)
+			// Every plugin gets the whole surface; nothing is gated.
+			if _, err := rt.Eval(`assert(sample.storage:get("key") == "value" and sample.fs and sample.http and sample.timer and sample.document)`); err != nil {
+				t.Fatal(err)
 			}
 		})
 	}

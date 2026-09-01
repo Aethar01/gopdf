@@ -19,12 +19,9 @@ import (
 	lua "github.com/yuin/gopher-lua"
 )
 
-const pluginAPIVersion = 2
-
 type pluginManifest struct {
 	ID           string   `json:"id"`
 	Version      string   `json:"version"`
-	APIVersion   int      `json:"api"`
 	Module       string   `json:"module"`
 	Dependencies []string `json:"dependencies"`
 	Root         string   `json:"-"`
@@ -157,7 +154,7 @@ func discoverPluginCatalog(paths, disabled []string) *pluginCatalog {
 				continue
 			}
 			if !ok {
-				manifest = pluginManifest{ID: entry.Name(), APIVersion: pluginAPIVersion, Module: entry.Name()}
+				manifest = pluginManifest{ID: entry.Name(), Module: entry.Name()}
 			}
 			if manifest.ID == "" {
 				manifest.ID = entry.Name()
@@ -165,13 +162,6 @@ func discoverPluginCatalog(paths, disabled []string) *pluginCatalog {
 			manifest.ID = normalizePluginID(manifest.ID)
 			if !validPluginID(manifest.ID) {
 				catalog.warnings = append(catalog.warnings, fmt.Sprintf("plugin %q has invalid id", dir))
-				continue
-			}
-			if manifest.APIVersion == 0 {
-				manifest.APIVersion = pluginAPIVersion
-			}
-			if manifest.APIVersion > pluginAPIVersion {
-				catalog.warnings = append(catalog.warnings, fmt.Sprintf("plugin %q requires unsupported API %d", manifest.ID, manifest.APIVersion))
 				continue
 			}
 			if manifest.Module == "" {
@@ -477,10 +467,6 @@ func (r *Runtime) registerPlugin(L *lua.LState, id string, spec *lua.LTable) (*l
 	if !ok {
 		return nil, fmt.Errorf("plugin %q was not discovered", id)
 	}
-	if manifest.APIVersion > pluginAPIVersion {
-		return nil, fmt.Errorf("requires unsupported API %d", manifest.APIVersion)
-	}
-
 	instance := &pluginInstance{
 		runtime:       r,
 		manifest:      manifest,

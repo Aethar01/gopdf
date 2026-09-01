@@ -82,7 +82,7 @@ Use `F1` to inspect or edit keybindings and `:help` to view available commands.
 
 ### Single instance
 
-Instances are per document: each window can be reached by whoever opens the
+Instances are per document. Each window is reachable by anything that opens the
 same file.
 
 ```bash
@@ -93,17 +93,19 @@ gopdf --goto 42 file.pdf                 # always a new window, opened at 42
 gopdf --unique --command "reload-config" f.pdf   # run a command in that window
 ```
 
-`X` and `Y` are points from the page's top-left corner.
+`X` and `Y` are points from the page's top-left corner. `--command` takes a
+viewer command as typed after `:`, including commands registered by plugins,
+and exits non-zero if the command is unrecognised.
 
-With no window showing that document, `--unique` simply opens one, applying any
-`--goto` as it starts. A different document is a different instance, so opening
-two files gives two windows. The address follows the document, so a window that
-switches files becomes reachable under the new one.
+With no window showing the document, `--unique` opens one and applies any
+`--goto` and `--command` as it starts. A different document is a different
+instance, so two files give two windows. The address follows the document: a
+window that switches files becomes reachable under the new one.
 
-Sockets are created mode 0600 under `$XDG_RUNTIME_DIR/gopdf` on Linux, the
-per-user temporary directory on macOS, and `%LOCALAPPDATA%\gopdf` on Windows,
-and are named by a hash of the document path. One left behind by a crash is
-reclaimed automatically.
+Sockets live under `$XDG_RUNTIME_DIR/gopdf` on Linux, the per-user temporary
+directory on macOS, and `%LOCALAPPDATA%\gopdf` on Windows. They are mode 0600
+and named by a hash of the document path. A socket left by a crash is reclaimed
+on the next start.
 
 ## Configuration
 
