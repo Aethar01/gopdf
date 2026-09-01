@@ -19,6 +19,9 @@ import (
 func TestPluginFSReadDirAndStat(t *testing.T) {
 	dir := t.TempDir()
 	name := "unicode \u03c0 \tline\n.pdf"
+	if runtime.GOOS == "windows" {
+		name = "unicode \u03c0 line.pdf"
+	}
 	path := filepath.Join(dir, name)
 	if err := os.WriteFile(path, []byte("pdf"), 0o644); err != nil {
 		t.Fatal(err)

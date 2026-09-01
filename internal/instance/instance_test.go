@@ -177,6 +177,9 @@ func TestCloseRemovesTheSocket(t *testing.T) {
 }
 
 func TestSocketIsOwnerOnly(t *testing.T) {
+	if os.PathSeparator == '\\' {
+		t.Skip("Windows protects Unix sockets with ACLs, not Unix mode bits")
+	}
 	address := testAddress(t)
 	server, err := Listen(address)
 	if err != nil {
@@ -296,12 +299,14 @@ func TestAddressIsStableAndPrivate(t *testing.T) {
 	if !filepath.IsAbs(first) {
 		t.Fatalf("address %q is not absolute", first)
 	}
-	info, err := os.Stat(filepath.Dir(first))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if perm := info.Mode().Perm(); perm&0o077 != 0 {
-		t.Fatalf("directory mode = %o, want owner-only", perm)
+	if os.PathSeparator != '\\' {
+		info, err := os.Stat(filepath.Dir(first))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if perm := info.Mode().Perm(); perm&0o077 != 0 {
+			t.Fatalf("directory mode = %o, want owner-only", perm)
+		}
 	}
 	// Unix socket paths are capped at 104 bytes on macOS and 108 on Linux.
 	if len(first) > 100 {

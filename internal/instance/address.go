@@ -67,8 +67,10 @@ func isAddrInUse(err error) bool {
 	}
 	var opErr *net.OpError
 	if errors.As(err, &opErr) {
-		return strings.Contains(strings.ToLower(opErr.Err.Error()), "in use") ||
-			strings.Contains(strings.ToLower(opErr.Err.Error()), "exists")
+		message := strings.ToLower(opErr.Err.Error())
+		return strings.Contains(message, "in use") ||
+			strings.Contains(message, "exists") ||
+			strings.Contains(message, "only one usage")
 	}
 	return false
 }
