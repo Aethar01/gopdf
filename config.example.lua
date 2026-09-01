@@ -39,7 +39,7 @@ gopdf.options.scroll_step = 64 -- Keyboard and mouse scroll distance in pixels.
 gopdf.options.sequence_timeout_ms = 700 -- Maximum delay between keys in a binding sequence.
 gopdf.options.session_database = true -- Persist per-document view state, marks, and recent files.
 gopdf.options.smooth_scroll = true -- Animate mouse-wheel and trackpad scrolling, including scrollable UI lists.
-gopdf.options.smooth_scroll_dampening = 0.35 -- Smooth-scroll catch-up factor per 16ms frame; higher values are more responsive and less damped; clamped to 0.01 through 1.
+gopdf.options.smooth_scroll_dampening = 0.8 -- Smooth-scroll catch-up factor per 16ms frame; higher values are more responsive and less damped; clamped to 0.01 through 1.
 gopdf.options.spread_gap = 0 -- Horizontal spread gap; aliases page_gap_horizontal.
 gopdf.options.status_bar_color = {220, 220, 220} -- Normal status bar background color.
 gopdf.options.status_bar_left = "{message}" -- Left status bar template.
@@ -86,8 +86,8 @@ gopdf.bind("+", gopdf.zoom_in)
 gopdf.bind("=", gopdf.zoom_in)
 gopdf.bind("-", gopdf.zoom_out)
 gopdf.bind("0", gopdf.reset_zoom)
-gopdf.bind("w", gopdf.fit_width)
-gopdf.bind("z", gopdf.fit_page)
+gopdf.bind("a", gopdf.fit_width)
+gopdf.bind("s", gopdf.fit_page)
 gopdf.bind("<C-S-r>", gopdf.reload_config)
 gopdf.bind("r", gopdf.rotate_cw)
 gopdf.bind("R", gopdf.rotate_ccw)

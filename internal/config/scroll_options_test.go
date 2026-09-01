@@ -13,8 +13,8 @@ func TestScrollOptionDefaults(t *testing.T) {
 	if !cfg.SmoothScroll {
 		t.Fatal("expected smooth_scroll to default to true")
 	}
-	if cfg.SmoothScrollDampening != 0.35 {
-		t.Fatalf("expected smooth_scroll_dampening=0.35, got %v", cfg.SmoothScrollDampening)
+	if cfg.SmoothScrollDampening != 0.8 {
+		t.Fatalf("expected smooth_scroll_dampening=0.8, got %v", cfg.SmoothScrollDampening)
 	}
 }
 

@@ -58,7 +58,7 @@ func Default() Config {
 		SmoothScroll:          true,
 		InvertScroll:          false,
 		InvertSmoothScroll:    false,
-		SmoothScrollDampening: 0.35,
+		SmoothScrollDampening: 0.8,
 		SessionDatabase:       true,
 		AntiAliasing:          8,
 		OutlineInitialDepth:   1,
