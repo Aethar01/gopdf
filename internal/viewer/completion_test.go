@@ -16,7 +16,7 @@ func TestShowCompletionAcceptsUniqueCommand(t *testing.T) {
 	if a.input.Value != "quit" {
 		t.Fatalf("expected quit completion, got %q", a.input.Value)
 	}
-	if a.completion.visible {
+	if a.completion.view != nil && a.completion.view.visible {
 		t.Fatal("expected unique completion to close menu")
 	}
 }
@@ -25,16 +25,16 @@ func TestShowCompletionCyclesCommandMenu(t *testing.T) {
 	a := &App{inputState: inputState{mode: modeCommand}, config: config.Default()}
 	a.showCompletion()
 
-	if !a.completion.visible {
+	if a.completion.view == nil || !a.completion.view.visible {
 		t.Fatal("expected command completion menu")
 	}
-	first := a.completion.items[a.completion.selected].value
+	first := a.completion.items[a.completion.view.selected].value
 	a.showCompletion()
-	if got := a.completion.items[a.completion.selected].value; got == first {
+	if got := a.completion.items[a.completion.view.selected].value; got == first {
 		t.Fatalf("expected show_completion to cycle, still selected %q", got)
 	}
 	a.moveCompletion(-1)
-	if got := a.completion.items[a.completion.selected].value; got != first {
+	if got := a.completion.items[a.completion.view.selected].value; got != first {
 		t.Fatalf("expected previous completion %q, got %q", first, got)
 	}
 }

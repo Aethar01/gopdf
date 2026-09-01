@@ -14,6 +14,17 @@ func platformDataDir() string {
 	return ""
 }
 
+func platformPluginPaths() []string {
+	paths := make([]string, 0, 2)
+	if dir := os.Getenv("LOCALAPPDATA"); dir != "" {
+		paths = append(paths, filepath.Join(dir, "gopdf", "plugins"))
+	}
+	if dir := os.Getenv("APPDATA"); dir != "" {
+		paths = append(paths, filepath.Join(dir, "gopdf", "plugins"))
+	}
+	return paths
+}
+
 func platformConfigPaths() []string {
 	if dir := appDataDir(); dir != "" {
 		return []string{filepath.Join(dir, "gopdf", "config.lua")}

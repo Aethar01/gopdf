@@ -67,6 +67,10 @@ func renderReference() string {
 	for _, ref := range config.LuaReferences() {
 		fmt.Fprintf(&b, "| %s | %s |\n", markdownCode(ref.Signature), ref.Description)
 	}
+	b.WriteString("\n### UI views\n\n")
+	b.WriteString("Create views with `local view = gopdf.ui.create(spec)`, then call `view:show()`. The specification supports `id`, `title`, `rows`, `selected`, `scroll`, `query`, `searchable`, `on_select`, and `on_close`. A row may be a string or a table with `text`, `value`, `id`, `secondary`, `depth`, and `disabled`.\n\n")
+	b.WriteString("View methods are `show()`, `close()`, `visible()`, `set_rows(rows)`, `set_selected(index)`, `set_scroll(scroll)`, `set_query(query)`, `selected()`, `scroll()`, and `query()`. Selection indices are 1-based, with 0 meaning no selection. `on_select` receives `(index, value, text, id)`, preserving the original row index and ID when the list is filtered. `on_close` runs for user, programmatic, replacement, and document-close paths.\n")
+	renderPortablePluginReference(&b)
 	b.WriteString("\n## Bindable actions\n\n")
 	b.WriteString("Every action is available as `gopdf.<action>`, can be passed to `gopdf.bind`, and can be called from a runtime Lua callback.\n\n")
 	b.WriteString("| Action | Default keys | Countable |\n|---|---|---|\n")
@@ -81,7 +85,7 @@ func renderReference() string {
 	b.WriteString("- `gopdf.document`: `path`, `name`, `extension`, `exists`, `size_bytes`, and `page_count`.\n")
 	b.WriteString("- `gopdf.status_bar`: `left`, `right`, and `visible`.\n")
 	b.WriteString("- `gopdf.options`: all entries from the configuration-options table.\n")
-	b.WriteString("- `gopdf.cache` and `gopdf.ui`: functions are listed above.\n")
+	b.WriteString("- `gopdf.cache`, `gopdf.ui`, and `gopdf.plugin`: functions are listed above.\n")
 	return b.String()
 }
 

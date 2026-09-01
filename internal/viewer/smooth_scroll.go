@@ -13,21 +13,12 @@ const (
 	modalSmoothScrollSnap = 0.01
 )
 
-type modalSmoothScrollKind uint8
-
-const (
-	modalSmoothScrollNone modalSmoothScrollKind = iota
-	modalSmoothScrollLuaUI
-	modalSmoothScrollKeybindMenu
-	modalSmoothScrollOutlineMenu
-)
-
 type smoothScrollState struct {
 	targetX       float64
 	targetY       float64
 	appliedX      float64
 	appliedY      float64
-	modalKind     modalSmoothScrollKind
+	modalView     *uiView
 	targetRow     float64
 	appliedRow    float64
 	appliedScroll int
@@ -69,10 +60,7 @@ func invertWheelDeltas(wx, wy float32, invert bool) (float32, float32) {
 }
 
 func modalWheelRows(e *sdl.MouseWheelEvent) float64 {
-	wy := e.Y
-	if wy == 0 {
-		wy = float32(e.IntegerY)
-	}
+	_, wy := normalizedWheelDeltas(e)
 	return -float64(wy)
 }
 
@@ -83,8 +71,8 @@ func (a *App) handleAnimatedMouseWheel(e *sdl.MouseWheelEvent) {
 		a.pendingRedraw = true
 		return
 	}
-	if kind := a.activeModalSmoothScrollKind(); kind != modalSmoothScrollNone {
-		a.queueModalSmoothScroll(kind, modalWheelRows(e))
+	if view := a.activeModalUIView(); view != nil {
+		a.queueModalSmoothScroll(view, modalWheelRows(e))
 		return
 	}
 
@@ -146,49 +134,19 @@ func (a *App) canSmoothWheel(wx, wy float32) bool {
 	return true
 }
 
-func (a *App) activeModalSmoothScrollKind() modalSmoothScrollKind {
-	if a.luaUI.visible {
-		return modalSmoothScrollLuaUI
-	}
-	if a.keybindMenu.visible {
-		return modalSmoothScrollKeybindMenu
-	}
-	if a.outlineMenu.visible {
-		return modalSmoothScrollOutlineMenu
-	}
-	return modalSmoothScrollNone
-}
-
-func (a *App) modalSmoothScrollBounds(kind modalSmoothScrollKind) (*int, int, bool) {
-	switch kind {
-	case modalSmoothScrollLuaUI:
-		if !a.luaUI.visible {
-			return nil, 0, false
-		}
-		_, rows := a.luaUIGeometry()
-		return &a.luaUI.scroll, max(0, len(a.visibleLuaUIIndices())-rows), true
-	case modalSmoothScrollKeybindMenu:
-		if !a.keybindMenu.visible {
-			return nil, 0, false
-		}
-		_, rows := a.keybindMenuListGeometry()
-		return &a.keybindMenu.scroll, max(0, len(a.keybindMenu.rows)-rows), true
-	case modalSmoothScrollOutlineMenu:
-		if !a.outlineMenu.visible {
-			return nil, 0, false
-		}
-		_, rows := a.outlineMenuGeometry()
-		return &a.outlineMenu.scroll, max(0, len(a.visibleOutlineIndices())-rows), true
-	default:
+func (a *App) modalSmoothScrollBounds(view *uiView) (*int, int, bool) {
+	if view == nil || !view.visible || !view.modal {
 		return nil, 0, false
 	}
+	_, rows := view.contentGeometry(a)
+	return &view.scroll, max(0, len(view.visibleRows())-rows), true
 }
 
-func (a *App) queueModalSmoothScroll(kind modalSmoothScrollKind, deltaRows float64) {
+func (a *App) queueModalSmoothScroll(view *uiView, deltaRows float64) {
 	if deltaRows == 0 {
 		return
 	}
-	scroll, maxScroll, ok := a.modalSmoothScrollBounds(kind)
+	scroll, maxScroll, ok := a.modalSmoothScrollBounds(view)
 	if !ok || maxScroll == 0 {
 		a.cancelSmoothScroll()
 		return
@@ -196,9 +154,9 @@ func (a *App) queueModalSmoothScroll(kind modalSmoothScrollKind, deltaRows float
 	*scroll = clampInt(*scroll, 0, maxScroll)
 
 	state := a.smoothScrollState()
-	if state == nil || state.modalKind != kind || state.appliedScroll != *scroll {
+	if state == nil || state.modalView != view || state.appliedScroll != *scroll {
 		state = &smoothScrollState{
-			modalKind:     kind,
+			modalView:     view,
 			targetRow:     float64(*scroll),
 			appliedRow:    float64(*scroll),
 			appliedScroll: *scroll,
@@ -214,7 +172,7 @@ func (a *App) queueModalSmoothScroll(kind modalSmoothScrollKind, deltaRows float
 
 func (a *App) queueSmoothScroll(dx, dy float64) {
 	state := a.smoothScrollState()
-	if state == nil || state.modalKind != modalSmoothScrollNone || a.scrollX != state.appliedX || a.scrollY != state.appliedY {
+	if state == nil || state.modalView != nil || a.scrollX != state.appliedX || a.scrollY != state.appliedY {
 		state = &smoothScrollState{
 			targetX:  a.scrollX,
 			targetY:  a.scrollY,
@@ -256,7 +214,7 @@ func (a *App) advanceSmoothScrollBy(elapsed time.Duration) bool {
 		a.cancelSmoothScroll()
 		return false
 	}
-	if state.modalKind != modalSmoothScrollNone {
+	if state.modalView != nil {
 		return a.advanceModalSmoothScrollBy(state, elapsed)
 	}
 
@@ -297,7 +255,7 @@ func (a *App) advanceSmoothScrollBy(elapsed time.Duration) bool {
 }
 
 func (a *App) advanceModalSmoothScrollBy(state *smoothScrollState, elapsed time.Duration) bool {
-	scroll, maxScroll, ok := a.modalSmoothScrollBounds(state.modalKind)
+	scroll, maxScroll, ok := a.modalSmoothScrollBounds(state.modalView)
 	if !ok {
 		a.cancelSmoothScroll()
 		return false

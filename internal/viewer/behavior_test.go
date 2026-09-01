@@ -418,8 +418,12 @@ func TestSetCommandInspectsAndAssignsRegisteredOptions(t *testing.T) {
 		t.Fatalf("expected inspected fit_mode, got %q", app.message)
 	}
 	app.runCommand(":set")
-	if !app.luaUI.visible || app.luaUI.title != "Options" || len(app.luaUI.rows) != len(config.OptionNames()) {
-		t.Fatalf("expected options inspector, visible=%t title=%q rows=%d", app.luaUI.visible, app.luaUI.title, len(app.luaUI.rows))
+	view := app.activeUIView()
+	if view == nil || view.title != "Options" || len(view.rows) != len(config.OptionNames()) {
+		t.Fatalf("expected options inspector, view=%+v", view)
+	}
+	if rt.ConsumeDirty() {
+		t.Fatal("expected :set changes to consume runtime dirty state")
 	}
 }
 
@@ -457,16 +461,17 @@ func TestRunCommandSearchAndOpenMessages(t *testing.T) {
 	}
 
 	app.runCommand(":help")
-	if !app.luaUI.visible {
+	view := app.activeUIView()
+	if view == nil {
 		t.Fatal("expected help command to open command help window")
 	}
-	if app.luaUI.title != "Commands" {
-		t.Fatalf("expected help window title, got %q", app.luaUI.title)
+	if view.title != "Commands" {
+		t.Fatalf("expected help window title, got %q", view.title)
 	}
-	if len(app.luaUI.rows) == 0 {
+	if len(view.rows) == 0 {
 		t.Fatal("expected help window rows")
 	}
-	if !slices.Contains(app.luaUI.rows, ":open_file_picker - Open the PDF file picker") {
+	if !slices.ContainsFunc(view.rows, func(row uiRow) bool { return row.text == ":open_file_picker - Open the PDF file picker" }) {
 		t.Fatal("expected help rows to include open_file_picker command")
 	}
 }
@@ -481,15 +486,73 @@ func TestRecentFilesCommandReportsDisabledDatabase(t *testing.T) {
 
 func TestBuiltinModalSelection(t *testing.T) {
 	selected := ""
-	app := &App{uiState: uiState{luaUI: luaUIState{
-		visible:         true,
-		rows:            []string{"one.pdf", "two.pdf"},
-		selected:        1,
-		onSelectBuiltin: func(value string) { selected = value },
-	}}}
-	app.activateLuaUISelection()
+	app := &App{}
+	app.showCoreList("test", "Files", []string{"one.pdf", "two.pdf"}, func(value string) { selected = value })
+	app.activeUIView().selected = 1
+	app.activateUIView(app.activeUIView())
 	if selected != "two.pdf" {
 		t.Fatalf("expected built-in selection callback, got %q", selected)
+	}
+}
+
+func TestKeybindViewConnectsInputHandlers(t *testing.T) {
+	app := &App{}
+	view := app.newKeybindView()
+	if view.onKey == nil || view.onMouseButton == nil || view.onMouseMotion == nil {
+		t.Fatalf("expected keybind input handlers, view=%+v", view)
+	}
+}
+
+func TestUIViewSkipsDisabledRows(t *testing.T) {
+	selected := ""
+	app := testLayoutApp(1)
+	view := &uiView{
+		visible:  true,
+		modal:    true,
+		selected: 0,
+		rows: []uiRow{
+			{index: 0, text: "disabled", value: "disabled", disabled: true},
+			{index: 1, text: "enabled", value: "enabled"},
+		},
+		onSelect: func(_ *App, row uiRow) { selected = row.value },
+	}
+	view.listGeometry = func(*App) (sdl.FRect, int) { return sdl.FRect{}, 2 }
+	app.ensureUIViewSelectionVisible(view)
+	if view.selected != 1 {
+		t.Fatalf("expected disabled row to be skipped, selected=%d", view.selected)
+	}
+	view.selected = 0
+	app.activateUIView(view)
+	if selected != "" {
+		t.Fatalf("expected disabled row not to activate, got %q", selected)
+	}
+}
+
+func TestUIViewSearchBindingIgnoresTriggerText(t *testing.T) {
+	app := testLayoutApp(1)
+	view := &uiView{visible: true, modal: true, searchable: true}
+	app.sequenceLookup = map[string]string{normalizeBinding("/"): "search_prompt"}
+	e := sdl.KeyboardEvent{CommonEvent: sdl.CommonEvent{Type: sdl.EventKeyDown}, Key: sdl.KeycodeSlash}
+	app.handleGenericUIViewKey(view, &e)
+	if !view.searching || app.ignoreText != "/" {
+		t.Fatalf("expected search mode to ignore trigger text, searching=%t ignore=%q", view.searching, app.ignoreText)
+	}
+}
+
+func TestUIViewCloseClearsFilterBeforeClosing(t *testing.T) {
+	app := testLayoutApp(1)
+	view := &uiView{visible: true, modal: true, searching: false, query: "filter"}
+	app.runUIViewAction(view, "close")
+	if !view.visible || view.query != "" {
+		t.Fatalf("expected first close to clear filter, visible=%t query=%q", view.visible, view.query)
+	}
+}
+
+func TestModalWheelRowsHonorsFlippedDirection(t *testing.T) {
+	normal := modalWheelRows(&sdl.MouseWheelEvent{Y: 1})
+	flipped := modalWheelRows(&sdl.MouseWheelEvent{Y: 1, Direction: sdl.MouseWheelFlipped})
+	if normal != -flipped {
+		t.Fatalf("expected flipped modal wheel direction, normal=%v flipped=%v", normal, flipped)
 	}
 }
 
@@ -611,28 +674,30 @@ func TestOutlineSelectionMovementAndExpandCollapse(t *testing.T) {
 			{Title: "Section 1.1", Page: 1, Parent: 0},
 			{Title: "Chapter 2", Page: 5, Parent: -1},
 		}},
-		uiState: uiState{outlineMenu: outlineMenuState{selected: 0, expanded: map[int]bool{}}},
+		uiState: uiState{outlineMenu: outlineMenuState{expanded: map[int]bool{}}},
 	}
+	app.outlineMenu.view = app.newOutlineView()
+	app.refreshOutlineView()
 
 	app.moveOutlineSelection(1)
-	if app.outlineMenu.selected != 2 {
-		t.Fatalf("expected collapsed outline to move to next visible top-level item, got %d", app.outlineMenu.selected)
+	if app.outlineMenu.view.selected != 2 {
+		t.Fatalf("expected collapsed outline to move to next visible top-level item, got %d", app.outlineMenu.view.selected)
 	}
 
-	app.outlineMenu.selected = 0
+	app.outlineMenu.view.selected = 0
 	app.expandSelectedOutline()
 	if !app.outlineMenu.expanded[0] {
 		t.Fatal("expected expanding selected parent to reveal children")
 	}
 
 	app.moveOutlineSelection(1)
-	if app.outlineMenu.selected != 1 {
-		t.Fatalf("expected expanded outline to move into child item, got %d", app.outlineMenu.selected)
+	if app.outlineMenu.view.selected != 1 {
+		t.Fatalf("expected expanded outline to move into child item, got %d", app.outlineMenu.view.selected)
 	}
 
 	app.collapseSelectedOutline()
-	if app.outlineMenu.selected != 0 {
-		t.Fatalf("expected collapsing child to select its parent, got %d", app.outlineMenu.selected)
+	if app.outlineMenu.view.selected != 0 {
+		t.Fatalf("expected collapsing child to select its parent, got %d", app.outlineMenu.view.selected)
 	}
 
 	app.collapseSelectedOutline()
@@ -897,20 +962,23 @@ func TestBuiltinPromptActionsEnterExpectedModes(t *testing.T) {
 }
 
 func TestTextInputNeededOnlyForActiveTextEntry(t *testing.T) {
+	modalApp := func(searching bool) *App {
+		view := &uiView{visible: true, modal: true, searching: searching}
+		return &App{uiState: uiState{views: uiManager{active: view}}}
+	}
+	// App carries a mutex, so cases hold pointers rather than copies.
 	tests := []struct {
 		name string
-		app  App
+		app  *App
 		want bool
 	}{
-		{name: "normal", want: false},
-		{name: "command prompt", app: App{inputState: inputState{mode: modeCommand}}, want: true},
-		{name: "goto prompt", app: App{inputState: inputState{mode: modeGotoPage}}, want: true},
-		{name: "search prompt", app: App{inputState: inputState{mode: modeSearch}}, want: true},
-		{name: "password prompt", app: App{inputState: inputState{mode: modePassword}}, want: true},
-		{name: "outline menu", app: App{uiState: uiState{outlineMenu: outlineMenuState{visible: true}}}, want: false},
-		{name: "outline search", app: App{uiState: uiState{outlineMenu: outlineMenuState{visible: true, searching: true}}}, want: true},
-		{name: "lua menu", app: App{uiState: uiState{luaUI: luaUIState{visible: true}}}, want: false},
-		{name: "lua search", app: App{uiState: uiState{luaUI: luaUIState{visible: true, searching: true}}}, want: true},
+		{name: "normal", app: &App{}, want: false},
+		{name: "command prompt", app: &App{inputState: inputState{mode: modeCommand}}, want: true},
+		{name: "goto prompt", app: &App{inputState: inputState{mode: modeGotoPage}}, want: true},
+		{name: "search prompt", app: &App{inputState: inputState{mode: modeSearch}}, want: true},
+		{name: "password prompt", app: &App{inputState: inputState{mode: modePassword}}, want: true},
+		{name: "modal menu", app: modalApp(false), want: false},
+		{name: "modal search", app: modalApp(true), want: true},
 	}
 
 	for _, tt := range tests {
@@ -1345,10 +1413,9 @@ func TestCompletionAcceptCloseAndVisibleRows(t *testing.T) {
 		inputState: inputState{input: textInput{Value: "open par", Cursor: 8}},
 		config:     config.Config{CompletionMaxItems: 3},
 		uiState: uiState{completion: completionState{
-			visible:  true,
-			selected: 1,
-			start:    5,
-			end:      8,
+			view:  &uiView{visible: true, selected: 1},
+			start: 5,
+			end:   8,
 			items: []completionItem{
 				{display: "one", value: "one"},
 				{display: "paper.pdf", value: "paper.pdf"},
@@ -1356,18 +1423,18 @@ func TestCompletionAcceptCloseAndVisibleRows(t *testing.T) {
 		}},
 	}
 	app.acceptCompletion()
-	if app.input.Value != "open paper.pdf" || app.input.Cursor != len([]rune("open paper.pdf")) || app.completion.visible || !app.pendingRedraw {
+	if app.input.Value != "open paper.pdf" || app.input.Cursor != len([]rune("open paper.pdf")) || app.completion.view != nil || !app.pendingRedraw {
 		t.Fatalf("expected selected completion to replace range and close menu, input=%q cursor=%d completion=%+v redraw=%v", app.input.Value, app.input.Cursor, app.completion, app.pendingRedraw)
 	}
 
-	app.completion = completionState{visible: true, items: []completionItem{{display: "a", value: "a"}}}
+	app.completion = completionState{view: &uiView{visible: true}, items: []completionItem{{display: "a", value: "a"}}}
 	app.pendingRedraw = false
 	app.closeCompletion()
-	if app.completion.visible || len(app.completion.items) != 0 || !app.pendingRedraw {
+	if app.completion.view != nil || len(app.completion.items) != 0 || !app.pendingRedraw {
 		t.Fatalf("expected closeCompletion to clear menu and request redraw, completion=%+v redraw=%v", app.completion, app.pendingRedraw)
 	}
 
-	app.completion = completionState{selected: 3, items: []completionItem{{display: "a"}, {display: "b"}, {display: "c"}, {display: "d"}, {display: "e"}}}
+	app.completion = completionState{view: &uiView{selected: 3}, items: []completionItem{{display: "a"}, {display: "b"}, {display: "c"}, {display: "d"}, {display: "e"}}}
 	rows := app.visibleCompletionRows()
 	if got, want := completionRowTexts(rows), []string{"...", "d", "e"}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("expected truncated visible completion rows %v, got %v", want, got)
@@ -1376,7 +1443,7 @@ func TestCompletionAcceptCloseAndVisibleRows(t *testing.T) {
 		t.Fatalf("expected selected completion row to remain marked, rows=%+v", rows)
 	}
 
-	app.completion = completionState{selected: 1, items: []completionItem{{display: "old.pdf", recent: true}, {display: "paper.pdf", recent: true}, {display: "docs" + pathSeparator(), value: "docs" + pathSeparator()}}}
+	app.completion = completionState{view: &uiView{selected: 1}, items: []completionItem{{display: "old.pdf", recent: true}, {display: "paper.pdf", recent: true}, {display: "docs" + pathSeparator(), value: "docs" + pathSeparator()}}}
 	rows = app.visibleCompletionRows()
 	if got, want := completionRowTexts(rows), []string{"Recents:", "  old.pdf", "  paper.pdf", "Suggestions:", "  docs" + pathSeparator()}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("expected recent completion section %v, got %v", want, got)

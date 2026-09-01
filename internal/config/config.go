@@ -62,27 +62,57 @@ type Config struct {
 }
 
 type Runtime struct {
-	explicitPath string
-	docPath      string
-	docName      string
-	docMeta      documentMeta
-	cfg          Config
-	state        *lua.LState
-	host         Host
-	callbacks    map[string]*lua.LFunction
-	callbackSeq  int
-	luaCallDepth int
-	deferredOpen string
-	dirty        bool
-	verbose      bool
+	explicitPath     string
+	docPath          string
+	docName          string
+	docMeta          documentMeta
+	cfg              Config
+	state            *lua.LState
+	host             Host
+	callbacks        map[string]*lua.LFunction
+	callbackSeq      int
+	uiSeq            int
+	luaCallDepth     int
+	deferredOpen     string
+	dirty            bool
+	verbose          bool
+	pluginCatalog    *pluginCatalog
+	pluginPaths      []string
+	disabledPlugins  []string
+	noConfig         bool
+	plugins          *pluginState
+	jobs             map[int]pluginJob
+	jobResults       chan pluginJobResult
+	nextJobID        int
+	operations       map[int]*pluginOperation
+	operationResults chan pluginOperationResult
+	nextOperationID  int
+	pluginGeneration int
+	loadingPlugin    string
+	activePlugin     string
+	loadingAutogen   bool
 }
 
 type UIOverlay struct {
-	Title    string
-	Rows     []string
-	Selected int
-	OnSelect string
-	OnClose  string
+	ID         string
+	Title      string
+	Rows       []UIListRow
+	Selected   int
+	Scroll     int
+	Query      string
+	Searchable bool
+	OnSelect   string
+	OnClose    string
+	Generation int
+}
+
+type UIListRow struct {
+	Text      string
+	Value     string
+	ID        string
+	Secondary string
+	Depth     int
+	Disabled  bool
 }
 
 type documentMeta struct {
@@ -97,13 +127,19 @@ type Host interface {
 	ExecuteAction(action string) error
 	Open(path string) error
 	ShowUI(overlay UIOverlay) error
-	CloseUI()
-	UIVisible() bool
-	SetUIRows(rows []string)
-	SetUISelected(selected int)
+	CloseUI(id string)
+	UIVisible(id string) bool
+	SetUIRows(id string, rows []UIListRow)
+	SetUISelected(id string, selected int)
+	SetUIScroll(id string, scroll int)
+	SetUIQuery(id string, query string)
+	UISelected(id string) int
+	UIScroll(id string) int
+	UIQuery(id string) string
 	Page() int
 	PageCount() int
 	GotoPage(page int) error
+	GotoDocumentPoint(page int, x, y float64) error
 	Message() string
 	SetMessage(message string)
 	RunCommand(command string) error
@@ -132,4 +168,27 @@ type Host interface {
 	CacheLimit() int
 	SetCacheLimit(limit int) error
 	ClearCache()
+}
+
+type ClipboardGetter interface {
+	GetClipboard() string
+}
+
+type ClipboardSetter interface {
+	SetClipboard(text string) error
+}
+
+type ExternalOpener interface {
+	OpenExternal(uri string) error
+}
+
+type DirectoryPicker interface {
+	PickDirectory() (string, error)
+}
+
+// DocumentFormatHost reports which formats the document engine can open. It is
+// optional so hosts without a document engine still satisfy Host.
+type DocumentFormatHost interface {
+	SupportedExtensions() []string
+	SupportsPath(path string) bool
 }

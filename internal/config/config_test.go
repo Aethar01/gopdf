@@ -42,6 +42,14 @@ type reloadingOpenHost struct {
 	rt *Runtime
 }
 
+func uiListRowTexts(rows []UIListRow) []string {
+	texts := make([]string, len(rows))
+	for i, row := range rows {
+		texts[i] = row.Text
+	}
+	return texts
+}
+
 func (h *reloadingOpenHost) Open(path string) error {
 	h.opened = path
 	return h.rt.SetDocument(path)
@@ -63,16 +71,28 @@ func (h *stubHost) ShowUI(overlay UIOverlay) error {
 	return nil
 }
 
-func (h *stubHost) CloseUI() {
+func (h *stubHost) CloseUI(id string) {
 	h.uiVisible = false
 	h.uiClosed = true
 }
 
-func (h *stubHost) UIVisible() bool { return h.uiVisible }
+func (h *stubHost) UIVisible(id string) bool { return h.uiVisible && h.ui.ID == id }
 
-func (h *stubHost) SetUIRows(rows []string) { h.ui.Rows = append([]string(nil), rows...) }
+func (h *stubHost) SetUIRows(id string, rows []UIListRow) {
+	h.ui.Rows = append([]UIListRow(nil), rows...)
+}
 
-func (h *stubHost) SetUISelected(selected int) { h.ui.Selected = selected }
+func (h *stubHost) SetUISelected(id string, selected int) { h.ui.Selected = selected }
+
+func (h *stubHost) SetUIScroll(id string, scroll int) { h.ui.Scroll = scroll }
+
+func (h *stubHost) SetUIQuery(id string, query string) { h.ui.Query = query }
+
+func (h *stubHost) UISelected(id string) int { return h.ui.Selected }
+
+func (h *stubHost) UIScroll(id string) int { return h.ui.Scroll }
+
+func (h *stubHost) UIQuery(id string) string { return h.ui.Query }
 
 func (h *stubHost) Page() int {
 	return h.page
@@ -83,6 +103,11 @@ func (h *stubHost) PageCount() int {
 }
 
 func (h *stubHost) GotoPage(page int) error {
+	h.page = page
+	return nil
+}
+
+func (h *stubHost) GotoDocumentPoint(page int, x, y float64) error {
 	h.page = page
 	return nil
 }
@@ -774,12 +799,12 @@ end)
 	}
 }
 
-func TestLuaUIShowsMenuAndRunsSelectionCallback(t *testing.T) {
+func TestPluginUIViewShowsMenuAndRunsSelectionCallback(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "config.lua")
 	if err := os.WriteFile(path, []byte(`
 bind("u", function()
-  gopdf.ui.show({
+  local view = gopdf.ui.create({
     title = "Open PDF",
     rows = { "a.pdf", "b.pdf" },
     selected = 2,
@@ -791,6 +816,7 @@ bind("u", function()
       gopdf.message("closed")
     end,
   })
+  view:show()
 end)
 `), 0o644); err != nil {
 		t.Fatal(err)
@@ -810,7 +836,7 @@ end)
 	if !host.uiVisible || host.ui.Title != "Open PDF" || host.ui.Selected != 2 {
 		t.Fatalf("unexpected ui state: %+v visible=%v", host.ui, host.uiVisible)
 	}
-	if got := strings.Join(host.ui.Rows, ","); got != "a.pdf,b.pdf" {
+	if got := strings.Join(uiListRowTexts(host.ui.Rows), ","); got != "a.pdf,b.pdf" {
 		t.Fatalf("unexpected rows %q", got)
 	}
 	if host.ui.OnSelect == "" || host.ui.OnClose == "" {
@@ -830,7 +856,7 @@ end)
 	}
 }
 
-func TestLuaUISelectionCanOpenDocument(t *testing.T) {
+func TestPluginUIViewSelectionCanOpenDocument(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "config.lua")
 	second := filepath.Join(dir, "second.pdf")
@@ -840,12 +866,13 @@ if gopdf.document.name == "second.pdf" then
 end
 
 bind("u", function()
-  gopdf.ui.show({
+  local view = gopdf.ui.create({
     rows = { `+strconv.Quote(second)+` },
     on_select = function(_, value)
       gopdf.open(value)
     end,
   })
+  view:show()
 end)
 `), 0o644); err != nil {
 		t.Fatal(err)
@@ -873,16 +900,19 @@ end)
 	}
 }
 
-func TestLuaUIHostControls(t *testing.T) {
+func TestPluginUIViewHostControls(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "config.lua")
 	if err := os.WriteFile(path, []byte(`
 bind("u", function()
-  gopdf.ui.show({ rows = { "old" } })
-  if gopdf.ui.visible() then
-    gopdf.ui.set_rows({ "new", "items" })
-    gopdf.ui.set_selected(2)
-    gopdf.ui.close()
+  local first = gopdf.ui.create({ id = "shared", rows = { "old" } })
+  local view = gopdf.ui.create({ id = "shared", rows = { "old" } })
+  assert(first.id ~= view.id)
+  view:show()
+  if view:visible() then
+    view:set_rows({ "new", "items" })
+    view:set_selected(2)
+    view:close()
   end
 end)
 `), 0o644); err != nil {
@@ -903,7 +933,10 @@ end)
 	if !host.uiClosed || host.uiVisible {
 		t.Fatalf("expected ui to close, visible=%v closed=%v", host.uiVisible, host.uiClosed)
 	}
-	if got := strings.Join(host.ui.Rows, ","); got != "new,items" {
+	if host.ui.ID == "" {
+		t.Fatal("expected an anonymous Lua view to receive a stable id")
+	}
+	if got := strings.Join(uiListRowTexts(host.ui.Rows), ","); got != "new,items" {
 		t.Fatalf("unexpected rows %q", got)
 	}
 	if host.ui.Selected != 2 {
@@ -911,10 +944,10 @@ end)
 	}
 }
 
-func TestLuaUIShowDuringConfigLoadFails(t *testing.T) {
+func TestPluginUIViewShowDuringConfigLoadFails(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "config.lua")
-	if err := os.WriteFile(path, []byte(`gopdf.ui.show({ rows = { "x" } })`), 0o644); err != nil {
+	if err := os.WriteFile(path, []byte(`local view = gopdf.ui.create({ rows = { "x" } }); view:show()`), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -1137,5 +1170,43 @@ options.highlight_background = { 25, 26, 27 }
 		if check.got != check.want {
 			t.Fatalf("%s = %v, want %v", check.name, check.got, check.want)
 		}
+	}
+}
+
+// --no-config starts from built-in defaults: neither the user's file nor the
+// generated settings file is read.
+func TestNoConfigIgnoresConfigurationFiles(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config.lua")
+	if err := os.WriteFile(configPath, []byte(`gopdf.options.scroll_off = 12`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	loaded, err := OpenWithOptions(configPath, "", OpenOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer loaded.Close()
+	if loaded.Config().ScrollOff != 12 {
+		t.Fatalf("control case did not apply the config: ScrollOff = %d", loaded.Config().ScrollOff)
+	}
+
+	skipped, err := OpenWithOptions(configPath, "", OpenOptions{NoConfig: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer skipped.Close()
+	if got, want := skipped.Config().ScrollOff, Default().ScrollOff; got != want {
+		t.Fatalf("ScrollOff = %d, want the default %d", got, want)
+	}
+	if skipped.Config().ConfigPath != "" {
+		t.Errorf("ConfigPath = %q, want empty", skipped.Config().ConfigPath)
+	}
+	if skipped.Config().AutogenPath != "" {
+		t.Errorf("AutogenPath = %q, want empty", skipped.Config().AutogenPath)
+	}
+	// The Lua runtime still exists, so plugins and callbacks remain usable.
+	if _, err := skipped.Eval(`assert(type(gopdf) == "table")`); err != nil {
+		t.Fatalf("no-config runtime is unusable: %v", err)
 	}
 }

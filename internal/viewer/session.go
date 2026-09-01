@@ -4,7 +4,6 @@ import (
 	"os"
 	"time"
 
-	"gopdf/internal/actions"
 	"gopdf/internal/config"
 	"gopdf/internal/mupdf"
 )
@@ -253,7 +252,7 @@ func (a *App) handleMarkToken(token string) bool {
 		// pending numeric counts still flow through handleCountToken below.
 		if a.pendingCount == "" {
 			binding := normalizeBinding(token)
-			if action, ok := a.sequenceLookup[binding]; ok && actions.IsCountable(action) && !a.hasPrefix(binding) {
+			if action, ok := a.sequenceLookup[binding]; ok && a.isCountableAction(action) && !a.hasPrefix(binding) {
 				a.actionKey = token
 				a.runAction(action)
 				a.actionKey = ""

@@ -86,6 +86,7 @@ void gopdf_close_document(gopdf_doc *handle);
 int gopdf_count_pages(gopdf_doc *handle, int *count, char **err);
 int gopdf_page_bounds(gopdf_doc *handle, int page_number, gopdf_rect *out, char **err);
 int gopdf_page_label(gopdf_doc *handle, int page_number, char **out, char **err);
+int gopdf_lookup_metadata(gopdf_doc *handle, const char *key, char **out, char **err);
 int gopdf_render_page_info(gopdf_doc *handle, int page_number, float scale, float rotation, int *width, int *height, int *stride, int *x, int *y, char **err);
 int gopdf_render_page_to_buffer(gopdf_doc *handle, int page_number, float scale, float rotation, int aa_level, unsigned char *samples, int width, int height, int stride, char **err);
 int gopdf_render_page_alloc(gopdf_doc *handle, int page_number, float scale, float rotation, int aa_level, unsigned char **samples, int *width, int *height, int *stride, int *x, int *y, char **err);
@@ -101,5 +102,7 @@ int gopdf_load_links(gopdf_doc *handle, int page_number, gopdf_link_result *out,
 void gopdf_free_link_result(gopdf_link_result *result);
 int gopdf_load_outline(gopdf_doc *handle, gopdf_outline_result *out, char **err);
 void gopdf_free_outline_result(gopdf_outline_result *result);
+int gopdf_recognize_document_name(const char *name);
+void gopdf_free_string(char *value);
 
 #endif

@@ -159,9 +159,10 @@ func OptionNames() []string {
 }
 
 func (r *Runtime) OptionValue(name string) (string, error) {
-	desc, ok := configOptions[normalizeOptionName(name)]
+	name = normalizeOptionName(name)
+	desc, ok := configOptions[name]
 	if !ok {
-		return "", fmt.Errorf("unknown option: %s", name)
+		return r.pluginOptionValue(name)
 	}
 	return desc.format(&r.cfg), nil
 }
@@ -170,7 +171,11 @@ func (r *Runtime) SetOption(name, value string) error {
 	name = normalizeOptionName(name)
 	desc, ok := configOptions[name]
 	if !ok {
-		return fmt.Errorf("unknown option: %s", name)
+		if err := r.setPluginOption(name, value); err != nil {
+			return fmt.Errorf("%s: %w", name, err)
+		}
+		r.dirty = true
+		return nil
 	}
 	if err := desc.applyText(&r.cfg, value); err != nil {
 		return fmt.Errorf("%s: %w", name, err)
@@ -183,7 +188,14 @@ func (r *Runtime) ToggleOption(name string) error {
 	name = normalizeOptionName(name)
 	desc, ok := configOptions[name]
 	if !ok {
-		return fmt.Errorf("unknown option: %s", name)
+		option, ok := r.pluginOption(name)
+		if !ok {
+			return fmt.Errorf("unknown option: %s", name)
+		}
+		if option.kind != "boolean" && option.kind != "bool" {
+			return fmt.Errorf("%s: expected boolean option", name)
+		}
+		return r.SetOption(name, strconv.FormatBool(!lua.LVAsBool(option.value)))
 	}
 	if desc.kind != "boolean" {
 		return fmt.Errorf("%s: expected boolean option", name)

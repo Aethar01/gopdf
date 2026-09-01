@@ -110,6 +110,7 @@ func (a *App) openDocumentWithPassword(path string, opts openDocumentOptions, pa
 
 	path = config.AbsoluteDocumentPath(path)
 	a.logf("opening document path=%q startPage=%d reloadConfig=%t", path, opts.startPage+1, opts.reloadConfig)
+	a.emitPluginEvent("document_open_pre", map[string]any{"document": map[string]any{"path": path, "name": filepath.Base(path)}})
 	doc, err := mupdf.Open(path, password)
 	if err != nil {
 		a.logf("open document failed path=%q err=%v", path, err)
@@ -132,13 +133,21 @@ func (a *App) openDocumentWithPassword(path string, opts openDocumentOptions, pa
 		startPage = clampInt(savedState.page, 0, max(0, pages-1))
 	}
 
-	a.runtime.SetPageCount(pages)
-
+	oldDocumentPayload := a.documentEventPayload()
+	hadDocument := a.doc != nil
+	if hadDocument && a.runtime != nil {
+		a.emitPluginEvent("document_close_pre", oldDocumentPayload)
+	}
 	a.saveDocumentSession()
 	a.closeDocumentResources()
+	if hadDocument && a.runtime != nil {
+		a.emitPluginEvent("document_closed", oldDocumentPayload)
+	}
+	a.runtime.SetPageCount(pages)
 
 	a.document.record(path)
 	a.installDocument(doc, path, pages, startPage)
+	a.rebindInstanceServer()
 	a.resetForNewDocument(password)
 
 	a.initDocumentMetrics(doc, pages, startPage)
@@ -147,6 +156,7 @@ func (a *App) openDocumentWithPassword(path string, opts openDocumentOptions, pa
 	var configErr error
 	if opts.reloadConfig {
 		configErr = a.runtime.SetDocument(path, pages)
+		a.removeStaleLuaViews(a.runtime.Generation())
 	}
 	a.applyConfigState(a.runtime.Config(), false)
 	a.message = a.config.NormalMessage
@@ -164,6 +174,9 @@ func (a *App) openDocumentWithPassword(path string, opts openDocumentOptions, pa
 		a.alignPageToAnchor(startPage)
 	}
 	a.pendingRedraw = true
+	if a.runtime != nil {
+		a.emitPluginEvent("document_opened", a.documentEventPayload())
+	}
 	if configErr != nil {
 		a.logf("document config reload failed err=%v", configErr)
 		a.message = configErr.Error()
@@ -182,7 +195,7 @@ func (a *App) resetForNewDocument(password string) {
 	a.search = searchState{}
 	a.outlineMenu = outlineMenuState{}
 	a.keybindMenu = keybindMenuState{}
-	a.luaUI = luaUIState{}
+	a.closeAllUIViews(true)
 	a.completion = completionState{}
 	a.mode = modeNormal
 	a.input.Reset()
@@ -243,6 +256,9 @@ func (a *App) initDocumentMetrics(doc *mupdf.Document, pages int, startPage int)
 }
 
 func (a *App) installDocument(doc *mupdf.Document, path string, pages, startPage int) {
+	a.documentAPIMu.Lock()
+	defer a.documentAPIMu.Unlock()
+	a.generation++
 	a.docPath = path
 	a.docName = filepath.Base(path)
 	a.recordRecentFile(path)
@@ -258,6 +274,7 @@ func (a *App) installDocument(doc *mupdf.Document, path string, pages, startPage
 	a.renderBaseScale = 0
 	a.pageLinks = map[int][]mupdf.Link{}
 	a.outline = nil
+	a.viewEvents = viewStateEvents{}
 	a.selection = textSelection{}
 }
 
@@ -301,6 +318,7 @@ func (a *App) softReloadDocument(path string, state viewState) error {
 	a.closeDocumentResources()
 
 	a.installDocument(doc, path, pages, startPage)
+	a.rebindInstanceServer()
 
 	a.initDocumentMetrics(doc, pages, startPage)
 	a.logf("soft reloaded document path=%q pages=%d page=%d", path, pages, startPage+1)
@@ -311,5 +329,19 @@ func (a *App) softReloadDocument(path string, state viewState) error {
 	a.ensureRenderBaseScale()
 	a.restoreViewState(state)
 	a.pendingRedraw = true
+	if a.runtime != nil {
+		a.emitPluginEvent("document_reloaded", a.documentEventPayload())
+	}
 	return nil
+}
+
+func (a *App) documentEventPayload() map[string]any {
+	return map[string]any{
+		"document": map[string]any{
+			"path":       a.docPath,
+			"name":       a.docName,
+			"page_count": a.pageCount,
+		},
+		"generation": a.generation,
+	}
 }

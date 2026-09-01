@@ -225,6 +225,32 @@ int gopdf_page_label(gopdf_doc *handle, int page_number, char **out, char **err)
 	return 1;
 }
 
+int gopdf_lookup_metadata(gopdf_doc *handle, const char *key, char **out, char **err) {
+	int size = 0;
+	*out = NULL;
+	*err = NULL;
+	fz_try(handle->ctx) {
+		size = fz_lookup_metadata(handle->ctx, handle->doc, key, NULL, 0);
+		if (size > 0) {
+			*out = (char *)malloc((size_t)size);
+			if (*out == NULL) {
+				fz_throw(handle->ctx, FZ_ERROR_SYSTEM, "malloc failed");
+			}
+			fz_lookup_metadata(handle->ctx, handle->doc, key, *out, (size_t)size);
+		}
+	} fz_catch(handle->ctx) {
+		free(*out);
+		*out = NULL;
+		*err = gopdf_dup_string(fz_caught_message(handle->ctx));
+		return 0;
+	}
+	return 1;
+}
+
+void gopdf_free_string(char *value) {
+	free(value);
+}
+
 int gopdf_render_page_info(gopdf_doc *handle, int page_number, float scale, float rotation, int *width, int *height, int *stride, int *x, int *y, char **err) {
 	fz_page *page = NULL;
 	fz_rect bounds = fz_empty_rect;
@@ -871,4 +897,33 @@ void gopdf_free_text(gopdf_doc *handle, char *text) {
 	if (text != NULL) {
 		fz_free(handle->ctx, text);
 	}
+}
+
+/* A single probe context is enough: callers serialise access, and this is only
+ * used to ask MuPDF which names its compiled-in handlers recognise. */
+static fz_context *gopdf_probe_ctx = NULL;
+
+int gopdf_recognize_document_name(const char *name) {
+	const fz_document_handler *handler = NULL;
+	if (gopdf_probe_ctx == NULL) {
+		gopdf_probe_ctx = fz_new_context(NULL, NULL, FZ_STORE_DEFAULT);
+		if (gopdf_probe_ctx == NULL) {
+			return 0;
+		}
+		fz_set_warning_callback(gopdf_probe_ctx, gopdf_silent_callback, NULL);
+		fz_set_error_callback(gopdf_probe_ctx, gopdf_silent_callback, NULL);
+		fz_try(gopdf_probe_ctx) {
+			fz_register_document_handlers(gopdf_probe_ctx);
+		} fz_catch(gopdf_probe_ctx) {
+			fz_drop_context(gopdf_probe_ctx);
+			gopdf_probe_ctx = NULL;
+			return 0;
+		}
+	}
+	fz_try(gopdf_probe_ctx) {
+		handler = fz_recognize_document(gopdf_probe_ctx, name);
+	} fz_catch(gopdf_probe_ctx) {
+		return 0;
+	}
+	return handler != NULL ? 1 : 0;
 }
