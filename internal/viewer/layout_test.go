@@ -125,7 +125,7 @@ func TestSmoothWheelQueuesPreciseScrollDelta(t *testing.T) {
 	app.recomputeLayout(1000, 100)
 	app.scrollY = 100
 
-	app.handleAnimatedMouseWheel(&sdl.MouseWheelEvent{X: 0.25, Y: 0.5})
+	app.handleAnimatedMouseWheel(&sdl.MouseWheelEvent{X: 0.25, Y: 0.1})
 
 	assertClose(t, app.scrollX, 0)
 	assertClose(t, app.scrollY, 100)
@@ -134,7 +134,51 @@ func TestSmoothWheelQueuesPreciseScrollDelta(t *testing.T) {
 		t.Fatal("expected smooth scroll target")
 	}
 	assertClose(t, state.targetX, 16)
-	assertClose(t, state.targetY, 68)
+	assertClose(t, state.targetY, 93.6)
+}
+
+func TestSmoothWheelPrefersPreciseDeltaOverAccumulatedIntegerTicks(t *testing.T) {
+	app := testLayoutApp(5)
+	app.pageStep = 64
+	app.config.SmoothScrollDampening = 0.35
+	app.mouseBindings = map[string]string{
+		"wheel_up":    "scroll_up",
+		"wheel_down":  "scroll_down",
+		"wheel_left":  "scroll_left",
+		"wheel_right": "scroll_right",
+	}
+	app.recomputeLayout(1000, 100)
+	app.scrollY = 100
+
+	app.handleAnimatedMouseWheel(&sdl.MouseWheelEvent{Y: 0.1, IntegerY: 1})
+
+	state := app.smoothScrollState()
+	if state == nil {
+		t.Fatal("expected smooth scroll target")
+	}
+	assertClose(t, state.targetY, 93.6)
+}
+
+func TestSmoothWheelUsesScrollStepForIntegerDelta(t *testing.T) {
+	app := testLayoutApp(5)
+	app.pageStep = 64
+	app.config.SmoothScrollDampening = 0.35
+	app.mouseBindings = map[string]string{
+		"wheel_up":    "scroll_up",
+		"wheel_down":  "scroll_down",
+		"wheel_left":  "scroll_left",
+		"wheel_right": "scroll_right",
+	}
+	app.recomputeLayout(1000, 100)
+	app.scrollY = 100
+
+	app.handleAnimatedMouseWheel(&sdl.MouseWheelEvent{Y: 1, IntegerY: 1})
+
+	state := app.smoothScrollState()
+	if state == nil {
+		t.Fatal("expected smooth scroll target")
+	}
+	assertClose(t, state.targetY, 36)
 }
 
 func TestInvertSmoothScrollInvertsBothWheelAxes(t *testing.T) {

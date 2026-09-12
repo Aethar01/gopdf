@@ -14,6 +14,9 @@ func (a *App) Run() error {
 	// On macOS, prefer normal key repeat over the system press-and-hold accent
 	// menu. SDL requires this hint to be set before initialization.
 	sdl.SetHint("SDL_MAC_PRESS_AND_HOLD", "0")
+	// Keep the floating-point wheel values so continuous devices can scroll by
+	// fractional scroll steps. The integer mode would quantize them upstream.
+	sdl.SetHint("SDL_MOUSE_INTEGER_MODE", "0")
 	if !sdl.Init(sdl.InitVideo) {
 		return fmt.Errorf("SDL init failed: %s", sdl.GetError())
 	}

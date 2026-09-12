@@ -90,6 +90,9 @@ func (a *App) handleAnimatedMouseWheel(e *sdl.MouseWheelEvent) {
 	}
 
 	wx, wy = invertWheelDeltas(wx, wy, a.config.InvertSmoothScroll)
+	// SDL wheel units may be fractional for continuous devices. Scaling the
+	// float delta keeps the target precise while preserving scroll_step as the
+	// distance of one ordinary wheel unit.
 	a.queueSmoothScroll(float64(wx)*a.pageStep, -float64(wy)*a.pageStep)
 }
 
