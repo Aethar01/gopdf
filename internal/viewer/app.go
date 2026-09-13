@@ -178,10 +178,8 @@ type inputState struct {
 	sequenceLookup map[string]string
 	pendingCount   string
 	pendingMark    string
-	pinchActive    bool
-	pinchBaseZoom  float64
-	pinchTargetLog float64
-	pinchSmoothLog float64
+	inputSource    smoothInputSource
+	smoothZoom     *smoothZoomState
 	smoothScroll   *smoothScrollState
 }
 
@@ -822,6 +820,15 @@ func (a *App) scrollBy(dx, dy float64) {
 	a.updateCurrentPageFromScroll()
 }
 
+func (a *App) scrollByInput(dx, dy float64) {
+	if !a.smoothScrollInputEnabled(a.currentSmoothInputSource()) {
+		a.cancelSmoothScroll()
+		a.scrollBy(dx, dy)
+		return
+	}
+	a.queueSmoothScroll(dx, dy)
+}
+
 func (a *App) alignPageToAnchor(page int) {
 	if page < 0 || page >= len(a.pageToRow) {
 		return
@@ -985,69 +992,6 @@ func (a *App) anchorPage(page int) int {
 	return row.pages[0]
 }
 
-func (a *App) setManualZoom(delta float64) {
-	a.relayoutWithViewportAnchor(func() {
-		baseZoom := a.zoom
-		if a.fitMode != "manual" {
-			baseZoom = a.scale
-		}
-		a.fitMode = "manual"
-		a.zoom = a.clampZoom(baseZoom * delta)
-		a.scheduleRenderScaleTarget(a.zoom)
-	})
-}
-
-func (a *App) beginPinch() {
-	baseZoom := a.zoom
-	if a.fitMode != "manual" {
-		baseZoom = a.scale
-	}
-	if baseZoom <= 0 {
-		baseZoom = 1
-	}
-	a.pinchActive = true
-	a.pinchBaseZoom = baseZoom
-	a.pinchTargetLog = 0
-	a.pinchSmoothLog = 0
-}
-
-func (a *App) updatePinch(scale float64) {
-	if scale <= 0 || math.IsNaN(scale) || math.IsInf(scale, 0) {
-		return
-	}
-	if !a.pinchActive {
-		a.beginPinch()
-	}
-	sensitivity := a.config.PinchSensitivity
-	if sensitivity <= 0 {
-		sensitivity = 1
-	}
-	// SDL reports a delta scale. Accumulating in log space preserves the
-	// multiplicative gesture while smoothing small direction changes.
-	a.pinchTargetLog += math.Log(scale) * sensitivity
-	minLog := math.Log(a.clampZoom(0.000001) / a.pinchBaseZoom)
-	maxLog := math.Log(a.clampZoom(1000000) / a.pinchBaseZoom)
-	a.pinchTargetLog = clampFloat(a.pinchTargetLog, minLog, maxLog)
-	a.pinchSmoothLog += (a.pinchTargetLog - a.pinchSmoothLog) * 0.35
-	a.applyPinchZoom(math.Exp(a.pinchSmoothLog))
-}
-
-func (a *App) endPinch() {
-	if !a.pinchActive {
-		return
-	}
-	a.applyPinchZoom(math.Exp(a.pinchTargetLog))
-	a.pinchActive = false
-}
-
-func (a *App) applyPinchZoom(delta float64) {
-	a.relayoutWithViewportAnchor(func() {
-		a.fitMode = "manual"
-		a.zoom = a.clampZoom(a.pinchBaseZoom * delta)
-		a.scheduleRenderScaleTarget(a.zoom)
-	})
-}
-
 func (a *App) clampZoom(zoom float64) float64 {
 	minZoom := a.config.MinZoom
 	if minZoom <= 0 {
@@ -1061,6 +1005,7 @@ func (a *App) clampZoom(zoom float64) float64 {
 }
 
 func (a *App) setFitMode(mode string) {
+	a.cancelSmoothZoom()
 	a.relayoutWithViewportAnchor(func() {
 		a.fitMode = mode
 		a.scheduleRenderScaleTarget(a.zoom)

@@ -95,7 +95,7 @@ func TestHandleSDLEventFocusLossStopsKeyPanning(t *testing.T) {
 
 func TestHandleSDLEventPinchUpdatesZoom(t *testing.T) {
 	app := &App{
-		config:          config.Config{PinchSensitivity: 2, MinZoom: 0.5, MaxZoom: 8},
+		config:          config.Config{PinchSensitivity: 2, MinZoom: 0.5, MaxZoom: 8, SmoothZoomSources: config.SmoothInputAll, SmoothZoomDampening: 0.35},
 		viewStateFields: viewStateFields{zoom: 2, fitMode: "manual"},
 	}
 	begin := sdl.Event{}
@@ -110,24 +110,39 @@ func TestHandleSDLEventPinchUpdatesZoom(t *testing.T) {
 	if err := app.handleSDLEvent(&event); err != nil {
 		t.Fatalf("handle pinch event: %v", err)
 	}
+	if app.zoom != 2 {
+		t.Fatalf("expected pinch update to defer zoom until an animation frame, got %v", app.zoom)
+	}
+	if !app.smoothZoomAnimating() {
+		t.Fatal("expected pinch target animation")
+	}
+	if !app.advanceSmoothZoomBy(smoothAnimationFrame) {
+		t.Fatal("expected pinch animation frame to change zoom")
+	}
 	if app.zoom <= 2 || app.zoom >= 3.125 {
-		t.Fatalf("expected pinch update to smoothly scale zoom between 2 and 3.125, got %v", app.zoom)
+		t.Fatalf("expected pinch frame to scale zoom between 2 and 3.125, got %v", app.zoom)
 	}
 	if app.fitMode != "manual" {
-		t.Fatalf("expected pinch to switch to manual zoom, got %q", app.fitMode)
+		t.Fatalf("expected pinch animation to switch to manual zoom, got %q", app.fitMode)
 	}
 	end := sdl.Event{}
 	binary.NativeEndian.PutUint32(end[:], uint32(sdl.EventPinchEnd))
 	if err := app.handleSDLEvent(&end); err != nil {
 		t.Fatalf("handle pinch end: %v", err)
 	}
-	if app.zoom != 3.125 {
-		t.Fatalf("expected pinch end to commit zoom 3.125, got %v", app.zoom)
+	if app.zoom >= 3.125 {
+		t.Fatalf("expected pinch end to keep animating instead of jumping, got %v", app.zoom)
+	}
+	for app.smoothZoomAnimating() {
+		app.advanceSmoothZoomBy(smoothAnimationFrame)
+	}
+	if math.Abs(app.zoom-3.125) > 0.0001 {
+		t.Fatalf("expected pinch animation to settle at zoom 3.125, got %v", app.zoom)
 	}
 }
 
 func TestHandleSDLEventPinchOutDoesNotReverseDirection(t *testing.T) {
-	app := &App{config: config.Config{MinZoom: 0.5, MaxZoom: 8}, viewStateFields: viewStateFields{zoom: 2, fitMode: "manual"}}
+	app := &App{config: config.Config{MinZoom: 0.5, MaxZoom: 8, SmoothZoomSources: config.SmoothInputAll, SmoothZoomDampening: 0.35}, viewStateFields: viewStateFields{zoom: 2, fitMode: "manual"}}
 	for _, scale := range []float32{0.98, 0.99, 0.97} {
 		event := sdl.Event{}
 		binary.NativeEndian.PutUint32(event[:], uint32(sdl.EventPinchUpdate))
@@ -136,7 +151,54 @@ func TestHandleSDLEventPinchOutDoesNotReverseDirection(t *testing.T) {
 			t.Fatalf("handle pinch update: %v", err)
 		}
 	}
+	if !app.advanceSmoothZoomBy(smoothAnimationFrame) {
+		t.Fatal("expected pinch-out animation frame to change zoom")
+	}
 	if app.zoom >= 2 {
 		t.Fatalf("expected pinch out to reduce zoom, got %v", app.zoom)
 	}
+}
+
+func TestZoomActionAnimatesTowardTarget(t *testing.T) {
+	app := &App{
+		config:          config.Config{MinZoom: 0.5, MaxZoom: 8, SmoothZoomSources: config.SmoothInputAll, SmoothZoomDampening: 0.35},
+		viewStateFields: viewStateFields{zoom: 2, fitMode: "manual"},
+	}
+
+	if err := app.runBuiltinAction("zoom_in"); err != nil {
+		t.Fatal(err)
+	}
+	if app.zoom != 2 {
+		t.Fatalf("expected zoom action to defer zoom until an animation frame, got %v", app.zoom)
+	}
+	if !app.smoothZoomAnimating() {
+		t.Fatal("expected zoom animation target")
+	}
+
+	if !app.advanceSmoothZoomBy(smoothAnimationFrame) {
+		t.Fatal("expected zoom animation frame to change zoom")
+	}
+	if app.zoom <= 2 || app.zoom >= 2*1.15 {
+		t.Fatalf("expected zoom frame between 2 and 2.3, got %v", app.zoom)
+	}
+}
+
+func TestRepeatedZoomActionsAccumulateTarget(t *testing.T) {
+	app := &App{
+		config:          config.Config{MinZoom: 0.5, MaxZoom: 8, SmoothZoomSources: config.SmoothInputAll, SmoothZoomDampening: 0.35},
+		viewStateFields: viewStateFields{zoom: 2, fitMode: "manual"},
+	}
+
+	if err := app.runBuiltinAction("zoom_in"); err != nil {
+		t.Fatal(err)
+	}
+	if err := app.runBuiltinAction("zoom_in"); err != nil {
+		t.Fatal(err)
+	}
+
+	state := app.smoothZoom
+	if state == nil {
+		t.Fatal("expected zoom animation target")
+	}
+	assertClose(t, math.Exp(state.targetLog), 2*1.15*1.15)
 }

@@ -42,6 +42,38 @@ func boolOption(description string, get func(*Config) bool, set func(*Config, bo
 	}
 }
 
+func smoothInputSourcesOption(description string, get func(*Config) SmoothInputSources, set func(*Config, SmoothInputSources)) optionDesc {
+	applySources := func(cfg *Config, sources, present SmoothInputSources) {
+		current := get(cfg)
+		set(cfg, (current&^present)|sources)
+	}
+	return optionDesc{
+		kind:        "table",
+		description: description,
+		get:         func(L *lua.LState, cfg *Config) lua.LValue { return smoothInputSourcesTable(L, get(cfg)) },
+		format:      func(cfg *Config) string { return FormatSmoothInputSources(get(cfg)) },
+		applyText: func(cfg *Config, raw string) error {
+			sources, present, err := parseSmoothInputSourcesText(raw)
+			if err != nil {
+				return err
+			}
+			applySources(cfg, sources, present)
+			return nil
+		},
+		apply: func(cfg *Config, value lua.LValue) error {
+			if table, ok := value.(*lua.LTable); ok {
+				sources, present, err := parseSmoothInputSourcesTable(table)
+				if err != nil {
+					return err
+				}
+				applySources(cfg, sources, present)
+				return nil
+			}
+			return fmt.Errorf("expected table")
+		},
+	}
+}
+
 func intOption(description string, get func(*Config) int, set func(*Config, int)) optionDesc {
 	return optionDesc{
 		kind:        "integer",
@@ -270,7 +302,8 @@ func parseColorOption(raw string) ([3]uint8, error) {
 var configOptions = map[string]optionDesc{
 	"status_bar_visible":     boolOption("Show the status bar at startup.", func(c *Config) bool { return c.StatusBarVisible }, func(c *Config, v bool) { c.StatusBarVisible = v }),
 	"mouse_text_select":      boolOption("Enable text selection with the left mouse button.", func(c *Config) bool { return c.MouseTextSelect }, func(c *Config, v bool) { c.MouseTextSelect = v }),
-	"smooth_scroll":          boolOption("Animate mouse-wheel and trackpad scrolling, including scrollable UI lists.", func(c *Config) bool { return c.SmoothScroll }, func(c *Config, v bool) { c.SmoothScroll = v }),
+	"smooth_scroll":          smoothInputSourcesOption("Animate scrolling for selected inputs; assignments update only specified mouse, trackpad, and keyboard fields.", func(c *Config) SmoothInputSources { return c.SmoothScrollSources }, func(c *Config, v SmoothInputSources) { c.SmoothScrollSources = v }),
+	"smooth_zoom":            smoothInputSourcesOption("Animate zooming for selected inputs; assignments update only specified mouse, trackpad, and keyboard fields.", func(c *Config) SmoothInputSources { return c.SmoothZoomSources }, func(c *Config, v SmoothInputSources) { c.SmoothZoomSources = v }),
 	"invert_scroll":          boolOption("Invert horizontal and vertical discrete mouse-wheel scrolling.", func(c *Config) bool { return c.InvertScroll }, func(c *Config, v bool) { c.InvertScroll = v }),
 	"invert_smooth_scroll":   boolOption("Invert horizontal and vertical smooth wheel or trackpad scrolling.", func(c *Config) bool { return c.InvertSmoothScroll }, func(c *Config, v bool) { c.InvertSmoothScroll = v }),
 	"session_database":       boolOption("Persist per-document view state, marks, and recent files.", func(c *Config) bool { return c.SessionDatabase }, func(c *Config, v bool) { c.SessionDatabase = v }),
@@ -305,8 +338,11 @@ var configOptions = map[string]optionDesc{
 	"ui_font_size":        intOption("UI font size in pixels.", func(c *Config) int { return c.UIFontSize }, func(c *Config, v int) { c.UIFontSize = v }),
 	"sequence_timeout_ms": intOption("Maximum delay between keys in a binding sequence.", func(c *Config) int { return c.SequenceTimeoutMS }, func(c *Config, v int) { c.SequenceTimeoutMS = v }),
 	"render_oversample":   floatOption("Render scale multiplier; values above 1 supersample.", func(c *Config) float64 { return c.RenderOversample }, func(c *Config, v float64) { c.RenderOversample = v }),
-	"smooth_scroll_dampening": floatOption("Smooth-scroll catch-up factor per 16ms frame; higher values are more responsive and less damped; clamped to 0.01 through 1.", func(c *Config) float64 { return c.SmoothScrollDampening }, func(c *Config, v float64) {
+	"smooth_scroll_dampening": floatOption("Catch-up factor for smooth scrolling per 16ms frame; higher values are more responsive and less damped; clamped to 0.01 through 1.", func(c *Config) float64 { return c.SmoothScrollDampening }, func(c *Config, v float64) {
 		c.SmoothScrollDampening = max(0.01, min(1, v))
+	}),
+	"smooth_zoom_dampening": floatOption("Catch-up factor for smooth zooming per 16ms frame; higher values are more responsive and less damped; clamped to 0.01 through 1.", func(c *Config) float64 { return c.SmoothZoomDampening }, func(c *Config, v float64) {
+		c.SmoothZoomDampening = max(0.01, min(1, v))
 	}),
 	"min_zoom": floatOption("Minimum manual zoom scale.", func(c *Config) float64 { return c.MinZoom }, func(c *Config, v float64) {
 		if v > 0 {

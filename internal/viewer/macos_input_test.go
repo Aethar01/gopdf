@@ -2,13 +2,15 @@ package viewer
 
 import (
 	"testing"
-	"time"
+
+	"gopdf/internal/config"
 
 	"github.com/jupiterrider/purego-sdl3/sdl"
 )
 
 func TestRepeatedArrowKeyRunsCountableBinding(t *testing.T) {
 	app := testLayoutApp(5)
+	app.config.SmoothScrollSources = 0
 	app.pageStep = 64
 	app.sequenceLookup = map[string]string{
 		normalizeBinding("<Up>"): "scroll_up",
@@ -52,10 +54,49 @@ func TestSmoothScrollQueuesTargetWithoutImmediateJump(t *testing.T) {
 	}
 	assertClose(t, state.targetY, 164)
 
-	if !app.advanceSmoothScrollBy(smoothScrollFrame) {
+	if !app.advanceSmoothScrollBy(smoothAnimationFrame) {
 		t.Fatal("expected first animation frame to move the viewport")
 	}
 	assertClose(t, app.scrollY, 122.4)
+}
+
+func TestKeyboardScrollQueuesSmoothTarget(t *testing.T) {
+	app := testLayoutApp(5)
+	app.pageStep = 64
+	app.config.SmoothScrollDampening = 0.35
+	app.recomputeLayout(1000, 100)
+	app.scrollY = 100
+
+	if err := app.runBuiltinAction("scroll_down"); err != nil {
+		t.Fatal(err)
+	}
+	assertClose(t, app.scrollY, 100)
+	state := app.smoothScrollState()
+	if state == nil {
+		t.Fatal("expected keyboard scroll target")
+	}
+	assertClose(t, state.targetY, 164)
+
+	if !app.advanceSmoothScrollBy(smoothAnimationFrame) {
+		t.Fatal("expected keyboard scroll animation frame to move the viewport")
+	}
+	assertClose(t, app.scrollY, 122.4)
+}
+
+func TestKeyboardScrollCanBeDisabledIndependently(t *testing.T) {
+	app := testLayoutApp(5)
+	app.pageStep = 64
+	app.config.SmoothScrollSources = config.SmoothInputMouse
+	app.recomputeLayout(1000, 100)
+	app.scrollY = 100
+
+	if err := app.runBuiltinAction("scroll_down"); err != nil {
+		t.Fatal(err)
+	}
+	assertClose(t, app.scrollY, 164)
+	if app.smoothScrollActive() {
+		t.Fatal("expected disabled keyboard smoothing to remain immediate")
+	}
 }
 
 func TestSmoothScrollAccumulatesWheelBurstIntoOneTarget(t *testing.T) {
@@ -76,7 +117,7 @@ func TestSmoothScrollAccumulatesWheelBurstIntoOneTarget(t *testing.T) {
 	}
 	assertClose(t, state.targetY, 148)
 
-	app.advanceSmoothScrollBy(smoothScrollFrame)
+	app.advanceSmoothScrollBy(smoothAnimationFrame)
 	assertClose(t, app.scrollY, 116.8)
 }
 
@@ -88,11 +129,11 @@ func TestDirectNavigationCancelsPendingSmoothScroll(t *testing.T) {
 	defer app.cancelSmoothScroll()
 
 	app.queueSmoothScroll(0, 64)
-	app.advanceSmoothScrollBy(smoothScrollFrame)
+	app.advanceSmoothScrollBy(smoothAnimationFrame)
 	app.scrollBy(0, 10)
 	position := app.scrollY
 
-	if app.advanceSmoothScrollBy(smoothScrollFrame) {
+	if app.advanceSmoothScrollBy(smoothAnimationFrame) {
 		t.Fatal("expected direct navigation to cancel the pending wheel target")
 	}
 	if app.smoothScrollActive() {
@@ -141,19 +182,19 @@ func TestDiscreteWheelDoesNotReenterSmoothScrolling(t *testing.T) {
 }
 
 func TestSmoothTowardUsesConfiguredDampening(t *testing.T) {
-	assertClose(t, smoothToward(0, 1, 0.35, 16*time.Millisecond), 0.35)
-	assertClose(t, smoothToward(10, 20, 0.5, 16*time.Millisecond), 15)
+	assertClose(t, smoothToward(0, 1, 0.35, smoothAnimationFrame), 0.35)
+	assertClose(t, smoothToward(10, 20, 0.5, smoothAnimationFrame), 15)
 }
 
 func TestSmoothTowardNormalizesForElapsedTime(t *testing.T) {
-	oneFrame := smoothToward(0, 1, 0.35, 16*time.Millisecond)
-	twoFrames := smoothToward(0, 1, 0.35, 32*time.Millisecond)
-	steppedTwice := smoothToward(oneFrame, 1, 0.35, 16*time.Millisecond)
+	oneFrame := smoothToward(0, 1, 0.35, smoothAnimationFrame)
+	twoFrames := smoothToward(0, 1, 0.35, 2*smoothAnimationFrame)
+	steppedTwice := smoothToward(oneFrame, 1, 0.35, smoothAnimationFrame)
 
 	assertClose(t, twoFrames, steppedTwice)
 }
 
 func TestSmoothTowardClampsDampening(t *testing.T) {
-	assertClose(t, smoothToward(0, 1, 2, 16*time.Millisecond), 1)
-	assertClose(t, smoothToward(0, 1, 0, 16*time.Millisecond), 0.01)
+	assertClose(t, smoothToward(0, 1, 2, smoothAnimationFrame), 1)
+	assertClose(t, smoothToward(0, 1, 0, smoothAnimationFrame), 0.01)
 }

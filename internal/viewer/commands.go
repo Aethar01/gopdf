@@ -82,6 +82,13 @@ func (a *App) runAction(action string) {
 	}
 }
 
+func (a *App) runActionFrom(source smoothInputSource, action string) {
+	previous := a.inputSource
+	a.inputSource = source
+	defer func() { a.inputSource = previous }()
+	a.runAction(action)
+}
+
 func (a *App) runBuiltinAction(action string) error {
 	defer a.syncTextInput()
 	switch action {
@@ -90,13 +97,13 @@ func (a *App) runBuiltinAction(action string) error {
 	case "prev_page":
 		a.prevPage()
 	case "scroll_down":
-		a.scrollBy(0, a.pageStep)
+		a.scrollByInput(0, a.pageStep)
 	case "scroll_up":
-		a.scrollBy(0, -a.pageStep)
+		a.scrollByInput(0, -a.pageStep)
 	case "scroll_left":
-		a.scrollBy(-a.pageStep, 0)
+		a.scrollByInput(-a.pageStep, 0)
 	case "scroll_right":
-		a.scrollBy(a.pageStep, 0)
+		a.scrollByInput(a.pageStep, 0)
 	case "pan":
 		if a.actionKey != "" {
 			a.panning = true
@@ -179,8 +186,7 @@ func (a *App) runBuiltinAction(action string) error {
 	case "zoom_out":
 		a.setManualZoom(1 / 1.15)
 	case "reset_zoom":
-		a.zoom = a.clampZoom(1)
-		a.setFitMode("manual")
+		a.setManualZoomTarget(1)
 	case "fit_width":
 		a.setFitMode("width")
 	case "fit_page":
@@ -329,9 +335,8 @@ func (a *App) RunCommand(command string) error {
 func (a *App) applyConfigState(cfg config.Config, preserveManualFit bool) {
 	currentFitMode := a.fitMode
 	a.config = cfg
-	if !cfg.SmoothScroll {
-		a.cancelSmoothScroll()
-	}
+	a.cancelSmoothZoom()
+	a.cancelSmoothScroll()
 	a.fitMode = sanitizeFitMode(cfg.FitMode)
 	if preserveManualFit && currentFitMode == "manual" {
 		a.fitMode = currentFitMode
@@ -427,6 +432,7 @@ func (a *App) SetZoom(zoom float64) error {
 	if zoom <= 0 {
 		return fmt.Errorf("zoom must be positive")
 	}
+	a.cancelSmoothZoom()
 	a.relayoutWithViewportAnchor(func() {
 		a.fitMode = "manual"
 		a.zoom = a.clampZoom(zoom)
@@ -717,7 +723,11 @@ func (a *App) runSet(input string) {
 
 func (a *App) runMouseBinding(event string) bool {
 	if action, ok := a.mouseBindings[event]; ok {
-		a.runAction(action)
+		source := a.inputSource
+		if source == smoothInputSourceUnset {
+			source = smoothInputSourceMouse
+		}
+		a.runActionFrom(source, action)
 		return true
 	}
 	return false

@@ -181,6 +181,34 @@ func TestSmoothWheelUsesScrollStepForIntegerDelta(t *testing.T) {
 	assertClose(t, state.targetY, 36)
 }
 
+func TestTrackpadSmoothingCanBeSelectedWithoutMouseWheelSmoothing(t *testing.T) {
+	app := testLayoutApp(5)
+	app.pageStep = 64
+	app.config.SmoothScrollSources = config.SmoothInputTrackpad
+	app.config.SmoothScrollDampening = 0.35
+	app.mouseBindings = map[string]string{
+		"wheel_up":    "scroll_up",
+		"wheel_down":  "scroll_down",
+		"wheel_left":  "scroll_left",
+		"wheel_right": "scroll_right",
+	}
+	app.recomputeLayout(1000, 100)
+	app.scrollY = 100
+
+	app.handleAnimatedMouseWheel(&sdl.MouseWheelEvent{Y: 0.1})
+	if !app.smoothScrollActive() {
+		t.Fatal("expected fractional trackpad input to animate")
+	}
+	app.cancelSmoothScroll()
+	app.scrollY = 100
+
+	app.handleAnimatedMouseWheel(&sdl.MouseWheelEvent{Y: 1})
+	assertClose(t, app.scrollY, 36)
+	if app.smoothScrollActive() {
+		t.Fatal("expected detented mouse-wheel input to remain immediate")
+	}
+}
+
 func TestInvertSmoothScrollInvertsBothWheelAxes(t *testing.T) {
 	app := testLayoutApp(5)
 	app.pageStep = 64
@@ -208,7 +236,7 @@ func TestInvertSmoothScrollInvertsBothWheelAxes(t *testing.T) {
 
 func TestDisabledSmoothScrollUsesDiscreteWheelPath(t *testing.T) {
 	app := testLayoutApp(5)
-	app.config.SmoothScroll = false
+	app.config.SmoothScrollSources = 0
 	app.pageStep = 64
 	app.mouseBindings = map[string]string{
 		"wheel_up":    "scroll_up",
@@ -315,7 +343,7 @@ func testLayoutApp(pageCount int) *App {
 	return &App{
 		documentState:   documentState{pageCount: pageCount},
 		viewStateFields: viewStateFields{zoom: 1, fitMode: "manual", renderMode: "continuous", firstPageOffset: true},
-		config:          config.Config{PageGap: -1, PageGapHorizontal: -1, PageGapVertical: -1, SpreadGap: -1, SmoothScroll: true},
+		config:          config.Config{PageGap: -1, PageGapHorizontal: -1, PageGapVertical: -1, SpreadGap: -1, SmoothScrollSources: config.SmoothInputAll},
 		metricsService:  metricsService{pageMetrics: metrics},
 	}
 }

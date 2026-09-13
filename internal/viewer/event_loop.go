@@ -60,6 +60,7 @@ func (a *App) Run() error {
 	}
 	defer a.stopTextInput()
 	defer a.cancelSmoothScroll()
+	defer a.cancelSmoothZoom()
 	for !a.quit {
 		var event sdl.Event
 		for sdl.PollEvent(&event) {
@@ -68,6 +69,7 @@ func (a *App) Run() error {
 			}
 		}
 		a.advanceSmoothScroll()
+		a.advanceSmoothZoom()
 		if a.runtime != nil {
 			if a.runtime.PollPluginOperations() {
 				a.applyRuntimeChanges("plugin operation")
@@ -127,7 +129,7 @@ func (a *App) openInitialDocument() error {
 }
 
 func (a *App) eventWaitTimeoutMS() int {
-	if a.hasPendingVisibleRender() || a.search.running || a.smoothScrollActive() || a.runtime != nil && a.runtime.PluginOperationsActive() {
+	if a.hasPendingVisibleRender() || a.search.running || a.smoothScrollActive() || a.smoothZoomAnimating() || a.runtime != nil && a.runtime.PluginOperationsActive() {
 		return 16
 	}
 	if len(a.sequence) > 0 {
@@ -200,10 +202,13 @@ func (a *App) handleSDLEvent(event *sdl.Event) error {
 		redraw = false
 	case sdl.EventPinchBegin:
 		a.beginPinch()
+		redraw = false
 	case sdl.EventPinchUpdate:
 		a.updatePinch(float64(pinchEventScale(event)))
+		redraw = false
 	case sdl.EventPinchEnd:
 		a.endPinch()
+		redraw = false
 	case sdl.EventMouseButtonDown, sdl.EventMouseButtonUp:
 		e := event.Button()
 		a.handleMouseButtonEvent(&e)

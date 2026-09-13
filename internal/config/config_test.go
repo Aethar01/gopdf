@@ -567,6 +567,21 @@ func TestRuntimeOptionInspectionAndAssignment(t *testing.T) {
 	if value, err := rt.OptionValue("scroll_step"); err != nil || value != "64" {
 		t.Fatalf("OptionValue(scroll_step) = %q, %v", value, err)
 	}
+	if err := rt.SetOption("smooth_scroll", `{ mouse = true, trackpad = false, keyboard = true }`); err != nil {
+		t.Fatal(err)
+	}
+	if cfg := rt.Config(); cfg.SmoothScrollSources != SmoothInputMouse|SmoothInputKeyboard {
+		t.Fatalf("expected smooth_scroll source table assignment, got %q", FormatSmoothInputSources(cfg.SmoothScrollSources))
+	}
+	if err := rt.SetOption("smooth_scroll", `{ mouse = false }`); err != nil {
+		t.Fatal(err)
+	}
+	if cfg := rt.Config(); cfg.SmoothScrollSources != SmoothInputKeyboard {
+		t.Fatalf("expected partial smooth_scroll update, got %q", FormatSmoothInputSources(cfg.SmoothScrollSources))
+	}
+	if value, err := rt.OptionValue("smooth_scroll"); err != nil || value != `{ mouse = false, trackpad = false, keyboard = true }` {
+		t.Fatalf("expected complete smooth_scroll table value, got %q, %v", value, err)
+	}
 	if err := rt.SetOption("scroll_step", "96"); err != nil {
 		t.Fatal(err)
 	}

@@ -48,10 +48,12 @@ type Config struct {
 	MouseBindings         map[string]string
 	MouseTextSelect       bool
 	CopyOnSelect          bool
-	SmoothScroll          bool
+	SmoothScrollSources   SmoothInputSources
+	SmoothZoomSources     SmoothInputSources
 	InvertScroll          bool
 	InvertSmoothScroll    bool
 	SmoothScrollDampening float64
+	SmoothZoomDampening   float64
 	SessionDatabase       bool
 	AntiAliasing          int
 	OutlineInitialDepth   int

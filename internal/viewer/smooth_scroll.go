@@ -4,11 +4,13 @@ import (
 	"math"
 	"time"
 
+	"gopdf/internal/config"
+
 	"github.com/jupiterrider/purego-sdl3/sdl"
 )
 
 const (
-	smoothScrollFrame     = 16 * time.Millisecond
+	smoothAnimationFrame  = 16 * time.Millisecond
 	smoothScrollSnap      = 0.25
 	modalSmoothScrollSnap = 0.01
 )
@@ -25,6 +27,60 @@ type smoothScrollState struct {
 	lastAdvance   time.Time
 }
 
+type smoothInputSource uint8
+
+const (
+	smoothInputSourceUnset smoothInputSource = iota
+	smoothInputSourceMouse
+	smoothInputSourceTrackpad
+	smoothInputSourceKeyboard
+)
+
+func (a *App) currentSmoothInputSource() smoothInputSource {
+	if a.inputSource == smoothInputSourceUnset {
+		return smoothInputSourceKeyboard
+	}
+	return a.inputSource
+}
+
+func smoothInputSourceMask(source smoothInputSource) config.SmoothInputSources {
+	switch source {
+	case smoothInputSourceMouse:
+		return config.SmoothInputMouse
+	case smoothInputSourceTrackpad:
+		return config.SmoothInputTrackpad
+	case smoothInputSourceKeyboard:
+		return config.SmoothInputKeyboard
+	}
+	return 0
+}
+
+func (a *App) smoothScrollInputEnabled(source smoothInputSource) bool {
+	return a.config.SmoothScrollSources.Has(smoothInputSourceMask(source))
+}
+
+func (a *App) smoothZoomInputEnabled(source smoothInputSource) bool {
+	return a.config.SmoothZoomSources.Has(smoothInputSourceMask(source))
+}
+
+func withSmoothInputSource(a *App, source smoothInputSource, run func()) {
+	previous := a.inputSource
+	a.inputSource = source
+	defer func() { a.inputSource = previous }()
+	run()
+}
+
+func wheelInputSource(e *sdl.MouseWheelEvent) smoothInputSource {
+	if hasFractionalWheelDelta(e.X) || hasFractionalWheelDelta(e.Y) {
+		return smoothInputSourceTrackpad
+	}
+	return smoothInputSourceMouse
+}
+
+func hasFractionalWheelDelta(delta float32) bool {
+	return delta != 0 && float64(delta) != math.Trunc(float64(delta))
+}
+
 func smoothToward(current, target, dampening float64, elapsed time.Duration) float64 {
 	if elapsed <= 0 {
 		return current
@@ -33,7 +89,7 @@ func smoothToward(current, target, dampening float64, elapsed time.Duration) flo
 	if dampening >= 1 {
 		return target
 	}
-	factor := 1 - math.Pow(1-dampening, float64(elapsed)/float64(smoothScrollFrame))
+	factor := 1 - math.Pow(1-dampening, float64(elapsed)/float64(smoothAnimationFrame))
 	return current + (target-current)*factor
 }
 
@@ -65,9 +121,10 @@ func modalWheelRows(e *sdl.MouseWheelEvent) float64 {
 }
 
 func (a *App) handleAnimatedMouseWheel(e *sdl.MouseWheelEvent) {
-	if !a.config.SmoothScroll {
+	source := wheelInputSource(e)
+	if !a.smoothScrollInputEnabled(source) {
 		a.cancelSmoothScroll()
-		a.handleSDLMouseWheel(e)
+		withSmoothInputSource(a, source, func() { a.handleSDLMouseWheel(e) })
 		a.pendingRedraw = true
 		return
 	}
@@ -79,13 +136,13 @@ func (a *App) handleAnimatedMouseWheel(e *sdl.MouseWheelEvent) {
 	wx, wy := normalizedWheelDeltas(e)
 	if sdl.GetModState()&sdl.KeymodCtrl != 0 {
 		a.cancelSmoothScroll()
-		a.handleSDLMouseWheel(e)
+		withSmoothInputSource(a, source, func() { a.handleSDLMouseWheel(e) })
 		a.pendingRedraw = true
 		return
 	}
 
 	if !a.canSmoothWheel(wx, wy) {
-		a.runDiscreteMouseWheel(wx, wy)
+		withSmoothInputSource(a, source, func() { a.runDiscreteMouseWheel(wx, wy) })
 		return
 	}
 
@@ -200,7 +257,7 @@ func (a *App) advanceSmoothScroll() bool {
 	}
 
 	now := time.Now()
-	elapsed := smoothScrollFrame
+	elapsed := smoothAnimationFrame
 	if !state.lastAdvance.IsZero() {
 		elapsed = now.Sub(state.lastAdvance)
 	}
@@ -211,10 +268,6 @@ func (a *App) advanceSmoothScroll() bool {
 func (a *App) advanceSmoothScrollBy(elapsed time.Duration) bool {
 	state := a.smoothScrollState()
 	if state == nil {
-		return false
-	}
-	if !a.config.SmoothScroll {
-		a.cancelSmoothScroll()
 		return false
 	}
 	if state.modalView != nil {

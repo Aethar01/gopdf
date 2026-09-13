@@ -186,6 +186,7 @@ func (a *App) openDocumentWithPassword(path string, opts openDocumentOptions, pa
 }
 
 func (a *App) resetForNewDocument(password string) {
+	a.cancelSmoothZoom()
 	a.docPassword = password
 	a.rotation = 0
 	a.zoom = a.clampZoom(1)
