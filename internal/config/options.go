@@ -337,11 +337,12 @@ var configOptions = map[string]optionDesc{
 	"status_bar_padding":  intOption("Horizontal status bar padding in pixels.", func(c *Config) int { return c.StatusBarPadding }, func(c *Config, v int) { c.StatusBarPadding = v }),
 	"ui_font_size":        intOption("UI font size in pixels.", func(c *Config) int { return c.UIFontSize }, func(c *Config, v int) { c.UIFontSize = v }),
 	"sequence_timeout_ms": intOption("Maximum delay between keys in a binding sequence.", func(c *Config) int { return c.SequenceTimeoutMS }, func(c *Config, v int) { c.SequenceTimeoutMS = v }),
+	"animation_frame_ms":  intOption("Animation timestep in milliseconds; clamped to at least 1.", func(c *Config) int { return c.AnimationFrameMS }, func(c *Config, v int) { c.AnimationFrameMS = max(1, v) }),
 	"render_oversample":   floatOption("Render scale multiplier; values above 1 supersample.", func(c *Config) float64 { return c.RenderOversample }, func(c *Config, v float64) { c.RenderOversample = v }),
-	"smooth_scroll_dampening": floatOption("Catch-up factor for smooth scrolling per 16ms frame; higher values are more responsive and less damped; clamped to 0.01 through 1.", func(c *Config) float64 { return c.SmoothScrollDampening }, func(c *Config, v float64) {
+	"smooth_scroll_dampening": floatOption("Catch-up factor for smooth scrolling per animation frame; higher values are more responsive and less damped; clamped to 0.01 through 1.", func(c *Config) float64 { return c.SmoothScrollDampening }, func(c *Config, v float64) {
 		c.SmoothScrollDampening = max(0.01, min(1, v))
 	}),
-	"smooth_zoom_dampening": floatOption("Catch-up factor for smooth zooming per 16ms frame; higher values are more responsive and less damped; clamped to 0.01 through 1.", func(c *Config) float64 { return c.SmoothZoomDampening }, func(c *Config, v float64) {
+	"smooth_zoom_dampening": floatOption("Catch-up factor for smooth zooming per animation frame; higher values are more responsive and less damped; clamped to 0.01 through 1.", func(c *Config) float64 { return c.SmoothZoomDampening }, func(c *Config, v float64) {
 		c.SmoothZoomDampening = max(0.01, min(1, v))
 	}),
 	"min_zoom": floatOption("Minimum manual zoom scale.", func(c *Config) float64 { return c.MinZoom }, func(c *Config, v float64) {

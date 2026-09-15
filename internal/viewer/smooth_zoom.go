@@ -132,7 +132,7 @@ func (a *App) advanceSmoothZoom() bool {
 	}
 
 	now := time.Now()
-	elapsed := smoothAnimationFrame
+	elapsed := a.animationFrameDuration()
 	if !state.lastAdvance.IsZero() {
 		elapsed = now.Sub(state.lastAdvance)
 	}
@@ -151,7 +151,7 @@ func (a *App) advanceSmoothZoomBy(elapsed time.Duration) bool {
 		return false
 	}
 
-	next := smoothToward(state.appliedLog, state.targetLog, a.config.SmoothZoomDampening, elapsed)
+	next := smoothToward(state.appliedLog, state.targetLog, a.config.SmoothZoomDampening, elapsed, a.animationFrameDuration())
 	if math.Abs(state.targetLog-next) <= smoothZoomSnap {
 		next = state.targetLog
 	}

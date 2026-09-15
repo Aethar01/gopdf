@@ -2,6 +2,7 @@ package viewer
 
 import (
 	"testing"
+	"time"
 
 	"gopdf/internal/config"
 
@@ -182,19 +183,27 @@ func TestDiscreteWheelDoesNotReenterSmoothScrolling(t *testing.T) {
 }
 
 func TestSmoothTowardUsesConfiguredDampening(t *testing.T) {
-	assertClose(t, smoothToward(0, 1, 0.35, smoothAnimationFrame), 0.35)
-	assertClose(t, smoothToward(10, 20, 0.5, smoothAnimationFrame), 15)
+	assertClose(t, smoothToward(0, 1, 0.35, smoothAnimationFrame, smoothAnimationFrame), 0.35)
+	assertClose(t, smoothToward(10, 20, 0.5, smoothAnimationFrame, smoothAnimationFrame), 15)
+}
+
+func TestSmoothAnimationUsesConfiguredFrame(t *testing.T) {
+	app := &App{config: config.Config{AnimationFrameMS: 32}}
+	if got := app.animationFrameDuration(); got != 32*time.Millisecond {
+		t.Fatalf("expected configured animation frame, got %v", got)
+	}
+	assertClose(t, smoothToward(0, 1, 0.35, 32*time.Millisecond, app.animationFrameDuration()), 0.35)
 }
 
 func TestSmoothTowardNormalizesForElapsedTime(t *testing.T) {
-	oneFrame := smoothToward(0, 1, 0.35, smoothAnimationFrame)
-	twoFrames := smoothToward(0, 1, 0.35, 2*smoothAnimationFrame)
-	steppedTwice := smoothToward(oneFrame, 1, 0.35, smoothAnimationFrame)
+	oneFrame := smoothToward(0, 1, 0.35, smoothAnimationFrame, smoothAnimationFrame)
+	twoFrames := smoothToward(0, 1, 0.35, 2*smoothAnimationFrame, smoothAnimationFrame)
+	steppedTwice := smoothToward(oneFrame, 1, 0.35, smoothAnimationFrame, smoothAnimationFrame)
 
 	assertClose(t, twoFrames, steppedTwice)
 }
 
 func TestSmoothTowardClampsDampening(t *testing.T) {
-	assertClose(t, smoothToward(0, 1, 2, smoothAnimationFrame), 1)
-	assertClose(t, smoothToward(0, 1, 0, smoothAnimationFrame), 0.01)
+	assertClose(t, smoothToward(0, 1, 2, smoothAnimationFrame, smoothAnimationFrame), 1)
+	assertClose(t, smoothToward(0, 1, 0, smoothAnimationFrame, smoothAnimationFrame), 0.01)
 }

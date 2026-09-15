@@ -7,6 +7,7 @@ gopdf.options.alt_foreground = {255, 255, 255} -- UI foreground in alternate-col
 gopdf.options.alt_page_background = {17, 17, 17} -- Page background in alternate-color mode.
 gopdf.options.alt_status_bar_color = {20, 20, 20} -- Status bar background in alternate-color mode.
 gopdf.options.anchor_position = "center" -- Viewport anchor: center, top, or bottom.
+gopdf.options.animation_frame_ms = 16 -- Animation timestep in milliseconds; clamped to at least 1.
 gopdf.options.anti_aliasing = 8 -- MuPDF antialiasing level from 0 through 8.
 gopdf.options.background = {220, 220, 220} -- Viewer background color.
 gopdf.options.completion_max_items = 10 -- Maximum command-completion rows.
@@ -39,9 +40,9 @@ gopdf.options.scroll_step = 64 -- Keyboard and mouse scroll distance in pixels.
 gopdf.options.sequence_timeout_ms = 700 -- Maximum delay between keys in a binding sequence.
 gopdf.options.session_database = true -- Persist per-document view state, marks, and recent files.
 gopdf.options.smooth_scroll = { mouse = true, trackpad = true, keyboard = true } -- Animate scrolling for selected inputs; assignments update only specified mouse, trackpad, and keyboard fields.
-gopdf.options.smooth_scroll_dampening = 0.8 -- Catch-up factor for smooth scrolling per 16ms frame; higher values are more responsive and less damped; clamped to 0.01 through 1.
+gopdf.options.smooth_scroll_dampening = 0.8 -- Catch-up factor for smooth scrolling per animation frame; higher values are more responsive and less damped; clamped to 0.01 through 1.
 gopdf.options.smooth_zoom = { mouse = true, trackpad = true, keyboard = true } -- Animate zooming for selected inputs; assignments update only specified mouse, trackpad, and keyboard fields.
-gopdf.options.smooth_zoom_dampening = 0.8 -- Catch-up factor for smooth zooming per 16ms frame; higher values are more responsive and less damped; clamped to 0.01 through 1.
+gopdf.options.smooth_zoom_dampening = 0.8 -- Catch-up factor for smooth zooming per animation frame; higher values are more responsive and less damped; clamped to 0.01 through 1.
 gopdf.options.spread_gap = 0 -- Horizontal spread gap; aliases page_gap_horizontal.
 gopdf.options.status_bar_color = {220, 220, 220} -- Normal status bar background color.
 gopdf.options.status_bar_left = "{message}" -- Left status bar template.

@@ -42,6 +42,7 @@ func Default() Config {
 		StatusBarLeft:       "{message}",
 		StatusBarRight:      "{page}/{total} {mode} fit={fit} rot={rot} {zoom}",
 		SequenceTimeoutMS:   700,
+		AnimationFrameMS:    16,
 		NormalMessage:       "",
 		KeyBindings:         actions.DefaultBindings(),
 		MouseBindings: map[string]string{

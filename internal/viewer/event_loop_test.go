@@ -80,6 +80,17 @@ func TestHandleSDLEventRedrawsExposedWindow(t *testing.T) {
 	}
 }
 
+func TestEventWaitTimeoutUsesConfiguredAnimationFrame(t *testing.T) {
+	app := &App{
+		config:     config.Config{AnimationFrameMS: 24},
+		smoothZoom: &smoothZoomState{targetLog: 1, appliedLog: 0},
+	}
+
+	if got := app.eventWaitTimeoutMS(); got != 24 {
+		t.Fatalf("expected animation wait timeout of 24ms, got %d", got)
+	}
+}
+
 func TestHandleSDLEventFocusLossStopsKeyPanning(t *testing.T) {
 	app := &App{interactionState: interactionState{panning: true, panKey: " "}}
 	event := sdl.Event{}

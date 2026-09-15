@@ -43,6 +43,7 @@ type Config struct {
 	StatusBarLeft         string
 	StatusBarRight        string
 	SequenceTimeoutMS     int
+	AnimationFrameMS      int
 	NormalMessage         string
 	KeyBindings           map[string]string
 	MouseBindings         map[string]string

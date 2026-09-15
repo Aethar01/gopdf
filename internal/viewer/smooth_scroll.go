@@ -81,16 +81,26 @@ func hasFractionalWheelDelta(delta float32) bool {
 	return delta != 0 && float64(delta) != math.Trunc(float64(delta))
 }
 
-func smoothToward(current, target, dampening float64, elapsed time.Duration) float64 {
+func smoothToward(current, target, dampening float64, elapsed, frame time.Duration) float64 {
 	if elapsed <= 0 {
 		return current
+	}
+	if frame <= 0 {
+		frame = smoothAnimationFrame
 	}
 	dampening = clampFloat(dampening, 0.01, 1)
 	if dampening >= 1 {
 		return target
 	}
-	factor := 1 - math.Pow(1-dampening, float64(elapsed)/float64(smoothAnimationFrame))
+	factor := 1 - math.Pow(1-dampening, float64(elapsed)/float64(frame))
 	return current + (target-current)*factor
+}
+
+func (a *App) animationFrameDuration() time.Duration {
+	if a.config.AnimationFrameMS <= 0 {
+		return smoothAnimationFrame
+	}
+	return time.Duration(a.config.AnimationFrameMS) * time.Millisecond
 }
 
 func normalizedWheelDeltas(e *sdl.MouseWheelEvent) (float32, float32) {
@@ -257,7 +267,7 @@ func (a *App) advanceSmoothScroll() bool {
 	}
 
 	now := time.Now()
-	elapsed := smoothAnimationFrame
+	elapsed := a.animationFrameDuration()
 	if !state.lastAdvance.IsZero() {
 		elapsed = now.Sub(state.lastAdvance)
 	}
@@ -281,8 +291,8 @@ func (a *App) advanceSmoothScrollBy(elapsed time.Duration) bool {
 		return false
 	}
 
-	nextX := smoothToward(a.scrollX, state.targetX, a.config.SmoothScrollDampening, elapsed)
-	nextY := smoothToward(a.scrollY, state.targetY, a.config.SmoothScrollDampening, elapsed)
+	nextX := smoothToward(a.scrollX, state.targetX, a.config.SmoothScrollDampening, elapsed, a.animationFrameDuration())
+	nextY := smoothToward(a.scrollY, state.targetY, a.config.SmoothScrollDampening, elapsed, a.animationFrameDuration())
 	if math.Abs(state.targetX-nextX) <= smoothScrollSnap {
 		nextX = state.targetX
 	}
@@ -325,7 +335,7 @@ func (a *App) advanceModalSmoothScrollBy(state *smoothScrollState, elapsed time.
 
 	state.targetRow = clampFloat(state.targetRow, 0, float64(maxScroll))
 	state.appliedRow = clampFloat(state.appliedRow, 0, float64(maxScroll))
-	next := smoothToward(state.appliedRow, state.targetRow, a.config.SmoothScrollDampening, elapsed)
+	next := smoothToward(state.appliedRow, state.targetRow, a.config.SmoothScrollDampening, elapsed, a.animationFrameDuration())
 	if math.Abs(state.targetRow-next) <= modalSmoothScrollSnap {
 		next = state.targetRow
 	}

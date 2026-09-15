@@ -26,6 +26,28 @@ func TestScrollOptionDefaults(t *testing.T) {
 	if cfg.SmoothZoomDampening != 0.8 {
 		t.Fatalf("expected smooth_zoom_dampening=0.8, got %v", cfg.SmoothZoomDampening)
 	}
+	if cfg.AnimationFrameMS != 16 {
+		t.Fatalf("expected animation_frame_ms=16, got %d", cfg.AnimationFrameMS)
+	}
+}
+
+func TestAnimationFrameOptionIsClamped(t *testing.T) {
+	cfg := Default()
+	desc := configOptions["animation_frame_ms"]
+
+	if err := desc.applyText(&cfg, "24"); err != nil {
+		t.Fatal(err)
+	}
+	if cfg.AnimationFrameMS != 24 {
+		t.Fatalf("expected animation frame=24, got %d", cfg.AnimationFrameMS)
+	}
+
+	if err := desc.applyText(&cfg, "0"); err != nil {
+		t.Fatal(err)
+	}
+	if cfg.AnimationFrameMS != 1 {
+		t.Fatalf("expected minimum animation frame=1, got %d", cfg.AnimationFrameMS)
+	}
 }
 
 func TestSmoothScrollOptionCanBeDisabled(t *testing.T) {

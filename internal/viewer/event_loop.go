@@ -129,8 +129,11 @@ func (a *App) openInitialDocument() error {
 }
 
 func (a *App) eventWaitTimeoutMS() int {
-	if a.hasPendingVisibleRender() || a.search.running || a.smoothScrollActive() || a.smoothZoomAnimating() || a.runtime != nil && a.runtime.PluginOperationsActive() {
-		return 16
+	if a.smoothScrollActive() || a.smoothZoomAnimating() {
+		return max(1, int(a.animationFrameDuration()/time.Millisecond))
+	}
+	if a.hasPendingVisibleRender() || a.search.running || a.runtime != nil && a.runtime.PluginOperationsActive() {
+		return int(smoothAnimationFrame / time.Millisecond)
 	}
 	if len(a.sequence) > 0 {
 		elapsed := time.Since(a.sequenceAt)
