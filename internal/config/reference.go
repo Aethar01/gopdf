@@ -16,8 +16,7 @@ type OptionReference struct {
 }
 
 type LuaReferenceEntry struct {
-	Signature   string
-	Description string
+	Signature string
 }
 
 func OptionReferences() []OptionReference {

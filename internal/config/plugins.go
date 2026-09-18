@@ -417,27 +417,10 @@ func newPluginState(runtime *Runtime) *pluginState {
 
 func newLuaPluginAPI(L *lua.LState, runtime *Runtime) *lua.LTable {
 	api := L.NewTable()
-	register := func(L *lua.LState) int {
-		if runtime == nil {
-			L.RaiseError("plugin.register: runtime unavailable")
-		}
-		id := L.CheckString(1)
-		var spec *lua.LTable
-		if value, ok := L.Get(2).(*lua.LTable); ok {
-			spec = value
-		}
-		module, err := runtime.registerPlugin(L, id, spec)
-		if err != nil {
-			L.RaiseError("plugin.register: %v", err)
-		}
-		L.Push(module)
-		return 1
-	}
 	registerLuaFunctions(L, api, "gopdf.plugin.", []luaFunctionSpec{
 		{
-			Signature:   "gopdf.plugin.register(id[, spec])",
-			Description: "Register and return a lazily loaded Lua plugin module.",
-			Function:    register,
+			Signature: "gopdf.plugin.register(id[, spec])",
+			Function:  luaPluginRegister(runtime),
 		},
 	})
 	return api
