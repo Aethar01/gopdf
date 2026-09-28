@@ -3,6 +3,7 @@ package mupdf
 import (
 	"fmt"
 	"strings"
+	"sync"
 	"testing"
 
 	"gopdf/internal/testpdf"
@@ -72,10 +73,15 @@ func TestPageCacheEvictionKeepsPagesUsable(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer doc.Close()
+	renderer, err := doc.NewRenderer()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer renderer.Close()
 	// Walk forward twice so every slot is evicted and reloaded.
 	for pass := 0; pass < 2; pass++ {
 		for page := range pages {
-			rendered, err := doc.Render(page, 0.25, 0, 8)
+			rendered, err := renderer.Render(page, 0.25, 0, 8)
 			if err != nil {
 				t.Fatalf("render page %d: %v", page+1, err)
 			}
@@ -92,5 +98,52 @@ func TestPageCacheEvictionKeepsPagesUsable(t *testing.T) {
 	info, err := doc.PageInfo(len(pages) - 1)
 	if err != nil || info.Bounds.X1 != 612 {
 		t.Fatalf("PageInfo = %+v, %v", info, err)
+	}
+}
+
+func TestRenderersRunConcurrentlyWithDocumentCalls(t *testing.T) {
+	pages := make([][]string, 8)
+	for i := range pages {
+		pages[i] = []string{fmt.Sprintf("page %d", i+1), "some more text to rasterise"}
+	}
+	doc, err := Open(testpdf.WritePages(t, pages...), "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer doc.Close()
+
+	var wg sync.WaitGroup
+	errs := make(chan error, 16)
+	for w := 0; w < 4; w++ {
+		renderer, err := doc.NewRenderer()
+		if err != nil {
+			t.Fatal(err)
+		}
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			defer renderer.Close()
+			for i := 0; i < 20; i++ {
+				rendered, err := renderer.Render((w+i)%len(pages), 1, 0, 8)
+				if err != nil {
+					errs <- err
+					return
+				}
+				rendered.Close()
+			}
+		}()
+	}
+	for i := 0; i < 20; i++ {
+		if _, err := doc.ExtractSelection(i%len(pages), Point{}, Point{X: 612, Y: 792}); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := doc.TextLayer(i % len(pages)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		t.Fatal(err)
 	}
 }

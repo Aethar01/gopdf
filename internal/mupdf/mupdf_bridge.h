@@ -10,6 +10,7 @@ typedef struct {
 	int number; /* -1 when the slot is empty */
 	unsigned long used;
 	fz_page *page;
+	fz_display_list *list;
 } gopdf_page_entry;
 
 typedef struct {
@@ -18,8 +19,14 @@ typedef struct {
 	int page_count;
 	unsigned long clock;
 	gopdf_page_entry pages[GOPDF_PAGE_CACHE_SIZE];
-	fz_cookie render_cookie;
 } gopdf_doc;
+
+/* A private context cloned from a document's, used to rasterise display
+ * lists concurrently with other renderers and document access. */
+typedef struct {
+	fz_context *ctx;
+	fz_cookie cookie;
+} gopdf_renderer;
 
 typedef struct {
 	float x0;
@@ -108,8 +115,11 @@ void gopdf_close_document(gopdf_doc *handle);
 int gopdf_count_pages(gopdf_doc *handle, int *count, char **err);
 int gopdf_page_info(gopdf_doc *handle, int page_number, gopdf_rect *bounds, char **label, char **err);
 int gopdf_lookup_metadata(gopdf_doc *handle, const char *key, char **out, char **err);
-int gopdf_render_page_alloc(gopdf_doc *handle, int page_number, float scale, float rotation, int aa_level, unsigned char **samples, int *width, int *height, int *stride, int *x, int *y, char **err);
-void gopdf_cancel_render(gopdf_doc *handle);
+int gopdf_page_display_list(gopdf_doc *handle, int page_number, fz_display_list **out, char **err);
+gopdf_renderer *gopdf_new_renderer(gopdf_doc *handle, char **err);
+void gopdf_drop_renderer(gopdf_renderer *renderer);
+void gopdf_cancel_renderer(gopdf_renderer *renderer);
+int gopdf_render_display_list(gopdf_renderer *renderer, fz_display_list *list, float scale, float rotation, int aa_level, unsigned char **samples, int *width, int *height, int *stride, int *x, int *y, char **err);
 void gopdf_free_rendered_page(unsigned char *samples);
 int gopdf_extract_selection(gopdf_doc *handle, int page_number, float ax, float ay, float bx, float by, gopdf_selection *out, char **err);
 void gopdf_free_selection(gopdf_doc *handle, gopdf_selection *sel);

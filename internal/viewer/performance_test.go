@@ -134,6 +134,11 @@ func BenchmarkPerfHeavyPDFRenderPages(b *testing.B) {
 		b.Fatal(err)
 	}
 	defer doc.Close()
+	renderer, err := doc.NewRenderer()
+	if err != nil {
+		b.Fatal(err)
+	}
+	defer renderer.Close()
 	pageCount := doc.CachedPageCount()
 	if pageCount == 0 {
 		b.Skip("PDF has no pages")
@@ -142,7 +147,7 @@ func BenchmarkPerfHeavyPDFRenderPages(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		page := i % pageCount
-		rendered, err := doc.Render(page, 1.5, 0, 8)
+		rendered, err := renderer.Render(page, 1.5, 0, 8)
 		if err != nil {
 			b.Fatal(err)
 		}

@@ -58,7 +58,7 @@ type renderVariantKey struct {
 
 type renderWorker struct {
 	workerLifecycle
-	doc        *mupdf.Document
+	renderer   *mupdf.Renderer
 	requests   chan renderRequest
 	updates    chan renderUpdate
 	generation atomic.Int32
@@ -70,11 +70,14 @@ type renderWorker struct {
 func newRenderWorker(doc *mupdf.Document) *renderWorker {
 	w := &renderWorker{
 		workerLifecycle: newWorkerLifecycle(),
-		doc:             doc,
 		requests:        make(chan renderRequest, 128),
 		updates:         make(chan renderUpdate, maxPendingPrefetchRenders),
 	}
-	go w.run(doc)
+	err := fmt.Errorf("render worker: no document open")
+	if doc != nil {
+		w.renderer, err = doc.NewRenderer()
+	}
+	go w.run(err)
 	return w
 }
 
@@ -84,8 +87,8 @@ func (w *renderWorker) Close() {
 }
 
 func (w *renderWorker) Cancel() {
-	if w != nil && w.doc != nil {
-		w.doc.CancelRender()
+	if w != nil && w.renderer != nil {
+		w.renderer.Cancel()
 	}
 }
 
@@ -186,13 +189,14 @@ func (w *renderWorker) requestPriority(req renderRequest) int {
 	return req.priority
 }
 
-func (w *renderWorker) run(doc *mupdf.Document) {
+func (w *renderWorker) run(startErr error) {
 	defer close(w.done)
-	if doc == nil {
-		sendWorkerUpdate(&w.workerLifecycle, w.updates, renderUpdate{err: fmt.Errorf("render worker: no document open")})
+	if startErr != nil {
+		sendWorkerUpdate(&w.workerLifecycle, w.updates, renderUpdate{err: startErr})
 		w.closeOnce.Do(func() { close(w.closing) })
 		return
 	}
+	defer w.renderer.Close()
 	var queue []renderRequest
 	for {
 		if len(queue) == 0 {
@@ -218,7 +222,7 @@ func (w *renderWorker) run(doc *mupdf.Document) {
 			continue
 		}
 		w.activePage.Store(int32(req.page + 1))
-		rendered, err := doc.Render(req.page, req.scale, 0, req.aaLevel)
+		rendered, err := w.renderer.Render(req.page, req.scale, 0, req.aaLevel)
 		w.activePage.Store(0)
 		sendWorkerUpdate(&w.workerLifecycle, w.updates, renderUpdate{request: req, rendered: rendered, err: err})
 	}

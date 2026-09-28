@@ -15,6 +15,51 @@ typedef struct {
 
 enum { GOPDF_MUPDF_STORE_SIZE = 32 << 20 };
 
+/* MuPDF requires lock callbacks before contexts can be cloned. The mutexes
+ * are shared by every context; gopdf_init_locks runs before first use. */
+#ifdef _WIN32
+#include <windows.h>
+static SRWLOCK gopdf_mutexes[FZ_LOCK_MAX]; /* zeroed == SRWLOCK_INIT */
+
+static void gopdf_init_locks(void) {}
+
+static void gopdf_lock(void *user, int lock) {
+	(void)user;
+	AcquireSRWLockExclusive(&gopdf_mutexes[lock]);
+}
+
+static void gopdf_unlock(void *user, int lock) {
+	(void)user;
+	ReleaseSRWLockExclusive(&gopdf_mutexes[lock]);
+}
+#else
+#include <pthread.h>
+static pthread_mutex_t gopdf_mutexes[FZ_LOCK_MAX];
+static pthread_once_t gopdf_locks_once = PTHREAD_ONCE_INIT;
+
+static void gopdf_init_mutexes(void) {
+	for (int i = 0; i < FZ_LOCK_MAX; i++) {
+		pthread_mutex_init(&gopdf_mutexes[i], NULL);
+	}
+}
+
+static void gopdf_init_locks(void) {
+	pthread_once(&gopdf_locks_once, gopdf_init_mutexes);
+}
+
+static void gopdf_lock(void *user, int lock) {
+	(void)user;
+	pthread_mutex_lock(&gopdf_mutexes[lock]);
+}
+
+static void gopdf_unlock(void *user, int lock) {
+	(void)user;
+	pthread_mutex_unlock(&gopdf_mutexes[lock]);
+}
+#endif
+
+static fz_locks_context gopdf_locks = { NULL, gopdf_lock, gopdf_unlock };
+
 static char *gopdf_dup_string(const char *src) {
 	if (src == NULL) {
 		return NULL;
@@ -66,6 +111,8 @@ static fz_matrix gopdf_render_ctm(float scale, float rotation) {
 }
 
 static void gopdf_clear_page_entry(fz_context *ctx, gopdf_page_entry *entry) {
+	fz_drop_display_list(ctx, entry->list);
+	entry->list = NULL;
 	fz_drop_page(ctx, entry->page);
 	entry->page = NULL;
 	entry->number = -1;
@@ -106,7 +153,8 @@ gopdf_doc *gopdf_open_document(const char *path, const char *password, char **er
 	int needs_password = 0;
 	int authenticated = 1;
 	*err = NULL;
-	ctx = fz_new_context(NULL, NULL, GOPDF_MUPDF_STORE_SIZE);
+	gopdf_init_locks();
+	ctx = fz_new_context(NULL, &gopdf_locks, GOPDF_MUPDF_STORE_SIZE);
 	if (ctx == NULL) {
 		*err = gopdf_dup_string("fz_new_context failed");
 		return NULL;
@@ -241,15 +289,64 @@ void gopdf_free_string(char *value) {
 	free(value);
 }
 
-int gopdf_render_page_alloc(gopdf_doc *handle, int page_number, float scale, float rotation, int aa_level, unsigned char **samples, int *width, int *height, int *stride, int *x, int *y, char **err) {
-	fz_page *page = NULL;
+/* Returns a new reference to the page's cached display list, which the
+ * caller passes to gopdf_render_display_list. */
+int gopdf_page_display_list(gopdf_doc *handle, int page_number, fz_display_list **out, char **err) {
+	*out = NULL;
+	*err = NULL;
+	fz_try(handle->ctx) {
+		gopdf_page_entry *entry = gopdf_page_entry_for(handle, page_number);
+		if (entry->list == NULL) {
+			entry->list = fz_new_display_list_from_page(handle->ctx, entry->page);
+		}
+		*out = fz_keep_display_list(handle->ctx, entry->list);
+	} fz_catch(handle->ctx) {
+		*err = gopdf_dup_string(fz_caught_message(handle->ctx));
+		return 0;
+	}
+	return 1;
+}
+
+/* Must be called with the document lock held, since cloning reads the
+ * document context. */
+gopdf_renderer *gopdf_new_renderer(gopdf_doc *handle, char **err) {
+	gopdf_renderer *renderer = (gopdf_renderer *)calloc(1, sizeof(gopdf_renderer));
+	*err = NULL;
+	if (renderer == NULL) {
+		*err = gopdf_dup_string("calloc failed");
+		return NULL;
+	}
+	renderer->ctx = fz_clone_context(handle->ctx);
+	if (renderer->ctx == NULL) {
+		free(renderer);
+		*err = gopdf_dup_string("fz_clone_context failed");
+		return NULL;
+	}
+	return renderer;
+}
+
+void gopdf_drop_renderer(gopdf_renderer *renderer) {
+	if (renderer == NULL) {
+		return;
+	}
+	fz_drop_context(renderer->ctx);
+	free(renderer);
+}
+
+void gopdf_cancel_renderer(gopdf_renderer *renderer) {
+	if (renderer != NULL) {
+		renderer->cookie.abort = 1;
+	}
+}
+
+/* Rasterises a display list into a malloc'd RGBA buffer. Consumes the
+ * caller's reference to list. */
+int gopdf_render_display_list(gopdf_renderer *renderer, fz_display_list *list, float scale, float rotation, int aa_level, unsigned char **samples, int *width, int *height, int *stride, int *x, int *y, char **err) {
+	fz_context *ctx = renderer->ctx;
 	fz_pixmap *pix = NULL;
 	fz_device *dev = NULL;
-	fz_rect bounds = fz_empty_rect;
-	fz_irect bbox = fz_empty_irect;
 	fz_matrix ctm = gopdf_render_ctm(scale, rotation);
-	int old_aa = 0;
-	int have_old_aa = 0;
+	fz_irect bbox = fz_empty_irect;
 	*err = NULL;
 	*samples = NULL;
 	*width = 0;
@@ -259,62 +356,43 @@ int gopdf_render_page_alloc(gopdf_doc *handle, int page_number, float scale, flo
 	*y = 0;
 	fz_var(pix);
 	fz_var(dev);
-	fz_try(handle->ctx) {
-		old_aa = fz_aa_level(handle->ctx);
-		have_old_aa = 1;
-		fz_set_aa_level(handle->ctx, aa_level);
-		page = gopdf_page_entry_for(handle, page_number)->page;
-		bounds = fz_bound_page(handle->ctx, page);
-		bounds = fz_transform_rect(bounds, ctm);
-		bbox = fz_round_rect(bounds);
+	fz_try(ctx) {
+		fz_set_aa_level(ctx, aa_level);
+		bbox = fz_round_rect(fz_transform_rect(fz_bound_display_list(ctx, list), ctm));
 		*width = bbox.x1 - bbox.x0;
 		*height = bbox.y1 - bbox.y0;
 		if (*width < 0 || *height < 0 || *width > INT_MAX / 4) {
-			fz_throw(handle->ctx, FZ_ERROR_LIMIT, "rendered page dimensions are invalid");
+			fz_throw(ctx, FZ_ERROR_LIMIT, "rendered page dimensions are invalid");
 		}
 		*stride = *width * 4;
 		*x = bbox.x0;
 		*y = bbox.y0;
 		if (*width > 0 && *height > 0) {
 			if (*height > INT_MAX / *stride) {
-				fz_throw(handle->ctx, FZ_ERROR_LIMIT, "rendered page buffer is too large");
+				fz_throw(ctx, FZ_ERROR_LIMIT, "rendered page buffer is too large");
 			}
 			*samples = (unsigned char *)malloc((size_t)*stride * (size_t)*height);
 			if (*samples == NULL) {
-				fz_throw(handle->ctx, FZ_ERROR_SYSTEM, "malloc failed");
+				fz_throw(ctx, FZ_ERROR_SYSTEM, "malloc failed");
 			}
-			pix = fz_new_pixmap_with_bbox_and_data(handle->ctx, fz_device_rgb(handle->ctx), bbox, NULL, 1, *samples);
-			fz_clear_pixmap_with_value(handle->ctx, pix, 0xff);
-			dev = fz_new_draw_device(handle->ctx, fz_identity, pix);
-			memset(&handle->render_cookie, 0, sizeof(handle->render_cookie));
-			fz_run_page(handle->ctx, page, dev, ctm, &handle->render_cookie);
-			fz_close_device(handle->ctx, dev);
+			pix = fz_new_pixmap_with_bbox_and_data(ctx, fz_device_rgb(ctx), bbox, NULL, 1, *samples);
+			fz_clear_pixmap_with_value(ctx, pix, 0xff);
+			dev = fz_new_draw_device(ctx, fz_identity, pix);
+			memset(&renderer->cookie, 0, sizeof(renderer->cookie));
+			fz_run_display_list(ctx, list, dev, ctm, fz_infinite_rect, &renderer->cookie);
+			fz_close_device(ctx, dev);
 		}
-	} fz_always(handle->ctx) {
-		if (have_old_aa) {
-			fz_set_aa_level(handle->ctx, old_aa);
-		}
-		if (dev != NULL) {
-			fz_drop_device(handle->ctx, dev);
-		}
-		if (pix != NULL) {
-			fz_drop_pixmap(handle->ctx, pix);
-		}
-	} fz_catch(handle->ctx) {
-		if (*samples != NULL) {
-			free(*samples);
-			*samples = NULL;
-		}
-		*err = gopdf_dup_string(fz_caught_message(handle->ctx));
+	} fz_always(ctx) {
+		fz_drop_device(ctx, dev);
+		fz_drop_pixmap(ctx, pix);
+		fz_drop_display_list(ctx, list);
+	} fz_catch(ctx) {
+		free(*samples);
+		*samples = NULL;
+		*err = gopdf_dup_string(fz_caught_message(ctx));
 		return 0;
 	}
 	return 1;
-}
-
-void gopdf_cancel_render(gopdf_doc *handle) {
-	if (handle != NULL) {
-		handle->render_cookie.abort = 1;
-	}
 }
 
 void gopdf_free_rendered_page(unsigned char *samples) {

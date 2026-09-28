@@ -17,8 +17,8 @@ func TestClosedDocumentReturnsErrors(t *testing.T) {
 	if _, err := doc.Metadata(); err == nil {
 		t.Fatal("expected Metadata on closed document to fail")
 	}
-	if _, err := doc.Render(0, 1, 0, 8); err == nil {
-		t.Fatal("expected Render on closed document to fail")
+	if _, err := doc.NewRenderer(); err == nil {
+		t.Fatal("expected NewRenderer on closed document to fail")
 	}
 	if _, err := doc.ExtractSelection(0, Point{}, Point{}); err == nil {
 		t.Fatal("expected ExtractSelection on closed document to fail")

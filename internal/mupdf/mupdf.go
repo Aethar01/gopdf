@@ -247,52 +247,6 @@ func (d *Document) Metadata() (Metadata, error) {
 	}, nil
 }
 
-func (d *Document) Render(page int, scale float64, rotation float64, aaLevel int) (*RenderedPage, error) {
-	d.mu.Lock()
-	defer d.mu.Unlock()
-	if err := d.validatePageLocked(page); err != nil {
-		return nil, err
-	}
-	if scale <= 0 || math.IsNaN(scale) || math.IsInf(scale, 0) {
-		return nil, fmt.Errorf("render page: invalid scale %g", scale)
-	}
-	if math.IsNaN(rotation) || math.IsInf(rotation, 0) {
-		return nil, fmt.Errorf("render page: invalid rotation %g", rotation)
-	}
-	if aaLevel < 0 {
-		return nil, fmt.Errorf("render page: invalid antialias level %d", aaLevel)
-	}
-	var samples *C.uchar
-	var width, height, stride, x, y C.int
-	var cerr *C.char
-	if ok := C.gopdf_render_page_alloc(d.handle, C.int(page), C.float(scale), C.float(rotation), C.int(aaLevel), &samples, &width, &height, &stride, &x, &y, &cerr); ok == 0 {
-		return nil, consumeError("render page", cerr)
-	}
-	if width <= 0 || height <= 0 || stride <= 0 {
-		if samples != nil {
-			C.gopdf_free_rendered_page(samples)
-		}
-		return &RenderedPage{Image: image.NewRGBA(image.Rect(0, 0, 0, 0)), X: int(x), Y: int(y)}, nil
-	}
-	if int(stride) != int(width)*4 {
-		C.gopdf_free_rendered_page(samples)
-		return nil, fmt.Errorf("render page: unsupported pixmap stride %d for width %d", int(stride), int(width))
-	}
-	if samples == nil {
-		return nil, fmt.Errorf("render page: missing pixel buffer")
-	}
-	bufLen := int(stride) * int(height)
-	img := &image.RGBA{Pix: unsafe.Slice((*byte)(unsafe.Pointer(samples)), bufLen), Stride: int(stride), Rect: image.Rect(0, 0, int(width), int(height))}
-	return &RenderedPage{Image: img, X: int(x), Y: int(y), samples: unsafe.Pointer(samples)}, nil
-}
-
-func (d *Document) CancelRender() {
-	if d == nil || d.handle == nil {
-		return
-	}
-	C.gopdf_cancel_render(d.handle)
-}
-
 func (d *Document) ExtractSelection(page int, a, b Point) (*Selection, error) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
