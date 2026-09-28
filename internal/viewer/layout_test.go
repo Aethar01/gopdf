@@ -6,9 +6,11 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"gopdf/internal/config"
 	"gopdf/internal/mupdf"
+	"gopdf/internal/testpdf"
 
 	"github.com/jupiterrider/purego-sdl3/sdl"
 )
@@ -454,5 +456,34 @@ func TestFitModesScaleToViewport(t *testing.T) {
 		if math.Abs(app.scale-want) > 1e-9 {
 			t.Errorf("fit %s: scale = %v, want %v", mode, app.scale, want)
 		}
+	}
+}
+
+func TestToggleTrimMarginsLaysPagesOutByContent(t *testing.T) {
+	doc, err := mupdf.Open(testpdf.WriteImage(t), mupdf.OpenOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer doc.Close()
+	app := testLayoutApp(1)
+	app.doc = doc
+	info, _ := doc.PageInfo(0)
+	app.pageMetrics[0] = newPageMetrics(info)
+	app.recomputeLayout(1000, 1000)
+
+	app.toggleTrimMargins()
+	for deadline := time.Now().Add(2 * time.Second); !app.contentBoxesLoaded() && time.Now().Before(deadline); {
+		app.pollMetricUpdates()
+		time.Sleep(time.Millisecond)
+	}
+	want := mupdf.Rect{X0: 100 - trimPadding, Y0: 100 - trimPadding, X1: 200 + trimPadding, Y1: 200 + trimPadding}
+	if got := app.pageMetrics[0].bounds; got != want {
+		t.Fatalf("trimmed bounds = %v, want %v", got, want)
+	}
+	assertClose(t, app.pageMetrics[0].width, 116)
+
+	app.toggleTrimMargins()
+	if got := app.pageMetrics[0].bounds; got != info.Bounds {
+		t.Fatalf("untrimmed bounds = %v, want the full page", got)
 	}
 }

@@ -26,6 +26,7 @@ var registry = []Action{
 	{Name: "toggle_render_mode", Keys: []string{"m"}},
 	{Name: "toggle_alt_colors", Keys: []string{"<C-r>"}},
 	{Name: "toggle_first_page_offset", Keys: []string{"co"}},
+	{Name: "toggle_trim_margins", Keys: []string{"ct"}},
 	{Name: "toggle_status_bar", Keys: []string{"<C-n>"}},
 	{Name: "toggle_fullscreen", Keys: []string{"f"}},
 	{Name: "follow_link", Keys: []string{"F"}},

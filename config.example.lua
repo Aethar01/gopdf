@@ -55,6 +55,7 @@ gopdf.options.status_bar_left = "{message}" -- Left status bar template.
 gopdf.options.status_bar_padding = 8 -- Horizontal status bar padding in pixels.
 gopdf.options.status_bar_right = "{page}/{total} {mode} fit={fit} rot={rot} {zoom}" -- Right status bar template.
 gopdf.options.status_bar_visible = true -- Show the status bar at startup.
+gopdf.options.trim_margins = false -- Lay pages out by their content, trimming blank margins.
 gopdf.options.ui_font = "" -- Installed UI font family; empty uses the built-in font.
 gopdf.options.ui_font_path = "" -- Explicit UI font file path; overrides ui_font, ui_font_style, and ui_font_weight.
 gopdf.options.ui_font_size = 14 -- UI font size in pixels.
@@ -87,6 +88,7 @@ gopdf.bind("d", gopdf.toggle_dual_page)
 gopdf.bind("m", gopdf.toggle_render_mode)
 gopdf.bind("<C-r>", gopdf.toggle_alt_colors)
 gopdf.bind("co", gopdf.toggle_first_page_offset)
+gopdf.bind("ct", gopdf.toggle_trim_margins)
 gopdf.bind("<C-n>", gopdf.toggle_status_bar)
 gopdf.bind("f", gopdf.toggle_fullscreen)
 gopdf.bind("F", gopdf.follow_link)

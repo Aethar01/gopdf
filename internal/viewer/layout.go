@@ -10,11 +10,39 @@ import (
 
 func (a *App) updatePageMetricSizes() {
 	for i := range a.pageMetrics {
-		if !a.pageMetrics[i].loaded {
-			continue
+		if a.pageMetrics[i].loaded {
+			a.setPageBounds(&a.pageMetrics[i])
 		}
-		a.pageMetrics[i].width, a.pageMetrics[i].height = rotatedBoundsSize(a.pageMetrics[i].bounds, a.rotation)
 	}
+}
+
+// toggleTrimMargins switches between laying pages out by their full size and
+// by their content, loading content boxes the first time.
+func (a *App) toggleTrimMargins() {
+	a.relayoutWithViewportAnchor(func() {
+		a.trimMargins = !a.trimMargins
+		a.updatePageMetricSizes()
+	})
+	a.clearCache() // tile grids follow the page bounds
+	a.message = boolWord(a.trimMargins, "trim margins on", "trim margins off")
+	if a.trimMargins && a.doc != nil && !a.contentBoxesLoaded() {
+		if a.metricLoader != nil {
+			a.metricLoader.Close()
+		}
+		a.pendingLoad = false
+		pages := make([]int, 0, a.pageCount)
+		pages = append(pages, a.page)
+		a.initMetricLoader(append(pages, metricPageOrder(a.pageCount, a.page)...))
+	}
+}
+
+func (a *App) contentBoxesLoaded() bool {
+	for _, m := range a.pageMetrics {
+		if !m.hasContent {
+			return false
+		}
+	}
+	return true
 }
 
 func (a *App) baseRows() []rowLayout {

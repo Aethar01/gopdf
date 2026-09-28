@@ -181,6 +181,8 @@ func (a *App) runBuiltinAction(action string) error {
 		a.startLinkHints()
 	case "overview":
 		a.toggleOverview()
+	case "toggle_trim_margins":
+		a.toggleTrimMargins()
 	case "search_matches":
 		a.showSearchMatches()
 	case "confirm":
@@ -358,6 +360,7 @@ func (a *App) applyConfigState(cfg config.Config, preserveManualFit bool) {
 	a.cache.byteLimit = pageCacheByteLimit(cfg)
 	a.altColors = cfg.AltColors
 	a.dualPage = cfg.DualPage
+	a.trimMargins = cfg.TrimMargins
 	a.firstPageOffset = cfg.FirstPageOffset
 	a.statusBarShown = cfg.StatusBarVisible
 	a.sequenceLookup = map[string]string{}

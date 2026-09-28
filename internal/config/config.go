@@ -17,6 +17,7 @@ type Config struct {
 	MuPDFStoreMB          int
 	HintChars             string
 	AltColorsKeepImages   bool
+	TrimMargins           bool
 	DualPage              bool
 	FirstPageOffset       bool
 	FitMode               string

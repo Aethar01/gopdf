@@ -259,6 +259,37 @@ int gopdf_page_info(gopdf_doc *handle, int page_number, gopdf_rect *bounds, char
 	return 1;
 }
 
+/* Bounds of everything a page draws, from a transient load like
+ * gopdf_page_info. */
+int gopdf_page_content_bounds(gopdf_doc *handle, int page_number, gopdf_rect *out, char **err) {
+	fz_page *page = NULL;
+	fz_device *dev = NULL;
+	fz_rect rect = fz_empty_rect;
+	*err = NULL;
+	fz_var(page);
+	fz_var(dev);
+	fz_try(handle->ctx) {
+		page = fz_load_page(handle->ctx, handle->doc, page_number);
+		dev = fz_new_bbox_device(handle->ctx, &rect);
+		fz_run_page(handle->ctx, page, dev, fz_identity, NULL);
+		fz_close_device(handle->ctx, dev);
+	} fz_always(handle->ctx) {
+		fz_drop_device(handle->ctx, dev);
+		fz_drop_page(handle->ctx, page);
+	} fz_catch(handle->ctx) {
+		*err = gopdf_dup_string(fz_caught_message(handle->ctx));
+		return 0;
+	}
+	if (fz_is_empty_rect(rect)) {
+		rect = fz_make_rect(0, 0, 0, 0);
+	}
+	out->x0 = rect.x0;
+	out->y0 = rect.y0;
+	out->x1 = rect.x1;
+	out->y1 = rect.y1;
+	return 1;
+}
+
 int gopdf_lookup_metadata(gopdf_doc *handle, const char *key, char **out, char **err) {
 	int size = 0;
 	*out = NULL;

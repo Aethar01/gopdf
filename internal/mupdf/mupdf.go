@@ -53,6 +53,8 @@ func (p *RenderedPage) Close() {
 	}
 }
 
+func (r Rect) Empty() bool { return r.X0 >= r.X1 || r.Y0 >= r.Y1 }
+
 func (r Rect) Contains(p Point) bool {
 	return p.X >= float64(r.X0) && p.X <= float64(r.X1) && p.Y >= float64(r.Y0) && p.Y <= float64(r.Y1)
 }
@@ -205,6 +207,22 @@ func (d *Document) CachedPageCount() int {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	return d.pages
+}
+
+// ContentBounds returns the bounds of everything drawn on a page, or an
+// empty rect for a blank page.
+func (d *Document) ContentBounds(page int) (Rect, error) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if err := d.validatePageLocked(page); err != nil {
+		return Rect{}, err
+	}
+	var r C.gopdf_rect
+	var cerr *C.char
+	if ok := C.gopdf_page_content_bounds(d.handle, C.int(page), &r, &cerr); ok == 0 {
+		return Rect{}, consumeError("page content bounds", cerr)
+	}
+	return Rect{X0: float32(r.x0), Y0: float32(r.y0), X1: float32(r.x1), Y1: float32(r.y1)}, nil
 }
 
 // ImageBounds returns the bounds of the raster images drawn on a page.

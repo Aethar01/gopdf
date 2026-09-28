@@ -30,12 +30,17 @@ const (
 	modePassword
 )
 
+// pageMetrics holds a page's geometry. bounds is what layout and rendering
+// use: the full page, or its content box while margins are trimmed.
 type pageMetrics struct {
-	bounds mupdf.Rect
-	width  float64
-	height float64
-	label  string
-	loaded bool
+	bounds     mupdf.Rect
+	full       mupdf.Rect
+	content    mupdf.Rect
+	hasContent bool
+	width      float64
+	height     float64
+	label      string
+	loaded     bool
 }
 
 // textSelection runs from anchor on anchorPage to focus on focusPage,
@@ -140,6 +145,7 @@ type viewStateFields struct {
 	scrollY         float64
 	pageStep        float64
 	altColors       bool
+	trimMargins     bool
 }
 
 type layoutState struct {

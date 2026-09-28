@@ -42,14 +42,16 @@ func (a *App) resolveOpenPath(path string) string {
 	return config.AbsoluteDocumentPath(path)
 }
 
-func (a *App) initMetricLoader(pageCount int, startPage int) {
-	a.logf("start metric loader pages=%d startPage=%d", pageCount, startPage+1)
+// initMetricLoader loads metrics for pages in the background, with content
+// boxes while trimming margins.
+func (a *App) initMetricLoader(pages []int) {
+	a.logf("start metric loader pages=%d trim=%t", len(pages), a.trimMargins)
 	l := &metricLoader{
 		workerLifecycle: newWorkerLifecycle(),
 		updates:         make(chan pageMetricUpdate, 128),
 	}
 	a.metricLoader = l
-	go l.run(a.doc, pageCount, startPage)
+	go l.run(a.doc, pages, a.trimMargins)
 }
 
 func (a *App) startPendingMetricLoader() {
@@ -61,7 +63,7 @@ func (a *App) startPendingMetricLoader() {
 	a.pendingLoad = false
 	a.pendingPages = 0
 	a.pendingStart = 0
-	a.initMetricLoader(pages, start)
+	a.initMetricLoader(metricPageOrder(pages, clampInt(start, 0, pages-1)))
 }
 
 func (a *App) pollMetricUpdates() {
@@ -85,6 +87,7 @@ func (a *App) pollMetricUpdates() {
 				continue
 			}
 			a.pageMetrics[update.page] = update.metrics
+			a.setPageBounds(&a.pageMetrics[update.page])
 			changed = true
 		default:
 			if changed {
@@ -235,9 +238,10 @@ func (a *App) submitDocumentPassword(password string) {
 func (a *App) initDocumentMetrics(doc *mupdf.Document, pages int, startPage int) {
 	defaultW, defaultH := 612.0, 792.0
 	if pages > 0 {
-		if info, err := doc.PageInfo(startPage); err == nil {
-			a.pageMetrics[startPage] = newPageMetrics(info)
-			defaultW, defaultH = a.pageMetrics[startPage].width, a.pageMetrics[startPage].height
+		if m, err := loadPageMetrics(doc, startPage, a.trimMargins); err == nil {
+			a.setPageBounds(&m)
+			a.pageMetrics[startPage] = m
+			defaultW, defaultH = m.width, m.height
 		}
 	}
 	if defaultW == 0 || defaultH == 0 {

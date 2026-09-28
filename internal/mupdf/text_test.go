@@ -202,3 +202,18 @@ func TestImageBounds(t *testing.T) {
 		t.Fatalf("ImageBounds = %v, want [%v]", images, want)
 	}
 }
+
+func TestContentBounds(t *testing.T) {
+	doc, err := Open(testpdf.WriteImage(t), OpenOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer doc.Close()
+	got, err := doc.ContentBounds(0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := (Rect{X0: 100, Y0: 100, X1: 200, Y1: 200}); got != want {
+		t.Fatalf("ContentBounds = %v, want %v", got, want)
+	}
+}
