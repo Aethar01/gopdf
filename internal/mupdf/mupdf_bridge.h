@@ -47,6 +47,18 @@ typedef struct {
 } gopdf_search_result;
 
 typedef struct {
+	int c;
+	int line;
+	int block;
+	gopdf_quad quad;
+} gopdf_char;
+
+typedef struct {
+	gopdf_char *chars;
+	int char_count;
+} gopdf_char_result;
+
+typedef struct {
 	gopdf_rect rect;
 	char *uri;
 	int is_external;
@@ -98,6 +110,8 @@ int gopdf_search_page(gopdf_doc *handle, int page_number, const char *needle, go
 void gopdf_free_search_result(gopdf_search_result *result);
 int gopdf_extract_page_text(gopdf_doc *handle, int page_number, char **out, char **err);
 void gopdf_free_text(gopdf_doc *handle, char *text);
+int gopdf_extract_page_chars(gopdf_doc *handle, int page_number, gopdf_char_result *out, char **err);
+void gopdf_free_char_result(gopdf_char_result *result);
 int gopdf_load_links(gopdf_doc *handle, int page_number, gopdf_link_result *out, char **err);
 void gopdf_free_link_result(gopdf_link_result *result);
 int gopdf_load_outline(gopdf_doc *handle, gopdf_outline_result *out, char **err);

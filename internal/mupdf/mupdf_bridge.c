@@ -899,6 +899,77 @@ void gopdf_free_text(gopdf_doc *handle, char *text) {
 	}
 }
 
+int gopdf_extract_page_chars(gopdf_doc *handle, int page_number, gopdf_char_result *out, char **err) {
+	fz_page *page = NULL;
+	fz_stext_page *text = NULL;
+	gopdf_char *chars = NULL;
+	int count = 0;
+	int cap = 0;
+	*err = NULL;
+	out->chars = NULL;
+	out->char_count = 0;
+	fz_var(page);
+	fz_var(text);
+	fz_var(chars);
+	fz_var(count);
+	fz_var(cap);
+	fz_try(handle->ctx) {
+		int block_index = 0;
+		int line_index = 0;
+		page = fz_load_page(handle->ctx, handle->doc, page_number);
+		text = fz_new_stext_page_from_page(handle->ctx, page, NULL);
+		for (fz_stext_block *block = text->first_block; block != NULL; block = block->next) {
+			if (block->type != FZ_STEXT_BLOCK_TEXT) {
+				continue;
+			}
+			for (fz_stext_line *line = block->u.t.first_line; line != NULL; line = line->next) {
+				for (fz_stext_char *ch = line->first_char; ch != NULL; ch = ch->next) {
+					if (count == cap) {
+						int next_cap = cap == 0 ? 256 : cap * 2;
+						gopdf_char *next = (gopdf_char *)realloc(chars, sizeof(gopdf_char) * next_cap);
+						if (next == NULL) {
+							fz_throw(handle->ctx, FZ_ERROR_SYSTEM, "realloc failed");
+						}
+						chars = next;
+						cap = next_cap;
+					}
+					chars[count].c = ch->c;
+					chars[count].line = line_index;
+					chars[count].block = block_index;
+					gopdf_copy_quad(&chars[count].quad, &ch->quad);
+					count++;
+				}
+				line_index++;
+			}
+			block_index++;
+		}
+		out->chars = chars;
+		out->char_count = count;
+		chars = NULL;
+	} fz_always(handle->ctx) {
+		if (text != NULL) {
+			fz_drop_stext_page(handle->ctx, text);
+		}
+		if (page != NULL) {
+			fz_drop_page(handle->ctx, page);
+		}
+	} fz_catch(handle->ctx) {
+		free(chars);
+		*err = gopdf_dup_string(fz_caught_message(handle->ctx));
+		return 0;
+	}
+	return 1;
+}
+
+void gopdf_free_char_result(gopdf_char_result *result) {
+	if (result == NULL) {
+		return;
+	}
+	free(result->chars);
+	result->chars = NULL;
+	result->char_count = 0;
+}
+
 /* A single probe context is enough: callers serialise access, and this is only
  * used to ask MuPDF which names its compiled-in handlers recognise. */
 static fz_context *gopdf_probe_ctx = NULL;

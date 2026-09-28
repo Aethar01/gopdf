@@ -448,14 +448,18 @@ func copyQuads(raw *C.gopdf_quad, count int) []Quad {
 	rawQuads := unsafe.Slice(raw, count)
 	quads := make([]Quad, len(rawQuads))
 	for i, q := range rawQuads {
-		quads[i] = Quad{
-			UL: Point{X: float64(q.ul.x), Y: float64(q.ul.y)},
-			UR: Point{X: float64(q.ur.x), Y: float64(q.ur.y)},
-			LL: Point{X: float64(q.ll.x), Y: float64(q.ll.y)},
-			LR: Point{X: float64(q.lr.x), Y: float64(q.lr.y)},
-		}
+		quads[i] = copyQuad(q)
 	}
 	return quads
+}
+
+func copyQuad(q C.gopdf_quad) Quad {
+	return Quad{
+		UL: Point{X: float64(q.ul.x), Y: float64(q.ul.y)},
+		UR: Point{X: float64(q.ur.x), Y: float64(q.ur.y)},
+		LL: Point{X: float64(q.ll.x), Y: float64(q.ll.y)},
+		LR: Point{X: float64(q.lr.x), Y: float64(q.lr.y)},
+	}
 }
 
 func goString(s *C.char) string {

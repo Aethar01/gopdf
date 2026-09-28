@@ -116,21 +116,10 @@ func (w *searchWorker) run(doc *mupdf.Document) {
 				sendWorkerUpdate(&w.workerLifecycle, w.updates, searchUpdate{generation: req.generation, done: true})
 				break
 			}
-			var re *regexp.Regexp
-			if req.options.regex || req.options.caseInsensitive || req.options.wholeWord {
-				pattern := req.query
-				if !req.options.regex {
-					pattern = regexp.QuoteMeta(pattern)
-				}
-				if req.options.caseInsensitive {
-					pattern = "(?i)" + pattern
-				}
-				compiled, err := regexp.Compile(pattern)
-				if err != nil {
-					sendWorkerUpdate(&w.workerLifecycle, w.updates, searchUpdate{generation: req.generation, done: true, err: err})
-					break
-				}
-				re = compiled
+			re, err := compileSearchPattern(req.query, req.options)
+			if err != nil {
+				sendWorkerUpdate(&w.workerLifecycle, w.updates, searchUpdate{generation: req.generation, done: true, err: err})
+				break
 			}
 			restarted := false
 			pages := searchPageOrder(req.startPage, req.pageCount)
@@ -166,37 +155,43 @@ func (w *searchWorker) run(doc *mupdf.Document) {
 	}
 }
 
+// compileSearchPattern returns nil when MuPDF's plain search suffices.
+func compileSearchPattern(query string, options searchOptions) (*regexp.Regexp, error) {
+	if !options.regex && !options.caseInsensitive && !options.wholeWord {
+		return nil, nil
+	}
+	pattern := query
+	if !options.regex {
+		pattern = regexp.QuoteMeta(pattern)
+	}
+	if options.caseInsensitive {
+		pattern = "(?i)" + pattern
+	}
+	return regexp.Compile(pattern)
+}
+
 func searchDocumentPage(doc *mupdf.Document, page int, query string, re *regexp.Regexp, options searchOptions) ([]mupdf.SearchHit, error) {
 	if re == nil {
 		return doc.SearchPage(page, query)
 	}
-	text, err := doc.PageText(page)
+	layer, err := doc.TextLayer(page)
 	if err != nil {
 		return nil, err
 	}
-	seen := map[string]bool{}
-	hits := []mupdf.SearchHit{}
-	for _, loc := range re.FindAllStringIndex(text, -1) {
-		if options.wholeWord && !isWholeWordMatch(text, loc[0], loc[1]) {
+	return matchTextLayer(layer, re, options.wholeWord), nil
+}
+
+func matchTextLayer(layer *mupdf.TextLayer, re *regexp.Regexp, wholeWord bool) []mupdf.SearchHit {
+	var hits []mupdf.SearchHit
+	for _, loc := range re.FindAllStringIndex(layer.Text, -1) {
+		if loc[0] == loc[1] || wholeWord && !isWholeWordMatch(layer.Text, loc[0], loc[1]) {
 			continue
 		}
-		match := text[loc[0]:loc[1]]
-		match = strings.TrimSpace(match)
-		key := match
-		if options.caseInsensitive {
-			key = strings.ToLower(key)
+		if quads := layer.Quads(loc[0], loc[1]); len(quads) > 0 {
+			hits = append(hits, mupdf.SearchHit{Quads: quads})
 		}
-		if match == "" || seen[key] {
-			continue
-		}
-		seen[key] = true
-		matchHits, err := doc.SearchPage(page, match)
-		if err != nil {
-			return nil, err
-		}
-		hits = append(hits, matchHits...)
 	}
-	return hits, nil
+	return hits
 }
 
 func isWholeWordMatch(text string, start, end int) bool {
