@@ -28,11 +28,12 @@ var specs = []Spec{
 	{Name: "open", Help: ":open <filename> - Open another PDF relative to the current document"},
 	{Name: "open_file_picker", Help: ":open_file_picker - Open the PDF file picker"},
 	{Name: "page", Help: ":page PAGE, :p PAGE, :N - Jump to a page number or label"},
-	{Name: "quit", Help: ":quit, :q - Exit"},
+	{Name: "quit", Help: ":quit, :q - Exit; :q! discards unsaved edits"},
 	{Name: "reload-config", Help: ":reload-config - Reload the config file"},
 	{Name: "recent", Help: ":recent - Open the recent-files menu"},
 	{Name: "search", Help: ":search [-r] [-i] [-w] [-p] <text> - Search document text"},
 	{Name: "set", ArgCompletions: config.OptionNames(), Help: ":set [option[?]|option!|option=value] - Inspect or change options"},
+	{Name: "write", Help: ":write [path], :w - Save edits, or a copy to path; :wq saves and exits"},
 }
 
 func All() []Spec {

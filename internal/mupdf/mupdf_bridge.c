@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <mupdf/fitz/util.h>
+#include <mupdf/pdf.h>
 
 typedef struct {
 	gopdf_search_hit *hits;
@@ -365,6 +366,45 @@ int gopdf_page_image_bounds(gopdf_doc *handle, int page_number, gopdf_rect **out
 		return 0;
 	}
 	return 1;
+}
+
+int gopdf_is_pdf(gopdf_doc *handle) {
+	return pdf_specifics(handle->ctx, handle->doc) != NULL;
+}
+
+/* Saves a PDF to path, incrementally when asked and possible. Writing a
+ * document over the file it reads from is only safe incrementally, which
+ * the caller arranges. */
+int gopdf_save(gopdf_doc *handle, const char *path, int incremental, char **err) {
+	pdf_document *pdf = pdf_specifics(handle->ctx, handle->doc);
+	*err = NULL;
+	if (pdf == NULL) {
+		*err = gopdf_dup_string("only PDF documents can be saved");
+		return 0;
+	}
+	fz_try(handle->ctx) {
+		pdf_write_options opts = pdf_default_write_options;
+		opts.do_incremental = incremental;
+		pdf_save_document(handle->ctx, pdf, path, &opts);
+	} fz_catch(handle->ctx) {
+		*err = gopdf_dup_string(fz_caught_message(handle->ctx));
+		return 0;
+	}
+	return 1;
+}
+
+int gopdf_can_save_incrementally(gopdf_doc *handle) {
+	pdf_document *pdf = pdf_specifics(handle->ctx, handle->doc);
+	int ok = 0;
+	if (pdf == NULL) {
+		return 0;
+	}
+	fz_try(handle->ctx) {
+		ok = pdf_can_be_saved_incrementally(handle->ctx, pdf);
+	} fz_catch(handle->ctx) {
+		ok = 0;
+	}
+	return ok;
 }
 
 /* Returns a new reference to the page's cached display list, which the

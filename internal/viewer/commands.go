@@ -223,7 +223,7 @@ func (a *App) runBuiltinAction(action string) error {
 			a.updatePageMetricSizes()
 		})
 	case "quit":
-		a.quit = true
+		a.quit = a.confirmDiscard("quit")
 	case "copy":
 		if !a.copyActiveTextInputToClipboard() {
 			a.copyPersistentSelectionToClipboard()
@@ -550,7 +550,14 @@ func (a *App) runCommand(input string) {
 	}
 	switch name {
 	case "q", "quit":
+		a.quit = a.confirmDiscard(":q")
+	case "q!", "quit!":
 		a.quit = true
+	case "w", "write":
+		a.writeDocument(args)
+	case "wq":
+		a.writeDocument(args)
+		a.quit = !a.unsaved
 	case "page", "p":
 		if len(fields) < 1 {
 			a.message = "usage: :page <n>"

@@ -84,6 +84,7 @@ func (a *App) formatStatusBar(template string) string {
 		"{cover}", boolWord(a.firstPageOffset, "cover", "flat"),
 		"{search}", a.searchStatusCounter(),
 		"{document}", a.docName,
+		"{modified}", boolWord(a.unsaved, "[+] ", ""),
 		"{input}", inputToken,
 		"{prompt}", promptToken,
 		"$$", "$",

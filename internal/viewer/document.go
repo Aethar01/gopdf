@@ -21,6 +21,9 @@ func (a *App) Open(path string) error {
 		return fmt.Errorf("open: empty path")
 	}
 	path = a.resolveOpenPath(path)
+	if !a.confirmDiscard("opening it") {
+		return nil
+	}
 	a.logf("open requested path=%q", path)
 	if a.runtime == nil {
 		a.pendingOpen = path
@@ -212,6 +215,7 @@ func (a *App) resetForNewDocument(password string) {
 	a.jumpAhead = nil
 	a.pendingOpen = ""
 	a.hints = nil
+	a.unsaved, a.discardWarned = false, false
 	a.overview = nil
 	a.presentation = nil
 }
@@ -288,6 +292,11 @@ func (a *App) installDocument(doc *mupdf.Document, path string, pages, startPage
 func (a *App) pollDocumentUpdate() {
 	change, ok := a.document.poll(time.Now())
 	if !ok {
+		return
+	}
+	if a.unsaved {
+		a.document.commit(change)
+		a.message = a.docName + " changed on disk; keeping unsaved edits"
 		return
 	}
 	a.logf("document changed size=%d mod=%s", change.size, change.mod.Format(time.RFC3339Nano))

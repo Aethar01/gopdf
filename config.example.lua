@@ -51,7 +51,7 @@ gopdf.options.smooth_zoom = { mouse = true, trackpad = true, keyboard = true } -
 gopdf.options.smooth_zoom_dampening = 0.8 -- Catch-up factor for smooth zooming per animation frame; higher values are more responsive and less damped; clamped to 0.01 through 1.
 gopdf.options.spread_gap = 0 -- Horizontal spread gap; aliases page_gap_horizontal.
 gopdf.options.status_bar_color = {220, 220, 220} -- Normal status bar background color.
-gopdf.options.status_bar_left = "{message}" -- Left status bar template.
+gopdf.options.status_bar_left = "{modified}{message}" -- Left status bar template.
 gopdf.options.status_bar_padding = 8 -- Horizontal status bar padding in pixels.
 gopdf.options.status_bar_right = "{page}/{total} {mode} fit={fit} rot={rot} {zoom}" -- Right status bar template.
 gopdf.options.status_bar_visible = true -- Show the status bar at startup.

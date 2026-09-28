@@ -187,6 +187,8 @@ type inputState struct {
 	overview       *overviewState // non-nil while the page overview is shown
 	presentation   *presentationState
 	histories      map[string]*promptHistory
+	unsaved        bool // the document has edits not yet written
+	discardWarned  bool // the user was told that unsaved edits would be lost
 	passwordPrompt pendingPasswordPrompt
 	mouseBindings  map[string]string
 	searchInput    searchMode

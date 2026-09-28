@@ -43,7 +43,7 @@ func Default() Config {
 		UIFontWeight:        400,
 		UIFontPath:          "",
 		UIFontPathOverride:  "",
-		StatusBarLeft:       "{message}",
+		StatusBarLeft:       "{modified}{message}",
 		StatusBarRight:      "{page}/{total} {mode} fit={fit} rot={rot} {zoom}",
 		SequenceTimeoutMS:   700,
 		AnimationFrameMS:    16,

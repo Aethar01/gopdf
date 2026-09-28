@@ -123,6 +123,7 @@ func renderReference(luaRefs []config.LuaReferenceEntry, luaDocs map[string]stri
 	b.WriteString("| `{dual}` / `{cover}` | `dual` or `single`, and `cover` or `flat`. |\n")
 	b.WriteString("| `{search}` | Current match counter, such as `[2/5]`, or empty when there is no current match. |\n")
 	b.WriteString("| `{document}` | Document filename. |\n")
+	b.WriteString("| `{modified}` | `[+] ` while the document has unsaved edits, else empty. |\n")
 	b.WriteString("| `{input}` / `{prompt}` | Active input text and search prompt (`/` or `?`). |\n")
 	b.WriteString("| `$$` | A literal dollar sign. |\n")
 	return b.String()

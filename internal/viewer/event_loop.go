@@ -169,7 +169,7 @@ func (a *App) handleSDLEvent(event *sdl.Event) error {
 	redraw := true
 	switch event.Type() {
 	case sdl.EventQuit:
-		a.quit = true
+		a.quit = a.confirmDiscard("closing")
 		redraw = false
 	case sdl.EventWindowExposed:
 		redraw = true
