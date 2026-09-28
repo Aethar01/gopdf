@@ -89,12 +89,12 @@ func (a *App) PageInfo(page int) (config.DocumentPageInfo, error) {
 // plugin operation.
 func (a *App) Selection() (config.DocumentSelection, error) {
 	selection := config.DocumentSelection{Active: a.selection.active, Text: a.selection.text}
-	if a.selection.active || a.selection.text != "" || len(a.selection.quads) > 0 {
-		selection.Page = a.selection.page + 1
-	}
-	selection.Quads = make([]config.DocumentRect, len(a.selection.quads))
-	for i, quad := range a.selection.quads {
-		selection.Quads[i] = quadRect(quad)
+	for _, part := range a.selection.parts {
+		quads := make([]config.DocumentRect, len(part.quads))
+		for i, quad := range part.quads {
+			quads[i] = quadRect(quad)
+		}
+		selection.Pages = append(selection.Pages, config.DocumentSelectionPage{Page: part.page + 1, Quads: quads})
 	}
 	return selection, nil
 }

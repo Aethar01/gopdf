@@ -201,23 +201,49 @@ func (a *App) pageGeometryAtScreen(sx, sy float64) (int, float64, float64, bool)
 	return 0, 0, 0, false
 }
 
+// refreshSelection extracts the selected text and quads. The first page is
+// selected from its end point to the page end, pages in between entirely,
+// and the last page from its start to its end point.
 func (a *App) refreshSelection() {
-	sel, err := a.doc.ExtractSelection(a.selection.page, a.selection.anchor, a.selection.focus, a.selection.mode)
-	if err != nil {
-		a.message = err.Error()
-		return
+	sel := &a.selection
+	first, firstPoint := sel.anchorPage, sel.anchor
+	last, lastPoint := sel.focusPage, sel.focus
+	if last < first {
+		first, firstPoint, last, lastPoint = last, lastPoint, first, firstPoint
 	}
-	a.selection.text = sel.Text
-	a.selection.quads = sel.Quads
+	sel.parts = sel.parts[:0]
+	var text []string
+	for page := first; page <= last; page++ {
+		bounds := a.pageMetrics[page].bounds
+		start, end := mupdf.Point{X: float64(bounds.X0), Y: float64(bounds.Y0)}, mupdf.Point{X: float64(bounds.X1), Y: float64(bounds.Y1)}
+		if page == first {
+			start = firstPoint
+		}
+		if page == last {
+			end = lastPoint
+		}
+		extracted, err := a.doc.ExtractSelection(page, start, end, sel.mode)
+		if err != nil {
+			a.message = err.Error()
+			return
+		}
+		if len(extracted.Quads) > 0 {
+			sel.parts = append(sel.parts, selectionPart{page: page, quads: extracted.Quads})
+		}
+		if extracted.Text != "" {
+			text = append(text, extracted.Text)
+		}
+	}
+	sel.text = strings.Join(text, "\n")
 	a.emitSelectionChanged()
 }
 
 func (a *App) emitSelectionChanged() {
-	page := 0
-	if a.selection.active || a.selection.text != "" || len(a.selection.quads) > 0 {
-		page = a.selection.page + 1
+	pages := make([]int, len(a.selection.parts))
+	for i, part := range a.selection.parts {
+		pages[i] = part.page + 1
 	}
-	a.emitPluginEvent("selection_changed", map[string]any{"page": page, "text": a.selection.text, "active": a.selection.active})
+	a.emitPluginEvent("selection_changed", map[string]any{"pages": pages, "text": a.selection.text, "active": a.selection.active})
 }
 
 func (a *App) copySelectionToClipboard() {
@@ -318,14 +344,11 @@ func (a *App) OpenExternal(uri string) error {
 }
 
 func (a *App) drawSelection(renderer *sdl.Renderer) {
-	if len(a.selection.quads) == 0 {
-		return
+	for _, part := range a.selection.parts {
+		if x, y, ok := a.pageScreenOrigin(part.page); ok {
+			a.drawHighlightQuads(renderer, part.quads, part.page, x, y, false)
+		}
 	}
-	x, y, ok := a.pageScreenOrigin(a.selection.page)
-	if !ok {
-		return
-	}
-	a.drawHighlightQuads(renderer, a.selection.quads, a.selection.page, x, y, false)
 }
 
 func (a *App) highlightForegroundColor() color.RGBA {

@@ -33,7 +33,7 @@ var documentFunctions = []apiEntry{
 	{"gopdf.document.metadata()", "table", "Return document metadata: `format`, `encryption`, `title`, `author`, `subject`, `keywords`, `creator`, `producer`, `creation_date`, and `modification_date`. Absent fields are empty strings."},
 	{"gopdf.document.outline()", "table[]", "Return the outline as a tree. Each entry has `title`, `uri`, `external`, `page`, `children`, and optional `x` and `y` destination coordinates. `page` is 1-based, or 0 when the entry has no page destination."},
 	{"gopdf.document.page_info(page)", "table", "Return `page`, `label`, `width`, `height`, and `bounds` for a 1-based page. Sizes are unrotated PDF points; an out-of-range page raises an error."},
-	{"gopdf.document.selection()", "table", "Return the current selection: `active`, `page`, `text`, and `quads` as bounding rectangles. `page` is 0 when nothing is or was selected."},
+	{"gopdf.document.selection()", "table", "Return the current selection: `active`, `text`, and `pages`, a list in page order of `{ page = n, quads = { ... } }` with quads as bounding rectangles. `pages` is empty when nothing is selected."},
 	{"plugin.document:page_text(page, callback)", "handle", "Extract a page's text asynchronously. The result adds `page` and `text`."},
 	{"plugin.document:page_links(page, callback)", "handle", "Read a page's links asynchronously. The result adds `page` and `links`; each link has `bounds`, `uri`, `external`, `page`, and optional `x` and `y`."},
 }

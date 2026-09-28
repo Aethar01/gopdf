@@ -21,7 +21,7 @@ func (h *documentAPIHost) PageInfo(page int) (DocumentPageInfo, error) {
 }
 
 func (h *documentAPIHost) Selection() (DocumentSelection, error) {
-	return DocumentSelection{Active: true, Page: 3, Text: "selected", Quads: []DocumentRect{{X1: 5, Y1: 6}}}, nil
+	return DocumentSelection{Active: true, Text: "selected", Pages: []DocumentSelectionPage{{Page: 3, Quads: []DocumentRect{{X1: 5, Y1: 6}}}}}, nil
 }
 
 func (h *documentAPIHost) PageText(page int) (string, error) { return "page text", nil }
@@ -45,8 +45,9 @@ assert(metadata.title == "Paper" and metadata.author == "Author")
 assert(outline[1].title == "Chapter" and outline[1].children[1].page == 2)
 assert(page.page == 4 and page.label == "iv" and page.bounds.x1 == 612)
 local selection = gopdf.document.selection()
-assert(selection.active and selection.page == 3 and selection.text == "selected")
-assert(#selection.quads == 1 and selection.quads[1].y1 == 6)
+assert(selection.active and selection.text == "selected")
+assert(#selection.pages == 1 and selection.pages[1].page == 3)
+assert(#selection.pages[1].quads == 1 and selection.pages[1].quads[1].y1 == 6)
 `); err != nil {
 		t.Fatal(err)
 	}

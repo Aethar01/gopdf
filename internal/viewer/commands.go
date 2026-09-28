@@ -295,7 +295,7 @@ func (a *App) closeActiveUI() {
 		a.clearSearch()
 		return
 	}
-	if a.selection.text != "" || len(a.selection.quads) > 0 {
+	if !a.selection.empty() {
 		a.clearSelection()
 		return
 	}

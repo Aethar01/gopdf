@@ -138,13 +138,13 @@ func TestCopyOnSelectDisabledKeepsSelectionAfterMouseCopyHook(t *testing.T) {
 		config: config.Config{CopyOnSelect: false},
 		interactionState: interactionState{selection: textSelection{
 			text:  "selected text",
-			quads: []mupdf.Quad{{}},
+			parts: []selectionPart{{quads: []mupdf.Quad{{}}}},
 		}},
 	}
 
 	app.copySelectionToClipboard()
 
-	if app.selection.text != "selected text" || len(app.selection.quads) != 1 {
+	if app.selection.text != "selected text" || len(app.selection.parts) != 1 {
 		t.Fatalf("expected selection to persist, got %+v", app.selection)
 	}
 }
@@ -154,13 +154,13 @@ func TestEscapeClearsPersistentSelection(t *testing.T) {
 		config: config.Config{CopyOnSelect: false},
 		interactionState: interactionState{selection: textSelection{
 			text:  "selected text",
-			quads: []mupdf.Quad{{}},
+			parts: []selectionPart{{quads: []mupdf.Quad{{}}}},
 		}},
 	}
 
 	app.closeActiveUI()
 
-	if app.selection.text != "" || len(app.selection.quads) != 0 {
+	if app.selection.text != "" || !app.selection.empty() {
 		t.Fatalf("expected escape to clear selection, got %+v", app.selection)
 	}
 }

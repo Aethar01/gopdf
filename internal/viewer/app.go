@@ -38,15 +38,25 @@ type pageMetrics struct {
 	loaded bool
 }
 
+// textSelection runs from anchor on anchorPage to focus on focusPage,
+// either of which may come first.
 type textSelection struct {
-	active bool
-	mode   mupdf.SelectMode // words or lines after a double or triple click
-	page   int
-	anchor mupdf.Point
-	focus  mupdf.Point
-	quads  []mupdf.Quad
-	text   string
+	active     bool
+	mode       mupdf.SelectMode // words or lines after a double or triple click
+	anchorPage int
+	anchor     mupdf.Point
+	focusPage  int
+	focus      mupdf.Point
+	parts      []selectionPart // highlighted quads, one entry per page in order
+	text       string
 }
+
+type selectionPart struct {
+	page  int
+	quads []mupdf.Quad
+}
+
+func (s textSelection) empty() bool { return s.text == "" && len(s.parts) == 0 }
 
 type viewportAnchor struct {
 	page  int
@@ -572,7 +582,7 @@ func (a *App) handleSDLMouseButton(e *sdl.MouseButtonEvent) {
 	if e.Type == sdl.EventMouseButtonDown {
 		a.selection = textSelection{}
 		if page, point, ok := a.pagePointAtScreen(float64(e.X), float64(e.Y)); ok {
-			a.selection = textSelection{active: true, mode: clickSelectMode(e.Clicks), page: page, anchor: point, focus: point}
+			a.selection = textSelection{active: true, mode: clickSelectMode(e.Clicks), anchorPage: page, anchor: point, focusPage: page, focus: point}
 			if a.selection.mode != mupdf.SelectChars {
 				a.refreshSelection() // a double or triple click selects without a drag
 			}
@@ -608,7 +618,7 @@ func (a *App) handleLinkButton(e *sdl.MouseButtonEvent) bool {
 			return false
 		}
 		a.links.pressed = &link
-		if a.selection.active || len(a.selection.quads) > 0 {
+		if a.selection.active || !a.selection.empty() {
 			a.clearSelection()
 		}
 		return true
@@ -644,8 +654,8 @@ func (a *App) handleSDLMouseMotion(e *sdl.MouseMotionEvent) bool {
 		return hoverChanged
 	}
 	page, point, ok := a.pagePointAtScreen(float64(e.X), float64(e.Y))
-	if ok && page == a.selection.page {
-		a.selection.focus = point
+	if ok {
+		a.selection.focusPage, a.selection.focus = page, point
 		a.refreshSelection()
 		return true
 	}

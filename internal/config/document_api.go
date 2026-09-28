@@ -47,9 +47,13 @@ type DocumentPageInfo struct {
 // DocumentSelection describes the viewer's current text selection.
 type DocumentSelection struct {
 	Active bool
-	Page   int
 	Text   string
-	Quads  []DocumentRect
+	Pages  []DocumentSelectionPage // in page order
+}
+
+type DocumentSelectionPage struct {
+	Page  int
+	Quads []DocumentRect
 }
 
 type DocumentPageLink struct {

@@ -46,12 +46,12 @@ func TestFinishedSelectionStaysHighlightedUntilCleared(t *testing.T) {
 	button(sdl.EventMouseButtonDown, 70)
 	drag(200)
 	button(sdl.EventMouseButtonUp, 200)
-	if !strings.Contains(app.selection.text, "select") || len(app.selection.quads) == 0 {
-		t.Fatalf("after release: text=%q quads=%d, want selection kept", app.selection.text, len(app.selection.quads))
+	if !strings.Contains(app.selection.text, "select") || len(app.selection.parts) == 0 {
+		t.Fatalf("after release: text=%q quads=%d, want selection kept", app.selection.text, len(app.selection.parts))
 	}
 
 	app.closeActiveUI()
-	if app.selection.text != "" || len(app.selection.quads) != 0 {
+	if app.selection.text != "" || !app.selection.empty() {
 		t.Fatal("close did not clear the selection")
 	}
 
@@ -59,7 +59,7 @@ func TestFinishedSelectionStaysHighlightedUntilCleared(t *testing.T) {
 	drag(200)
 	button(sdl.EventMouseButtonUp, 200)
 	app.handleSDLMouseButton(&sdl.MouseButtonEvent{Type: sdl.EventMouseButtonDown, Button: uint8(sdl.ButtonLeft), Clicks: 1, X: -10, Y: -10})
-	if len(app.selection.quads) != 0 {
+	if !app.selection.empty() {
 		t.Fatal("clicking off the page did not clear the selection")
 	}
 }
@@ -77,5 +77,52 @@ func TestMultiClickSelectsWordsAndLines(t *testing.T) {
 	}
 	if got := click(3, 120); got != "select this text" {
 		t.Fatalf("triple click selected %q, want the line", got)
+	}
+}
+
+func TestSelectionSpansPages(t *testing.T) {
+	doc, err := mupdf.Open(testpdf.WritePages(t, []string{"alpha one"}, []string{"beta two"}, []string{"gamma three"}), mupdf.OpenOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer doc.Close()
+	app := testLayoutApp(3)
+	app.doc = doc
+	app.pageLinks = map[int][]mupdf.Link{}
+	for page := range 3 {
+		info, err := doc.PageInfo(page)
+		if err != nil {
+			t.Fatal(err)
+		}
+		app.pageMetrics[page] = newPageMetrics(info)
+	}
+	app.config.MouseTextSelect = true
+	app.fitMode = "width"
+	app.winW, app.winH = 300, 2000 // all three pages on screen
+	app.recomputeLayout(app.viewportSize())
+	at := func(page int, px float64) (float32, float32) {
+		x, y, _ := app.pageScreenOrigin(page)
+		return float32(x + px*app.scale), float32(y + (792-704)*app.scale)
+	}
+
+	x, y := at(0, 110) // in "one"
+	app.handleSDLMouseButton(&sdl.MouseButtonEvent{Type: sdl.EventMouseButtonDown, Button: uint8(sdl.ButtonLeft), Clicks: 1, X: x, Y: y})
+	x, y = at(2, 100) // in "gamma"
+	app.handleSDLMouseMotion(&sdl.MouseMotionEvent{State: sdl.ButtonLMask, X: x, Y: y})
+
+	var pages []int
+	for _, part := range app.selection.parts {
+		pages = append(pages, part.page)
+	}
+	if len(pages) != 3 || pages[0] != 0 || pages[2] != 2 {
+		t.Fatalf("selected pages %v, want 0 1 2", pages)
+	}
+	for _, want := range []string{"ne", "beta two", "gam"} {
+		if !strings.Contains(app.selection.text, want) {
+			t.Errorf("selection %q lacks %q", app.selection.text, want)
+		}
+	}
+	if strings.Contains(app.selection.text, "alpha") || strings.Contains(app.selection.text, "three") {
+		t.Errorf("selection %q runs past its end points", app.selection.text)
 	}
 }

@@ -141,11 +141,15 @@ func luaOutlineItems(L *lua.LState, items []DocumentOutlineItem) *lua.LTable {
 }
 
 func luaDocumentSelection(L *lua.LState, value DocumentSelection) *lua.LTable {
-	quads := make([]any, len(value.Quads))
-	for i, quad := range value.Quads {
-		quads[i] = rectMap(quad)
+	pages := make([]any, len(value.Pages))
+	for i, page := range value.Pages {
+		quads := make([]any, len(page.Quads))
+		for j, quad := range page.Quads {
+			quads[j] = rectMap(quad)
+		}
+		pages[i] = map[string]any{"page": page.Page, "quads": quads}
 	}
-	return luaTableFromMap(L, map[string]any{"active": value.Active, "page": value.Page, "text": value.Text, "quads": quads})
+	return luaTableFromMap(L, map[string]any{"active": value.Active, "text": value.Text, "pages": pages})
 }
 
 func luaPageInfo(L *lua.LState, value DocumentPageInfo) *lua.LTable {
