@@ -43,6 +43,7 @@ var registry = []Action{
 	{Name: "rotate_ccw", Keys: []string{"R"}},
 	{Name: "goto_page_prompt", Keys: []string{"<C-g>"}},
 	{Name: "clear_search"},
+	{Name: "search_matches", Keys: []string{"gm"}},
 	{Name: "show_completion", Keys: []string{"<Tab>"}},
 	{Name: "next_completion"},
 	{Name: "prev_completion", Keys: []string{"<S-Tab>"}},

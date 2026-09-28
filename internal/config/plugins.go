@@ -1316,7 +1316,7 @@ func validPluginMemberName(name string) bool {
 
 func (r *Runtime) commandExists(name string) bool {
 	name = strings.ToLower(name)
-	for _, core := range []string{"colors", "fit", "help", "keybinds", "lua", "mode", "open", "open_file_picker", "page", "quit", "reload-config", "recent", "search", "set"} {
+	for _, core := range []string{"colors", "fit", "help", "keybinds", "lua", "matches", "mode", "open", "open_file_picker", "page", "quit", "reload-config", "recent", "search", "set"} {
 		if name == core {
 			return true
 		}

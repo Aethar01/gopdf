@@ -181,6 +181,8 @@ func (a *App) runBuiltinAction(action string) error {
 		a.startLinkHints()
 	case "overview":
 		a.toggleOverview()
+	case "search_matches":
+		a.showSearchMatches()
 	case "confirm":
 		if a.completion.view != nil && a.completion.view.visible {
 			a.acceptCompletion()
@@ -574,6 +576,8 @@ func (a *App) runCommand(input string) {
 		a.reloadConfig()
 	case "keybinds":
 		a.toggleKeybindMenu()
+	case "matches":
+		a.showSearchMatches()
 	case "search":
 		a.startSearch(args, searchModeForward)
 	case "open":

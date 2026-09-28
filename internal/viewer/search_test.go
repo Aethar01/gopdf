@@ -70,3 +70,39 @@ func TestFocusSearchCurrentCentersHitOnUnrenderedPage(t *testing.T) {
 		t.Fatalf("hit centre at y=%.1f, want viewport centre %.1f", center, float64(viewportH)/2)
 	}
 }
+
+func TestSearchMatchesListsContextAndSelects(t *testing.T) {
+	doc, err := mupdf.Open(testpdf.WritePages(t, []string{"first needle here"}, []string{"nothing"}, []string{"a second needle"}), mupdf.OpenOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer doc.Close()
+	app := testLayoutApp(3)
+	app.doc = doc
+	app.winW, app.winH = 1000, 800
+	app.recomputeLayout(app.viewportSize())
+	app.search = searchState{query: "needle", current: 0, matches: map[int][]mupdf.SearchHit{}}
+	for page := range 3 {
+		hits, err := searchDocumentPage(doc, page, "needle", nil, searchOptions{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		app.search.matches[page] = hits
+		for i := range hits {
+			app.search.order = append(app.search.order, searchHitRef{page: page, hit: i})
+		}
+	}
+
+	app.showSearchMatches()
+	view := app.activeUIView()
+	if view == nil || len(view.rows) != 2 {
+		t.Fatalf("match list = %+v", view)
+	}
+	if view.rows[1].text != "a second needle" || view.rows[1].secondary != "p. 3" {
+		t.Fatalf("second row = %+v", view.rows[1])
+	}
+	view.onSelect(app, view.rows[1])
+	if app.search.current != 1 || app.activeUIView() != nil {
+		t.Fatalf("after choosing: current=%d view=%v", app.search.current, app.activeUIView())
+	}
+}

@@ -23,6 +23,7 @@ var specs = []Spec{
 	{Name: "help", Help: ":help - Show commands, key bindings, search flags and options"},
 	{Name: "keybinds", Help: ":keybinds - Toggle the keybinds menu"},
 	{Name: "lua", Help: ":lua <code> - Execute Lua code inline"},
+	{Name: "matches", Help: ":matches - List every match of the current search"},
 	{Name: "mode", ArgCompletions: []string{"continuous", "single"}, Help: ":mode continuous|single - Set render mode"},
 	{Name: "open", Help: ":open <filename> - Open another PDF relative to the current document"},
 	{Name: "open_file_picker", Help: ":open_file_picker - Open the PDF file picker"},
