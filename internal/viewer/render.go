@@ -23,6 +23,9 @@ type renderRequest struct {
 	aaLevel    int
 	cacheKey   string
 	priority   int
+
+	// Colors the render is remapped to when altColors is set.
+	altBackground, altForeground [3]uint8
 }
 
 type renderUpdate struct {
@@ -264,6 +267,9 @@ func (w *renderWorker) run(slot *renderSlot) {
 		}
 		slot.activePage.Store(int32(req.page + 1))
 		rendered, err := slot.renderer.Render(req.page, req.scale, 0, req.aaLevel)
+		if err == nil && req.altColors {
+			remapPageColors(rendered.Image, req.altBackground, req.altForeground)
+		}
 		slot.activePage.Store(0)
 		sendWorkerUpdate(&w.workerLifecycle, w.updates, renderUpdate{request: req, rendered: rendered, err: err})
 	}
@@ -349,9 +355,6 @@ func (a *App) pollRenderUpdates() {
 			}
 			if update.rendered == nil {
 				continue
-			}
-			if req.altColors {
-				remapPageColors(update.rendered.Image, a.config.AltBackground, a.config.AltForeground)
 			}
 			a.removeRenderCacheEntry(req.cacheKey, true)
 			tex, err := textureFromRGBA(a.renderer, update.rendered.Image)
@@ -639,6 +642,9 @@ func (a *App) requestRender(page int, scale float64, priority ...int) bool {
 		cacheKey:   cacheKey,
 	}
 	req.priority = requestedPriority
+	if req.altColors {
+		req.altBackground, req.altForeground = a.config.AltBackground, a.config.AltForeground
+	}
 	if !a.renderWorker.Enqueue(req) {
 		a.logf("render enqueue skipped page=%d key=%s", page+1, cacheKey)
 		return false
