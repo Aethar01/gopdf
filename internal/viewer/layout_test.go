@@ -418,3 +418,30 @@ func TestLinkFollowsOnReleaseOverSameLink(t *testing.T) {
 		t.Fatalf("page = %d, want link target 2", app.page)
 	}
 }
+
+func TestHoveredLinkShowsTargetAndRestoresMessage(t *testing.T) {
+	app := testLayoutApp(3)
+	app.message = "ready"
+	link := mupdf.Link{External: true, URI: "https://example.com"}
+
+	if !app.setHoveredLink(link, true) || app.message != link.URI {
+		t.Fatalf("hover message = %q, want %q", app.message, link.URI)
+	}
+	if app.setHoveredLink(link, true) {
+		t.Fatal("re-hovering the same link reported a change")
+	}
+	app.setHoveredLink(mupdf.Link{}, false)
+	if app.message != "ready" {
+		t.Fatalf("message after leaving = %q, want restored %q", app.message, "ready")
+	}
+
+	app.setHoveredLink(mupdf.Link{Page: 1}, true)
+	if app.message != "page 2" {
+		t.Fatalf("internal link message = %q", app.message)
+	}
+	app.message = "copied 3 chars"
+	app.setHoveredLink(mupdf.Link{}, false)
+	if app.message != "copied 3 chars" {
+		t.Fatalf("leaving a link clobbered a newer message: %q", app.message)
+	}
+}

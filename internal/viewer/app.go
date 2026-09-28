@@ -168,6 +168,10 @@ type sdlState struct {
 // linkInputState tracks the link under the pointer.
 type linkInputState struct {
 	pressed *mupdf.Link
+	// hoverMessage is the target shown while hovering a link, and
+	// messageBeforeHover the status message it replaced.
+	hoverMessage       string
+	messageBeforeHover string
 }
 
 type inputState struct {
@@ -621,11 +625,10 @@ func (a *App) handleSDLMouseMotion(e *sdl.MouseMotionEvent) bool {
 	}
 	a.stopPan()
 
-	_, overLink := a.linkAt(float64(e.X), float64(e.Y))
-	a.setLinkCursor(overLink)
+	hoverChanged := a.setHoveredLink(a.linkAt(float64(e.X), float64(e.Y)))
 
 	if !a.selection.active || uint32(e.State)&uint32(sdl.ButtonLMask) == 0 {
-		return false
+		return hoverChanged
 	}
 	page, point, ok := a.pagePointAtScreen(float64(e.X), float64(e.Y))
 	if ok && page == a.selection.page {
@@ -634,6 +637,37 @@ func (a *App) handleSDLMouseMotion(e *sdl.MouseMotionEvent) bool {
 		return true
 	}
 	return false
+}
+
+// setHoveredLink shows the hovered link's target in the status bar and
+// restores the previous message when the pointer leaves it. It reports
+// whether the message changed.
+func (a *App) setHoveredLink(link mupdf.Link, over bool) bool {
+	a.setLinkCursor(over)
+	target := ""
+	if over {
+		target = a.linkTarget(link)
+	}
+	if target == a.links.hoverMessage {
+		return false
+	}
+	if a.links.hoverMessage == "" || a.message != a.links.hoverMessage {
+		a.links.messageBeforeHover = a.message
+	}
+	a.links.hoverMessage = target
+	if target == "" {
+		a.message = a.links.messageBeforeHover
+	} else {
+		a.message = target
+	}
+	return true
+}
+
+func (a *App) linkTarget(link mupdf.Link) string {
+	if link.External || link.Page < 0 {
+		return link.URI
+	}
+	return "page " + a.pageLabel(link.Page)
 }
 
 func (a *App) setLinkCursor(hand bool) {
