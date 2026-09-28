@@ -12,6 +12,7 @@ type Config struct {
 	MaxZoom               float64
 	PinchSensitivity      float64
 	PageCacheSize         int
+	PageCacheMemoryMB     int
 	DualPage              bool
 	FirstPageOffset       bool
 	FitMode               string

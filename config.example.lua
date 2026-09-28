@@ -27,6 +27,7 @@ gopdf.options.outline_height_percent = 80 -- Outline overlay height as a percent
 gopdf.options.outline_initial_depth = 1 -- Outline levels expanded when the outline opens.
 gopdf.options.outline_width_percent = 70 -- Outline overlay width as a percentage of the window.
 gopdf.options.page_background = {255, 255, 255} -- Normal page background color.
+gopdf.options.page_cache_memory_mb = 512 -- Maximum memory in MiB for cached page renders; 0 disables the limit.
 gopdf.options.page_cache_size = 16 -- Maximum rendered pages retained in the cache.
 gopdf.options.page_gap = 0 -- Vertical gap between pages; aliases page_gap_vertical.
 gopdf.options.page_gap_horizontal = 0 -- Horizontal gap between pages in a spread.

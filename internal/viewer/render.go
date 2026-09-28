@@ -688,6 +688,10 @@ func pageCacheLimit(cfg config.Config, pageCount int) int {
 	return limit
 }
 
+func pageCacheByteLimit(cfg config.Config) int64 {
+	return int64(cfg.PageCacheMemoryMB) << 20
+}
+
 func thumbnailDimensions(w, h int) (int, int, float64) {
 	if w <= 0 || h <= 0 {
 		return 0, 0, 0

@@ -38,6 +38,24 @@ func TestRenderCacheEvictsByPageLimit(t *testing.T) {
 	}
 }
 
+func TestRenderCacheEvictsByConfiguredMemory(t *testing.T) {
+	cfg := config.Default()
+	cfg.PageCacheMemoryMB = 1
+	rs := renderService{cacheLimit: 16, cacheByteLimit: pageCacheByteLimit(cfg)}
+
+	// Each 512x512 RGBA page is exactly 1 MiB.
+	rs.addRenderCacheEntry("a", &renderedPage{key: "a", page: 0, width: 512, height: 512})
+	rs.addRenderCacheEntry("b", &renderedPage{key: "b", page: 1, width: 512, height: 512})
+	rs.enforceRenderCacheLimit()
+
+	if _, ok := rs.renderCache["a"]; ok {
+		t.Fatal("oldest entry kept past the memory limit")
+	}
+	if rs.renderCacheBytes > rs.cacheByteLimit {
+		t.Fatalf("cache bytes = %d, want <= %d", rs.renderCacheBytes, rs.cacheByteLimit)
+	}
+}
+
 func TestRenderCacheDisablesLimitWhenUnset(t *testing.T) {
 	var rs renderService
 

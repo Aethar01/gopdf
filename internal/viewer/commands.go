@@ -344,6 +344,7 @@ func (a *App) applyConfigState(cfg config.Config, preserveManualFit bool) {
 	a.renderMode = sanitizeRenderMode(cfg.RenderMode)
 	a.zoom = a.clampZoom(a.zoom)
 	a.cacheLimit = pageCacheLimit(cfg, a.pageCount)
+	a.cacheByteLimit = pageCacheByteLimit(cfg)
 	a.altColors = cfg.AltColors
 	a.dualPage = cfg.DualPage
 	a.firstPageOffset = cfg.FirstPageOffset

@@ -11,6 +11,7 @@ func Default() Config {
 		MaxZoom:             8,
 		PinchSensitivity:    1,
 		PageCacheSize:       16,
+		PageCacheMemoryMB:   512,
 		DualPage:            false,
 		FirstPageOffset:     true,
 		FitMode:             "page",

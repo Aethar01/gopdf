@@ -249,6 +249,7 @@ func New(docPath string, runtime *config.Runtime, startPage int, iconBytes []byt
 		renderService: renderService{
 			renderCache:        map[string]*renderedPage{},
 			cacheLimit:         pageCacheLimit(cfg, 0),
+			cacheByteLimit:     pageCacheByteLimit(cfg),
 			minRenderBaseScale: 0.25,
 		},
 		metricsService: metricsService{},

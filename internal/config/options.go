@@ -311,6 +311,7 @@ var configOptions = map[string]optionDesc{
 	"dual_page":              boolOption("Start in dual-page mode.", func(c *Config) bool { return c.DualPage }, func(c *Config, v bool) { c.DualPage = v }),
 	"first_page_offset":      boolOption("Treat the first page as a standalone cover in dual-page mode.", func(c *Config) bool { return c.FirstPageOffset }, func(c *Config, v bool) { c.FirstPageOffset = v }),
 	"anti_aliasing":          intOption("MuPDF antialiasing level from 0 through 8.", func(c *Config) int { return c.AntiAliasing }, func(c *Config, v int) { c.AntiAliasing = v }),
+	"page_cache_memory_mb":   intOption("Maximum memory in MiB for cached page renders; 0 disables the limit.", func(c *Config) int { return c.PageCacheMemoryMB }, func(c *Config, v int) { c.PageCacheMemoryMB = max(0, v) }),
 	"page_cache_size":        intOption("Maximum rendered pages retained in the cache.", func(c *Config) int { return c.PageCacheSize }, func(c *Config, v int) { c.PageCacheSize = max(1, v) }),
 	"outline_initial_depth":  intOption("Outline levels expanded when the outline opens.", func(c *Config) int { return c.OutlineInitialDepth }, func(c *Config, v int) { c.OutlineInitialDepth = v }),
 	"outline_width_percent":  intOption("Outline overlay width as a percentage of the window.", func(c *Config) int { return c.OutlineWidthPercent }, func(c *Config, v int) { c.OutlineWidthPercent = v }),
