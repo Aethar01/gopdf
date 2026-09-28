@@ -37,6 +37,13 @@ typedef struct {
 } gopdf_rect;
 
 typedef struct {
+	int x0;
+	int y0;
+	int x1;
+	int y1;
+} gopdf_irect;
+
+typedef struct {
 	float x;
 	float y;
 } gopdf_point;
@@ -120,7 +127,7 @@ int gopdf_page_display_list(gopdf_doc *handle, int page_number, fz_display_list 
 gopdf_renderer *gopdf_new_renderer(gopdf_doc *handle, char **err);
 void gopdf_drop_renderer(gopdf_renderer *renderer);
 void gopdf_cancel_renderer(gopdf_renderer *renderer);
-int gopdf_render_display_list(gopdf_renderer *renderer, fz_display_list *list, float scale, float rotation, int aa_level, unsigned char **samples, int *width, int *height, int *stride, int *x, int *y, char **err);
+int gopdf_render_display_list(gopdf_renderer *renderer, fz_display_list *list, float scale, gopdf_irect clip, int aa_level, unsigned char **samples, int *width, int *height, int *stride, int *x, int *y, char **err);
 void gopdf_free_rendered_page(unsigned char *samples);
 int gopdf_extract_selection(gopdf_doc *handle, int page_number, float ax, float ay, float bx, float by, gopdf_selection *out, char **err);
 void gopdf_free_selection(gopdf_doc *handle, gopdf_selection *sel);

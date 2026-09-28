@@ -719,7 +719,7 @@ func TestRenderScalePolicy(t *testing.T) {
 	assertClose(t, app.renderOversampleFactor(), defaultRenderOversample)
 	assertClose(t, app.oversampledRenderScale(math.NaN()), 1)
 
-	app = &App{viewStateFields: viewStateFields{scale: 1, zoom: 1, fitMode: "manual"}, config: config.Config{RenderOversample: 1}, renderService: renderService{minRenderBaseScale: 0.25, renderBaseScale: 2, renderPending: map[string]renderRequest{"old": {page: 1}}}}
+	app = &App{viewStateFields: viewStateFields{scale: 1, zoom: 1, fitMode: "manual"}, config: config.Config{RenderOversample: 1}, renderService: renderService{minRenderBaseScale: 0.25, renderBaseScale: 2, renderPending: map[tileKey]renderRequest{{page: 1}: {key: tileKey{page: 1}}}}}
 	if !app.maybeUpgradeRenderScale(4) {
 		t.Fatal("expected target above tolerance to upgrade render base scale")
 	}
@@ -744,7 +744,7 @@ func TestRenderScaleForAllowsLowZoomUndersampling(t *testing.T) {
 }
 
 func TestRenderScaleTargetDebouncesFastZoom(t *testing.T) {
-	app := &App{viewStateFields: viewStateFields{scale: 1, zoom: 1, fitMode: "manual"}, config: config.Config{RenderOversample: 1}, renderService: renderService{minRenderBaseScale: 0.25, renderBaseScale: 1, renderPending: map[string]renderRequest{"old": {page: 1}}}}
+	app := &App{viewStateFields: viewStateFields{scale: 1, zoom: 1, fitMode: "manual"}, config: config.Config{RenderOversample: 1}, renderService: renderService{minRenderBaseScale: 0.25, renderBaseScale: 1, renderPending: map[tileKey]renderRequest{{page: 1}: {key: tileKey{page: 1}}}}}
 
 	app.scheduleRenderScaleTarget(2)
 	app.scheduleRenderScaleTarget(3)
@@ -770,17 +770,17 @@ func TestRenderWorkerPrioritizesVisibleRequests(t *testing.T) {
 	w := &renderWorker{}
 	w.generation.Store(2)
 	queue := []renderRequest{
-		{generation: 2, page: 10, priority: 10},
-		{generation: 1, page: 1, priority: 0},
-		{generation: 2, page: 3, priority: 0},
+		{generation: 2, key: tileKey{page: 10}, priority: 10},
+		{generation: 1, key: tileKey{page: 1}, priority: 0},
+		{generation: 2, key: tileKey{page: 3}, priority: 0},
 	}
 
 	req, queue, ok := w.popNextRequest(queue)
-	if !ok || req.page != 3 {
+	if !ok || req.key.page != 3 {
 		t.Fatalf("expected current-generation visible request, got %#v ok=%v", req, ok)
 	}
 	req, queue, ok = w.popNextRequest(queue)
-	if !ok || req.page != 10 {
+	if !ok || req.key.page != 10 {
 		t.Fatalf("expected prefetch request after visible request, got %#v ok=%v", req, ok)
 	}
 	_, _, ok = w.popNextRequest(queue)
@@ -792,14 +792,14 @@ func TestRenderWorkerPrioritizesVisibleRequests(t *testing.T) {
 func TestRenderWorkerPromotesVisiblePrefetchRequest(t *testing.T) {
 	w := &renderWorker{}
 	w.generation.Store(2)
-	w.SetVisiblePages(map[int]bool{10: true})
+	w.SetVisible(map[tileKey]bool{{page: 10}: true})
 	queue := []renderRequest{
-		{generation: 2, page: 3, priority: 0},
-		{generation: 2, page: 10, priority: 10},
+		{generation: 2, key: tileKey{page: 3}, priority: 0},
+		{generation: 2, key: tileKey{page: 10}, priority: 10},
 	}
 
 	req, _, ok := w.popNextRequest(queue)
-	if !ok || req.page != 10 {
+	if !ok || req.key.page != 10 {
 		t.Fatalf("expected visible prefetch request to be promoted, got %#v ok=%v", req, ok)
 	}
 }
@@ -807,14 +807,14 @@ func TestRenderWorkerPromotesVisiblePrefetchRequest(t *testing.T) {
 func TestRenderWorkerSkipsUnwantedRequests(t *testing.T) {
 	w := &renderWorker{}
 	w.generation.Store(2)
-	w.SetWantedPages(map[int]bool{5: true})
+	w.SetWanted(map[tileKey]bool{{page: 5}: true})
 	queue := []renderRequest{
-		{generation: 2, page: 3, priority: 0},
-		{generation: 2, page: 5, priority: 10},
+		{generation: 2, key: tileKey{page: 3}, priority: 0},
+		{generation: 2, key: tileKey{page: 5}, priority: 10},
 	}
 
 	req, queue, ok := w.popNextRequest(queue)
-	if !ok || req.page != 5 {
+	if !ok || req.key.page != 5 {
 		t.Fatalf("expected only wanted page to render, got %#v ok=%v", req, ok)
 	}
 	_, _, ok = w.popNextRequest(queue)

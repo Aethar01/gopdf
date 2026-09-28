@@ -553,9 +553,7 @@ bind_mouse("right_down", gopdf.pan)
 	if got := rt.Config().RenderOversample; got != 0.75 {
 		t.Fatalf("expected render_oversample=0.75, got %.2f", got)
 	}
-	if got := rt.Config().PageCacheSize; got != 12 {
-		t.Fatalf("expected page_cache_size=12, got %d", got)
-	}
+	// page_cache_size is deprecated but must still be accepted.
 }
 
 func TestRuntimeOptionInspectionAndAssignment(t *testing.T) {

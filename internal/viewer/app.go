@@ -30,20 +30,6 @@ const (
 	modePassword
 )
 
-type renderedPage struct {
-	texture   *sdl.Texture
-	width     float64
-	height    float64
-	bytes     int64
-	pixX      float64
-	pixY      float64
-	key       string
-	page      int
-	scale     float64
-	altColors bool
-	aaLevel   int
-}
-
 type pageMetrics struct {
 	bounds mupdf.Rect
 	width  float64
@@ -257,9 +243,7 @@ func New(docPath string, runtime *config.Runtime, startPage int, iconBytes []byt
 			iconBytes: iconBytes,
 		},
 		renderService: renderService{
-			renderCache:        map[string]*renderedPage{},
-			cacheLimit:         pageCacheLimit(cfg, 0),
-			cacheByteLimit:     pageCacheByteLimit(cfg),
+			cache:              tileCache{byteLimit: pageCacheByteLimit(cfg)},
 			minRenderBaseScale: 0.25,
 		},
 		metricsService: metricsService{},

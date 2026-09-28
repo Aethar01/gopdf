@@ -843,11 +843,11 @@ func luaStatusBarVisible(rt *Runtime, cfg *Config) lua.LGFunction {
 	}
 }
 
-// luaCacheEntries returns the number of cached rendered pages.
+// luaCacheEntries returns the number of cached page tiles and thumbnails.
 //
 // # Returns
 //
-// The number of rendered pages currently held in the page cache.
+// The number of rendered textures currently held in the render cache.
 //
 // # Example
 //
@@ -863,11 +863,11 @@ func luaCacheEntries(rt *Runtime) lua.LGFunction {
 	}
 }
 
-// luaCachePending returns the number of queued page renders.
+// luaCachePending returns the number of queued tile renders.
 //
 // # Returns
 //
-// The number of page renders waiting to be processed.
+// The number of tile renders waiting to be processed.
 //
 // # Example
 //
@@ -883,10 +883,10 @@ func luaCachePending(rt *Runtime) lua.LGFunction {
 	}
 }
 
-// luaCacheLimit reads or changes the rendered-page cache limit.
+// luaCacheLimit reads or changes the render cache memory limit in MiB.
 //
 // An omitted limit reads the current limit; supplying an integer changes it and
-// returns the resulting limit.
+// returns the resulting limit. 0 removes the limit.
 func luaCacheLimit(rt *Runtime) lua.LGFunction {
 	return func(L *lua.LState) int {
 		if L.GetTop() > 0 {
@@ -906,7 +906,7 @@ func luaCacheLimit(rt *Runtime) lua.LGFunction {
 	}
 }
 
-// luaCacheClear drops rendered-page caches.
+// luaCacheClear drops all rendered tiles and thumbnails.
 //
 // # Returns
 //

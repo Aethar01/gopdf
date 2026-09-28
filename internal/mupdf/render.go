@@ -54,15 +54,14 @@ func (r *Renderer) Cancel() {
 	C.gopdf_cancel_renderer(r.handle)
 }
 
-func (r *Renderer) Render(page int, scale float64, rotation float64, aaLevel int) (*RenderedPage, error) {
+// Render rasterises the part of page inside clip, given in device pixels at
+// scale. The result's X and Y give its origin in the same space.
+func (r *Renderer) Render(page int, scale float64, clip image.Rectangle, aaLevel int) (*RenderedPage, error) {
 	if r.handle == nil {
 		return nil, fmt.Errorf("render page: renderer is closed")
 	}
 	if scale <= 0 || math.IsNaN(scale) || math.IsInf(scale, 0) {
 		return nil, fmt.Errorf("render page: invalid scale %g", scale)
-	}
-	if math.IsNaN(rotation) || math.IsInf(rotation, 0) {
-		return nil, fmt.Errorf("render page: invalid rotation %g", rotation)
 	}
 	if aaLevel < 0 {
 		return nil, fmt.Errorf("render page: invalid antialias level %d", aaLevel)
@@ -74,7 +73,7 @@ func (r *Renderer) Render(page int, scale float64, rotation float64, aaLevel int
 	var samples *C.uchar
 	var width, height, stride, x, y C.int
 	var cerr *C.char
-	if ok := C.gopdf_render_display_list(r.handle, list, C.float(scale), C.float(rotation), C.int(aaLevel), &samples, &width, &height, &stride, &x, &y, &cerr); ok == 0 {
+	if ok := C.gopdf_render_display_list(r.handle, list, C.float(scale), irect(clip), C.int(aaLevel), &samples, &width, &height, &stride, &x, &y, &cerr); ok == 0 {
 		return nil, consumeError("render page", cerr)
 	}
 	if samples == nil {
@@ -82,6 +81,23 @@ func (r *Renderer) Render(page int, scale float64, rotation float64, aaLevel int
 	}
 	img := &image.RGBA{Pix: unsafe.Slice((*byte)(unsafe.Pointer(samples)), int(stride)*int(height)), Stride: int(stride), Rect: image.Rect(0, 0, int(width), int(height))}
 	return &RenderedPage{Image: img, X: int(x), Y: int(y), samples: unsafe.Pointer(samples)}, nil
+}
+
+func irect(r image.Rectangle) C.gopdf_irect {
+	return C.gopdf_irect{x0: C.int(r.Min.X), y0: C.int(r.Min.Y), x1: C.int(r.Max.X), y1: C.int(r.Max.Y)}
+}
+
+// DeviceRect is the pixel bounding box of a page at scale, rounded as
+// MuPDF rounds it when rendering.
+func DeviceRect(bounds Rect, scale float64) image.Rectangle {
+	const epsilon = 0.001
+	s := float32(scale)
+	return image.Rect(
+		int(math.Floor(float64(bounds.X0*s+epsilon))),
+		int(math.Floor(float64(bounds.Y0*s+epsilon))),
+		int(math.Ceil(float64(bounds.X1*s-epsilon))),
+		int(math.Ceil(float64(bounds.Y1*s-epsilon))),
+	)
 }
 
 // displayList returns a reference that gopdf_render_display_list consumes.

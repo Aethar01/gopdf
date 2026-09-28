@@ -2,12 +2,52 @@ package mupdf
 
 import (
 	"fmt"
+	"image"
 	"strings"
 	"sync"
 	"testing"
 
 	"gopdf/internal/testpdf"
 )
+
+var wholePage = image.Rect(-1<<30, -1<<30, 1<<30, 1<<30)
+
+func TestRenderClipsToTile(t *testing.T) {
+	doc, err := Open(testpdf.Write(t, "tile"), OpenOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer doc.Close()
+	renderer, err := doc.NewRenderer()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer renderer.Close()
+	info, err := doc.PageInfo(0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := DeviceRect(info.Bounds, 2), image.Rect(0, 0, 1224, 1584); got != want {
+		t.Fatalf("DeviceRect = %v, want %v", got, want)
+	}
+	tile := image.Rect(1024, 1024, 2048, 2048)
+	rendered, err := renderer.Render(0, 2, tile, 8)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rendered.Close()
+	// The tile is clipped to the page's 1224x1584 device box.
+	if rendered.X != 1024 || rendered.Y != 1024 || rendered.Image.Bounds().Dx() != 200 || rendered.Image.Bounds().Dy() != 560 {
+		t.Fatalf("tile at (%d,%d) size %v", rendered.X, rendered.Y, rendered.Image.Bounds().Size())
+	}
+	empty, err := renderer.Render(0, 2, image.Rect(5000, 5000, 6000, 6000), 8)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if empty.Image.Bounds().Dx() != 0 {
+		t.Fatalf("tile outside the page rendered %v", empty.Image.Bounds())
+	}
+}
 
 func TestNewTextLayerJoinsLinesAndBlocks(t *testing.T) {
 	layer := newTextLayer([]pageChar{
@@ -81,7 +121,7 @@ func TestPageCacheEvictionKeepsPagesUsable(t *testing.T) {
 	// Walk forward twice so every slot is evicted and reloaded.
 	for pass := 0; pass < 2; pass++ {
 		for page := range pages {
-			rendered, err := renderer.Render(page, 0.25, 0, 8)
+			rendered, err := renderer.Render(page, 0.25, wholePage, 8)
 			if err != nil {
 				t.Fatalf("render page %d: %v", page+1, err)
 			}
@@ -124,7 +164,7 @@ func TestRenderersRunConcurrentlyWithDocumentCalls(t *testing.T) {
 			defer wg.Done()
 			defer renderer.Close()
 			for i := 0; i < 20; i++ {
-				rendered, err := renderer.Render((w+i)%len(pages), 1, 0, 8)
+				rendered, err := renderer.Render((w+i)%len(pages), 1, wholePage, 8)
 				if err != nil {
 					errs <- err
 					return

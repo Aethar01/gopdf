@@ -271,7 +271,6 @@ func (a *App) installDocument(doc *mupdf.Document, path string, pages, startPage
 	a.pageToRow = nil
 	a.contentW = 0
 	a.contentH = 0
-	a.cacheLimit = pageCacheLimit(a.config, pages)
 	a.renderBaseScale = 0
 	a.pageLinks = map[int][]mupdf.Link{}
 	a.outline = nil

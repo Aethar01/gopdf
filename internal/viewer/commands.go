@@ -343,8 +343,7 @@ func (a *App) applyConfigState(cfg config.Config, preserveManualFit bool) {
 	}
 	a.renderMode = sanitizeRenderMode(cfg.RenderMode)
 	a.zoom = a.clampZoom(a.zoom)
-	a.cacheLimit = pageCacheLimit(cfg, a.pageCount)
-	a.cacheByteLimit = pageCacheByteLimit(cfg)
+	a.cache.byteLimit = pageCacheByteLimit(cfg)
 	a.altColors = cfg.AltColors
 	a.dualPage = cfg.DualPage
 	a.firstPageOffset = cfg.FirstPageOffset
@@ -359,7 +358,7 @@ func (a *App) applyConfigState(cfg config.Config, preserveManualFit bool) {
 	oldFontFace := a.fontFace
 	a.fontFace = loadFont(cfg.UIFontPath, cfg.UIFontSize)
 	a.clearTextTextureCache()
-	a.enforceRenderCacheLimit()
+	a.cache.evict()
 	closeFontFace(oldFontFace)
 }
 
@@ -475,18 +474,19 @@ func (a *App) SetStatusBarVisible(visible bool) error {
 	return nil
 }
 
-func (a *App) CacheEntries() int { return len(a.renderCache) }
+func (a *App) CacheEntries() int { return len(a.cache.entries) }
 
 func (a *App) CachePending() int { return len(a.renderPending) }
 
-func (a *App) CacheLimit() int { return a.cacheLimit }
+// CacheLimit is the render cache memory limit in MiB; 0 means unlimited.
+func (a *App) CacheLimit() int { return int(a.cache.byteLimit >> 20) }
 
-func (a *App) SetCacheLimit(limit int) error {
-	if limit < 1 {
-		return fmt.Errorf("cache limit must be at least 1")
+func (a *App) SetCacheLimit(mib int) error {
+	if mib < 0 {
+		return fmt.Errorf("cache limit must not be negative")
 	}
-	a.cacheLimit = limit
-	a.enforceRenderCacheLimit()
+	a.cache.byteLimit = int64(mib) << 20
+	a.cache.evict()
 	return nil
 }
 

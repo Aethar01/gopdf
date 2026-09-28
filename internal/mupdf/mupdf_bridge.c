@@ -104,10 +104,6 @@ static void gopdf_copy_quad(gopdf_quad *dst, const fz_quad *src) {
 	dst->lr.y = src->lr.y;
 }
 
-static fz_matrix gopdf_render_ctm(float scale, float rotation) {
-	return fz_concat(fz_scale(scale, scale), fz_rotate(rotation));
-}
-
 static void gopdf_clear_page_entry(fz_context *ctx, gopdf_page_entry *entry) {
 	fz_drop_stext_page(ctx, entry->text);
 	entry->text = NULL;
@@ -350,13 +346,15 @@ void gopdf_cancel_renderer(gopdf_renderer *renderer) {
 	}
 }
 
-/* Rasterises a display list into a malloc'd RGBA buffer. Consumes the
- * caller's reference to list. */
-int gopdf_render_display_list(gopdf_renderer *renderer, fz_display_list *list, float scale, float rotation, int aa_level, unsigned char **samples, int *width, int *height, int *stride, int *x, int *y, char **err) {
+/* Rasterises the part of a display list inside clip, in device pixels at
+ * scale, into a malloc'd RGBA buffer. Consumes the caller's reference to
+ * list. */
+int gopdf_render_display_list(gopdf_renderer *renderer, fz_display_list *list, float scale, gopdf_irect clip, int aa_level, unsigned char **samples, int *width, int *height, int *stride, int *x, int *y, char **err) {
 	fz_context *ctx = renderer->ctx;
 	fz_pixmap *pix = NULL;
 	fz_device *dev = NULL;
-	fz_matrix ctm = gopdf_render_ctm(scale, rotation);
+	fz_matrix ctm = fz_scale(scale, scale);
+	fz_irect clip_rect = fz_make_irect(clip.x0, clip.y0, clip.x1, clip.y1);
 	fz_irect bbox = fz_empty_irect;
 	*err = NULL;
 	*samples = NULL;
@@ -370,6 +368,10 @@ int gopdf_render_display_list(gopdf_renderer *renderer, fz_display_list *list, f
 	fz_try(ctx) {
 		fz_set_aa_level(ctx, aa_level);
 		bbox = fz_round_rect(fz_transform_rect(fz_bound_display_list(ctx, list), ctm));
+		bbox = fz_intersect_irect(bbox, clip_rect);
+		if (fz_is_empty_irect(bbox)) {
+			bbox = fz_make_irect(clip.x0, clip.y0, clip.x0, clip.y0);
+		}
 		*width = bbox.x1 - bbox.x0;
 		*height = bbox.y1 - bbox.y0;
 		if (*width < 0 || *height < 0 || *width > INT_MAX / 4) {
@@ -390,7 +392,7 @@ int gopdf_render_display_list(gopdf_renderer *renderer, fz_display_list *list, f
 			fz_clear_pixmap_with_value(ctx, pix, 0xff);
 			dev = fz_new_draw_device(ctx, fz_identity, pix);
 			memset(&renderer->cookie, 0, sizeof(renderer->cookie));
-			fz_run_display_list(ctx, list, dev, ctm, fz_infinite_rect, &renderer->cookie);
+			fz_run_display_list(ctx, list, dev, ctm, fz_rect_from_irect(bbox), &renderer->cookie);
 			fz_close_device(ctx, dev);
 		}
 	} fz_always(ctx) {

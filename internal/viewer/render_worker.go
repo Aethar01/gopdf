@@ -2,6 +2,7 @@ package viewer
 
 import (
 	"fmt"
+	"image"
 	"runtime"
 	"sync"
 	"sync/atomic"
@@ -12,11 +13,10 @@ import (
 
 type renderRequest struct {
 	generation int
-	page       int
-	scale      float64
+	key        tileKey
+	rect       image.Rectangle // device pixels of key's tile
 	altColors  bool
 	aaLevel    int
-	cacheKey   string
 	priority   int
 
 	// Colors the render is remapped to when altColors is set.
@@ -29,7 +29,7 @@ type renderUpdate struct {
 	err      error
 }
 
-// renderWorker rasterises pages on a pool of goroutines, each with its own
+// renderWorker rasterises tiles on a pool of goroutines, each with its own
 // MuPDF renderer, taking the most urgent wanted request from a shared queue.
 type renderWorker struct {
 	workerLifecycle
@@ -45,13 +45,16 @@ type renderWorker struct {
 }
 
 type renderSlot struct {
-	renderer   *mupdf.Renderer
-	activePage atomic.Int32 // page+1 while rendering, 0 when idle
+	renderer  *mupdf.Renderer
+	rendering atomic.Pointer[tileKey] // nil when idle
 }
 
-func (s *renderSlot) active() (int, bool) {
-	page := int(s.activePage.Load()) - 1
-	return page, page >= 0
+func (s *renderSlot) active() (tileKey, bool) {
+	key := s.rendering.Load()
+	if key == nil {
+		return tileKey{}, false
+	}
+	return *key, true
 }
 
 func (s *renderSlot) cancel() {
@@ -126,38 +129,29 @@ func (w *renderWorker) SetGeneration(generation int) {
 	w.Cancel()
 }
 
-func (w *renderWorker) SetWantedPages(pages map[int]bool) {
-	keep := make(map[int]bool, len(pages))
-	for page, ok := range pages {
-		if ok {
-			keep[page] = true
-		}
-	}
-	w.wanted.Store(keep)
+// SetWanted replaces the set of tiles worth rendering and cancels a render
+// in progress that is no longer among them.
+func (w *renderWorker) SetWanted(keys map[tileKey]bool) {
+	w.wanted.Store(keys)
 	for _, slot := range w.slots {
-		if page, ok := slot.active(); ok && !keep[page] {
+		if key, ok := slot.active(); ok && !keys[key] {
 			slot.cancel()
 		}
 	}
 }
 
-func (w *renderWorker) SetVisiblePages(pages map[int]bool) {
-	visible := make(map[int]bool, len(pages))
-	for page, ok := range pages {
-		if ok {
-			visible[page] = true
-		}
-	}
-	w.visible.Store(visible)
+// SetVisible replaces the set of on-screen tiles, which render first.
+func (w *renderWorker) SetVisible(keys map[tileKey]bool) {
+	w.visible.Store(keys)
 }
 
-// CancelNotVisible cancels renders of pages outside visible and returns them.
-func (w *renderWorker) CancelNotVisible(visible map[int]bool) []int {
-	var cancelled []int
+// CancelNotVisible cancels renders of tiles outside visible and returns them.
+func (w *renderWorker) CancelNotVisible(visible map[tileKey]bool) []tileKey {
+	var cancelled []tileKey
 	for _, slot := range w.slots {
-		if page, ok := slot.active(); ok && !visible[page] {
+		if key, ok := slot.active(); ok && !visible[key] {
 			slot.cancel()
-			cancelled = append(cancelled, page)
+			cancelled = append(cancelled, key)
 		}
 	}
 	return cancelled
@@ -203,24 +197,19 @@ func (w *renderWorker) requestWanted(req renderRequest, gen int) bool {
 	if req.generation != gen {
 		return false
 	}
-	value := w.wanted.Load()
-	if value == nil {
-		return true
-	}
-	wanted, ok := value.(map[int]bool)
-	return !ok || wanted[req.page]
+	wanted, ok := w.wanted.Load().(map[tileKey]bool)
+	return !ok || wanted[req.key]
 }
 
 func (w *renderWorker) requestPriority(req renderRequest) int {
-	value := w.visible.Load()
-	if value == nil {
+	visible, ok := w.visible.Load().(map[tileKey]bool)
+	if !ok {
 		return req.priority
 	}
-	visible, ok := value.(map[int]bool)
-	if ok && visible[req.page] {
+	if visible[req.key] {
 		return 0
 	}
-	if ok && req.priority <= 0 {
+	if req.priority <= 0 {
 		return renderPrefetchPriority
 	}
 	return req.priority
@@ -233,12 +222,12 @@ func (w *renderWorker) run(slot *renderSlot) {
 		if !ok {
 			return
 		}
-		slot.activePage.Store(int32(req.page + 1))
-		rendered, err := slot.renderer.Render(req.page, req.scale, 0, req.aaLevel)
+		slot.rendering.Store(&req.key)
+		rendered, err := slot.renderer.Render(req.key.page, req.key.scale, req.rect, req.aaLevel)
 		if err == nil && req.altColors {
 			remapPageColors(rendered.Image, req.altBackground, req.altForeground)
 		}
-		slot.activePage.Store(0)
+		slot.rendering.Store(nil)
 		sendWorkerUpdate(&w.workerLifecycle, w.updates, renderUpdate{request: req, rendered: rendered, err: err})
 	}
 }

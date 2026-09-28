@@ -1,9 +1,10 @@
 package viewer
 
 import (
+	"image"
 	"image/color"
 	"math"
-	"sort"
+	"slices"
 
 	"gopdf/internal/mupdf"
 
@@ -27,7 +28,7 @@ func (a *App) drawContinuousPages(renderer *sdl.Renderer) {
 		if x+width < 0 || x > float64(viewportW) || y+height < 0 || y > float64(viewportH) {
 			return
 		}
-		a.drawPage(renderer, page, x, y, width, height)
+		a.drawPage(renderer, page, x, y)
 	})
 	a.drawSelection(renderer)
 }
@@ -43,31 +44,34 @@ func (a *App) drawSinglePage(renderer *sdl.Renderer) {
 		if x+row.pageW[i] < 0 || x > float64(viewportW) || y+row.pageH[i] < 0 || y > float64(viewportH) {
 			continue
 		}
-		a.drawPage(renderer, page, x, y, row.pageW[i], row.pageH[i])
+		a.drawPage(renderer, page, x, y)
 	}
 	a.drawSelection(renderer)
 }
 
-func (a *App) drawPage(renderer *sdl.Renderer, page int, x, y, width, height float64) {
+func (a *App) drawPage(renderer *sdl.Renderer, page int, x, y float64) {
 	_ = a.drawPageBackground(renderer, x, y, page)
-	if rp, ok := a.cachedRenderPage(page, a.scale); ok {
-		a.drawPageTexture(renderer, x, y, width, height, rp, a.renderDrawScale(rp, a.scale))
+	viewportW, viewportH := a.viewportSize()
+	for _, tile := range a.cache.pageTiles(page, a.renderScaleFor(a.scale)) {
+		a.drawTile(renderer, tile, x, y, viewportW, viewportH)
 	}
 	a.drawSearchHighlightsForPage(renderer, page, x, y)
 }
 
-func (a *App) drawPageTexture(renderer *sdl.Renderer, x, y, width, height float64, rp *renderedPage, drawScale float64) {
-	drawW := rp.width * drawScale
-	drawH := rp.height * drawScale
-	centerX := x + width/2
-	centerY := y + height/2
-	if rp.scale > 0 {
-		originX, originY := rotatedBoundsOrigin(a.pageMetrics[rp.page].bounds, a.scale, a.rotation)
-		pageX := (rp.pixX + rp.width/2) / rp.scale
-		pageY := (rp.pixY + rp.height/2) / rp.scale
-		tx, ty := transformPoint(pageX, pageY, a.scale, a.rotation)
-		centerX = x + tx - originX
-		centerY = y + ty - originY
+// drawTile draws a tile of the page whose screen origin is (x, y). The
+// tile is rotated about its own centre, placed where that centre falls on
+// the rotated page.
+func (a *App) drawTile(renderer *sdl.Renderer, tile *renderedTile, x, y float64, viewportW, viewportH int) {
+	drawScale := a.scale / tile.scale
+	drawW := float64(tile.rect.Dx()) * drawScale
+	drawH := float64(tile.rect.Dy()) * drawScale
+	originX, originY := rotatedBoundsOrigin(a.pageMetrics[tile.key.page].bounds, a.scale, a.rotation)
+	pageX := (float64(tile.rect.Min.X) + float64(tile.rect.Dx())/2) / tile.scale
+	pageY := (float64(tile.rect.Min.Y) + float64(tile.rect.Dy())/2) / tile.scale
+	tx, ty := transformPoint(pageX, pageY, a.scale, a.rotation)
+	centerX, centerY := x+tx-originX, y+ty-originY
+	if radius := math.Max(drawW, drawH) / 2; centerX+radius < 0 || centerY+radius < 0 || centerX-radius > float64(viewportW) || centerY-radius > float64(viewportH) {
+		return
 	}
 	dst := sdl.FRect{
 		X: float32(centerX - drawW/2),
@@ -76,10 +80,10 @@ func (a *App) drawPageTexture(renderer *sdl.Renderer, x, y, width, height float6
 		H: float32(drawH),
 	}
 	if normalizeRotation(a.rotation) == 0 {
-		sdl.RenderTexture(renderer, rp.texture, nil, &dst)
+		sdl.RenderTexture(renderer, tile.texture, nil, &dst)
 		return
 	}
-	sdl.RenderTextureRotated(renderer, rp.texture, nil, &dst, a.rotation, nil, sdl.FlipNone)
+	sdl.RenderTextureRotated(renderer, tile.texture, nil, &dst, a.rotation, nil, sdl.FlipNone)
 }
 
 func (a *App) drawPageBackground(renderer *sdl.Renderer, x, y float64, page int) error {
@@ -111,133 +115,116 @@ func pageBackgroundVertices(x, y float64, bounds mupdf.Rect, scale, rotation flo
 	return vertices
 }
 
-func (a *App) cachedRenderPage(page int, scale float64) (*renderedPage, bool) {
-	renderScale := a.renderScaleFor(scale)
-	key := renderCacheKey(page, renderScale, a.altColors, a.config.AntiAliasing)
-	if rp, ok := a.renderCache[key]; ok {
-		a.touchRenderCacheEntry(key)
-		return rp, true
-	}
-	a.ensureRenderCacheState()
-	variant := renderVariantKey{page: page, altColors: a.altColors, aaLevel: a.config.AntiAliasing}
-	if rp := a.renderIndex[variant]; rp != nil {
-		a.touchRenderCacheEntry(rp.key)
-		return rp, true
-	}
-	if rp := a.thumbnailCache[variant]; rp != nil {
-		a.touchThumbnailCacheEntry(variant)
-		return rp, true
-	}
-	return nil, false
+// tileCandidate is a tile that the current view wants rendered.
+type tileCandidate struct {
+	key      tileKey
+	rect     image.Rectangle
+	distance int // device pixels from the viewport; 0 when on screen
 }
 
+// prefetchVisiblePages requests the tiles covering the viewport, then the
+// nearest tiles within the prefetch margin, and tells the render worker
+// which tiles are still wanted.
 func (a *App) prefetchVisiblePages() {
 	if len(a.rows) == 0 {
 		return
 	}
-	visible := []int{}
-	prefetch := []int{}
-	seen := map[int]bool{}
-	if a.renderMode == "single" {
-		if a.page < 0 || a.page >= len(a.pageToRow) {
-			return
-		}
-		row := a.rows[a.pageToRow[a.page]]
-		for _, page := range row.pages {
-			visible = append(visible, page)
-			seen[page] = true
-		}
-	} else {
-		viewportW, viewportH := a.viewportSize()
-		_, offsetY := a.contentViewportOffset()
-		a.forEachContinuousPage(a.scrollY-offsetY, a.scrollY+float64(viewportH)-offsetY, func(page int, x, y, width, height float64) {
-			if x+width < 0 || x > float64(viewportW) || y+height < 0 || y > float64(viewportH) {
-				return
-			}
-			visible = append(visible, page)
-			seen[page] = true
-		})
-		margin := math.Max(a.renderMargin()*2, float64(viewportH))
-		minY := a.scrollY - margin
-		maxY := a.scrollY + float64(viewportH) + margin
-		a.forEachContinuousPage(minY, maxY, func(page int, _, _, _, _ float64) {
-			if seen[page] {
-				return
-			}
-			prefetch = append(prefetch, page)
-			seen[page] = true
-		})
+	viewportW, viewportH := a.viewportSize()
+	viewport := sdl.FRect{W: float32(viewportW), H: float32(viewportH)}
+	margin := 0.0
+	if a.renderMode != "single" {
+		margin = math.Max(a.renderMargin()*2, float64(viewportH))
 	}
-	a.visibleCachePages = map[int]bool{}
-	for _, page := range visible {
-		a.visibleCachePages[page] = true
+	area := sdl.FRect{Y: float32(-margin), W: viewport.W, H: viewport.H + float32(2*margin)}
+	scale := a.renderScaleFor(a.scale)
+
+	var visible, prefetch []tileCandidate
+	a.forEachDisplayedPage(margin, func(page int, x, y float64) {
+		pageRect := mupdf.DeviceRect(a.pageMetrics[page].bounds, scale)
+		onScreen := a.pageDeviceArea(page, x, y, viewport, scale)
+		for _, pt := range tilesCovering(pageRect, a.pageDeviceArea(page, x, y, area, scale)) {
+			rect := tileRect(pageRect, pt.X, pt.Y)
+			c := tileCandidate{key: tileKey{page: page, scale: scale, x: pt.X, y: pt.Y}, rect: rect, distance: rectDistance(rect, onScreen)}
+			if c.distance == 0 {
+				visible = append(visible, c)
+			} else {
+				prefetch = append(prefetch, c)
+			}
+		}
+	})
+
+	wanted := make(map[tileKey]bool, len(visible)+len(prefetch))
+	onScreen := make(map[tileKey]bool, len(visible))
+	protected := make(map[tileKey]bool, 2*len(visible))
+	for _, c := range visible {
+		wanted[c.key], onScreen[c.key] = true, true
+		protected[c.key], protected[thumbnailKey(c.key.page)] = true, true
 	}
+	for _, c := range prefetch {
+		wanted[c.key] = true
+	}
+	a.cache.protected = protected
 	if a.renderWorker != nil {
-		a.renderWorker.SetWantedPages(seen)
-		a.renderWorker.SetVisiblePages(a.visibleCachePages)
+		a.renderWorker.SetWanted(wanted)
+		a.renderWorker.SetVisible(onScreen)
 		a.renderWorker.DrainUnwanted(a.renderGeneration)
 	}
-	for key, req := range a.renderPending {
-		if req.generation != a.renderGeneration {
-			continue
-		}
-		if !seen[req.page] {
+	for key := range a.renderPending {
+		if !wanted[key] {
 			delete(a.renderPending, key)
-			continue
 		}
-		if a.visibleCachePages[req.page] {
-			req.priority = 0
-		} else if req.priority <= 0 {
-			req.priority = renderPrefetchPriority + pageDistance(req.page, a.page)
-		}
-		a.renderPending[key] = req
 	}
-	for _, page := range visible {
-		a.requestRender(page, a.scale, 0)
+
+	for _, c := range visible {
+		a.requestTile(c.key, c.rect, 0)
 	}
 	if a.hasPendingVisibleRender() {
-		a.preemptNonVisibleRender()
+		a.preemptNonVisibleRender(onScreen)
 		return
 	}
-	sort.SliceStable(prefetch, func(i, j int) bool {
-		di := pageDistance(prefetch[i], a.page)
-		dj := pageDistance(prefetch[j], a.page)
-		if di == dj {
-			return prefetch[i] < prefetch[j]
-		}
-		return di < dj
-	})
-	limit := maxPendingPrefetchRenders
-	if a.cacheLimit > 0 {
-		limit = min(limit, max(0, a.cacheLimit-len(visible)))
-	}
-	remaining := limit - a.pendingBackgroundRenderCount()
-	for i, page := range prefetch {
+	slices.SortStableFunc(prefetch, func(x, y tileCandidate) int { return x.distance - y.distance })
+	remaining := maxPendingPrefetchRenders - a.pendingBackgroundRenderCount()
+	for i, c := range prefetch {
 		if remaining <= 0 {
 			break
 		}
-		if a.requestRender(page, a.scale, renderPrefetchPriority+i) {
+		if a.requestTile(c.key, c.rect, renderPrefetchPriority+i) {
 			remaining--
 		}
 	}
 }
 
-func (a *App) preemptNonVisibleRender() {
+// forEachDisplayedPage visits the pages shown in the viewport extended
+// vertically by margin, with their screen origins.
+func (a *App) forEachDisplayedPage(margin float64, visit func(page int, x, y float64)) {
+	if a.renderMode == "single" {
+		if a.page < 0 || a.page >= len(a.pageToRow) {
+			return
+		}
+		row := a.rows[a.pageToRow[a.page]]
+		for i, page := range row.pages {
+			x, y := a.rowPageScreenOrigin(row, i)
+			visit(page, x, y)
+		}
+		return
+	}
+	_, viewportH := a.viewportSize()
+	a.forEachContinuousPage(a.scrollY-margin, a.scrollY+float64(viewportH)+margin, func(page int, x, y, _, _ float64) {
+		visit(page, x, y)
+	})
+}
+
+// rectDistance is the gap between two rects, summed over both axes.
+func rectDistance(a, b image.Rectangle) int {
+	gap := func(a0, a1, b0, b1 int) int { return max(0, b0-a1, a0-b1) }
+	return gap(a.Min.X, a.Max.X, b.Min.X, b.Max.X) + gap(a.Min.Y, a.Max.Y, b.Min.Y, b.Max.Y)
+}
+
+func (a *App) preemptNonVisibleRender(visible map[tileKey]bool) {
 	if a.renderWorker == nil {
 		return
 	}
-	for _, page := range a.renderWorker.CancelNotVisible(a.visibleCachePages) {
-		for key, req := range a.renderPending {
-			if req.generation == a.renderGeneration && req.page == page {
-				delete(a.renderPending, key)
-			}
-		}
+	for _, key := range a.renderWorker.CancelNotVisible(visible) {
+		delete(a.renderPending, key)
 	}
-}
-
-func pageDistance(a, b int) int {
-	if a < b {
-		return b - a
-	}
-	return a - b
 }

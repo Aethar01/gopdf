@@ -1,50 +1,26 @@
 package viewer
 
 import (
-	"container/list"
-	"fmt"
+	"image"
 	"math"
 	"time"
 
 	"gopdf/internal/config"
-
-	"github.com/jupiterrider/purego-sdl3/sdl"
 )
 
 type renderService struct {
-	renderCache        map[string]*renderedPage
-	renderLRU          *list.List
-	renderLRUItems     map[string]*list.Element
-	renderIndex        map[renderVariantKey]*renderedPage
-	thumbnailCache     map[renderVariantKey]*renderedPage
-	thumbnailLRU       *list.List
-	thumbnailLRUItems  map[renderVariantKey]*list.Element
-	cacheLimit         int
-	cacheByteLimit     int64
-	renderCacheBytes   int64
-	thumbnailBytes     int64
-	visibleCachePages  map[int]bool
+	cache              tileCache
+	renderPending      map[tileKey]renderRequest
 	renderBaseScale    float64
 	renderScaleTarget  float64
 	renderScaleReadyAt time.Time
 	minRenderBaseScale float64
 	renderGeneration   int
-	renderPending      map[string]renderRequest
-}
-
-type renderVariantKey struct {
-	page      int
-	altColors bool
-	aaLevel   int
-}
-
-func renderCacheKey(page int, scale float64, altColors bool, aaLevel int) string {
-	return fmt.Sprintf("%d/%.4f/%t/%d", page, scale, altColors, aaLevel)
 }
 
 func (a *App) initRenderWorker() {
 	a.logf("start render worker path=%q", a.docPath)
-	a.renderPending = map[string]renderRequest{}
+	a.renderPending = map[tileKey]renderRequest{}
 	a.renderWorker = newRenderWorker(a.doc, renderThreadCount(a.config))
 	a.renderWorker.SetGeneration(a.renderGeneration)
 }
@@ -56,320 +32,79 @@ func (a *App) pollRenderUpdates() {
 	for {
 		select {
 		case update := <-a.renderWorker.updates:
-			req := update.request
 			if update.rendered != nil {
 				defer update.rendered.Close()
 			}
-			if req.generation != a.renderGeneration {
-				delete(a.renderPending, req.cacheKey)
-				continue
-			}
-			if _, pending := a.renderPending[req.cacheKey]; !pending {
-				continue
-			}
-			delete(a.renderPending, req.cacheKey)
-			if update.err != nil {
-				a.logf("render update failed err=%v", update.err)
-				a.message = update.err.Error()
-				continue
-			}
-			if update.rendered == nil {
-				continue
-			}
-			a.removeRenderCacheEntry(req.cacheKey, true)
-			tex, err := textureFromRGBA(a.renderer, update.rendered.Image)
-			if err != nil {
-				a.logf("render texture failed page=%d err=%v", req.page+1, err)
-				a.message = err.Error()
-				continue
-			}
-			bounds := update.rendered.Image.Bounds()
-			rp := &renderedPage{
-				texture:   tex,
-				width:     float64(bounds.Dx()),
-				height:    float64(bounds.Dy()),
-				bytes:     estimatedTextureBytes(bounds.Dx(), bounds.Dy()),
-				pixX:      float64(update.rendered.X),
-				pixY:      float64(update.rendered.Y),
-				key:       req.cacheKey,
-				page:      req.page,
-				scale:     req.scale,
-				altColors: req.altColors,
-				aaLevel:   req.aaLevel,
-			}
-			a.addRenderCacheEntry(req.cacheKey, rp)
-			a.addThumbnailCacheEntry(rp)
-			a.startPendingMetricLoader()
-			a.pendingRedraw = true
-			a.enforceRenderCacheLimit()
-			a.enforceThumbnailCacheLimit()
+			a.acceptRenderUpdate(update)
 		default:
 			return
 		}
 	}
 }
 
-func (rs *renderService) touchRenderCacheEntry(key string) {
-	rs.ensureRenderCacheState()
-	if elem := rs.renderLRUItems[key]; elem != nil {
-		rs.renderLRU.MoveToBack(elem)
-	}
-}
-
-func (rs *renderService) ensureRenderCacheState() {
-	if rs.renderCache == nil {
-		rs.renderCache = map[string]*renderedPage{}
-	}
-	if rs.renderLRU == nil {
-		rs.renderLRU = list.New()
-	}
-	if rs.renderLRUItems == nil {
-		rs.renderLRUItems = map[string]*list.Element{}
-	}
-	if rs.renderIndex == nil {
-		rs.renderIndex = map[renderVariantKey]*renderedPage{}
-		for key, rp := range rs.renderCache {
-			if rp == nil {
-				continue
-			}
-			if rs.renderLRUItems[key] == nil {
-				rs.renderLRUItems[key] = rs.renderLRU.PushBack(key)
-			}
-			rs.indexRenderPage(key, rp)
-		}
-	}
-	if rs.thumbnailCache == nil {
-		rs.thumbnailCache = map[renderVariantKey]*renderedPage{}
-	}
-	if rs.thumbnailLRU == nil {
-		rs.thumbnailLRU = list.New()
-	}
-	if rs.thumbnailLRUItems == nil {
-		rs.thumbnailLRUItems = map[renderVariantKey]*list.Element{}
-	}
-}
-
-func (rs *renderService) indexRenderPage(key string, rp *renderedPage) {
-	rp.key = key
-	variant := renderVariantKey{page: rp.page, altColors: rp.altColors, aaLevel: rp.aaLevel}
-	rs.renderIndex[variant] = rp
-}
-
-func (rs *renderService) touchThumbnailCacheEntry(key renderVariantKey) {
-	rs.ensureRenderCacheState()
-	if elem := rs.thumbnailLRUItems[key]; elem != nil {
-		rs.thumbnailLRU.MoveToBack(elem)
-	}
-}
-
-func (a *App) addThumbnailCacheEntry(source *renderedPage) {
-	if source == nil || source.texture == nil || a.renderer == nil {
+func (a *App) acceptRenderUpdate(update renderUpdate) {
+	req := update.request
+	if _, pending := a.renderPending[req.key]; !pending || req.generation != a.renderGeneration {
 		return
 	}
-	a.ensureRenderCacheState()
-	tw, th, ratio := thumbnailDimensions(int(source.width), int(source.height))
-	if tw <= 0 || th <= 0 || ratio <= 0 {
+	delete(a.renderPending, req.key)
+	if update.err != nil {
+		a.logf("render update failed err=%v", update.err)
+		a.message = update.err.Error()
 		return
 	}
-	key := renderVariantKey{page: source.page, altColors: source.altColors, aaLevel: source.aaLevel}
-	if a.thumbnailCache[key] != nil {
-		a.touchThumbnailCacheEntry(key)
+	img := update.rendered.Image
+	if img.Bounds().Empty() {
 		return
 	}
-	tex := sdl.CreateTexture(a.renderer, sdl.PixelFormatRGBA32, sdl.TextureAccessTarget, int32(tw), int32(th))
-	if tex == nil {
+	tex, err := textureFromRGBA(a.renderer, img)
+	if err != nil {
+		a.logf("render texture failed page=%d err=%v", req.key.page+1, err)
+		a.message = err.Error()
 		return
 	}
-	if !sdl.SetTextureScaleMode(tex, sdl.ScaleModeLinear) {
-		sdl.DestroyTexture(tex)
-		return
-	}
-	oldTarget := sdl.GetRenderTarget(a.renderer)
-	if !sdl.SetRenderTarget(a.renderer, tex) {
-		sdl.DestroyTexture(tex)
-		return
-	}
-	dst := sdl.FRect{W: float32(tw), H: float32(th)}
-	ok := sdl.RenderTexture(a.renderer, source.texture, nil, &dst)
-	if !sdl.SetRenderTarget(a.renderer, oldTarget) || !ok {
-		sdl.DestroyTexture(tex)
-		return
-	}
-	rp := &renderedPage{
-		texture:   tex,
-		width:     float64(tw),
-		height:    float64(th),
-		bytes:     estimatedTextureBytes(tw, th),
-		pixX:      source.pixX * ratio,
-		pixY:      source.pixY * ratio,
-		page:      source.page,
-		scale:     source.scale * ratio,
-		altColors: source.altColors,
-		aaLevel:   source.aaLevel,
-	}
-	a.thumbnailCache[key] = rp
-	a.thumbnailBytes += rp.bytes
-	a.thumbnailLRUItems[key] = a.thumbnailLRU.PushBack(key)
+	origin := image.Pt(update.rendered.X, update.rendered.Y)
+	tile := &renderedTile{key: req.key, texture: tex, rect: img.Bounds().Add(origin), scale: req.key.scale}
+	a.cache.add(tile)
+	a.updateThumbnail(tile)
+	a.cache.evict()
+	a.startPendingMetricLoader()
+	a.pendingRedraw = true
 }
 
-func (rs *renderService) removeThumbnailCacheEntry(key renderVariantKey, destroy bool) {
-	rs.ensureRenderCacheState()
-	rp := rs.thumbnailCache[key]
-	if rp == nil {
-		return
-	}
-	if elem := rs.thumbnailLRUItems[key]; elem != nil {
-		rs.thumbnailLRU.Remove(elem)
-		delete(rs.thumbnailLRUItems, key)
-	}
-	if destroy && rp.texture != nil {
-		sdl.DestroyTexture(rp.texture)
-	}
-	rs.thumbnailBytes -= rp.bytes
-	if rs.thumbnailBytes < 0 {
-		rs.thumbnailBytes = 0
-	}
-	delete(rs.thumbnailCache, key)
-}
-
-func (rs *renderService) enforceThumbnailCacheLimit() {
-	rs.ensureRenderCacheState()
-	limit := rs.thumbnailCacheLimit()
-	for limit > 0 && len(rs.thumbnailCache) > limit {
-		front := rs.thumbnailLRU.Front()
-		if front == nil {
-			return
-		}
-		key, _ := front.Value.(renderVariantKey)
-		rs.removeThumbnailCacheEntry(key, true)
-	}
-}
-
-func (rs *renderService) thumbnailCacheLimit() int {
-	if rs.cacheLimit <= 0 {
-		return 0
-	}
-	return rs.cacheLimit * 2
-}
-
-func (rs *renderService) addRenderCacheEntry(key string, rp *renderedPage) {
-	rs.ensureRenderCacheState()
-	rs.removeRenderCacheVariants(renderVariantKey{page: rp.page, altColors: rp.altColors, aaLevel: rp.aaLevel})
-	if rp.bytes <= 0 {
-		rp.bytes = estimatedTextureBytes(int(rp.width), int(rp.height))
-	}
-	rs.renderCache[key] = rp
-	rs.renderCacheBytes += rp.bytes
-	rs.renderLRUItems[key] = rs.renderLRU.PushBack(key)
-	rs.indexRenderPage(key, rp)
-}
-
-func (rs *renderService) removeRenderCacheVariants(variant renderVariantKey) {
-	rs.ensureRenderCacheState()
-	if rp := rs.renderIndex[variant]; rp != nil {
-		rs.removeRenderCacheEntry(rp.key, true)
-	}
-}
-
-func (rs *renderService) removeRenderCacheEntry(key string, destroy bool) {
-	rs.ensureRenderCacheState()
-	rp := rs.renderCache[key]
-	if rp == nil {
-		return
-	}
-	if elem := rs.renderLRUItems[key]; elem != nil {
-		rs.renderLRU.Remove(elem)
-		delete(rs.renderLRUItems, key)
-	}
-	variant := renderVariantKey{page: rp.page, altColors: rp.altColors, aaLevel: rp.aaLevel}
-	if rs.renderIndex[variant] == rp {
-		delete(rs.renderIndex, variant)
-	}
-	if destroy && rp.texture != nil {
-		sdl.DestroyTexture(rp.texture)
-	}
-	rs.renderCacheBytes -= rp.bytes
-	if rs.renderCacheBytes < 0 {
-		rs.renderCacheBytes = 0
-	}
-	delete(rs.renderCache, key)
-}
-
-func (rs *renderService) enforceRenderCacheLimit() {
-	rs.ensureRenderCacheState()
-	for rs.renderCacheOverLimit() {
-		attempts := len(rs.renderCache)
-		evicted := false
-		for attempts > 0 && rs.renderCacheOverLimit() {
-			attempts--
-			front := rs.renderLRU.Front()
-			if front == nil {
-				return
-			}
-			key, _ := front.Value.(string)
-			rp := rs.renderCache[key]
-			if rp != nil && rs.visibleCachePages[rp.page] {
-				rs.renderLRU.MoveToBack(front)
-				continue
-			}
-			if _, pending := rs.renderPending[key]; pending {
-				rs.renderLRU.MoveToBack(front)
-				continue
-			}
-			rs.removeRenderCacheEntry(key, true)
-			evicted = true
-		}
-		if !evicted {
-			return
-		}
-	}
-}
-
-func (rs *renderService) renderCacheOverLimit() bool {
-	if rs.cacheLimit > 0 && len(rs.renderCache) > rs.cacheLimit {
-		return true
-	}
-	return rs.cacheByteLimit > 0 && rs.renderCacheBytes > rs.cacheByteLimit && len(rs.renderCache) > 1
-}
-
-func (a *App) requestRender(page int, scale float64, priority ...int) bool {
-	if a.renderWorker == nil || page < 0 || page >= a.pageCount {
+// requestTile queues a render of the tile at key unless it is cached or
+// already queued, in which case a more urgent priority is kept. It reports
+// whether a new render was queued.
+func (a *App) requestTile(key tileKey, rect image.Rectangle, priority int) bool {
+	if a.renderWorker == nil {
 		return false
 	}
-	renderScale := a.renderScaleFor(scale)
-	cacheKey := renderCacheKey(page, renderScale, a.altColors, a.config.AntiAliasing)
-	if _, ok := a.renderCache[cacheKey]; ok {
-		a.touchRenderCacheEntry(cacheKey)
+	if _, ok := a.cache.get(key); ok {
 		return false
 	}
-	requestedPriority := 0
-	if len(priority) > 0 {
-		requestedPriority = priority[0]
-	}
-	if req, ok := a.renderPending[cacheKey]; ok {
-		if requestedPriority < req.priority {
-			req.priority = requestedPriority
-			a.renderPending[cacheKey] = req
+	if req, ok := a.renderPending[key]; ok {
+		if priority < req.priority {
+			req.priority = priority
+			a.renderPending[key] = req
 		}
 		return false
 	}
 	req := renderRequest{
 		generation: a.renderGeneration,
-		page:       page,
-		scale:      renderScale,
+		key:        key,
+		rect:       rect,
 		altColors:  a.altColors,
 		aaLevel:    a.config.AntiAliasing,
-		cacheKey:   cacheKey,
+		priority:   priority,
 	}
-	req.priority = requestedPriority
 	if req.altColors {
 		req.altBackground, req.altForeground = a.config.AltBackground, a.config.AltForeground
 	}
 	if !a.renderWorker.Enqueue(req) {
-		a.logf("render enqueue skipped page=%d key=%s", page+1, cacheKey)
+		a.logf("render enqueue skipped page=%d tile=%d,%d", key.page+1, key.x, key.y)
 		return false
 	}
-	a.renderPending[cacheKey] = req
+	a.renderPending[key] = req
 	return true
 }
 
@@ -394,7 +129,7 @@ func (a *App) pendingBackgroundRenderCount() int {
 
 func (a *App) invalidateRenderRequests() {
 	a.renderGeneration++
-	a.renderPending = map[string]renderRequest{}
+	a.renderPending = map[tileKey]renderRequest{}
 	if a.renderWorker != nil {
 		a.renderWorker.SetGeneration(a.renderGeneration)
 	}
@@ -417,90 +152,26 @@ func (a *App) renderScaleFor(layoutScale float64) float64 {
 }
 
 func (a *App) clearCache() {
-	for _, rp := range a.renderCache {
-		if rp.texture != nil {
-			sdl.DestroyTexture(rp.texture)
-		}
-	}
-	for _, rp := range a.thumbnailCache {
-		if rp.texture != nil {
-			sdl.DestroyTexture(rp.texture)
-		}
-	}
-	a.renderCache = map[string]*renderedPage{}
-	a.thumbnailCache = map[renderVariantKey]*renderedPage{}
-	a.renderCacheBytes = 0
-	a.thumbnailBytes = 0
-	a.renderLRU = list.New()
-	a.thumbnailLRU = list.New()
-	a.renderLRUItems = map[string]*list.Element{}
-	a.thumbnailLRUItems = map[renderVariantKey]*list.Element{}
-	a.renderIndex = map[renderVariantKey]*renderedPage{}
+	a.cache.clear()
 	a.invalidateRenderRequests()
-}
-
-func (rs *renderService) renderDrawScale(rp *renderedPage, layoutScale float64) float64 {
-	if rp == nil || rp.scale <= 0 {
-		return 1
-	}
-	return layoutScale / rp.scale
 }
 
 const (
 	defaultMinRenderBaseScale = 0.25
 	defaultRenderOversample   = 1
-	defaultPageCacheSize      = 16
-	defaultThumbnailMaxPixels = 4 * 1024 * 1024
 	maxPendingPrefetchRenders = 4
 	renderPrefetchPriority    = 10
 	renderUpgradeTolerance    = 0.95
 	renderDowngradeHeadroom   = 2.0
 	renderScaleSettleDelay    = 75 * time.Millisecond
-	thumbnailInitialZoom      = 0.5
-	thumbnailMaxZoom          = 0.5
 )
-
-func estimatedTextureBytes(width, height int) int64 {
-	if width <= 0 || height <= 0 {
-		return 0
-	}
-	return int64(width) * int64(height) * 4
-}
 
 func validRenderScale(v float64) bool {
 	return v > 0 && !math.IsNaN(v) && !math.IsInf(v, 0)
 }
 
-func pageCacheLimit(cfg config.Config, pageCount int) int {
-	limit := cfg.PageCacheSize
-	if limit <= 0 {
-		limit = defaultPageCacheSize
-	}
-	if pageCount > 0 && limit > pageCount {
-		return pageCount
-	}
-	return limit
-}
-
 func pageCacheByteLimit(cfg config.Config) int64 {
 	return int64(cfg.PageCacheMemoryMB) << 20
-}
-
-func thumbnailDimensions(w, h int) (int, int, float64) {
-	if w <= 0 || h <= 0 {
-		return 0, 0, 0
-	}
-	scale := thumbnailMaxZoom
-	pixels := w * h
-	if pixels > defaultThumbnailMaxPixels {
-		scale = math.Sqrt(float64(defaultThumbnailMaxPixels)/float64(pixels)) * thumbnailInitialZoom
-		if scale > thumbnailMaxZoom {
-			scale = thumbnailMaxZoom
-		}
-	}
-	tw := max(1, int(float64(w)*scale))
-	th := max(1, int(float64(h)*scale))
-	return tw, th, scale
 }
 
 func (rs *renderService) renderScaleFloor() float64 {

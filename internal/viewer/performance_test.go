@@ -2,6 +2,7 @@ package viewer
 
 import (
 	"fmt"
+	"image"
 	"os"
 	"path/filepath"
 	"testing"
@@ -34,38 +35,13 @@ func BenchmarkRowIndexAtContentY(b *testing.B) {
 func BenchmarkPrefetchVisiblePagesLargeDocument(b *testing.B) {
 	app := testLayoutApp(100000)
 	app.recomputeLayout(1000, 800)
-	app.cacheLimit = 24
-	app.renderCache = map[string]*renderedPage{}
-	app.renderPending = map[string]renderRequest{}
+	app.renderPending = map[tileKey]renderRequest{}
 	app.renderBaseScale = 1
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		app.scrollY = float64((i % len(app.rows)) * 210)
 		app.prefetchVisiblePages()
-	}
-}
-
-func BenchmarkCachedRenderPageIndexedFallback(b *testing.B) {
-	app := &App{}
-	app.pageCount = 50000
-	app.config.AntiAliasing = 8
-	app.renderBaseScale = 1
-	app.renderCache = map[string]*renderedPage{}
-	for page := 0; page < app.pageCount; page++ {
-		scale := 0.5
-		if page%2 == 0 {
-			scale = 2
-		}
-		key := renderCacheKey(page, scale, false, app.config.AntiAliasing)
-		app.addRenderCacheEntry(key, &renderedPage{key: key, page: page, scale: scale, aaLevel: app.config.AntiAliasing})
-	}
-	b.ReportAllocs()
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		if _, ok := app.cachedRenderPage(i%app.pageCount, 1); !ok {
-			b.Fatal("expected cached fallback render")
-		}
 	}
 }
 
@@ -147,7 +123,7 @@ func BenchmarkPerfHeavyPDFRenderPages(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		page := i % pageCount
-		rendered, err := renderer.Render(page, 1.5, 0, 8)
+		rendered, err := renderer.Render(page, 1.5, image.Rect(-1<<30, -1<<30, 1<<30, 1<<30), 8)
 		if err != nil {
 			b.Fatal(err)
 		}

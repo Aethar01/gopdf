@@ -1,8 +1,7 @@
 package viewer
 
 import (
-	"container/list"
-	"fmt"
+	"image"
 	"slices"
 	"testing"
 	"time"
@@ -12,173 +11,97 @@ import (
 	"gopdf/internal/testpdf"
 )
 
-func listWithValues(values ...any) *list.List {
-	l := list.New()
-	for _, value := range values {
-		l.PushBack(value)
-	}
-	return l
+func testTile(page int, scale float64, x, y, size int) *renderedTile {
+	return &renderedTile{key: tileKey{page: page, scale: scale, x: x, y: y}, rect: image.Rect(0, 0, size, size), scale: scale}
 }
 
-func TestRenderCacheEvictsByPageLimit(t *testing.T) {
-	var rs renderService
-	rs.cacheLimit = 2
-
-	rs.addRenderCacheEntry("a", &renderedPage{key: "a", page: 0, width: 1, height: 1})
-	rs.addRenderCacheEntry("b", &renderedPage{key: "b", page: 1, width: 1, height: 1})
-	rs.addRenderCacheEntry("c", &renderedPage{key: "c", page: 2, width: 1, height: 1})
-	rs.enforceRenderCacheLimit()
-
-	if _, ok := rs.renderCache["a"]; ok {
-		t.Fatal("oldest cache entry was not evicted")
-	}
-	if _, ok := rs.renderCache["b"]; !ok {
-		t.Fatal("newer cache entry b was evicted")
-	}
-	if _, ok := rs.renderCache["c"]; !ok {
-		t.Fatal("newer cache entry c was evicted")
-	}
-	if len(rs.renderCache) > rs.cacheLimit {
-		t.Fatalf("cache entries = %d, want <= %d", len(rs.renderCache), rs.cacheLimit)
-	}
-}
-
-func TestRenderCacheEvictsByConfiguredMemory(t *testing.T) {
+func TestTileCacheEvictsLeastRecentlyUsedByMemory(t *testing.T) {
 	cfg := config.Default()
-	cfg.PageCacheMemoryMB = 1
-	rs := renderService{cacheLimit: 16, cacheByteLimit: pageCacheByteLimit(cfg)}
+	cfg.PageCacheMemoryMB = 2
+	c := tileCache{byteLimit: pageCacheByteLimit(cfg)}
+	// Each 512x512 RGBA tile is exactly 1 MiB.
+	a, b, d := testTile(0, 1, 0, 0, 512), testTile(1, 1, 0, 0, 512), testTile(2, 1, 0, 0, 512)
+	c.add(a)
+	c.add(b)
+	c.get(a.key) // a is now more recent than b
+	c.add(d)
+	c.evict()
 
-	// Each 512x512 RGBA page is exactly 1 MiB.
-	rs.addRenderCacheEntry("a", &renderedPage{key: "a", page: 0, width: 512, height: 512})
-	rs.addRenderCacheEntry("b", &renderedPage{key: "b", page: 1, width: 512, height: 512})
-	rs.enforceRenderCacheLimit()
-
-	if _, ok := rs.renderCache["a"]; ok {
-		t.Fatal("oldest entry kept past the memory limit")
+	if _, ok := c.entries[b.key]; ok {
+		t.Fatal("least recently used tile kept past the memory limit")
 	}
-	if rs.renderCacheBytes > rs.cacheByteLimit {
-		t.Fatalf("cache bytes = %d, want <= %d", rs.renderCacheBytes, rs.cacheByteLimit)
+	if _, ok := c.entries[a.key]; !ok {
+		t.Fatal("recently used tile was evicted")
 	}
-}
-
-func TestRenderCacheDisablesLimitWhenUnset(t *testing.T) {
-	var rs renderService
-
-	rs.addRenderCacheEntry("a", &renderedPage{key: "a", page: 0, width: 1, height: 1})
-	rs.addRenderCacheEntry("b", &renderedPage{key: "b", page: 1, width: 1, height: 1})
-	rs.enforceRenderCacheLimit()
-
-	if len(rs.renderCache) != 2 {
-		t.Fatalf("cache entries = %d, want 2", len(rs.renderCache))
+	if c.bytes != 2<<20 {
+		t.Fatalf("cache bytes = %d, want %d", c.bytes, 2<<20)
 	}
 }
 
-func TestRenderCacheBytesUpdatedOnReplacementAndRemoval(t *testing.T) {
-	var rs renderService
-
-	rs.addRenderCacheEntry("a", &renderedPage{key: "a", page: 0, width: 1, height: 1})
-	rs.addRenderCacheEntry("a", &renderedPage{key: "a", page: 0, width: 2, height: 1})
-	if rs.renderCacheBytes != 8 {
-		t.Fatalf("cache bytes after replacement = %d, want 8", rs.renderCacheBytes)
-	}
-
-	rs.removeRenderCacheEntry("a", true)
-	if rs.renderCacheBytes != 0 {
-		t.Fatalf("cache bytes after removal = %d, want 0", rs.renderCacheBytes)
+func TestTileCacheKeepsProtectedTilesOverLimit(t *testing.T) {
+	c := tileCache{byteLimit: 1 << 20}
+	a, b := testTile(0, 1, 0, 0, 512), testTile(1, 1, 0, 0, 512)
+	c.add(a)
+	c.add(b)
+	c.protected = map[tileKey]bool{a.key: true, b.key: true}
+	c.evict()
+	if len(c.entries) != 2 {
+		t.Fatalf("entries = %d, want both protected tiles kept", len(c.entries))
 	}
 }
 
-func TestRenderCacheReplacesSamePageVariant(t *testing.T) {
-	var rs renderService
-
-	rs.addRenderCacheEntry("old", &renderedPage{key: "old", page: 0, scale: 1, aaLevel: 8, width: 1, height: 1})
-	rs.addRenderCacheEntry("new", &renderedPage{key: "new", page: 0, scale: 2, aaLevel: 8, width: 1, height: 1})
-
-	if _, ok := rs.renderCache["old"]; ok {
-		t.Fatal("old same-page render variant was not replaced")
+func TestTileCacheReplacesAndRemovesByKey(t *testing.T) {
+	var c tileCache // the zero value is ready to use
+	c.add(testTile(0, 1, 0, 0, 512))
+	c.add(testTile(0, 1, 0, 0, 256))
+	if len(c.entries) != 1 || c.bytes != 256*256*4 {
+		t.Fatalf("after replace: entries=%d bytes=%d", len(c.entries), c.bytes)
 	}
-	if _, ok := rs.renderCache["new"]; !ok {
-		t.Fatal("new render variant was not cached")
-	}
-	if len(rs.renderCache) != 1 {
-		t.Fatalf("cache entries = %d, want 1", len(rs.renderCache))
+	c.clear()
+	if len(c.entries) != 0 || len(c.byPage) != 0 || c.bytes != 0 || c.lru.Len() != 0 {
+		t.Fatalf("after clear: entries=%d pages=%d bytes=%d lru=%d", len(c.entries), len(c.byPage), c.bytes, c.lru.Len())
 	}
 }
 
-func TestRenderCacheProtectsVisiblePagesFromEviction(t *testing.T) {
-	var rs renderService
-	rs.cacheLimit = 1
-	rs.visibleCachePages = map[int]bool{0: true}
-
-	rs.addRenderCacheEntry("visible", &renderedPage{key: "visible", page: 0, width: 1, height: 1})
-	rs.addRenderCacheEntry("hidden", &renderedPage{key: "hidden", page: 1, width: 1, height: 1})
-	rs.enforceRenderCacheLimit()
-
-	if _, ok := rs.renderCache["visible"]; !ok {
-		t.Fatal("visible page was evicted")
+func TestPageTilesDrawSharpestCurrentTilesLast(t *testing.T) {
+	var c tileCache
+	current := testTile(0, 2, 0, 0, 8)
+	sharper := testTile(0, 4, 0, 0, 8)
+	blurrier := testTile(0, 1, 0, 0, 8)
+	thumb := &renderedTile{key: thumbnailKey(0), rect: image.Rect(0, 0, 8, 8), scale: 0.5}
+	for _, tile := range []*renderedTile{current, sharper, thumb, blurrier, testTile(1, 2, 0, 0, 8)} {
+		c.add(tile)
 	}
-	if _, ok := rs.renderCache["hidden"]; ok {
-		t.Fatal("hidden page was not evicted")
+	got := c.pageTiles(0, 2)
+	if want := []*renderedTile{thumb, blurrier, sharper, current}; !slices.Equal(got, want) {
+		t.Fatalf("draw order = %v, want thumbnail, other scales ascending, then current", got)
 	}
 }
 
-func TestRenderCacheCanTemporarilyExceedLimitForVisiblePages(t *testing.T) {
-	var rs renderService
-	rs.cacheLimit = 1
-	rs.visibleCachePages = map[int]bool{0: true, 1: true}
-
-	rs.addRenderCacheEntry("a", &renderedPage{key: "a", page: 0, width: 1, height: 1})
-	rs.addRenderCacheEntry("b", &renderedPage{key: "b", page: 1, width: 1, height: 1})
-	rs.enforceRenderCacheLimit()
-
-	if len(rs.renderCache) != 2 {
-		t.Fatalf("cache entries = %d, want 2 visible entries kept", len(rs.renderCache))
+func TestTilesCoveringClipsToPage(t *testing.T) {
+	page := image.Rect(10, 20, 2510, 1120) // 2500x1100: 3x2 tiles
+	if got := tilesCovering(page, image.Rect(-100, -100, 5000, 5000)); len(got) != 6 {
+		t.Fatalf("whole page covered by %d tiles, want 6", len(got))
+	}
+	got := tilesCovering(page, image.Rect(1100, 30, 1200, 40))
+	if want := []image.Point{{1, 0}}; !slices.Equal(got, want) {
+		t.Fatalf("tiles = %v, want %v", got, want)
+	}
+	if r := tileRect(page, 2, 1); r != image.Rect(2058, 1044, 2510, 1120) {
+		t.Fatalf("edge tile rect = %v", r)
+	}
+	if got := tilesCovering(page, image.Rect(3000, 3000, 3100, 3100)); got != nil {
+		t.Fatalf("area off the page covered by %v", got)
 	}
 }
 
-func TestThumbnailCacheEvictsByDerivedLimit(t *testing.T) {
-	var rs renderService
-	rs.cacheLimit = 1
-
-	a := renderVariantKey{page: 0}
-	b := renderVariantKey{page: 1}
-	c := renderVariantKey{page: 2}
-	rs.thumbnailCache = map[renderVariantKey]*renderedPage{
-		a: {page: 0, width: 1, height: 1, bytes: 4},
-		b: {page: 1, width: 1, height: 1, bytes: 4},
-		c: {page: 2, width: 1, height: 1, bytes: 4},
-	}
-	rs.thumbnailBytes = 12
-	rs.thumbnailLRU = listWithValues(a, b, c)
-	rs.thumbnailLRUItems = map[renderVariantKey]*list.Element{}
-	for elem := rs.thumbnailLRU.Front(); elem != nil; elem = elem.Next() {
-		rs.thumbnailLRUItems[elem.Value.(renderVariantKey)] = elem
-	}
-
-	rs.enforceThumbnailCacheLimit()
-
-	if _, ok := rs.thumbnailCache[a]; ok {
-		t.Fatal("oldest thumbnail was not evicted")
-	}
-	if len(rs.thumbnailCache) != 2 {
-		t.Fatalf("thumbnail entries = %d, want 2", len(rs.thumbnailCache))
-	}
-}
-
-func TestRequestRenderPromotesPendingRequest(t *testing.T) {
-	key := renderCacheKey(0, 1, false, 8)
+func TestRequestTilePromotesPendingRequest(t *testing.T) {
+	key := tileKey{page: 0, scale: 1}
 	app := &App{
-		documentState:   documentState{pageCount: 1},
 		documentWorkers: documentWorkers{renderWorker: &renderWorker{}},
-		config:          config.Config{AntiAliasing: 8},
-		renderService: renderService{
-			renderCache:     map[string]*renderedPage{},
-			renderPending:   map[string]renderRequest{key: {page: 0, priority: 10}},
-			renderBaseScale: 1,
-		},
+		renderService:   renderService{renderPending: map[tileKey]renderRequest{key: {key: key, priority: 10}}},
 	}
-
-	if app.requestRender(0, 1, 0) {
+	if app.requestTile(key, image.Rect(0, 0, 1, 1), 0) {
 		t.Fatal("pending request should be promoted rather than enqueued again")
 	}
 	if got := app.renderPending[key].priority; got != 0 {
@@ -186,25 +109,31 @@ func TestRequestRenderPromotesPendingRequest(t *testing.T) {
 	}
 }
 
-func TestPrefetchVisiblePagesQueuesBoundedLookahead(t *testing.T) {
-	app := testLayoutApp(20)
-	app.winW = 100
-	app.winH = 800
-	app.cacheLimit = 16
-	app.renderBaseScale = 1
-	app.renderCache = map[string]*renderedPage{}
-	app.renderPending = map[string]renderRequest{}
+func testPrefetchApp(pages int, zoom float64) *App {
+	app := testLayoutApp(pages)
+	app.winW, app.winH = 1000, 800
+	app.zoom = zoom
+	app.renderBaseScale = zoom
+	app.renderPending = map[tileKey]renderRequest{}
 	app.renderWorker = &renderWorker{requests: make(chan renderRequest, 128)}
 	app.recomputeLayout(app.viewportSize())
+	return app
+}
 
+func TestPrefetchQueuesVisibleTilesBeforeLookahead(t *testing.T) {
+	app := testPrefetchApp(20, 1)
+	app.pageStep = 400 // widens the prefetch margin to several pages
 	app.prefetchVisiblePages()
+	if len(app.renderPending) == 0 {
+		t.Fatal("no visible tiles requested")
+	}
 	for key, req := range app.renderPending {
 		if req.priority != 0 {
-			t.Fatalf("queued background render before visible pages completed: %#v", req)
+			t.Fatalf("queued background render before visible tiles completed: %#v", req)
 		}
-		app.addRenderCacheEntry(key, &renderedPage{key: key, page: req.page, scale: req.scale, aaLevel: req.aaLevel, width: 1, height: 1})
+		app.cache.add(&renderedTile{key: key, rect: req.rect, scale: key.scale})
 	}
-	app.renderPending = map[string]renderRequest{}
+	app.renderPending = map[tileKey]renderRequest{}
 	app.renderWorker.requests = make(chan renderRequest, 128)
 
 	app.prefetchVisiblePages()
@@ -213,26 +142,47 @@ func TestPrefetchVisiblePagesQueuesBoundedLookahead(t *testing.T) {
 	}
 }
 
+func TestPrefetchAtHighZoomRequestsBoundedTiles(t *testing.T) {
+	app := testPrefetchApp(3, 40) // a 100x200pt page becomes 4000x8000px
+	app.prefetchVisiblePages()
+	if len(app.renderPending) == 0 {
+		t.Fatal("no tiles requested")
+	}
+	for key, req := range app.renderPending {
+		if req.rect.Dx() > renderTileSize || req.rect.Dy() > renderTileSize {
+			t.Fatalf("tile %v is %v, larger than %d", key, req.rect.Size(), renderTileSize)
+		}
+		if key.scale != 40 {
+			t.Fatalf("tile %v not at the render scale", key)
+		}
+	}
+	// A 1000x800 viewport needs at most 2x2 tiles, plus one per axis
+	// when they straddle tile boundaries.
+	if n := len(app.renderPending); n > 9 {
+		t.Fatalf("requested %d visible tiles for a 1000x800 viewport", n)
+	}
+}
+
 func TestVisibleRequestPreemptsPreviouslyVisibleRender(t *testing.T) {
+	old, visible := tileKey{page: 0}, tileKey{page: 1}
 	worker := &renderWorker{slots: []*renderSlot{{}}}
-	worker.slots[0].activePage.Store(1)
+	worker.slots[0].rendering.Store(&old)
 	app := &App{
 		documentWorkers: documentWorkers{renderWorker: worker},
 		renderService: renderService{
-			renderPending: map[string]renderRequest{
-				"old": {generation: 2, page: 0, priority: 0},
-				"new": {generation: 2, page: 1, priority: 0},
+			renderPending: map[tileKey]renderRequest{
+				old:     {generation: 2, key: old},
+				visible: {generation: 2, key: visible},
 			},
-			renderGeneration:  2,
-			visibleCachePages: map[int]bool{1: true},
+			renderGeneration: 2,
 		},
 	}
 
-	app.preemptNonVisibleRender()
-	if _, ok := app.renderPending["old"]; ok {
+	app.preemptNonVisibleRender(map[tileKey]bool{visible: true})
+	if _, ok := app.renderPending[old]; ok {
 		t.Fatal("preempted render remained pending")
 	}
-	if _, ok := app.renderPending["new"]; !ok {
+	if _, ok := app.renderPending[visible]; !ok {
 		t.Fatal("visible render was removed")
 	}
 }
@@ -253,7 +203,7 @@ func TestRenderWorkerPoolRendersEveryRequest(t *testing.T) {
 		t.Fatalf("slots = %d, want 3", len(w.slots))
 	}
 	for page := range pages {
-		if !w.Enqueue(renderRequest{page: page, scale: 0.5, cacheKey: fmt.Sprint(page)}) {
+		if !w.Enqueue(renderRequest{key: tileKey{page: page, scale: 0.5}, rect: image.Rect(0, 0, renderTileSize, renderTileSize)}) {
 			t.Fatalf("enqueue page %d failed", page)
 		}
 	}
@@ -266,10 +216,10 @@ func TestRenderWorkerPoolRendersEveryRequest(t *testing.T) {
 				t.Fatal(update.err)
 			}
 			update.rendered.Close()
-			if seen[update.request.page] {
-				t.Fatalf("page %d rendered twice", update.request.page)
+			if seen[update.request.key.page] {
+				t.Fatalf("page %d rendered twice", update.request.key.page)
 			}
-			seen[update.request.page] = true
+			seen[update.request.key.page] = true
 		case <-timeout:
 			t.Fatalf("rendered %d of %d pages", len(seen), len(pages))
 		}
@@ -277,10 +227,11 @@ func TestRenderWorkerPoolRendersEveryRequest(t *testing.T) {
 }
 
 func TestCancelNotVisibleChecksEverySlot(t *testing.T) {
+	visible, offscreen := tileKey{page: 0}, tileKey{page: 4}
 	w := &renderWorker{slots: []*renderSlot{{}, {}, {}}}
-	w.slots[0].activePage.Store(1) // page 0, visible
-	w.slots[1].activePage.Store(5) // page 4, offscreen
-	if got := w.CancelNotVisible(map[int]bool{0: true}); !slices.Equal(got, []int{4}) {
-		t.Fatalf("cancelled = %v, want [4]", got)
+	w.slots[0].rendering.Store(&visible)
+	w.slots[1].rendering.Store(&offscreen)
+	if got := w.CancelNotVisible(map[tileKey]bool{visible: true}); !slices.Equal(got, []tileKey{offscreen}) {
+		t.Fatalf("cancelled = %v, want [%v]", got, offscreen)
 	}
 }

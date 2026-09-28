@@ -149,7 +149,7 @@ func newLuaCacheTable(L *lua.LState, rt *Runtime) *lua.LTable {
 	registerLuaFunctions(L, tbl, "gopdf.cache.", []luaFunctionSpec{
 		{Signature: "gopdf.cache.entries()", Function: luaCacheEntries(rt)},
 		{Signature: "gopdf.cache.pending()", Function: luaCachePending(rt)},
-		{Signature: "gopdf.cache.limit([limit])", Function: luaCacheLimit(rt)},
+		{Signature: "gopdf.cache.limit([mib])", Function: luaCacheLimit(rt)},
 		{Signature: "gopdf.cache.clear()", Function: luaCacheClear(rt)},
 	})
 	return tbl
