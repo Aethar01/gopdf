@@ -111,6 +111,8 @@ static fz_matrix gopdf_render_ctm(float scale, float rotation) {
 }
 
 static void gopdf_clear_page_entry(fz_context *ctx, gopdf_page_entry *entry) {
+	fz_drop_stext_page(ctx, entry->text);
+	entry->text = NULL;
 	fz_drop_display_list(ctx, entry->list);
 	entry->list = NULL;
 	fz_drop_page(ctx, entry->page);
@@ -289,6 +291,20 @@ void gopdf_free_string(char *value) {
 	free(value);
 }
 
+static fz_display_list *gopdf_entry_display_list(fz_context *ctx, gopdf_page_entry *entry) {
+	if (entry->list == NULL) {
+		entry->list = fz_new_display_list_from_page(ctx, entry->page);
+	}
+	return entry->list;
+}
+
+static fz_stext_page *gopdf_entry_text(fz_context *ctx, gopdf_page_entry *entry) {
+	if (entry->text == NULL) {
+		entry->text = fz_new_stext_page_from_display_list(ctx, gopdf_entry_display_list(ctx, entry), NULL);
+	}
+	return entry->text;
+}
+
 /* Returns a new reference to the page's cached display list, which the
  * caller passes to gopdf_render_display_list. */
 int gopdf_page_display_list(gopdf_doc *handle, int page_number, fz_display_list **out, char **err) {
@@ -296,10 +312,7 @@ int gopdf_page_display_list(gopdf_doc *handle, int page_number, fz_display_list 
 	*err = NULL;
 	fz_try(handle->ctx) {
 		gopdf_page_entry *entry = gopdf_page_entry_for(handle, page_number);
-		if (entry->list == NULL) {
-			entry->list = fz_new_display_list_from_page(handle->ctx, entry->page);
-		}
-		*out = fz_keep_display_list(handle->ctx, entry->list);
+		*out = fz_keep_display_list(handle->ctx, gopdf_entry_display_list(handle->ctx, entry));
 	} fz_catch(handle->ctx) {
 		*err = gopdf_dup_string(fz_caught_message(handle->ctx));
 		return 0;
@@ -750,7 +763,6 @@ static fz_point gopdf_selection_normalize_point(fz_stext_page *text, fz_point po
 }
 
 int gopdf_extract_selection(gopdf_doc *handle, int page_number, float ax, float ay, float bx, float by, gopdf_selection *out, char **err) {
-	fz_page *page = NULL;
 	fz_stext_page *text = NULL;
 	fz_point a = { ax, ay };
 	fz_point b = { bx, by };
@@ -763,13 +775,12 @@ int gopdf_extract_selection(gopdf_doc *handle, int page_number, float ax, float 
 	out->text = NULL;
 	out->quads = NULL;
 	out->quad_count = 0;
-	fz_var(text);
 	fz_var(copied);
 	fz_var(quads);
 	fz_var(heap_quads);
 	fz_try(handle->ctx) {
-		page = gopdf_page_entry_for(handle, page_number)->page;
-		text = fz_new_stext_page_from_page(handle->ctx, page, NULL);
+		/* Cached, since selection is re-extracted on every pointer move. */
+		text = gopdf_entry_text(handle->ctx, gopdf_page_entry_for(handle, page_number));
 		a = gopdf_selection_normalize_point(text, a);
 		b = gopdf_selection_normalize_point(text, b);
 		copied = fz_copy_selection(handle->ctx, text, a, b, 0);
@@ -800,9 +811,6 @@ int gopdf_extract_selection(gopdf_doc *handle, int page_number, float ax, float 
 		copied = NULL;
 		heap_quads = NULL;
 	} fz_always(handle->ctx) {
-		if (text != NULL) {
-			fz_drop_stext_page(handle->ctx, text);
-		}
 		if (quads != NULL) {
 			fz_free(handle->ctx, quads);
 		}

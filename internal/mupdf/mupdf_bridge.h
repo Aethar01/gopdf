@@ -11,6 +11,7 @@ typedef struct {
 	unsigned long used;
 	fz_page *page;
 	fz_display_list *list;
+	fz_stext_page *text;
 } gopdf_page_entry;
 
 typedef struct {
