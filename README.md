@@ -23,6 +23,7 @@ Useful defaults:
 | `o` | Open the document outline |
 | `O` | Page overview grid |
 | `F5` | Presentation mode |
+| `H` | Highlight the selection (pick a colour) |
 | `F` | Follow a link by typing its hint |
 | `gr` | Open recent files |
 | `:` | Open the command prompt |

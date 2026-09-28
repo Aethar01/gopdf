@@ -21,16 +21,20 @@ const (
 	thumbnailLongSide = 768
 )
 
-// tileKey identifies a cached texture: tile (x, y) of page at scale,
-// rendered from document generation gen, or the page's thumbnail when thumb
-// is set. Tiles from an earlier generation survive a reload as placeholders.
+// tileKey identifies a cached texture: tile (x, y) of page at scale showing
+// content version, or the page's thumbnail when thumb is set. Tiles of an
+// older version stay as placeholders until fresh ones replace them.
 type tileKey struct {
-	page  int
-	scale float64
-	x, y  int
-	gen   int
-	thumb bool
+	page    int
+	scale   float64
+	x, y    int
+	version tileVersion
+	thumb   bool
 }
+
+// tileVersion is the content a tile shows: the document generation, which
+// changes on reload, and the page's revision, which changes on each edit.
+type tileVersion struct{ gen, rev int }
 
 func thumbnailKey(page int) tileKey { return tileKey{page: page, thumb: true} }
 
@@ -121,10 +125,10 @@ func (c *tileCache) clear() {
 	}
 }
 
-// dropStale removes a page's tiles from generations before gen.
-func (c *tileCache) dropStale(page, gen int) {
+// dropStale removes a page's tiles of versions other than version.
+func (c *tileCache) dropStale(page int, version tileVersion) {
 	for key := range c.byPage[page] {
-		if !key.thumb && key.gen != gen {
+		if !key.thumb && key.version != version {
 			c.remove(key)
 		}
 	}
@@ -142,10 +146,10 @@ func (c *tileCache) retainPages(count int) {
 }
 
 // pageTiles returns a page's tiles in drawing order: the thumbnail, tiles
-// from earlier generations, current tiles at other scales, then current
+// of older versions, current tiles at other scales, then current
 // tiles at scale, each group from lowest to highest resolution, so the
 // sharpest current content ends up on top.
-func (c *tileCache) pageTiles(page int, scale float64, gen int) []*renderedTile {
+func (c *tileCache) pageTiles(page int, scale float64, version tileVersion) []*renderedTile {
 	tiles := make([]*renderedTile, 0, len(c.byPage[page]))
 	for _, tile := range c.byPage[page] {
 		tiles = append(tiles, tile)
@@ -154,7 +158,7 @@ func (c *tileCache) pageTiles(page int, scale float64, gen int) []*renderedTile 
 		switch {
 		case t.key.thumb:
 			return 0
-		case t.key.gen != gen:
+		case t.key.version != version:
 			return 1
 		case t.key.scale != scale:
 			return 2

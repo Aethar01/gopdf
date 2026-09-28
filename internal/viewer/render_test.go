@@ -69,12 +69,12 @@ func TestPageTilesDrawSharpestCurrentTilesLast(t *testing.T) {
 	sharper := testTile(0, 4, 0, 0, 8)
 	blurrier := testTile(0, 1, 0, 0, 8)
 	stale := testTile(0, 8, 0, 0, 8)
-	stale.key.gen = -1
+	stale.key.version.gen = -1
 	thumb := &renderedTile{key: thumbnailKey(0), rect: image.Rect(0, 0, 8, 8), scale: 0.5}
 	for _, tile := range []*renderedTile{current, stale, sharper, thumb, blurrier, testTile(1, 2, 0, 0, 8)} {
 		c.add(tile)
 	}
-	got := c.pageTiles(0, 2, 0)
+	got := c.pageTiles(0, 2, tileVersion{})
 	if want := []*renderedTile{thumb, stale, blurrier, sharper, current}; !slices.Equal(got, want) {
 		t.Fatalf("draw order = %v, want thumbnail, stale generation, other scales ascending, then current", got)
 	}
@@ -83,7 +83,7 @@ func TestPageTilesDrawSharpestCurrentTilesLast(t *testing.T) {
 func TestReloadPlaceholderCleanup(t *testing.T) {
 	var c tileCache
 	stale, fresh, thumb, gone := testTile(0, 1, 0, 0, 8), testTile(0, 1, 0, 0, 8), &renderedTile{key: thumbnailKey(0)}, testTile(2, 1, 0, 0, 8)
-	stale.key.gen, fresh.key.gen = 0, 1
+	stale.key.version.rev, fresh.key.version.rev = 0, 1
 	for _, tile := range []*renderedTile{stale, fresh, thumb, gone} {
 		c.add(tile)
 	}
@@ -92,7 +92,7 @@ func TestReloadPlaceholderCleanup(t *testing.T) {
 	if _, ok := c.entries[gone.key]; ok {
 		t.Fatal("tile for a page past the new end survived")
 	}
-	c.dropStale(0, 1)
+	c.dropStale(0, tileVersion{rev: 1})
 	if _, ok := c.entries[stale.key]; ok {
 		t.Fatal("stale placeholder survived")
 	}

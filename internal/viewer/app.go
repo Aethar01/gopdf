@@ -188,6 +188,7 @@ type inputState struct {
 	presentation   *presentationState
 	histories      map[string]*promptHistory
 	unsaved        bool // the document has edits not yet written
+	highlightColor int  // palette index last used for highlights
 	discardWarned  bool // the user was told that unsaved edits would be lost
 	passwordPrompt pendingPasswordPrompt
 	mouseBindings  map[string]string

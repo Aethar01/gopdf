@@ -2,6 +2,7 @@ package viewer
 
 import (
 	"fmt"
+	"image/color"
 	"strconv"
 	"strings"
 
@@ -19,6 +20,7 @@ type uiRow struct {
 	depth     int
 	marker    string
 	disabled  bool
+	swatch    *color.RGBA // a colour sample drawn before the text
 }
 
 type uiView struct {
@@ -356,7 +358,14 @@ func (a *App) drawUIListItems(renderer *sdl.Renderer, rect sdl.FRect, rows int, 
 		if item.disabled {
 			clr.A /= 2
 		}
-		if err := a.drawText(renderer, a.truncateModalListText(text, textWidth), int(rect.X)+16, y+baselineOffset, clr); err != nil {
+		textX := int(rect.X) + 16
+		if item.swatch != nil {
+			size := rowHeight - 8
+			fillRect(renderer, sdl.FRect{X: float32(textX), Y: float32(y + 4), W: float32(size), H: float32(size)}, *item.swatch)
+			textX += size + 8
+			textWidth -= size + 8
+		}
+		if err := a.drawText(renderer, a.truncateModalListText(text, textWidth), textX, y+baselineOffset, clr); err != nil {
 			return err
 		}
 		if item.secondary != "" {

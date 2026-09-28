@@ -188,6 +188,8 @@ func (a *App) runBuiltinAction(action string) error {
 		a.toggleTrimMargins()
 	case "presentation":
 		a.togglePresentation()
+	case "highlight_selection":
+		a.pickHighlightColor()
 	case "search_matches":
 		a.showSearchMatches()
 	case "confirm":
@@ -553,6 +555,8 @@ func (a *App) runCommand(input string) {
 		a.quit = a.confirmDiscard(":q")
 	case "q!", "quit!":
 		a.quit = true
+	case "highlight":
+		a.highlightSelection(a.highlightColor)
 	case "w", "write":
 		a.writeDocument(args)
 	case "wq":

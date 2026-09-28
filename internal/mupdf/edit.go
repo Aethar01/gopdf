@@ -42,6 +42,30 @@ func (d *Document) Save(path, openPath string) error {
 	return os.Rename(tmp, path)
 }
 
+// AddHighlight adds a highlight annotation over quads on page in color.
+func (d *Document) AddHighlight(page int, quads []Quad, color [3]uint8) error {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if err := d.validatePageLocked(page); err != nil {
+		return err
+	}
+	if len(quads) == 0 {
+		return nil
+	}
+	cquads := make([]C.gopdf_quad, len(quads))
+	for i, q := range quads {
+		cquads[i] = C.gopdf_quad{ul: cPoint(q.UL), ur: cPoint(q.UR), ll: cPoint(q.LL), lr: cPoint(q.LR)}
+	}
+	rgb := [3]C.float{C.float(color[0]) / 255, C.float(color[1]) / 255, C.float(color[2]) / 255}
+	var cerr *C.char
+	if C.gopdf_add_highlight(d.handle, C.int(page), &cquads[0], C.int(len(cquads)), &rgb[0], &cerr) == 0 {
+		return consumeError("add highlight", cerr)
+	}
+	return nil
+}
+
+func cPoint(p Point) C.gopdf_point { return C.gopdf_point{x: C.float(p.X), y: C.float(p.Y)} }
+
 func (d *Document) saveLocked(path string, incremental bool) error {
 	cpath := C.CString(path)
 	defer C.free(unsafe.Pointer(cpath))

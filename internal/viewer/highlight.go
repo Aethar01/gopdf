@@ -1,0 +1,105 @@
+package viewer
+
+import (
+	"fmt"
+	"strconv"
+
+	"gopdf/internal/config"
+
+	"github.com/jupiterrider/purego-sdl3/sdl"
+)
+
+// Highlighting turns the selection into highlight annotations in a colour
+// chosen from annotation_colors.
+
+func (a *App) annotationPalette() [][3]uint8 {
+	var palette [][3]uint8
+	for _, raw := range a.config.AnnotationColors {
+		if c, err := config.ParseColor(raw); err == nil {
+			palette = append(palette, c)
+		}
+	}
+	return palette
+}
+
+// pickHighlightColor opens the colour picker for highlighting the selection.
+// Digits pick a colour directly; the last one used is preselected.
+func (a *App) pickHighlightColor() {
+	palette, ok := a.highlightReady()
+	if !ok {
+		return
+	}
+	rows := make([]uiRow, len(palette))
+	for i, c := range palette {
+		swatch := rgb(c)
+		rows[i] = uiRow{index: i, text: fmt.Sprintf("%d  #%02x%02x%02x", i+1, c[0], c[1], c[2]), value: strconv.Itoa(i), swatch: &swatch}
+	}
+	a.closeAllUI()
+	view := a.createCoreListView("highlight-color", "Highlight colour", rows, 30, 40)
+	view.searchable = false
+	view.selected = clampInt(a.highlightColor, 0, len(rows)-1)
+	view.onKey = func(a *App, e *sdl.KeyboardEvent) bool {
+		if token, ok := keyToken(e.Key, e.Mod); ok && e.Type == sdl.EventKeyDown {
+			if n, err := strconv.Atoi(token); err == nil && n >= 1 && n <= len(palette) {
+				a.closeUIView(view, false)
+				a.highlightSelection(n - 1)
+				return true
+			}
+		}
+		return a.handleGenericUIViewKey(view, e)
+	}
+	view.onMouseButton = func(a *App, e *sdl.MouseButtonEvent) bool { return a.handleGenericUIViewMouseButton(view, e) }
+	view.onMouseMotion = func(a *App, e *sdl.MouseMotionEvent) bool { return a.handleGenericUIViewMouseMotion(view, e) }
+	view.onSelect = func(a *App, row uiRow) {
+		a.closeUIView(view, false)
+		n, _ := strconv.Atoi(row.value)
+		a.highlightSelection(n)
+	}
+	a.showUIView(view)
+}
+
+// highlightReady reports whether the selection can be highlighted, with the
+// palette to pick from, explaining in the status bar when it cannot.
+func (a *App) highlightReady() ([][3]uint8, bool) {
+	palette := a.annotationPalette()
+	switch {
+	case a.selection.empty():
+		a.message = "select text to highlight"
+	case a.doc == nil || !a.doc.IsPDF():
+		a.message = "only PDF documents can be annotated"
+	case len(palette) == 0:
+		a.message = "annotation_colors has no valid colours"
+	default:
+		return palette, true
+	}
+	return nil, false
+}
+
+// highlightSelection highlights the selection in palette colour index.
+func (a *App) highlightSelection(index int) {
+	palette, ok := a.highlightReady()
+	if !ok {
+		return
+	}
+	index = clampInt(index, 0, len(palette)-1)
+	for _, part := range a.selection.parts {
+		if err := a.doc.AddHighlight(part.page, part.quads, palette[index]); err != nil {
+			a.message = err.Error()
+			return
+		}
+		a.pageEdited(part.page)
+	}
+	a.highlightColor = index
+	a.clearSelection()
+	a.message = "highlighted"
+}
+
+// pageEdited re-renders an edited page and marks the document unsaved.
+func (a *App) pageEdited(page int) {
+	if a.pageRevisions == nil {
+		a.pageRevisions = map[int]int{}
+	}
+	a.pageRevisions[page]++
+	a.markEdited()
+	a.pendingRedraw = true
+}

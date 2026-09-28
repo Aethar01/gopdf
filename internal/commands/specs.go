@@ -21,6 +21,7 @@ var specs = []Spec{
 	{Name: "colors", ArgCompletions: []string{"alt", "normal"}, Help: ":colors normal|alt - Set color mode"},
 	{Name: "fit", ArgCompletions: []string{"height", "manual", "page", "width"}, Help: ":fit width|height|page|manual - Set fit mode"},
 	{Name: "help", Help: ":help - Show commands, key bindings, search flags and options"},
+	{Name: "highlight", Help: ":highlight - Highlight the selection in the last colour used"},
 	{Name: "keybinds", Help: ":keybinds - Toggle the keybinds menu"},
 	{Name: "lua", Help: ":lua <code> - Execute Lua code inline"},
 	{Name: "matches", Help: ":matches - List every match of the current search"},

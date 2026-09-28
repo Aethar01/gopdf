@@ -16,7 +16,8 @@ type renderService struct {
 	renderScaleReadyAt time.Time
 	minRenderBaseScale float64
 	renderGeneration   int
-	loaderVisible      bool // a loading indicator was drawn this frame
+	pageRevisions      map[int]int // edits per page, so edited pages re-render
+	loaderVisible      bool        // a loading indicator was drawn this frame
 }
 
 func (a *App) initRenderWorker() {
@@ -69,7 +70,7 @@ func (a *App) acceptRenderUpdate(update renderUpdate) {
 	a.cache.add(tile)
 	a.updateThumbnail(tile)
 	if !a.pagePending(req.key.page) {
-		a.cache.dropStale(req.key.page, req.key.gen)
+		a.cache.dropStale(req.key.page, req.key.version)
 	}
 	a.cache.evict()
 	a.startPendingMetricLoader()
@@ -111,6 +112,10 @@ func (a *App) requestTile(key tileKey, rect image.Rectangle, priority int) bool 
 	}
 	a.renderPending[key] = req
 	return true
+}
+
+func (a *App) tileVersion(page int) tileVersion {
+	return tileVersion{gen: a.generation, rev: a.pageRevisions[page]}
 }
 
 func (a *App) pagePending(page int) bool {

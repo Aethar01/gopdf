@@ -9,6 +9,7 @@ gopdf.options.alt_page_background = {17, 17, 17} -- Page background in alternate
 gopdf.options.alt_status_bar_color = {20, 20, 20} -- Status bar background in alternate-color mode.
 gopdf.options.anchor_position = "center" -- Viewport anchor: center, top, or bottom.
 gopdf.options.animation_frame_ms = 16 -- Animation timestep in milliseconds; clamped to at least 1.
+gopdf.options.annotation_colors = {"#ffe066", "#8ce99a", "#74c0fc", "#ffa8a8"} -- Highlight colours offered by the highlight picker, as #RRGGBB.
 gopdf.options.anti_aliasing = 8 -- MuPDF antialiasing level from 0 through 8.
 gopdf.options.background = {220, 220, 220} -- Viewer background color.
 gopdf.options.completion_max_items = 10 -- Maximum command-completion rows.
@@ -107,6 +108,7 @@ gopdf.bind("<C-S-r>", gopdf.reload_config)
 gopdf.bind("r", gopdf.rotate_cw)
 gopdf.bind("R", gopdf.rotate_ccw)
 gopdf.bind("<C-g>", gopdf.goto_page_prompt)
+gopdf.bind("H", gopdf.highlight_selection)
 gopdf.bind("gm", gopdf.search_matches)
 gopdf.bind("<Tab>", gopdf.show_completion)
 gopdf.bind("<S-Tab>", gopdf.prev_completion)

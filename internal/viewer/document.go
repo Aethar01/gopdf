@@ -284,6 +284,7 @@ func (a *App) installDocument(doc *mupdf.Document, path string, pages, startPage
 	a.contentH = 0
 	a.renderBaseScale = 0
 	a.pageLinks = map[int][]mupdf.Link{}
+	a.pageRevisions = nil
 	a.outline = nil
 	a.viewEvents = viewStateEvents{}
 	a.selection = textSelection{}

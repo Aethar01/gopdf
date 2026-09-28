@@ -368,6 +368,50 @@ int gopdf_page_image_bounds(gopdf_doc *handle, int page_number, gopdf_rect **out
 	return 1;
 }
 
+/* Drops what was derived from a page so an edit shows on the next use. */
+static void gopdf_invalidate_page(gopdf_doc *handle, int page_number) {
+	for (int i = 0; i < GOPDF_PAGE_CACHE_SIZE; i++) {
+		gopdf_page_entry *entry = &handle->pages[i];
+		if (entry->number == page_number) {
+			fz_drop_stext_page(handle->ctx, entry->text);
+			entry->text = NULL;
+			fz_drop_display_list(handle->ctx, entry->list);
+			entry->list = NULL;
+		}
+	}
+}
+
+/* Adds a highlight annotation covering quads, in page coordinates. */
+int gopdf_add_highlight(gopdf_doc *handle, int page_number, const gopdf_quad *quads, int count, const float *rgb, char **err) {
+	pdf_annot *annot = NULL;
+	fz_quad *fq = NULL;
+	*err = NULL;
+	fz_var(annot);
+	fz_var(fq);
+	fz_try(handle->ctx) {
+		pdf_page *page = pdf_page_from_fz_page(handle->ctx, gopdf_page_entry_for(handle, page_number)->page);
+		if (page == NULL) {
+			fz_throw(handle->ctx, FZ_ERROR_ARGUMENT, "only PDF pages can be annotated");
+		}
+		fq = fz_malloc_array(handle->ctx, count, fz_quad);
+		for (int i = 0; i < count; i++) {
+			fq[i] = fz_make_quad(quads[i].ul.x, quads[i].ul.y, quads[i].ur.x, quads[i].ur.y, quads[i].ll.x, quads[i].ll.y, quads[i].lr.x, quads[i].lr.y);
+		}
+		annot = pdf_create_annot(handle->ctx, page, PDF_ANNOT_HIGHLIGHT);
+		pdf_set_annot_color(handle->ctx, annot, 3, rgb);
+		pdf_set_annot_quad_points(handle->ctx, annot, count, fq);
+		pdf_update_annot(handle->ctx, annot);
+		gopdf_invalidate_page(handle, page_number);
+	} fz_always(handle->ctx) {
+		pdf_drop_annot(handle->ctx, annot);
+		fz_free(handle->ctx, fq);
+	} fz_catch(handle->ctx) {
+		*err = gopdf_dup_string(fz_caught_message(handle->ctx));
+		return 0;
+	}
+	return 1;
+}
+
 int gopdf_is_pdf(gopdf_doc *handle) {
 	return pdf_specifics(handle->ctx, handle->doc) != NULL;
 }

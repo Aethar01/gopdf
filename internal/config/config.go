@@ -18,6 +18,7 @@ type Config struct {
 	HintChars             string
 	AltColorsKeepImages   bool
 	TrimMargins           bool
+	AnnotationColors      []string
 	DualPage              bool
 	FirstPageOffset       bool
 	FitMode               string

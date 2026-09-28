@@ -217,3 +217,46 @@ func TestContentBounds(t *testing.T) {
 		t.Fatalf("ContentBounds = %v, want %v", got, want)
 	}
 }
+
+func TestAddHighlightRendersAndSaves(t *testing.T) {
+	path := testpdf.Write(t, "hello")
+	doc, err := Open(path, OpenOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer doc.Close()
+	quad := Quad{UL: Point{X: 72, Y: 80}, UR: Point{X: 150, Y: 80}, LL: Point{X: 72, Y: 95}, LR: Point{X: 150, Y: 95}}
+	if err := doc.AddHighlight(0, []Quad{quad}, [3]uint8{255, 0, 0}); err != nil {
+		t.Fatal(err)
+	}
+	copyPath := path + ".copy.pdf"
+	if err := doc.Save(copyPath, path); err != nil {
+		t.Fatal(err)
+	}
+	for _, d := range []*Document{doc, mustOpen(t, copyPath)} {
+		renderer, err := d.NewRenderer()
+		if err != nil {
+			t.Fatal(err)
+		}
+		rendered, err := renderer.Render(0, 1, image.Rect(140, 85, 145, 90), 8)
+		if err != nil {
+			t.Fatal(err)
+		}
+		px := rendered.Image.RGBAAt(0, 0) // blank page under the highlight
+		if px.R < 200 || px.G > 80 || px.B > 80 {
+			t.Errorf("pixel under highlight = %v, want red", px)
+		}
+		rendered.Close()
+		renderer.Close()
+	}
+}
+
+func mustOpen(t *testing.T, path string) *Document {
+	t.Helper()
+	doc, err := Open(path, OpenOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(doc.Close)
+	return doc
+}
