@@ -223,7 +223,7 @@ func TestMetricRelayoutKeepsPendingSmoothScrollDistance(t *testing.T) {
 	// A page above the viewport grows once its real size arrives, so the
 	// anchor restore shifts scrollY to keep the same content in view.
 	app.metricLoader = &metricLoader{updates: make(chan pageMetricUpdate, 1)}
-	app.metricLoader.updates <- pageMetricUpdate{page: 0, bounds: mupdf.Rect{X1: 100, Y1: 300}, width: 100, height: 300}
+	app.metricLoader.updates <- pageMetricUpdate{page: 0, metrics: newPageMetrics(mupdf.PageInfo{Bounds: mupdf.Rect{X1: 100, Y1: 300}})}
 	oldY := app.scrollY
 	app.pollMetricUpdates()
 	if app.scrollY == oldY {

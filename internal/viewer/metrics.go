@@ -7,12 +7,14 @@ import (
 )
 
 type pageMetricUpdate struct {
-	page   int
-	bounds mupdf.Rect
-	width  float64
-	height float64
-	label  string
-	err    error
+	page    int
+	metrics pageMetrics
+	err     error
+}
+
+func newPageMetrics(info mupdf.PageInfo) pageMetrics {
+	w, h := rotatedBoundsSize(info.Bounds, 0)
+	return pageMetrics{bounds: info.Bounds, width: w, height: h, label: info.Label, loaded: true}
 }
 
 type metricLoader struct {
@@ -39,13 +41,11 @@ func (l *metricLoader) run(doc *mupdf.Document, pageCount int, startPage int) {
 			return false
 		default:
 		}
-		bounds, err := doc.Bounds(i)
+		info, err := doc.PageInfo(i)
 		if err != nil {
 			return sendWorkerUpdate(&l.workerLifecycle, l.updates, pageMetricUpdate{page: i, err: fmt.Errorf("load page %d metrics: %w", i+1, err)})
 		}
-		w, h := rotatedBoundsSize(bounds, 0)
-		label, _ := doc.PageLabel(i)
-		return sendWorkerUpdate(&l.workerLifecycle, l.updates, pageMetricUpdate{page: i, bounds: bounds, width: w, height: h, label: label})
+		return sendWorkerUpdate(&l.workerLifecycle, l.updates, pageMetricUpdate{page: i, metrics: newPageMetrics(info)})
 	}
 	startPage = clampInt(startPage, 0, max(0, pageCount-1))
 	for _, page := range metricPageOrder(pageCount, startPage) {

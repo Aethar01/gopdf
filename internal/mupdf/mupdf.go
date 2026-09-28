@@ -19,6 +19,9 @@ import (
 
 const passwordErrorText = "invalid or missing document password"
 
+// pageCacheSize is how many loaded pages the bridge keeps per document.
+const pageCacheSize = C.GOPDF_PAGE_CACHE_SIZE
+
 type Rect struct {
 	X0 float32
 	Y0 float32
@@ -193,36 +196,28 @@ func (d *Document) CachedPageCount() int {
 	return d.pages
 }
 
-func (d *Document) Bounds(page int) (Rect, error) {
-	d.mu.Lock()
-	defer d.mu.Unlock()
-	if err := d.validatePageLocked(page); err != nil {
-		return Rect{}, err
-	}
-	var rect C.gopdf_rect
-	var cerr *C.char
-	if ok := C.gopdf_page_bounds(d.handle, C.int(page), &rect, &cerr); ok == 0 {
-		return Rect{}, consumeError("page bounds", cerr)
-	}
-	return Rect{X0: float32(rect.x0), Y0: float32(rect.y0), X1: float32(rect.x1), Y1: float32(rect.y1)}, nil
+type PageInfo struct {
+	Bounds Rect
+	Label  string
 }
 
-func (d *Document) PageLabel(page int) (string, error) {
+func (d *Document) PageInfo(page int) (PageInfo, error) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	if err := d.validatePageLocked(page); err != nil {
-		return "", err
+		return PageInfo{}, err
 	}
-	var label *C.char
-	var cerr *C.char
-	if ok := C.gopdf_page_label(d.handle, C.int(page), &label, &cerr); ok == 0 {
-		return "", consumeError("page label", cerr)
+	var rect C.gopdf_rect
+	var label, cerr *C.char
+	if ok := C.gopdf_page_info(d.handle, C.int(page), &rect, &label, &cerr); ok == 0 {
+		return PageInfo{}, consumeError("page info", cerr)
 	}
-	if label == nil {
-		return "", nil
+	info := PageInfo{Bounds: Rect{X0: float32(rect.x0), Y0: float32(rect.y0), X1: float32(rect.x1), Y1: float32(rect.y1)}}
+	if label != nil {
+		info.Label = C.GoString(label)
+		C.free(unsafe.Pointer(label))
 	}
-	defer C.free(unsafe.Pointer(label))
-	return C.GoString(label), nil
+	return info, nil
 }
 
 func (d *Document) Metadata() (Metadata, error) {

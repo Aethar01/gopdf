@@ -74,16 +74,11 @@ func (a *App) PageInfo(page int) (config.DocumentPageInfo, error) {
 	}
 	metric := a.pageMetrics[index]
 	if !metric.loaded {
-		bounds, boundsErr := a.doc.Bounds(index)
-		if boundsErr != nil {
-			return config.DocumentPageInfo{}, boundsErr
+		info, err := a.doc.PageInfo(index)
+		if err != nil {
+			return config.DocumentPageInfo{}, err
 		}
-		label, labelErr := a.doc.PageLabel(index)
-		if labelErr != nil {
-			return config.DocumentPageInfo{}, labelErr
-		}
-		metric.bounds, metric.label, metric.loaded = bounds, label, true
-		metric.width, metric.height = rotatedBoundsSize(bounds, 0)
+		metric = newPageMetrics(info)
 		a.pageMetrics[index] = metric
 	}
 	return config.DocumentPageInfo{Page: page, Label: metric.label, Width: float64(metric.bounds.X1 - metric.bounds.X0), Height: float64(metric.bounds.Y1 - metric.bounds.Y0), Bounds: documentRect(metric.bounds)}, nil

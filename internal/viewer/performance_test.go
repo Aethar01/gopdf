@@ -105,7 +105,7 @@ func BenchmarkPerfHeavyPDFOpen(b *testing.B) {
 	}
 }
 
-func BenchmarkPerfHeavyPDFBoundsAllPages(b *testing.B) {
+func BenchmarkPerfHeavyPDFPageInfoAllPages(b *testing.B) {
 	path := heavyPDFPath(b)
 	doc, err := mupdf.Open(path, "")
 	if err != nil {
@@ -120,7 +120,7 @@ func BenchmarkPerfHeavyPDFBoundsAllPages(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		for page := 0; page < pageCount; page++ {
-			if _, err := doc.Bounds(page); err != nil {
+			if _, err := doc.PageInfo(page); err != nil {
 				b.Fatal(err)
 			}
 		}

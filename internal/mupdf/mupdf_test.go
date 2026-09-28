@@ -11,11 +11,8 @@ func TestClosedDocumentReturnsErrors(t *testing.T) {
 	if _, err := doc.PageCount(); err == nil {
 		t.Fatal("expected PageCount on closed document to fail")
 	}
-	if _, err := doc.Bounds(0); err == nil {
-		t.Fatal("expected Bounds on closed document to fail")
-	}
-	if _, err := doc.PageLabel(0); err == nil {
-		t.Fatal("expected PageLabel on closed document to fail")
+	if _, err := doc.PageInfo(0); err == nil {
+		t.Fatal("expected PageInfo on closed document to fail")
 	}
 	if _, err := doc.Metadata(); err == nil {
 		t.Fatal("expected Metadata on closed document to fail")

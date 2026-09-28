@@ -1,6 +1,8 @@
 package mupdf
 
 import (
+	"fmt"
+	"strings"
 	"testing"
 
 	"gopdf/internal/testpdf"
@@ -57,5 +59,38 @@ func TestTextLayerFromDocument(t *testing.T) {
 	}
 	if quads := layer.Quads(0, len(layer.Text)); len(quads) != 2 {
 		t.Fatalf("got %d quads for two lines", len(quads))
+	}
+}
+
+func TestPageCacheEvictionKeepsPagesUsable(t *testing.T) {
+	pages := make([][]string, 3*pageCacheSize)
+	for i := range pages {
+		pages[i] = []string{fmt.Sprintf("page %d", i+1)}
+	}
+	doc, err := Open(testpdf.WritePages(t, pages...), "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer doc.Close()
+	// Walk forward twice so every slot is evicted and reloaded.
+	for pass := 0; pass < 2; pass++ {
+		for page := range pages {
+			rendered, err := doc.Render(page, 0.25, 0, 8)
+			if err != nil {
+				t.Fatalf("render page %d: %v", page+1, err)
+			}
+			rendered.Close()
+		}
+	}
+	sel, err := doc.ExtractSelection(0, Point{X: 0, Y: 0}, Point{X: 612, Y: 792})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := "page 1"; !strings.Contains(sel.Text, want) {
+		t.Fatalf("selection after eviction = %q, want %q", sel.Text, want)
+	}
+	info, err := doc.PageInfo(len(pages) - 1)
+	if err != nil || info.Bounds.X1 != 612 {
+		t.Fatalf("PageInfo = %+v, %v", info, err)
 	}
 }

@@ -65,26 +65,37 @@ static fz_matrix gopdf_render_ctm(float scale, float rotation) {
 	return fz_concat(fz_scale(scale, scale), fz_rotate(rotation));
 }
 
-static fz_page *gopdf_load_cached_page(gopdf_doc *handle, int page_number) {
-	if (handle == NULL || page_number < 0) {
-		return NULL;
+static void gopdf_clear_page_entry(fz_context *ctx, gopdf_page_entry *entry) {
+	fz_drop_page(ctx, entry->page);
+	entry->page = NULL;
+	entry->number = -1;
+	entry->used = 0;
+}
+
+/* Returns the cache entry for a page, loading it into the least recently
+ * used slot when needed. Throws when the page cannot be loaded. */
+static gopdf_page_entry *gopdf_page_entry_for(gopdf_doc *handle, int page_number) {
+	gopdf_page_entry *victim = &handle->pages[0];
+	fz_page *page;
+	if (page_number < 0 || page_number >= handle->page_count) {
+		fz_throw(handle->ctx, FZ_ERROR_ARGUMENT, "page number out of range");
 	}
-	if (handle->page_count <= 0) {
-		handle->page_count = fz_count_pages(handle->ctx, handle->doc);
-	}
-	if (page_number >= handle->page_count) {
-		return NULL;
-	}
-	if (handle->pages == NULL) {
-		handle->pages = (fz_page **)calloc((size_t)handle->page_count, sizeof(fz_page *));
-		if (handle->pages == NULL) {
-			fz_throw(handle->ctx, FZ_ERROR_SYSTEM, "calloc failed");
+	for (int i = 0; i < GOPDF_PAGE_CACHE_SIZE; i++) {
+		gopdf_page_entry *entry = &handle->pages[i];
+		if (entry->number == page_number) {
+			entry->used = ++handle->clock;
+			return entry;
+		}
+		if (entry->used < victim->used) {
+			victim = entry;
 		}
 	}
-	if (handle->pages[page_number] == NULL) {
-		handle->pages[page_number] = fz_load_page(handle->ctx, handle->doc, page_number);
-	}
-	return handle->pages[page_number];
+	page = fz_load_page(handle->ctx, handle->doc, page_number);
+	gopdf_clear_page_entry(handle->ctx, victim);
+	victim->number = page_number;
+	victim->page = page;
+	victim->used = ++handle->clock;
+	return victim;
 }
 
 gopdf_doc *gopdf_open_document(const char *path, const char *password, char **err) {
@@ -135,11 +146,12 @@ gopdf_doc *gopdf_open_document(const char *path, const char *password, char **er
 		*err = gopdf_dup_string("malloc failed");
 		return NULL;
 	}
+	memset(handle, 0, sizeof(*handle));
 	handle->ctx = ctx;
 	handle->doc = doc;
-	handle->pages = NULL;
-	handle->page_count = 0;
-	memset(&handle->render_cookie, 0, sizeof(handle->render_cookie));
+	for (int i = 0; i < GOPDF_PAGE_CACHE_SIZE; i++) {
+		handle->pages[i].number = -1;
+	}
 	return handle;
 }
 
@@ -147,17 +159,10 @@ void gopdf_close_document(gopdf_doc *handle) {
 	if (handle == NULL) {
 		return;
 	}
-	if (handle->doc != NULL) {
-		if (handle->pages != NULL) {
-			for (int i = 0; i < handle->page_count; i++) {
-				if (handle->pages[i] != NULL) {
-					fz_drop_page(handle->ctx, handle->pages[i]);
-				}
-			}
-			free(handle->pages);
-		}
-		fz_drop_document(handle->ctx, handle->doc);
+	for (int i = 0; i < GOPDF_PAGE_CACHE_SIZE; i++) {
+		gopdf_clear_page_entry(handle->ctx, &handle->pages[i]);
 	}
+	fz_drop_document(handle->ctx, handle->doc);
 	if (handle->ctx != NULL) {
 		fz_drop_context(handle->ctx);
 	}
@@ -177,47 +182,32 @@ int gopdf_count_pages(gopdf_doc *handle, int *count, char **err) {
 	return 1;
 }
 
-int gopdf_page_bounds(gopdf_doc *handle, int page_number, gopdf_rect *out, char **err) {
+/* Page metrics are read for every page up front, so the page is loaded
+ * transiently instead of filling the page cache. */
+int gopdf_page_info(gopdf_doc *handle, int page_number, gopdf_rect *bounds, char **label, char **err) {
 	fz_page *page = NULL;
-	fz_rect bounds = fz_empty_rect;
-	*err = NULL;
-	fz_var(page);
-	fz_try(handle->ctx) {
-		page = gopdf_load_cached_page(handle, page_number);
-		if (page == NULL) {
-			fz_throw(handle->ctx, FZ_ERROR_ARGUMENT, "page number out of range");
-		}
-		bounds = fz_bound_page(handle->ctx, page);
-	} fz_catch(handle->ctx) {
-		*err = gopdf_dup_string(fz_caught_message(handle->ctx));
-		return 0;
-	}
-	out->x0 = bounds.x0;
-	out->y0 = bounds.y0;
-	out->x1 = bounds.x1;
-	out->y1 = bounds.y1;
-	return 1;
-}
-
-int gopdf_page_label(gopdf_doc *handle, int page_number, char **out, char **err) {
-	fz_page *page = NULL;
+	fz_rect rect = fz_empty_rect;
 	char buf[64] = { 0 };
-	*out = NULL;
+	*label = NULL;
 	*err = NULL;
 	fz_var(page);
 	fz_try(handle->ctx) {
-		page = gopdf_load_cached_page(handle, page_number);
-		if (page == NULL) {
-			fz_throw(handle->ctx, FZ_ERROR_ARGUMENT, "page number out of range");
-		}
+		page = fz_load_page(handle->ctx, handle->doc, page_number);
+		rect = fz_bound_page(handle->ctx, page);
 		fz_page_label(handle->ctx, page, buf, sizeof(buf));
+	} fz_always(handle->ctx) {
+		fz_drop_page(handle->ctx, page);
 	} fz_catch(handle->ctx) {
 		*err = gopdf_dup_string(fz_caught_message(handle->ctx));
 		return 0;
 	}
+	bounds->x0 = rect.x0;
+	bounds->y0 = rect.y0;
+	bounds->x1 = rect.x1;
+	bounds->y1 = rect.y1;
 	if (buf[0] != '\0') {
-		*out = gopdf_dup_string(buf);
-		if (*out == NULL) {
+		*label = gopdf_dup_string(buf);
+		if (*label == NULL) {
 			*err = gopdf_dup_string("malloc failed");
 			return 0;
 		}
@@ -273,10 +263,7 @@ int gopdf_render_page_alloc(gopdf_doc *handle, int page_number, float scale, flo
 		old_aa = fz_aa_level(handle->ctx);
 		have_old_aa = 1;
 		fz_set_aa_level(handle->ctx, aa_level);
-		page = gopdf_load_cached_page(handle, page_number);
-		if (page == NULL) {
-			fz_throw(handle->ctx, FZ_ERROR_ARGUMENT, "page number out of range");
-		}
+		page = gopdf_page_entry_for(handle, page_number)->page;
 		bounds = fz_bound_page(handle->ctx, page);
 		bounds = fz_transform_rect(bounds, ctm);
 		bbox = fz_round_rect(bounds);
@@ -413,11 +400,10 @@ int gopdf_load_links(gopdf_doc *handle, int page_number, gopdf_link_result *out,
 	*err = NULL;
 	out->links = NULL;
 	out->link_count = 0;
-	fz_var(page);
 	fz_var(links);
 	fz_var(items);
 	fz_try(handle->ctx) {
-		page = fz_load_page(handle->ctx, handle->doc, page_number);
+		page = gopdf_page_entry_for(handle, page_number)->page;
 		links = fz_load_links(handle->ctx, page);
 		for (fz_link *link = links; link != NULL; link = link->next) {
 			count++;
@@ -458,9 +444,6 @@ int gopdf_load_links(gopdf_doc *handle, int page_number, gopdf_link_result *out,
 	} fz_always(handle->ctx) {
 		if (links != NULL) {
 			fz_drop_link(handle->ctx, links);
-		}
-		if (page != NULL) {
-			fz_drop_page(handle->ctx, page);
 		}
 	} fz_catch(handle->ctx) {
 		if (items != NULL) {
@@ -702,13 +685,12 @@ int gopdf_extract_selection(gopdf_doc *handle, int page_number, float ax, float 
 	out->text = NULL;
 	out->quads = NULL;
 	out->quad_count = 0;
-	fz_var(page);
 	fz_var(text);
 	fz_var(copied);
 	fz_var(quads);
 	fz_var(heap_quads);
 	fz_try(handle->ctx) {
-		page = fz_load_page(handle->ctx, handle->doc, page_number);
+		page = gopdf_page_entry_for(handle, page_number)->page;
 		text = fz_new_stext_page_from_page(handle->ctx, page, NULL);
 		a = gopdf_selection_normalize_point(text, a);
 		b = gopdf_selection_normalize_point(text, b);
@@ -745,9 +727,6 @@ int gopdf_extract_selection(gopdf_doc *handle, int page_number, float ax, float 
 		}
 		if (quads != NULL) {
 			fz_free(handle->ctx, quads);
-		}
-		if (page != NULL) {
-			fz_drop_page(handle->ctx, page);
 		}
 	} fz_catch(handle->ctx) {
 		if (copied != NULL) {

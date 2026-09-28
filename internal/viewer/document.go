@@ -84,11 +84,7 @@ func (a *App) pollMetricUpdates() {
 			if update.page >= len(a.pageMetrics) {
 				continue
 			}
-			a.pageMetrics[update.page].bounds = update.bounds
-			a.pageMetrics[update.page].width = update.width
-			a.pageMetrics[update.page].height = update.height
-			a.pageMetrics[update.page].label = update.label
-			a.pageMetrics[update.page].loaded = true
+			a.pageMetrics[update.page] = update.metrics
 			changed = true
 		default:
 			if changed {
@@ -233,11 +229,9 @@ func (a *App) submitDocumentPassword(password string) {
 func (a *App) initDocumentMetrics(doc *mupdf.Document, pages int, startPage int) {
 	defaultW, defaultH := 612.0, 792.0
 	if pages > 0 {
-		if bounds, err := doc.Bounds(startPage); err == nil {
-			w, h := rotatedBoundsSize(bounds, 0)
-			label, _ := doc.PageLabel(startPage)
-			a.pageMetrics[startPage] = pageMetrics{bounds: bounds, width: w, height: h, label: label, loaded: true}
-			defaultW, defaultH = w, h
+		if info, err := doc.PageInfo(startPage); err == nil {
+			a.pageMetrics[startPage] = newPageMetrics(info)
+			defaultW, defaultH = a.pageMetrics[startPage].width, a.pageMetrics[startPage].height
 		}
 	}
 	if defaultW == 0 || defaultH == 0 {

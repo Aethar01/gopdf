@@ -3,11 +3,21 @@
 
 #include <mupdf/fitz.h>
 
+enum { GOPDF_PAGE_CACHE_SIZE = 32 };
+
+/* A recently used page and the objects derived from it. */
+typedef struct {
+	int number; /* -1 when the slot is empty */
+	unsigned long used;
+	fz_page *page;
+} gopdf_page_entry;
+
 typedef struct {
 	fz_context *ctx;
 	fz_document *doc;
-	fz_page **pages;
 	int page_count;
+	unsigned long clock;
+	gopdf_page_entry pages[GOPDF_PAGE_CACHE_SIZE];
 	fz_cookie render_cookie;
 } gopdf_doc;
 
@@ -96,8 +106,7 @@ typedef struct {
 gopdf_doc *gopdf_open_document(const char *path, const char *password, char **err);
 void gopdf_close_document(gopdf_doc *handle);
 int gopdf_count_pages(gopdf_doc *handle, int *count, char **err);
-int gopdf_page_bounds(gopdf_doc *handle, int page_number, gopdf_rect *out, char **err);
-int gopdf_page_label(gopdf_doc *handle, int page_number, char **out, char **err);
+int gopdf_page_info(gopdf_doc *handle, int page_number, gopdf_rect *bounds, char **label, char **err);
 int gopdf_lookup_metadata(gopdf_doc *handle, const char *key, char **out, char **err);
 int gopdf_render_page_alloc(gopdf_doc *handle, int page_number, float scale, float rotation, int aa_level, unsigned char **samples, int *width, int *height, int *stride, int *x, int *y, char **err);
 void gopdf_cancel_render(gopdf_doc *handle);
