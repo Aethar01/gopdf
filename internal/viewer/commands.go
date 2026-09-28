@@ -174,6 +174,8 @@ func (a *App) runBuiltinAction(action string) error {
 		a.toggleKeybindMenu()
 	case "help":
 		a.toggleHelp()
+	case "follow_link":
+		a.startLinkHints()
 	case "confirm":
 		if a.completion.view != nil && a.completion.view.visible {
 			a.acceptCompletion()

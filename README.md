@@ -21,6 +21,7 @@ Useful defaults:
 | `/` / `?` | Search forward / backward |
 | `n` / `N` | Next / previous match |
 | `o` | Open the document outline |
+| `F` | Follow a link by typing its hint |
 | `gr` | Open recent files |
 | `:` | Open the command prompt |
 | `F1` / `g?` | Help: commands, keys, search flags and options |

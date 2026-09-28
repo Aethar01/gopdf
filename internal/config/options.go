@@ -424,6 +424,7 @@ var configOptions = map[string]optionDesc{
 		}
 	}),
 	"render_mode":          stringOption("Initial render mode: continuous or single.", func(c *Config) string { return c.RenderMode }, func(c *Config, v string) { c.RenderMode = NormalizeRenderMode(v) }),
+	"hint_chars":           stringOption("Characters used for link hint labels, in order of preference.", func(c *Config) string { return c.HintChars }, func(c *Config, v string) { c.HintChars = v }),
 	"fit_mode":             stringOption("Initial fit mode: page, width, height, or manual.", func(c *Config) string { return c.FitMode }, func(c *Config, v string) { c.FitMode = NormalizeFitMode(v) }),
 	"anchor_position":      stringOption("Viewport anchor: center, top, or bottom.", func(c *Config) string { return c.AnchorPosition }, func(c *Config, v string) { c.AnchorPosition = NormalizeAnchorPosition(v) }),
 	"ui_font_path":         stringOption("Path to a UI font; empty uses the built-in default.", func(c *Config) string { return c.UIFontPath }, func(c *Config, v string) { c.UIFontPath = v }),

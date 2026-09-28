@@ -18,6 +18,7 @@ gopdf.options.fit_mode = "page" -- Initial fit mode: page, width, height, or man
 gopdf.options.foreground = {20, 20, 20} -- UI foreground color.
 gopdf.options.highlight_background = {255, 224, 102} -- Selection and search highlight background.
 gopdf.options.highlight_foreground = {0, 0, 0} -- Selection and search highlight border and text.
+gopdf.options.hint_chars = "asdfghjkl" -- Characters used for link hint labels, in order of preference.
 gopdf.options.invert_scroll = false -- Invert horizontal and vertical discrete mouse-wheel scrolling.
 gopdf.options.invert_smooth_scroll = false -- Invert horizontal and vertical smooth wheel or trackpad scrolling.
 gopdf.options.link_schemes = {"http", "https", "mailto"} -- URI schemes that document links may open externally; other links only show their target.
@@ -87,6 +88,7 @@ gopdf.bind("<C-r>", gopdf.toggle_alt_colors)
 gopdf.bind("co", gopdf.toggle_first_page_offset)
 gopdf.bind("<C-n>", gopdf.toggle_status_bar)
 gopdf.bind("f", gopdf.toggle_fullscreen)
+gopdf.bind("F", gopdf.follow_link)
 gopdf.bind("o", gopdf.outline)
 gopdf.bind("<CR>", gopdf.confirm)
 gopdf.bind("+", gopdf.zoom_in)

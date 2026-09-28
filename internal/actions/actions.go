@@ -28,6 +28,7 @@ var registry = []Action{
 	{Name: "toggle_first_page_offset", Keys: []string{"co"}},
 	{Name: "toggle_status_bar", Keys: []string{"<C-n>"}},
 	{Name: "toggle_fullscreen", Keys: []string{"f"}},
+	{Name: "follow_link", Keys: []string{"F"}},
 	{Name: "outline", Keys: []string{"o"}},
 	{Name: "confirm", Keys: []string{"<CR>"}},
 	{Name: "zoom_in", Countable: true, Keys: []string{"+", "="}},

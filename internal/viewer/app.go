@@ -166,6 +166,7 @@ type inputState struct {
 	ignoreText     string
 	message        string
 	links          linkInputState
+	hints          *hintState // non-nil while link hints are shown
 	passwordPrompt pendingPasswordPrompt
 	mouseBindings  map[string]string
 	searchInput    searchMode
@@ -411,6 +412,9 @@ func (a *App) handleSDLKeyDown(e *sdl.KeyboardEvent) {
 	if a.mode == modeNormal {
 		if token, ok := keyToken(e.Key, e.Mod); ok {
 			prevMode := a.mode
+			if a.handleHintToken(token) {
+				return
+			}
 			if a.handleMarkToken(token) {
 				return
 			}

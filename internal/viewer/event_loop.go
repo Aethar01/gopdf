@@ -352,6 +352,7 @@ func (a *App) drawFrame() error {
 	a.drawPages(a.renderer)
 	// An on-screen loader animates, so it asks for the next frame.
 	a.pendingRedraw = a.loaderVisible
+	a.drawLinkHints(a.renderer)
 	if a.statusVisible() {
 		if err := a.drawStatusBar(a.renderer); err != nil {
 			return err
