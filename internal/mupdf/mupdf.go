@@ -486,5 +486,8 @@ func consumeError(prefix string, cerr *C.char) error {
 		return fmt.Errorf("%s: unknown mupdf error", prefix)
 	}
 	defer C.free(unsafe.Pointer(cerr))
+	if prefix == "" {
+		return fmt.Errorf("%s", C.GoString(cerr))
+	}
 	return fmt.Errorf("%s: %s", prefix, C.GoString(cerr))
 }

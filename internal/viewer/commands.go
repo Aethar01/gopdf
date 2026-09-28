@@ -190,6 +190,10 @@ func (a *App) runBuiltinAction(action string) error {
 		a.togglePresentation()
 	case "highlight_selection":
 		a.pickHighlightColor()
+	case "undo":
+		a.undoEdit(false)
+	case "redo":
+		a.undoEdit(true)
 	case "search_matches":
 		a.showSearchMatches()
 	case "confirm":
@@ -557,6 +561,10 @@ func (a *App) runCommand(input string) {
 		a.quit = true
 	case "print":
 		a.printDocument(args)
+	case "undo":
+		a.undoEdit(false)
+	case "redo":
+		a.undoEdit(true)
 	case "highlight":
 		a.highlightSelection(a.highlightColor)
 	case "w", "write":

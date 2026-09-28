@@ -134,6 +134,7 @@ int gopdf_page_info(gopdf_doc *handle, int page_number, gopdf_rect *bounds, char
 int gopdf_lookup_metadata(gopdf_doc *handle, const char *key, char **out, char **err);
 int gopdf_page_image_bounds(gopdf_doc *handle, int page_number, gopdf_rect **out, int *count, char **err);
 int gopdf_is_pdf(gopdf_doc *handle);
+int gopdf_undo(gopdf_doc *handle, int redo, char **err);
 int gopdf_widget_at(gopdf_doc *handle, int page_number, float x, float y, gopdf_widget_info *out, char **err);
 int gopdf_widget_options(gopdf_doc *handle, int page_number, int index, char ***out, int *count, char **err);
 int gopdf_widget_edit(gopdf_doc *handle, int page_number, int index, const char *value, char **err);

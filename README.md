@@ -24,6 +24,7 @@ Useful defaults:
 | `O` | Page overview grid |
 | `F5` | Presentation mode |
 | `H` | Highlight the selection (pick a colour) |
+| `u` / `U` | Undo / redo edits |
 | `F` | Follow a link by typing its hint |
 | `gr` | Open recent files |
 | `:` | Open the command prompt |

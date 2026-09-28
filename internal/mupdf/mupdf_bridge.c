@@ -191,6 +191,14 @@ gopdf_doc *gopdf_open_document(const char *path, const char *password, size_t st
 		*err = gopdf_dup_string("malloc failed");
 		return NULL;
 	}
+	fz_try(ctx) {
+		pdf_document *pdf = pdf_specifics(ctx, doc);
+		if (pdf != NULL) {
+			pdf_enable_journal(ctx, pdf);
+		}
+	} fz_catch(ctx) {
+		/* Editing still works without undo. */
+	}
 	memset(handle, 0, sizeof(*handle));
 	handle->ctx = ctx;
 	handle->doc = doc;
@@ -381,14 +389,36 @@ static void gopdf_invalidate_page(gopdf_doc *handle, int page_number) {
 	}
 }
 
+/* Each edit runs as one journal operation, so it can be undone. */
+static pdf_document *gopdf_begin_edit(gopdf_doc *handle, const char *name) {
+	pdf_document *pdf = pdf_specifics(handle->ctx, handle->doc);
+	if (pdf == NULL) {
+		fz_throw(handle->ctx, FZ_ERROR_ARGUMENT, "only PDF documents can be edited");
+	}
+	pdf_begin_operation(handle->ctx, pdf, name);
+	return pdf;
+}
+
+static void gopdf_abandon_edit(gopdf_doc *handle, pdf_document *pdf) {
+	if (pdf != NULL) {
+		fz_try(handle->ctx) {
+			pdf_abandon_operation(handle->ctx, pdf);
+		} fz_catch(handle->ctx) {
+		}
+	}
+}
+
 /* Adds a highlight annotation covering quads, in page coordinates. */
 int gopdf_add_highlight(gopdf_doc *handle, int page_number, const gopdf_quad *quads, int count, const float *rgb, char **err) {
+	pdf_document *pdf = NULL;
 	pdf_annot *annot = NULL;
 	fz_quad *fq = NULL;
 	*err = NULL;
+	fz_var(pdf);
 	fz_var(annot);
 	fz_var(fq);
 	fz_try(handle->ctx) {
+		pdf = gopdf_begin_edit(handle, "Highlight");
 		pdf_page *page = pdf_page_from_fz_page(handle->ctx, gopdf_page_entry_for(handle, page_number)->page);
 		if (page == NULL) {
 			fz_throw(handle->ctx, FZ_ERROR_ARGUMENT, "only PDF pages can be annotated");
@@ -401,11 +431,14 @@ int gopdf_add_highlight(gopdf_doc *handle, int page_number, const gopdf_quad *qu
 		pdf_set_annot_color(handle->ctx, annot, 3, rgb);
 		pdf_set_annot_quad_points(handle->ctx, annot, count, fq);
 		pdf_update_annot(handle->ctx, annot);
+		pdf_end_operation(handle->ctx, pdf);
+		pdf = NULL;
 		gopdf_invalidate_page(handle, page_number);
 	} fz_always(handle->ctx) {
 		pdf_drop_annot(handle->ctx, annot);
 		fz_free(handle->ctx, fq);
 	} fz_catch(handle->ctx) {
+		gopdf_abandon_edit(handle, pdf);
 		*err = gopdf_dup_string(fz_caught_message(handle->ctx));
 		return 0;
 	}
@@ -502,9 +535,12 @@ void gopdf_free_strings(char **values, int count) {
 /* Edits a form widget: sets a text or choice value, or toggles a check box
  * or radio button when value is NULL, then refreshes the page. */
 int gopdf_widget_edit(gopdf_doc *handle, int page_number, int index, const char *value, char **err) {
+	pdf_document *pdf = NULL;
 	*err = NULL;
+	fz_var(pdf);
 	fz_try(handle->ctx) {
 		pdf_page *page;
+		pdf = gopdf_begin_edit(handle, "Fill form field");
 		pdf_annot *widget = gopdf_widget(handle, page_number, index, &page);
 		switch (pdf_widget_type(handle->ctx, widget)) {
 		case PDF_WIDGET_TYPE_TEXT:
@@ -526,7 +562,34 @@ int gopdf_widget_edit(gopdf_doc *handle, int page_number, int index, const char 
 			fz_throw(handle->ctx, FZ_ERROR_ARGUMENT, "this form field cannot be edited");
 		}
 		pdf_update_page(handle->ctx, page);
+		pdf_end_operation(handle->ctx, pdf);
+		pdf = NULL;
 		gopdf_invalidate_page(handle, page_number);
+	} fz_catch(handle->ctx) {
+		gopdf_abandon_edit(handle, pdf);
+		*err = gopdf_dup_string(fz_caught_message(handle->ctx));
+		return 0;
+	}
+	return 1;
+}
+
+/* Undoes (or redoes) the last edit. Which pages it touched is unknown, so
+ * every cached page is reloaded. */
+int gopdf_undo(gopdf_doc *handle, int redo, char **err) {
+	pdf_document *pdf = pdf_specifics(handle->ctx, handle->doc);
+	*err = NULL;
+	fz_try(handle->ctx) {
+		if (pdf == NULL || !(redo ? pdf_can_redo(handle->ctx, pdf) : pdf_can_undo(handle->ctx, pdf))) {
+			fz_throw(handle->ctx, FZ_ERROR_ARGUMENT, redo ? "nothing to redo" : "nothing to undo");
+		}
+		if (redo) {
+			pdf_redo(handle->ctx, pdf);
+		} else {
+			pdf_undo(handle->ctx, pdf);
+		}
+		for (int i = 0; i < GOPDF_PAGE_CACHE_SIZE; i++) {
+			gopdf_clear_page_entry(handle->ctx, &handle->pages[i]);
+		}
 	} fz_catch(handle->ctx) {
 		*err = gopdf_dup_string(fz_caught_message(handle->ctx));
 		return 0;

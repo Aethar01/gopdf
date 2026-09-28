@@ -31,10 +31,12 @@ var specs = []Spec{
 	{Name: "page", Help: ":page PAGE, :p PAGE, :N - Jump to a page number or label"},
 	{Name: "print", Help: ":print [lp options] - Print the saved document, e.g. :print -d office -P 1-3"},
 	{Name: "quit", Help: ":quit, :q - Exit; :q! discards unsaved edits"},
+	{Name: "redo", Help: ":redo - Reapply the last undone edit"},
 	{Name: "reload-config", Help: ":reload-config - Reload the config file"},
 	{Name: "recent", Help: ":recent - Open the recent-files menu"},
 	{Name: "search", Help: ":search [-r] [-i] [-w] [-p] <text> - Search document text"},
 	{Name: "set", ArgCompletions: config.OptionNames(), Help: ":set [option[?]|option!|option=value] - Inspect or change options"},
+	{Name: "undo", Help: ":undo - Undo the last edit"},
 	{Name: "write", Help: ":write [path], :w - Save edits, or a copy to path; :wq saves and exits"},
 }
 

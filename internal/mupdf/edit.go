@@ -196,3 +196,26 @@ func (d *Document) editWidget(page, index int, value *C.char) error {
 	}
 	return nil
 }
+
+// Undo reverts the last edit.
+func (d *Document) Undo() error { return d.undo(false) }
+
+// Redo reapplies the last undone edit.
+func (d *Document) Redo() error { return d.undo(true) }
+
+func (d *Document) undo(redo bool) error {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if err := d.ensureOpenLocked(); err != nil {
+		return err
+	}
+	r := C.int(0)
+	if redo {
+		r = 1
+	}
+	var cerr *C.char
+	if C.gopdf_undo(d.handle, r, &cerr) == 0 {
+		return consumeError("", cerr)
+	}
+	return nil
+}

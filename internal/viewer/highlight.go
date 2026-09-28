@@ -96,10 +96,15 @@ func (a *App) highlightSelection(index int) {
 
 // pageEdited re-renders an edited page and marks the document unsaved.
 func (a *App) pageEdited(page int) {
+	a.bumpPageRevision(page)
+	a.markEdited()
+	a.pendingRedraw = true
+}
+
+// bumpPageRevision makes a page's cached tiles stale so it re-renders.
+func (a *App) bumpPageRevision(page int) {
 	if a.pageRevisions == nil {
 		a.pageRevisions = map[int]int{}
 	}
 	a.pageRevisions[page]++
-	a.markEdited()
-	a.pendingRedraw = true
 }

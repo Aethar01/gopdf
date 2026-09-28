@@ -7,10 +7,44 @@ import (
 
 // Edits such as highlights and form values stay in memory until :write.
 
-// markEdited records an unsaved change to page.
+// Edits are counted along the undo history: editPos is the number of edits
+// applied and savedPos the count when the file was last written, or -1 once
+// that state can no longer be reached by undo and redo.
+
+// markEdited records a new edit.
 func (a *App) markEdited() {
-	a.unsaved = true
+	if a.editPos < a.savedPos {
+		a.savedPos = -1 // the edit discards the redo history holding the saved state
+	}
+	a.moveEditPos(1)
+}
+
+func (a *App) moveEditPos(delta int) {
+	a.editPos += delta
+	a.unsaved = a.editPos != a.savedPos
 	a.discardWarned = false
+}
+
+// undoEdit undoes (or redoes) an edit and re-renders the pages on screen.
+func (a *App) undoEdit(redo bool) {
+	if a.doc == nil {
+		a.message = "no document open"
+		return
+	}
+	undo, delta, done := a.doc.Undo, -1, "undone"
+	if redo {
+		undo, delta, done = a.doc.Redo, 1, "redone"
+	}
+	if err := undo(); err != nil {
+		a.message = err.Error()
+		return
+	}
+	a.moveEditPos(delta)
+	for page := range a.cache.byPage {
+		a.bumpPageRevision(page)
+	}
+	a.pendingRedraw = true
+	a.message = done
 }
 
 // confirmDiscard reports whether an action that would lose unsaved edits
@@ -45,6 +79,7 @@ func (a *App) writeDocument(path string) {
 		return
 	}
 	if target == a.docPath {
+		a.savedPos = a.editPos
 		a.unsaved = false
 		a.document.record(a.docPath) // our own write is not an outside change
 	}

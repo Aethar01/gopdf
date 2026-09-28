@@ -46,6 +46,8 @@ var registry = []Action{
 	{Name: "goto_page_prompt", Keys: []string{"<C-g>"}},
 	{Name: "clear_search"},
 	{Name: "highlight_selection", Keys: []string{"H"}},
+	{Name: "undo", Keys: []string{"u"}},
+	{Name: "redo", Keys: []string{"U"}},
 	{Name: "search_matches", Keys: []string{"gm"}},
 	{Name: "show_completion", Keys: []string{"<Tab>"}},
 	{Name: "next_completion"},

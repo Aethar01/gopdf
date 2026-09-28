@@ -193,6 +193,8 @@ type inputState struct {
 	formField      *formTarget // the text field being edited in modeFormField
 	preview        *linkPreview
 	discardWarned  bool // the user was told that unsaved edits would be lost
+	editPos        int  // see markEdited
+	savedPos       int
 	passwordPrompt pendingPasswordPrompt
 	mouseBindings  map[string]string
 	searchInput    searchMode

@@ -305,3 +305,51 @@ func TestFormWidgets(t *testing.T) {
 		}
 	}
 }
+
+func TestUndoRedoHighlight(t *testing.T) {
+	doc := mustOpen(t, testpdf.Write(t, "hello"))
+	renderer, err := doc.NewRenderer()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer renderer.Close()
+	red := func() bool {
+		rendered, err := renderer.Render(0, 1, image.Rect(140, 85, 145, 90), 8)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer rendered.Close()
+		return rendered.Image.RGBAAt(0, 0).G < 80
+	}
+	if err := doc.Undo(); err == nil || err.Error() != "nothing to undo" {
+		t.Fatalf("Undo with no edits = %v", err)
+	}
+	quad := Quad{UL: Point{X: 72, Y: 80}, UR: Point{X: 150, Y: 80}, LL: Point{X: 72, Y: 95}, LR: Point{X: 150, Y: 95}}
+	if err := doc.AddHighlight(0, []Quad{quad}, [3]uint8{255, 0, 0}); err != nil {
+		t.Fatal(err)
+	}
+	if !red() {
+		t.Fatal("highlight not drawn")
+	}
+	if err := doc.Undo(); err != nil || red() {
+		t.Fatalf("after undo: err=%v highlighted=%v", err, red())
+	}
+	if err := doc.Redo(); err != nil || !red() {
+		t.Fatalf("after redo: err=%v highlighted=%v", err, red())
+	}
+}
+
+func TestUndoFormEdit(t *testing.T) {
+	doc := mustOpen(t, testpdf.WriteForm(t))
+	at := Point{X: 150, Y: 80}
+	w, _, _ := doc.WidgetAt(0, at)
+	if err := doc.SetWidgetValue(0, w.Index, "Grace"); err != nil {
+		t.Fatal(err)
+	}
+	if err := doc.Undo(); err != nil {
+		t.Fatal(err)
+	}
+	if w, _, _ := doc.WidgetAt(0, at); w.Value != "Ada" {
+		t.Fatalf("value after undo = %q, want Ada", w.Value)
+	}
+}
