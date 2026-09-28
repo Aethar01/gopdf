@@ -15,16 +15,6 @@ import (
 	"github.com/jupiterrider/purego-sdl3/sdl"
 )
 
-type pageHit struct {
-	page      int
-	x         float64
-	y         float64
-	width     float64
-	height    float64
-	drawScale float64
-	render    *renderedPage
-}
-
 func (a *App) captureViewportAnchor() viewportAnchor {
 	screenX, screenY := a.viewportAnchorScreenPoint()
 	page, x, y, ok := a.pageAtAnchorScreenPoint(screenX, screenY)
@@ -209,41 +199,6 @@ func (a *App) pageGeometryAtScreen(sx, sy float64) (int, float64, float64, bool)
 		}
 	}
 	return 0, 0, 0, false
-}
-
-func (a *App) visiblePageHits() []pageHit {
-	hits := []pageHit{}
-	if a.renderMode == "single" {
-		if len(a.rows) == 0 || a.page < 0 || a.page >= len(a.pageToRow) {
-			return hits
-		}
-		row := a.rows[a.pageToRow[a.page]]
-		for i, page := range row.pages {
-			rp, ok := a.cachedRenderPage(page, a.scale)
-			if !ok {
-				a.requestRender(page, a.scale)
-				continue
-			}
-			drawScale := a.renderDrawScale(rp, a.scale)
-			x, y := a.rowPageScreenOrigin(row, i)
-			hits = append(hits, pageHit{page: page, x: x, y: y, width: row.pageW[i], height: row.pageH[i], drawScale: drawScale, render: rp})
-		}
-		return hits
-	}
-	_, viewportH := a.viewportSize()
-	margin := a.renderMargin()
-	minY := a.scrollY - margin
-	maxY := a.scrollY + float64(viewportH) + margin
-	a.forEachContinuousPage(minY, maxY, func(page int, x, y, width, height float64) {
-		rp, ok := a.cachedRenderPage(page, a.scale)
-		if !ok {
-			a.requestRender(page, a.scale)
-			return
-		}
-		drawScale := a.renderDrawScale(rp, a.scale)
-		hits = append(hits, pageHit{page: page, x: x, y: y, width: width, height: height, drawScale: drawScale, render: rp})
-	})
-	return hits
 }
 
 func (a *App) refreshSelection() {
