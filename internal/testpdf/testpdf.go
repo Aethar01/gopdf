@@ -15,6 +15,22 @@ func Write(t testing.TB, lines ...string) string {
 	return WritePages(t, lines)
 }
 
+// WriteImage creates a one-page PDF with a red 2x2 image drawn over the
+// 100x100pt square whose top-left corner is 100pt from the page's top-left.
+func WriteImage(t testing.TB) string {
+	t.Helper()
+	image := "<</Type/XObject/Subtype/Image/Width 2/Height 2/ColorSpace/DeviceRGB/BitsPerComponent 8/Length 12>>\nstream\n" +
+		strings.Repeat("\xff\x00\x00", 4) + "\nendstream"
+	content := "q 100 0 0 100 100 592 cm /Im0 Do Q"
+	return write(t, []string{
+		"<</Type/Catalog/Pages 2 0 R>>",
+		"<</Type/Pages/Kids[3 0 R]/Count 1>>",
+		"<</Type/Page/Parent 2 0 R/MediaBox[0 0 612 792]/Resources<</XObject<</Im0 4 0 R>>>>/Contents 5 0 R>>",
+		image,
+		fmt.Sprintf("<</Length %d>>\nstream\n%s\nendstream", len(content), content),
+	})
+}
+
 // WritePages creates a PDF of Letter pages with each line set in 12pt
 // Helvetica, starting at (72, 700) with 14pt leading, and returns its path.
 func WritePages(t testing.TB, pages ...[]string) string {
@@ -39,7 +55,12 @@ func WritePages(t testing.TB, pages ...[]string) string {
 		)
 	}
 	objects[1] = fmt.Sprintf("<</Type/Pages/Kids[%s]/Count %d>>", strings.Join(kids, " "), len(pages))
+	return write(t, objects)
+}
 
+// write numbers objects from 1 and writes them as a PDF with an xref table.
+func write(t testing.TB, objects []string) string {
+	t.Helper()
 	var pdf strings.Builder
 	pdf.WriteString("%PDF-1.4\n")
 	offsets := make([]int, len(objects))

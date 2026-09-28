@@ -19,8 +19,10 @@ type renderRequest struct {
 	aaLevel    int
 	priority   int
 
-	// Colors the render is remapped to when altColors is set.
+	// Colors the render is remapped to when altColors is set, leaving
+	// raster images alone when keepImages is.
 	altBackground, altForeground [3]uint8
+	keepImages                   bool
 }
 
 type renderUpdate struct {
@@ -33,6 +35,7 @@ type renderUpdate struct {
 // MuPDF renderer, taking the most urgent wanted request from a shared queue.
 type renderWorker struct {
 	workerLifecycle
+	doc        *mupdf.Document
 	slots      []*renderSlot
 	requests   chan renderRequest
 	updates    chan renderUpdate
@@ -66,6 +69,7 @@ func (s *renderSlot) cancel() {
 func newRenderWorker(doc *mupdf.Document, threads int) *renderWorker {
 	w := &renderWorker{
 		workerLifecycle: newWorkerLifecycle(),
+		doc:             doc,
 		requests:        make(chan renderRequest, 128),
 		updates:         make(chan renderUpdate, maxPendingPrefetchRenders),
 	}
@@ -225,7 +229,7 @@ func (w *renderWorker) run(slot *renderSlot) {
 		slot.rendering.Store(&req.key)
 		rendered, err := slot.renderer.Render(req.key.page, req.key.scale, req.rect, req.aaLevel)
 		if err == nil && req.altColors {
-			remapPageColors(rendered.Image, req.altBackground, req.altForeground)
+			remapPageColors(rendered.Image, req.altBackground, req.altForeground, w.keptImageRects(req, rendered))
 		}
 		slot.rendering.Store(nil)
 		sendWorkerUpdate(&w.workerLifecycle, w.updates, renderUpdate{request: req, rendered: rendered, err: err})
@@ -253,6 +257,24 @@ func (w *renderWorker) next() (renderRequest, bool) {
 			w.mu.Unlock()
 		}
 	}
+}
+
+// keptImageRects returns the image areas a recolour should skip, in the
+// rendered tile's pixel coordinates.
+func (w *renderWorker) keptImageRects(req renderRequest, rendered *mupdf.RenderedPage) []image.Rectangle {
+	if !req.keepImages || w.doc == nil {
+		return nil
+	}
+	images, err := w.doc.ImageBounds(req.key.page)
+	if err != nil {
+		return nil
+	}
+	origin := image.Pt(rendered.X, rendered.Y)
+	rects := make([]image.Rectangle, len(images))
+	for i, bounds := range images {
+		rects[i] = mupdf.DeviceRect(bounds, req.key.scale).Sub(origin)
+	}
+	return rects
 }
 
 func (w *renderWorker) popNextRequest(queue []renderRequest) (renderRequest, []renderRequest, bool) {

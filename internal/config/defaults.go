@@ -14,6 +14,7 @@ func Default() Config {
 		LinkSchemes:         []string{"http", "https", "mailto"},
 		MuPDFStoreMB:        256,
 		HintChars:           "asdfghjkl",
+		AltColorsKeepImages: true,
 		DualPage:            false,
 		FirstPageOffset:     true,
 		FitMode:             "page",

@@ -1494,7 +1494,7 @@ func TestRemapPageColorsPreservesAlphaAndMapsLuminance(t *testing.T) {
 	img.SetRGBA(1, 0, color.RGBA{R: 255, G: 255, B: 255, A: 0xff})
 	img.SetRGBA(2, 0, color.RGBA{R: 30, G: 40, B: 50, A: 0})
 
-	remapPageColors(img, [3]uint8{200, 210, 220}, [3]uint8{10, 20, 30})
+	remapPageColors(img, [3]uint8{200, 210, 220}, [3]uint8{10, 20, 30}, nil)
 
 	assertColor(t, img.RGBAAt(0, 0), color.RGBA{R: 10, G: 20, B: 30, A: 0xff})
 	assertColor(t, img.RGBAAt(1, 0), color.RGBA{R: 200, G: 210, B: 220, A: 0xff})
@@ -1514,4 +1514,16 @@ func assertColor(t *testing.T, got, want color.RGBA) {
 	if got != want {
 		t.Fatalf("got color %+v, want %+v", got, want)
 	}
+}
+
+func TestRemapPageColorsKeepsImageAreas(t *testing.T) {
+	img := image.NewRGBA(image.Rect(0, 0, 2, 1))
+	red := color.RGBA{R: 255, A: 0xff}
+	img.SetRGBA(0, 0, red)
+	img.SetRGBA(1, 0, red)
+	remapPageColors(img, [3]uint8{0, 0, 0}, [3]uint8{255, 255, 255}, []image.Rectangle{image.Rect(1, 0, 2, 1)})
+	if img.RGBAAt(0, 0) == red {
+		t.Fatal("pixel outside the image area was not remapped")
+	}
+	assertColor(t, img.RGBAAt(1, 0), red)
 }

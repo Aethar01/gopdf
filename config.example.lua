@@ -3,6 +3,7 @@
 
 gopdf.options.alt_background = {20, 20, 20} -- Viewer background in alternate-color mode.
 gopdf.options.alt_colors = false -- Start with alternate colors enabled.
+gopdf.options.alt_colors_keep_images = true -- Keep raster images in their own colors in alternate-color mode.
 gopdf.options.alt_foreground = {255, 255, 255} -- UI foreground in alternate-color mode.
 gopdf.options.alt_page_background = {17, 17, 17} -- Page background in alternate-color mode.
 gopdf.options.alt_status_bar_color = {20, 20, 20} -- Status bar background in alternate-color mode.

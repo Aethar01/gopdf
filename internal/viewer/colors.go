@@ -3,6 +3,7 @@ package viewer
 import (
 	"image"
 	"image/color"
+	"slices"
 )
 
 func (a *App) statusVisible() bool {
@@ -41,21 +42,29 @@ func rgb(c [3]uint8) color.RGBA {
 	return color.RGBA{R: c[0], G: c[1], B: c[2], A: 0xff}
 }
 
-func remapPageColors(img *image.RGBA, bg, fg [3]uint8) {
-	for i := 0; i+3 < len(img.Pix); i += 4 {
-		a := img.Pix[i+3]
-		if a == 0 {
-			continue
+// remapPageColors maps each pixel's luminance onto the fg-bg range, leaving
+// pixels inside keep, in img's coordinates, as they are.
+func remapPageColors(img *image.RGBA, bg, fg [3]uint8, keep []image.Rectangle) {
+	bounds := img.Bounds()
+	for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
+		row := img.Pix[(y-bounds.Min.Y)*img.Stride:]
+		for x := bounds.Min.X; x < bounds.Max.X; x++ {
+			if !slices.ContainsFunc(keep, image.Pt(x, y).In) {
+				remapPixel(row[(x-bounds.Min.X)*4:], bg, fg)
+			}
 		}
-		r := img.Pix[i]
-		g := img.Pix[i+1]
-		b := img.Pix[i+2]
-		lum := uint16(r)*77 + uint16(g)*150 + uint16(b)*29
-		t := uint8(lum >> 8)
-		img.Pix[i] = mixChannel(fg[0], bg[0], t)
-		img.Pix[i+1] = mixChannel(fg[1], bg[1], t)
-		img.Pix[i+2] = mixChannel(fg[2], bg[2], t)
 	}
+}
+
+func remapPixel(px []uint8, bg, fg [3]uint8) {
+	if px[3] == 0 {
+		return
+	}
+	lum := uint16(px[0])*77 + uint16(px[1])*150 + uint16(px[2])*29
+	t := uint8(lum >> 8)
+	px[0] = mixChannel(fg[0], bg[0], t)
+	px[1] = mixChannel(fg[1], bg[1], t)
+	px[2] = mixChannel(fg[2], bg[2], t)
 }
 
 func mixChannel(fg, bg, t uint8) uint8 {

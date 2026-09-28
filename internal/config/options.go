@@ -367,6 +367,7 @@ var configOptions = map[string]optionDesc{
 	"invert_smooth_scroll":   boolOption("Invert horizontal and vertical smooth wheel or trackpad scrolling.", func(c *Config) bool { return c.InvertSmoothScroll }, func(c *Config, v bool) { c.InvertSmoothScroll = v }),
 	"session_database":       boolOption("Persist per-document view state, marks, and recent files.", func(c *Config) bool { return c.SessionDatabase }, func(c *Config, v bool) { c.SessionDatabase = v }),
 	"alt_colors":             boolOption("Start with alternate colors enabled.", func(c *Config) bool { return c.AltColors }, func(c *Config, v bool) { c.AltColors = v }),
+	"alt_colors_keep_images": boolOption("Keep raster images in their own colors in alternate-color mode.", func(c *Config) bool { return c.AltColorsKeepImages }, func(c *Config, v bool) { c.AltColorsKeepImages = v }),
 	"dual_page":              boolOption("Start in dual-page mode.", func(c *Config) bool { return c.DualPage }, func(c *Config, v bool) { c.DualPage = v }),
 	"first_page_offset":      boolOption("Treat the first page as a standalone cover in dual-page mode.", func(c *Config) bool { return c.FirstPageOffset }, func(c *Config, v bool) { c.FirstPageOffset = v }),
 	"anti_aliasing":          intOption("MuPDF antialiasing level from 0 through 8.", func(c *Config) int { return c.AntiAliasing }, func(c *Config, v int) { c.AntiAliasing = v }),

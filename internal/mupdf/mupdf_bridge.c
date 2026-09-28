@@ -292,11 +292,48 @@ static fz_display_list *gopdf_entry_display_list(fz_context *ctx, gopdf_page_ent
 	return entry->list;
 }
 
+/* The cached text keeps image blocks so their bounds are known; text
+ * lookups skip them by block type. */
 static fz_stext_page *gopdf_entry_text(fz_context *ctx, gopdf_page_entry *entry) {
 	if (entry->text == NULL) {
-		entry->text = fz_new_stext_page_from_display_list(ctx, gopdf_entry_display_list(ctx, entry), NULL);
+		fz_stext_options opts;
+		memset(&opts, 0, sizeof(opts));
+		opts.flags = FZ_STEXT_PRESERVE_IMAGES;
+		entry->text = fz_new_stext_page_from_display_list(ctx, gopdf_entry_display_list(ctx, entry), &opts);
 	}
 	return entry->text;
+}
+
+int gopdf_page_image_bounds(gopdf_doc *handle, int page_number, gopdf_rect **out, int *count, char **err) {
+	*out = NULL;
+	*count = 0;
+	*err = NULL;
+	fz_try(handle->ctx) {
+		fz_stext_page *text = gopdf_entry_text(handle->ctx, gopdf_page_entry_for(handle, page_number));
+		int n = 0;
+		for (fz_stext_block *block = text->first_block; block != NULL; block = block->next) {
+			n += block->type == FZ_STEXT_BLOCK_IMAGE;
+		}
+		if (n > 0) {
+			*out = (gopdf_rect *)calloc((size_t)n, sizeof(gopdf_rect));
+			if (*out == NULL) {
+				fz_throw(handle->ctx, FZ_ERROR_SYSTEM, "calloc failed");
+			}
+			for (fz_stext_block *block = text->first_block; block != NULL; block = block->next) {
+				if (block->type == FZ_STEXT_BLOCK_IMAGE) {
+					gopdf_rect *r = &(*out)[(*count)++];
+					r->x0 = block->bbox.x0;
+					r->y0 = block->bbox.y0;
+					r->x1 = block->bbox.x1;
+					r->y1 = block->bbox.y1;
+				}
+			}
+		}
+	} fz_catch(handle->ctx) {
+		*err = gopdf_dup_string(fz_caught_message(handle->ctx));
+		return 0;
+	}
+	return 1;
 }
 
 /* Returns a new reference to the page's cached display list, which the

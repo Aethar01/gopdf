@@ -16,6 +16,7 @@ type Config struct {
 	RenderThreads         int
 	MuPDFStoreMB          int
 	HintChars             string
+	AltColorsKeepImages   bool
 	DualPage              bool
 	FirstPageOffset       bool
 	FitMode               string

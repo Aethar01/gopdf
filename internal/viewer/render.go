@@ -103,6 +103,7 @@ func (a *App) requestTile(key tileKey, rect image.Rectangle, priority int) bool 
 	}
 	if req.altColors {
 		req.altBackground, req.altForeground = a.config.AltBackground, a.config.AltForeground
+		req.keepImages = a.config.AltColorsKeepImages
 	}
 	if !a.renderWorker.Enqueue(req) {
 		a.logf("render enqueue skipped page=%d tile=%d,%d", key.page+1, key.x, key.y)

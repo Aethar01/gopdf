@@ -207,6 +207,27 @@ func (d *Document) CachedPageCount() int {
 	return d.pages
 }
 
+// ImageBounds returns the bounds of the raster images drawn on a page.
+func (d *Document) ImageBounds(page int) ([]Rect, error) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if err := d.validatePageLocked(page); err != nil {
+		return nil, err
+	}
+	var raw *C.gopdf_rect
+	var count C.int
+	var cerr *C.char
+	if ok := C.gopdf_page_image_bounds(d.handle, C.int(page), &raw, &count, &cerr); ok == 0 {
+		return nil, consumeError("page images", cerr)
+	}
+	defer C.free(unsafe.Pointer(raw))
+	rects := make([]Rect, int(count))
+	for i, r := range unsafe.Slice(raw, int(count)) {
+		rects[i] = Rect{X0: float32(r.x0), Y0: float32(r.y0), X1: float32(r.x1), Y1: float32(r.y1)}
+	}
+	return rects, nil
+}
+
 type PageInfo struct {
 	Bounds Rect
 	Label  string

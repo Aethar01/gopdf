@@ -187,3 +187,18 @@ func TestRenderersRunConcurrentlyWithDocumentCalls(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestImageBounds(t *testing.T) {
+	doc, err := Open(testpdf.WriteImage(t), OpenOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer doc.Close()
+	images, err := doc.ImageBounds(0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := (Rect{X0: 100, Y0: 100, X1: 200, Y1: 200}); len(images) != 1 || images[0] != want {
+		t.Fatalf("ImageBounds = %v, want [%v]", images, want)
+	}
+}
