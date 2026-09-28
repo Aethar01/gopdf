@@ -325,15 +325,11 @@ func (a *App) drawSelection(renderer *sdl.Renderer) {
 	if len(a.selection.quads) == 0 {
 		return
 	}
-	x, y, rp, ok := a.pagePlacement(a.selection.page)
+	x, y, ok := a.pageScreenOrigin(a.selection.page)
 	if !ok {
 		return
 	}
-	a.drawHighlightQuads(renderer, a.selection.quads, x, y, rp)
-}
-
-func (a *App) drawHighlightQuads(renderer *sdl.Renderer, quads []mupdf.Quad, x, y float64, rp *renderedPage) {
-	a.drawHighlightQuadsWithStyle(renderer, quads, x, y, rp, false)
+	a.drawHighlightQuads(renderer, a.selection.quads, a.selection.page, x, y, false)
 }
 
 func (a *App) highlightForegroundColor() color.RGBA {
@@ -346,35 +342,13 @@ func (a *App) highlightBackgroundColor() color.RGBA {
 	return bg
 }
 
-func (a *App) pagePlacement(page int) (float64, float64, *renderedPage, bool) {
-	if page < 0 || page >= len(a.pageToRow) || len(a.rows) == 0 {
-		return 0, 0, nil, false
-	}
-	row := a.rows[a.pageToRow[page]]
-	index := -1
-	for i, candidate := range row.pages {
-		if candidate == page {
-			index = i
-			break
-		}
-	}
-	if index < 0 {
-		return 0, 0, nil, false
-	}
-	rp, ok := a.cachedRenderPage(page, a.scale)
-	if !ok {
-		a.requestRender(page, a.scale)
-		return 0, 0, nil, false
-	}
-	x, y := a.rowPageScreenOrigin(row, index)
-	return x, y, rp, true
-}
-
-func (a *App) quadScreenBounds(quad mupdf.Quad, x, y float64, rp *renderedPage) (float64, float64, float64, float64) {
+// quadScreenBounds maps a quad on page, whose screen origin is (x, y), to
+// its screen bounding box.
+func (a *App) quadScreenBounds(quad mupdf.Quad, page int, x, y float64) (float64, float64, float64, float64) {
 	pts := []mupdf.Point{quad.UL, quad.UR, quad.LL, quad.LR}
 	minX, minY := math.MaxFloat64, math.MaxFloat64
 	maxX, maxY := -math.MaxFloat64, -math.MaxFloat64
-	originX, originY := rotatedBoundsOrigin(a.pageMetrics[rp.page].bounds, a.scale, a.rotation)
+	originX, originY := rotatedBoundsOrigin(a.pageMetrics[page].bounds, a.scale, a.rotation)
 	for _, pt := range pts {
 		tx, ty := transformPoint(pt.X, pt.Y, a.scale, a.rotation)
 		sx := x + tx - originX

@@ -416,15 +416,15 @@ func (a *App) focusSearchCurrent() {
 	}
 	ref := a.search.order[a.search.current]
 	a.alignPageToAnchor(ref.page)
-	x, y, rp, ok := a.pagePlacement(ref.page)
-	if !ok || rp == nil {
+	x, y, ok := a.pageScreenOrigin(ref.page)
+	if !ok {
 		return
 	}
 	hits := a.search.matches[ref.page]
 	if ref.hit < 0 || ref.hit >= len(hits) {
 		return
 	}
-	minX, minY, maxX, maxY := a.searchHitBounds(hits[ref.hit], x, y, rp)
+	minX, minY, maxX, maxY := a.searchHitBounds(hits[ref.hit], ref.page, x, y)
 	viewportW, viewportH := a.viewportSize()
 	centerX := (minX + maxX) / 2
 	centerY := (minY + maxY) / 2
@@ -434,11 +434,11 @@ func (a *App) focusSearchCurrent() {
 	}
 }
 
-func (a *App) searchHitBounds(hit mupdf.SearchHit, x, y float64, rp *renderedPage) (float64, float64, float64, float64) {
+func (a *App) searchHitBounds(hit mupdf.SearchHit, page int, x, y float64) (float64, float64, float64, float64) {
 	minX, minY := math.MaxFloat64, math.MaxFloat64
 	maxX, maxY := -math.MaxFloat64, -math.MaxFloat64
 	for _, quad := range hit.Quads {
-		quadMinX, quadMinY, quadMaxX, quadMaxY := a.quadScreenBounds(quad, x, y, rp)
+		quadMinX, quadMinY, quadMaxX, quadMaxY := a.quadScreenBounds(quad, page, x, y)
 		minX = math.Min(minX, quadMinX)
 		minY = math.Min(minY, quadMinY)
 		maxX = math.Max(maxX, quadMaxX)
@@ -447,7 +447,7 @@ func (a *App) searchHitBounds(hit mupdf.SearchHit, x, y float64, rp *renderedPag
 	return minX, minY, maxX, maxY
 }
 
-func (a *App) drawSearchHighlightsForPage(renderer *sdl.Renderer, page int, x, y float64, rp *renderedPage) {
+func (a *App) drawSearchHighlightsForPage(renderer *sdl.Renderer, page int, x, y float64) {
 	hits := a.search.matches[page]
 	if len(hits) == 0 {
 		return
@@ -458,11 +458,11 @@ func (a *App) drawSearchHighlightsForPage(renderer *sdl.Renderer, page int, x, y
 			ref := a.search.order[a.search.current]
 			active = ref.page == page && ref.hit == i
 		}
-		a.drawHighlightQuadsWithStyle(renderer, hit.Quads, x, y, rp, active)
+		a.drawHighlightQuads(renderer, hit.Quads, page, x, y, active)
 	}
 }
 
-func (a *App) drawHighlightQuadsWithStyle(renderer *sdl.Renderer, quads []mupdf.Quad, x, y float64, rp *renderedPage, active bool) {
+func (a *App) drawHighlightQuads(renderer *sdl.Renderer, quads []mupdf.Quad, page int, x, y float64, active bool) {
 	bg := a.highlightBackgroundColor()
 	fg := a.highlightForegroundColor()
 	stroke := 1
@@ -471,7 +471,7 @@ func (a *App) drawHighlightQuadsWithStyle(renderer *sdl.Renderer, quads []mupdf.
 		stroke = 2
 	}
 	for _, quad := range quads {
-		minX, minY, maxX, maxY := a.quadScreenBounds(quad, x, y, rp)
+		minX, minY, maxX, maxY := a.quadScreenBounds(quad, page, x, y)
 		rect := sdl.FRect{X: float32(minX), Y: float32(minY), W: float32(maxX - minX), H: float32(maxY - minY)}
 		fillRect(renderer, rect, bg)
 		strokeRect(renderer, rect, fg, stroke)

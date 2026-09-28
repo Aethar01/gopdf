@@ -27,14 +27,7 @@ func (a *App) drawContinuousPages(renderer *sdl.Renderer) {
 		if x+width < 0 || x > float64(viewportW) || y+height < 0 || y > float64(viewportH) {
 			return
 		}
-		_ = a.drawPageBackground(renderer, x, y, page)
-		rp, ok := a.cachedRenderPage(page, a.scale)
-		if !ok {
-			return
-		}
-		drawScale := a.renderDrawScale(rp, a.scale)
-		a.drawPageTexture(renderer, x, y, width, height, rp, drawScale)
-		a.drawSearchHighlightsForPage(renderer, page, x, y, rp)
+		a.drawPage(renderer, page, x, y, width, height)
 	})
 	a.drawSelection(renderer)
 }
@@ -50,16 +43,17 @@ func (a *App) drawSinglePage(renderer *sdl.Renderer) {
 		if x+row.pageW[i] < 0 || x > float64(viewportW) || y+row.pageH[i] < 0 || y > float64(viewportH) {
 			continue
 		}
-		_ = a.drawPageBackground(renderer, x, y, page)
-		rp, ok := a.cachedRenderPage(page, a.scale)
-		if !ok {
-			continue
-		}
-		drawScale := a.renderDrawScale(rp, a.scale)
-		a.drawPageTexture(renderer, x, y, row.pageW[i], row.pageH[i], rp, drawScale)
-		a.drawSearchHighlightsForPage(renderer, page, x, y, rp)
+		a.drawPage(renderer, page, x, y, row.pageW[i], row.pageH[i])
 	}
 	a.drawSelection(renderer)
+}
+
+func (a *App) drawPage(renderer *sdl.Renderer, page int, x, y, width, height float64) {
+	_ = a.drawPageBackground(renderer, x, y, page)
+	if rp, ok := a.cachedRenderPage(page, a.scale); ok {
+		a.drawPageTexture(renderer, x, y, width, height, rp, a.renderDrawScale(rp, a.scale))
+	}
+	a.drawSearchHighlightsForPage(renderer, page, x, y)
 }
 
 func (a *App) drawPageTexture(renderer *sdl.Renderer, x, y, width, height float64, rp *renderedPage, drawScale float64) {

@@ -1,6 +1,7 @@
 package viewer
 
 import (
+	"math"
 	"testing"
 
 	"gopdf/internal/mupdf"
@@ -43,5 +44,29 @@ func TestSearchDocumentPageOptions(t *testing.T) {
 				t.Fatalf("got %d hits / %d quads, want %d / %d", len(hits), quads, tt.wantHits, tt.wantQuads)
 			}
 		})
+	}
+}
+
+func TestFocusSearchCurrentCentersHitOnUnrenderedPage(t *testing.T) {
+	app := testLayoutApp(5)
+	app.recomputeLayout(1000, 100)
+	quad := mupdf.Quad{UL: mupdf.Point{X: 40, Y: 140}, UR: mupdf.Point{X: 60, Y: 140}, LL: mupdf.Point{X: 40, Y: 160}, LR: mupdf.Point{X: 60, Y: 160}}
+	app.search = searchState{
+		query:   "needle",
+		matches: map[int][]mupdf.SearchHit{3: {{Quads: []mupdf.Quad{quad}}}},
+		order:   []searchHitRef{{page: 3, hit: 0}},
+		current: 0,
+	}
+
+	app.focusSearchCurrent()
+
+	x, y, ok := app.pageScreenOrigin(3)
+	if !ok {
+		t.Fatal("page 3 not laid out")
+	}
+	_, minY, _, maxY := app.quadScreenBounds(quad, 3, x, y)
+	_, viewportH := app.viewportSize()
+	if center := (minY + maxY) / 2; math.Abs(center-float64(viewportH)/2) > 1 {
+		t.Fatalf("hit centre at y=%.1f, want viewport centre %.1f", center, float64(viewportH)/2)
 	}
 }
