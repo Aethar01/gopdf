@@ -13,6 +13,7 @@ func Default() Config {
 		PageCacheSize:       16,
 		PageCacheMemoryMB:   512,
 		LinkSchemes:         []string{"http", "https", "mailto"},
+		MuPDFStoreMB:        256,
 		DualPage:            false,
 		FirstPageOffset:     true,
 		FitMode:             "page",

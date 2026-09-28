@@ -46,7 +46,7 @@ func TestTextLayerQuadsMergePerLine(t *testing.T) {
 }
 
 func TestTextLayerFromDocument(t *testing.T) {
-	doc, err := Open(testpdf.Write(t, "hello", "world"), "")
+	doc, err := Open(testpdf.Write(t, "hello", "world"), OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -68,7 +68,7 @@ func TestPageCacheEvictionKeepsPagesUsable(t *testing.T) {
 	for i := range pages {
 		pages[i] = []string{fmt.Sprintf("page %d", i+1)}
 	}
-	doc, err := Open(testpdf.WritePages(t, pages...), "")
+	doc, err := Open(testpdf.WritePages(t, pages...), OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -106,7 +106,7 @@ func TestRenderersRunConcurrentlyWithDocumentCalls(t *testing.T) {
 	for i := range pages {
 		pages[i] = []string{fmt.Sprintf("page %d", i+1), "some more text to rasterise"}
 	}
-	doc, err := Open(testpdf.WritePages(t, pages...), "")
+	doc, err := Open(testpdf.WritePages(t, pages...), OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}

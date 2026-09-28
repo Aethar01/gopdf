@@ -371,6 +371,7 @@ var configOptions = map[string]optionDesc{
 	"first_page_offset":      boolOption("Treat the first page as a standalone cover in dual-page mode.", func(c *Config) bool { return c.FirstPageOffset }, func(c *Config, v bool) { c.FirstPageOffset = v }),
 	"anti_aliasing":          intOption("MuPDF antialiasing level from 0 through 8.", func(c *Config) int { return c.AntiAliasing }, func(c *Config, v int) { c.AntiAliasing = v }),
 	"link_schemes":           stringListOption("URI schemes that document links may open externally; other links only show their target.", func(c *Config) []string { return c.LinkSchemes }, func(c *Config, v []string) { c.LinkSchemes = normalizeLinkSchemes(v) }),
+	"mupdf_store_mb":         intOption("MuPDF cache for fonts and decoded images in MiB; applies to newly opened documents.", func(c *Config) int { return c.MuPDFStoreMB }, func(c *Config, v int) { c.MuPDFStoreMB = max(1, v) }),
 	"page_cache_memory_mb":   intOption("Maximum memory in MiB for cached page renders; 0 disables the limit.", func(c *Config) int { return c.PageCacheMemoryMB }, func(c *Config, v int) { c.PageCacheMemoryMB = max(0, v) }),
 	"page_cache_size":        intOption("Maximum rendered pages retained in the cache.", func(c *Config) int { return c.PageCacheSize }, func(c *Config, v int) { c.PageCacheSize = max(1, v) }),
 	"outline_initial_depth":  intOption("Outline levels expanded when the outline opens.", func(c *Config) int { return c.OutlineInitialDepth }, func(c *Config, v int) { c.OutlineInitialDepth = v }),

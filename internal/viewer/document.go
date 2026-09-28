@@ -109,7 +109,7 @@ func (a *App) openDocumentWithPassword(path string, opts openDocumentOptions, pa
 	path = config.AbsoluteDocumentPath(path)
 	a.logf("opening document path=%q startPage=%d reloadConfig=%t", path, opts.startPage+1, opts.reloadConfig)
 	a.emitPluginEvent("document_open_pre", map[string]any{"document": map[string]any{"path": path, "name": filepath.Base(path)}})
-	doc, err := mupdf.Open(path, password)
+	doc, err := mupdf.Open(path, a.openOptions(password))
 	if err != nil {
 		a.logf("open document failed path=%q err=%v", path, err)
 		if mupdf.IsPasswordError(err) {
@@ -181,6 +181,10 @@ func (a *App) openDocumentWithPassword(path string, opts openDocumentOptions, pa
 		return configErr
 	}
 	return nil
+}
+
+func (a *App) openOptions(password string) mupdf.OpenOptions {
+	return mupdf.OpenOptions{Password: password, StoreBytes: int64(a.config.MuPDFStoreMB) << 20}
 }
 
 func (a *App) resetForNewDocument(password string) {
@@ -302,7 +306,7 @@ func (a *App) reloadUpdatedDocument(change documentChange) error {
 func (a *App) softReloadDocument(path string, state viewState) error {
 	path = config.AbsoluteDocumentPath(path)
 	a.logf("soft reload document path=%q", path)
-	doc, err := mupdf.Open(path, a.docPassword)
+	doc, err := mupdf.Open(path, a.openOptions(a.docPassword))
 	if err != nil {
 		return err
 	}

@@ -111,7 +111,7 @@ typedef struct {
 	int item_count;
 } gopdf_outline_result;
 
-gopdf_doc *gopdf_open_document(const char *path, const char *password, char **err);
+gopdf_doc *gopdf_open_document(const char *path, const char *password, size_t store_size, char **err);
 void gopdf_close_document(gopdf_doc *handle);
 int gopdf_count_pages(gopdf_doc *handle, int *count, char **err);
 int gopdf_page_info(gopdf_doc *handle, int page_number, gopdf_rect *bounds, char **label, char **err);

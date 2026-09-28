@@ -242,7 +242,7 @@ func TestRenderWorkerPoolRendersEveryRequest(t *testing.T) {
 	for i := range pages {
 		pages[i] = []string{"page"}
 	}
-	doc, err := mupdf.Open(testpdf.WritePages(t, pages...), "")
+	doc, err := mupdf.Open(testpdf.WritePages(t, pages...), mupdf.OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}

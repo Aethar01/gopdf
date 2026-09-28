@@ -13,8 +13,6 @@ typedef struct {
 	int hit_cap;
 } gopdf_search_builder;
 
-enum { GOPDF_MUPDF_STORE_SIZE = 32 << 20 };
-
 /* MuPDF requires lock callbacks before contexts can be cloned. The mutexes
  * are shared by every context; gopdf_init_locks runs before first use. */
 #ifdef _WIN32
@@ -147,7 +145,7 @@ static gopdf_page_entry *gopdf_page_entry_for(gopdf_doc *handle, int page_number
 	return victim;
 }
 
-gopdf_doc *gopdf_open_document(const char *path, const char *password, char **err) {
+gopdf_doc *gopdf_open_document(const char *path, const char *password, size_t store_size, char **err) {
 	gopdf_doc *handle = NULL;
 	fz_context *ctx = NULL;
 	fz_document *doc = NULL;
@@ -156,7 +154,7 @@ gopdf_doc *gopdf_open_document(const char *path, const char *password, char **er
 	int authenticated = 1;
 	*err = NULL;
 	gopdf_init_locks();
-	ctx = fz_new_context(NULL, &gopdf_locks, GOPDF_MUPDF_STORE_SIZE);
+	ctx = fz_new_context(NULL, &gopdf_locks, store_size);
 	if (ctx == NULL) {
 		*err = gopdf_dup_string("fz_new_context failed");
 		return NULL;

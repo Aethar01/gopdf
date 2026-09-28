@@ -24,6 +24,7 @@ gopdf.options.link_schemes = {"http", "https", "mailto"} -- URI schemes that doc
 gopdf.options.max_zoom = 8 -- Maximum manual zoom scale.
 gopdf.options.min_zoom = 0.5 -- Minimum manual zoom scale.
 gopdf.options.mouse_text_select = true -- Enable text selection with the left mouse button.
+gopdf.options.mupdf_store_mb = 256 -- MuPDF cache for fonts and decoded images in MiB; applies to newly opened documents.
 gopdf.options.outline_height_percent = 80 -- Outline overlay height as a percentage of the window.
 gopdf.options.outline_initial_depth = 1 -- Outline levels expanded when the outline opens.
 gopdf.options.outline_width_percent = 70 -- Outline overlay width as a percentage of the window.

@@ -15,6 +15,7 @@ type Config struct {
 	PageCacheMemoryMB     int
 	LinkSchemes           []string
 	RenderThreads         int
+	MuPDFStoreMB          int
 	DualPage              bool
 	FirstPageOffset       bool
 	FitMode               string

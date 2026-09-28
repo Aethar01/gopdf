@@ -133,16 +133,27 @@ func (d *Document) validatePageLocked(page int) error {
 	return nil
 }
 
-func Open(path string, password string) (*Document, error) {
+type OpenOptions struct {
+	Password string
+	// StoreBytes caps MuPDF's cache of fonts and decoded images; 0 uses
+	// MuPDF's default of 256 MiB.
+	StoreBytes int64
+}
+
+func Open(path string, opts OpenOptions) (*Document, error) {
 	cpath := C.CString(path)
 	defer C.free(unsafe.Pointer(cpath))
 	var cpassword *C.char
-	if password != "" {
-		cpassword = C.CString(password)
+	if opts.Password != "" {
+		cpassword = C.CString(opts.Password)
 		defer C.free(unsafe.Pointer(cpassword))
 	}
+	store := C.size_t(C.FZ_STORE_DEFAULT)
+	if opts.StoreBytes > 0 {
+		store = C.size_t(opts.StoreBytes)
+	}
 	var cerr *C.char
-	handle := C.gopdf_open_document(cpath, cpassword, &cerr)
+	handle := C.gopdf_open_document(cpath, cpassword, store, &cerr)
 	if handle == nil {
 		return nil, consumeError("open document", cerr)
 	}

@@ -8,7 +8,7 @@ import (
 )
 
 func TestSearchDocumentPageOptions(t *testing.T) {
-	doc, err := mupdf.Open(testpdf.Write(t, "the cat sat in the category", "a wrapped", "phrase here"), "")
+	doc, err := mupdf.Open(testpdf.Write(t, "the cat sat in the category", "a wrapped", "phrase here"), mupdf.OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
