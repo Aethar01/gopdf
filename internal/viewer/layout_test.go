@@ -394,3 +394,27 @@ func TestLinkSchemeAllowed(t *testing.T) {
 		}
 	}
 }
+
+func TestLinkFollowsOnReleaseOverSameLink(t *testing.T) {
+	app := testLayoutApp(3)
+	app.recomputeLayout(1000, 1000)
+	app.pageLinks = map[int][]mupdf.Link{0: {{Bounds: mupdf.Rect{X1: 100, Y1: 50}, Page: 2}}}
+	x, y := app.rowPageScreenOrigin(app.rows[0], 0)
+	click := func(kind sdl.EventType, dx, dy float64) {
+		app.handleLinkButton(&sdl.MouseButtonEvent{Type: kind, Button: uint8(sdl.ButtonLeft), X: float32(x + dx), Y: float32(y + dy)})
+	}
+
+	click(sdl.EventMouseButtonDown, 10, 10)
+	if app.page != 0 {
+		t.Fatal("link followed on press")
+	}
+	click(sdl.EventMouseButtonUp, 400, 400)
+	if app.page != 0 {
+		t.Fatal("link followed after releasing elsewhere")
+	}
+	click(sdl.EventMouseButtonDown, 10, 10)
+	click(sdl.EventMouseButtonUp, 20, 20)
+	if app.page != 2 {
+		t.Fatalf("page = %d, want link target 2", app.page)
+	}
+}

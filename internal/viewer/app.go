@@ -165,11 +165,17 @@ type sdlState struct {
 	textCache    map[textTextureKey]cachedTextTexture
 }
 
+// linkInputState tracks the link under the pointer.
+type linkInputState struct {
+	pressed *mupdf.Link
+}
+
 type inputState struct {
 	mode           mode
 	input          textInput
 	ignoreText     string
 	message        string
+	links          linkInputState
 	passwordPrompt pendingPasswordPrompt
 	mouseBindings  map[string]string
 	searchInput    searchMode
@@ -554,19 +560,10 @@ func (a *App) handleSDLMouseButton(e *sdl.MouseButtonEvent) {
 	if a.panning {
 		return
 	}
-	if e.Button != uint8(sdl.ButtonLeft) || !a.config.MouseTextSelect {
-		if e.Button == uint8(sdl.ButtonLeft) && e.Type == sdl.EventMouseButtonDown {
-			a.tryActivateLinkAt(float64(e.X), float64(e.Y))
-		}
+	if e.Button != uint8(sdl.ButtonLeft) || a.handleLinkButton(e) || !a.config.MouseTextSelect {
 		return
 	}
 	if e.Type == sdl.EventMouseButtonDown {
-		if a.tryActivateLinkAt(float64(e.X), float64(e.Y)) {
-			a.selection.active = false
-			a.selection.quads = nil
-			a.emitSelectionChanged()
-			return
-		}
 		page, point, ok := a.pagePointAtScreen(float64(e.X), float64(e.Y))
 		if ok {
 			a.selection = textSelection{active: true, page: page, anchor: point, focus: point}
@@ -580,6 +577,34 @@ func (a *App) handleSDLMouseButton(e *sdl.MouseButtonEvent) {
 		a.selection.quads = nil
 		a.emitSelectionChanged()
 	}
+}
+
+// handleLinkButton follows a link once the left button is pressed and
+// released over it, so a drag that starts on a link does not fire it.
+func (a *App) handleLinkButton(e *sdl.MouseButtonEvent) bool {
+	link, over := a.linkAt(float64(e.X), float64(e.Y))
+	if e.Type == sdl.EventMouseButtonDown {
+		a.links.pressed = nil
+		if !over {
+			return false
+		}
+		a.links.pressed = &link
+		if a.selection.active || len(a.selection.quads) > 0 {
+			a.selection.active = false
+			a.selection.quads = nil
+			a.emitSelectionChanged()
+		}
+		return true
+	}
+	pressed := a.links.pressed
+	a.links.pressed = nil
+	if pressed == nil {
+		return false
+	}
+	if over && link == *pressed {
+		a.activateLink(link)
+	}
+	return true
 }
 
 func (a *App) handleSDLMouseMotion(e *sdl.MouseMotionEvent) bool {
@@ -596,7 +621,8 @@ func (a *App) handleSDLMouseMotion(e *sdl.MouseMotionEvent) bool {
 	}
 	a.stopPan()
 
-	a.setLinkCursor(a.isLinkAt(float64(e.X), float64(e.Y)))
+	_, overLink := a.linkAt(float64(e.X), float64(e.Y))
+	a.setLinkCursor(overLink)
 
 	if !a.selection.active || uint32(e.State)&uint32(sdl.ButtonLMask) == 0 {
 		return false

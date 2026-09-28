@@ -277,42 +277,22 @@ func (a *App) copySelectionToClipboard() {
 	a.selection.text = ""
 }
 
-func (a *App) tryActivateLinkAt(sx, sy float64) bool {
+func (a *App) linkAt(sx, sy float64) (mupdf.Link, bool) {
 	page, point, ok := a.pagePointAtScreen(sx, sy)
 	if !ok {
-		return false
+		return mupdf.Link{}, false
 	}
 	links, err := a.linksForPage(page)
 	if err != nil {
-		a.message = err.Error()
-		return false
+		a.logf("load links page=%d err=%v", page+1, err)
+		return mupdf.Link{}, false
 	}
 	for _, link := range links {
-		if point.X < float64(link.Bounds.X0) || point.X > float64(link.Bounds.X1) || point.Y < float64(link.Bounds.Y0) || point.Y > float64(link.Bounds.Y1) {
-			continue
+		if link.Bounds.Contains(point) {
+			return link, true
 		}
-		a.activateLink(link)
-		return true
 	}
-	return false
-}
-
-func (a *App) isLinkAt(sx, sy float64) bool {
-	page, point, ok := a.pagePointAtScreen(sx, sy)
-	if !ok {
-		return false
-	}
-	links, err := a.linksForPage(page)
-	if err != nil {
-		return false
-	}
-	for _, link := range links {
-		if point.X < float64(link.Bounds.X0) || point.X > float64(link.Bounds.X1) || point.Y < float64(link.Bounds.Y0) || point.Y > float64(link.Bounds.Y1) {
-			continue
-		}
-		return true
-	}
-	return false
+	return mupdf.Link{}, false
 }
 
 func (a *App) linksForPage(page int) ([]mupdf.Link, error) {

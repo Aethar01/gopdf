@@ -50,6 +50,10 @@ func (p *RenderedPage) Close() {
 	}
 }
 
+func (r Rect) Contains(p Point) bool {
+	return p.X >= float64(r.X0) && p.X <= float64(r.X1) && p.Y >= float64(r.Y0) && p.Y <= float64(r.Y1)
+}
+
 type Point struct {
 	X float64
 	Y float64
