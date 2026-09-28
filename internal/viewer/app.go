@@ -166,7 +166,8 @@ type inputState struct {
 	ignoreText     string
 	message        string
 	links          linkInputState
-	hints          *hintState // non-nil while link hints are shown
+	hints          *hintState     // non-nil while link hints are shown
+	overview       *overviewState // non-nil while the page overview is shown
 	passwordPrompt pendingPasswordPrompt
 	mouseBindings  map[string]string
 	searchInput    searchMode
@@ -541,6 +542,10 @@ func (a *App) handleSDLMouseButton(e *sdl.MouseButtonEvent) {
 		if view.onMouseButton != nil {
 			view.onMouseButton(a, e)
 		}
+		return
+	}
+	if a.overview != nil {
+		a.clickOverview(e)
 		return
 	}
 	if e.Type == sdl.EventMouseButtonUp && a.panning && e.Button == a.panButton {

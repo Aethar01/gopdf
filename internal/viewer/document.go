@@ -209,6 +209,7 @@ func (a *App) resetForNewDocument(password string) {
 	a.jumpAhead = nil
 	a.pendingOpen = ""
 	a.hints = nil
+	a.overview = nil
 }
 
 func (a *App) promptDocumentPassword(path string, opts openDocumentOptions) {
@@ -292,6 +293,9 @@ func (a *App) pollDocumentUpdate() {
 }
 
 func (a *App) reloadUpdatedDocument(change documentChange) error {
+	if a.overview != nil {
+		a.closeOverview(a.overview.selected)
+	}
 	path := a.docPath
 	state := a.captureViewState()
 	if err := a.softReloadDocument(path, state); err != nil {

@@ -35,6 +35,17 @@ func (a *App) baseRows() []rowLayout {
 		}
 		rows = append(rows, row)
 	}
+	if a.overview != nil {
+		columns := a.overviewColumns()
+		for page := 0; page < a.pageCount; page += columns {
+			pages := make([]int, 0, columns)
+			for p := page; p < min(a.pageCount, page+columns); p++ {
+				pages = append(pages, p)
+			}
+			appendRow(pages...)
+		}
+		return rows
+	}
 	if !a.dualPage {
 		for page := 0; page < a.pageCount; page++ {
 			appendRow(page)
@@ -199,6 +210,9 @@ func (a *App) forEachContinuousPage(minY, maxY float64, visit func(page int, x, 
 }
 
 func (a *App) verticalGap() int {
+	if a.overview != nil {
+		return overviewGap
+	}
 	if a.config.PageGapVertical >= 0 {
 		return a.config.PageGapVertical
 	}
@@ -209,6 +223,9 @@ func (a *App) verticalGap() int {
 }
 
 func (a *App) horizontalGap() int {
+	if a.overview != nil {
+		return overviewGap
+	}
 	if a.config.PageGapHorizontal >= 0 {
 		return a.config.PageGapHorizontal
 	}

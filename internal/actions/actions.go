@@ -30,6 +30,7 @@ var registry = []Action{
 	{Name: "toggle_fullscreen", Keys: []string{"f"}},
 	{Name: "follow_link", Keys: []string{"F"}},
 	{Name: "outline", Keys: []string{"o"}},
+	{Name: "overview", Keys: []string{"O"}},
 	{Name: "confirm", Keys: []string{"<CR>"}},
 	{Name: "zoom_in", Countable: true, Keys: []string{"+", "="}},
 	{Name: "zoom_out", Countable: true, Keys: []string{"-"}},

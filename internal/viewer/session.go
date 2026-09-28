@@ -105,7 +105,12 @@ type viewState struct {
 	altColors       bool
 }
 
+// captureViewState reports the view to persist; in the overview, that is
+// the view it will return to.
 func (a *App) captureViewState() viewState {
+	if a.overview != nil {
+		return a.overview.saved
+	}
 	return viewState{
 		page:            a.page,
 		scrollX:         a.scrollX,

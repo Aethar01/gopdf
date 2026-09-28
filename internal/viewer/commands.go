@@ -66,6 +66,9 @@ func (a *App) hasPrefix(joined string) bool {
 }
 
 func (a *App) runAction(action string) {
+	if a.overview != nil && a.runOverviewAction(action) {
+		return
+	}
 	if handled, dirty, err := a.runtime.RunAction(action); handled {
 		if err != nil {
 			a.message = err.Error()
@@ -176,6 +179,8 @@ func (a *App) runBuiltinAction(action string) error {
 		a.toggleHelp()
 	case "follow_link":
 		a.startLinkHints()
+	case "overview":
+		a.toggleOverview()
 	case "confirm":
 		if a.completion.view != nil && a.completion.view.visible {
 			a.acceptCompletion()

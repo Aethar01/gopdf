@@ -33,6 +33,7 @@ func (a *App) drawContinuousPages(renderer *sdl.Renderer) {
 		a.drawPage(renderer, page, x, y, width, height)
 	})
 	a.drawSelection(renderer)
+	a.drawOverviewSelection(renderer)
 }
 
 func (a *App) drawSinglePage(renderer *sdl.Renderer) {
