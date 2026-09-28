@@ -229,7 +229,6 @@ func (a *App) copySelectionToClipboard() {
 		return
 	}
 	a.message = fmt.Sprintf("copied %d chars", len(a.selection.text))
-	a.selection.text = ""
 }
 
 func (a *App) linkAt(sx, sy float64) (mupdf.Link, bool) {
@@ -319,9 +318,6 @@ func (a *App) OpenExternal(uri string) error {
 }
 
 func (a *App) drawSelection(renderer *sdl.Renderer) {
-	if !a.config.CopyOnSelect && len(a.selection.quads) == 0 && strings.TrimSpace(a.selection.text) != "" {
-		a.refreshSelection()
-	}
 	if len(a.selection.quads) == 0 {
 		return
 	}

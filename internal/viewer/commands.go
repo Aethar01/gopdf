@@ -285,7 +285,7 @@ func (a *App) closeActiveUI() {
 		a.clearSearch()
 		return
 	}
-	if !a.config.CopyOnSelect && (a.selection.text != "" || len(a.selection.quads) > 0) {
+	if a.selection.text != "" || len(a.selection.quads) > 0 {
 		a.clearSelection()
 		return
 	}

@@ -557,18 +557,19 @@ func (a *App) handleSDLMouseButton(e *sdl.MouseButtonEvent) {
 	if e.Button != uint8(sdl.ButtonLeft) || a.handleLinkButton(e) || !a.config.MouseTextSelect {
 		return
 	}
+	// A press starts a new selection, replacing any previous one; the
+	// finished selection stays highlighted until the next press or close.
 	if e.Type == sdl.EventMouseButtonDown {
-		page, point, ok := a.pagePointAtScreen(float64(e.X), float64(e.Y))
-		if ok {
+		a.selection = textSelection{}
+		if page, point, ok := a.pagePointAtScreen(float64(e.X), float64(e.Y)); ok {
 			a.selection = textSelection{active: true, page: page, anchor: point, focus: point}
-			a.emitSelectionChanged()
 		}
+		a.emitSelectionChanged()
 		return
 	}
 	if e.Type == sdl.EventMouseButtonUp && a.selection.active {
-		a.copySelectionToClipboard()
 		a.selection.active = false
-		a.selection.quads = nil
+		a.copySelectionToClipboard()
 		a.emitSelectionChanged()
 	}
 }
@@ -584,9 +585,7 @@ func (a *App) handleLinkButton(e *sdl.MouseButtonEvent) bool {
 		}
 		a.links.pressed = &link
 		if a.selection.active || len(a.selection.quads) > 0 {
-			a.selection.active = false
-			a.selection.quads = nil
-			a.emitSelectionChanged()
+			a.clearSelection()
 		}
 		return true
 	}
