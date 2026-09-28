@@ -85,6 +85,7 @@ func (a *App) Run() error {
 		a.pollSearchUpdates()
 		a.pollDocumentUpdate()
 		a.expireSequence()
+		a.finishKeybindCapture(time.Now())
 		a.prefetchVisiblePages()
 		a.adjustRenderBaseScaleForExtremeZoom(a.scale)
 		a.emitViewStateEvents()
@@ -135,9 +136,12 @@ func (a *App) eventWaitTimeoutMS() int {
 	if a.hasPendingVisibleRender() || a.search.running || a.runtime != nil && a.runtime.PluginOperationsActive() {
 		return int(smoothAnimationFrame / time.Millisecond)
 	}
+	deadline := a.captureDeadline()
 	if len(a.sequence) > 0 {
-		elapsed := time.Since(a.sequenceAt)
-		remaining := time.Duration(a.config.SequenceTimeoutMS)*time.Millisecond - elapsed
+		deadline = a.sequenceAt.Add(time.Duration(a.config.SequenceTimeoutMS) * time.Millisecond)
+	}
+	if !deadline.IsZero() {
+		remaining := time.Until(deadline)
 		if remaining <= 0 {
 			return 1
 		}

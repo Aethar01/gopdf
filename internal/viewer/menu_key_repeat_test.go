@@ -1,7 +1,11 @@
 package viewer
 
 import (
+	"path/filepath"
 	"testing"
+	"time"
+
+	"gopdf/internal/config"
 
 	"github.com/jupiterrider/purego-sdl3/sdl"
 )
@@ -94,5 +98,44 @@ func TestPluginUIViewSearchRepeatsBackspace(t *testing.T) {
 
 	if view.query != "ab" {
 		t.Fatalf("expected repeated plugin UI backspace to edit query, got %q", view.query)
+	}
+}
+
+func TestKeybindEditorCapturesChords(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("HOME", dir)
+	t.Setenv("XDG_CONFIG_HOME", dir)
+	rt, err := config.Open(filepath.Join(dir, "config.lua"), "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rt.Close()
+	app, err := New("", rt, 0, nil, NewOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	app.toggleKeybindMenu()
+	app.startNewKeybind()
+	for i, row := range app.keybindMenu.rows {
+		if row.action == "overview" {
+			app.keybindMenu.view.selected = i
+		}
+	}
+	app.confirmKeybindMenuSelection()
+
+	start := time.Now()
+	for _, key := range []sdl.Keycode{sdl.KeycodeZ, sdl.KeycodeX} {
+		app.handleKeybindMenuKey(&sdl.KeyboardEvent{Type: sdl.EventKeyDown, Key: key})
+	}
+	app.finishKeybindCapture(start) // still within the pause: nothing bound yet
+	if !app.keybindMenu.capturing {
+		t.Fatal("bound before the chord's pause elapsed")
+	}
+	app.finishKeybindCapture(start.Add(time.Duration(app.config.SequenceTimeoutMS+1) * time.Millisecond))
+	if app.keybindMenu.capturing {
+		t.Fatal("still capturing after the pause")
+	}
+	if got := app.config.KeyBindings["zx"]; got != "overview" {
+		t.Fatalf("zx bound to %q, want overview; message %q", got, app.message)
 	}
 }

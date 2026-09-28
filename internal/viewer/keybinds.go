@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"time"
 
 	"gopdf/internal/config"
 
@@ -13,8 +14,12 @@ import (
 const newKeybindLabel = "New keybind..."
 
 type keybindMenuState struct {
-	view            *uiView
-	capturing       bool
+	view      *uiView
+	capturing bool
+	// captured holds the keys pressed so far while capturing; they are
+	// bound as one chord once no key follows within sequence_timeout_ms.
+	captured        []string
+	capturedAt      time.Time
 	selectingAction bool
 	captureAction   string
 	rows            []keybindRow
@@ -86,9 +91,11 @@ func (a *App) handleKeybindMenuKey(e *sdl.KeyboardEvent) bool {
 		if a.keybindMenu.capturing {
 			if normalizeBinding(token) == normalizeBinding("<Esc>") {
 				a.keybindMenu.capturing = false
+				a.keybindMenu.captured = nil
 				return true
 			}
-			a.rebindSelectedKey(token)
+			a.keybindMenu.captured = append(a.keybindMenu.captured, token)
+			a.keybindMenu.capturedAt = time.Now()
 			return true
 		}
 		if action, ok := a.sequenceLookup[normalizeBinding(token)]; ok {
@@ -100,6 +107,25 @@ func (a *App) handleKeybindMenuKey(e *sdl.KeyboardEvent) bool {
 		}
 	}
 	return true
+}
+
+// captureDeadline is when the keys captured so far are bound, or the zero
+// time when nothing is waiting.
+func (a *App) captureDeadline() time.Time {
+	if !a.keybindMenu.capturing || len(a.keybindMenu.captured) == 0 {
+		return time.Time{}
+	}
+	return a.keybindMenu.capturedAt.Add(time.Duration(a.config.SequenceTimeoutMS) * time.Millisecond)
+}
+
+// finishKeybindCapture binds the captured chord once its pause has passed.
+func (a *App) finishKeybindCapture(now time.Time) {
+	if deadline := a.captureDeadline(); !deadline.IsZero() && !now.Before(deadline) {
+		chord := strings.Join(a.keybindMenu.captured, "")
+		a.keybindMenu.captured = nil
+		a.rebindSelectedKey(chord)
+		a.pendingRedraw = true
+	}
 }
 
 func (a *App) deleteSelectedKeybind() {
@@ -319,7 +345,10 @@ func (a *App) drawKeybindMenu(renderer *sdl.Renderer) error {
 		if a.keybindMenu.captureAction != "" {
 			action = a.keybindMenu.captureAction
 		}
-		header = " Press key for " + action
+		header = " Press keys for " + action + " (Esc cancels)"
+		if len(a.keybindMenu.captured) > 0 {
+			header = " " + action + ": " + strings.Join(a.keybindMenu.captured, " ") + " …"
+		}
 	}
 	if err := a.drawText(renderer, a.truncateModalListText(header, int(rect.W)-24), int(rect.X)+12, int(rect.Y)+baselineOffset, a.foregroundColor()); err != nil {
 		return err
