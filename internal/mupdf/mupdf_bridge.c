@@ -445,6 +445,80 @@ int gopdf_add_highlight(gopdf_doc *handle, int page_number, const gopdf_quad *qu
 	return 1;
 }
 
+static int gopdf_annot_contains(fz_context *ctx, pdf_annot *annot, fz_point p) {
+	if (pdf_annot_has_quad_points(ctx, annot)) {
+		int n = pdf_annot_quad_point_count(ctx, annot);
+		for (int i = 0; i < n; i++) {
+			if (fz_is_point_inside_rect(p, fz_rect_from_quad(pdf_annot_quad_point(ctx, annot, i)))) {
+				return 1;
+			}
+		}
+		return 0;
+	}
+	return fz_is_point_inside_rect(p, pdf_bound_annot(ctx, annot));
+}
+
+/* Finds the topmost annotation under a point, reporting its index among the
+ * page's annotations (-1 if none) and a malloc'd name of its type. */
+int gopdf_annot_at(gopdf_doc *handle, int page_number, float x, float y, int *index, char **type, char **err) {
+	*index = -1;
+	*type = NULL;
+	*err = NULL;
+	fz_try(handle->ctx) {
+		pdf_page *page = pdf_page_from_fz_page(handle->ctx, gopdf_page_entry_for(handle, page_number)->page);
+		fz_point p = fz_make_point(x, y);
+		int i = 0;
+		for (pdf_annot *a = page ? pdf_first_annot(handle->ctx, page) : NULL; a != NULL; a = pdf_next_annot(handle->ctx, a), i++) {
+			enum pdf_annot_type t = pdf_annot_type(handle->ctx, a);
+			if (t != PDF_ANNOT_POPUP && t != PDF_ANNOT_LINK && gopdf_annot_contains(handle->ctx, a, p)) {
+				*index = i; /* later annotations draw on top */
+				free(*type);
+				*type = gopdf_dup_string_or_throw(handle->ctx, pdf_string_from_annot_type(handle->ctx, t));
+			}
+		}
+	} fz_catch(handle->ctx) {
+		free(*type);
+		*type = NULL;
+		*index = -1;
+		*err = gopdf_dup_string(fz_caught_message(handle->ctx));
+		return 0;
+	}
+	return 1;
+}
+
+/* Deletes the index-th annotation of a page, or recolours it when rgb is
+ * given. */
+int gopdf_edit_annot(gopdf_doc *handle, int page_number, int index, const float *rgb, char **err) {
+	pdf_document *pdf = NULL;
+	*err = NULL;
+	fz_var(pdf);
+	fz_try(handle->ctx) {
+		pdf = gopdf_begin_edit(handle, rgb ? "Recolour annotation" : "Delete annotation");
+		pdf_page *page = pdf_page_from_fz_page(handle->ctx, gopdf_page_entry_for(handle, page_number)->page);
+		pdf_annot *annot = page ? pdf_first_annot(handle->ctx, page) : NULL;
+		for (int i = 0; annot != NULL && i < index; i++) {
+			annot = pdf_next_annot(handle->ctx, annot);
+		}
+		if (annot == NULL) {
+			fz_throw(handle->ctx, FZ_ERROR_ARGUMENT, "no such annotation");
+		}
+		if (rgb) {
+			pdf_set_annot_color(handle->ctx, annot, 3, rgb);
+			pdf_update_annot(handle->ctx, annot);
+		} else {
+			pdf_delete_annot(handle->ctx, page, annot);
+		}
+		pdf_end_operation(handle->ctx, pdf);
+		pdf = NULL;
+		gopdf_invalidate_page(handle, page_number);
+	} fz_catch(handle->ctx) {
+		gopdf_abandon_edit(handle, pdf);
+		*err = gopdf_dup_string(fz_caught_message(handle->ctx));
+		return 0;
+	}
+	return 1;
+}
+
 /* Returns the index-th form widget of a PDF page, or NULL. The widget is
  * borrowed from the page. */
 static pdf_annot *gopdf_widget(gopdf_doc *handle, int page_number, int index, pdf_page **page_out) {

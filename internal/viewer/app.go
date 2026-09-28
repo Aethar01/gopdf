@@ -195,6 +195,7 @@ type inputState struct {
 	discardWarned  bool // the user was told that unsaved edits would be lost
 	editPos        int  // see markEdited
 	savedPos       int
+	pointer        sdl.FPoint // last pointer position, for actions on what is under it
 	passwordPrompt pendingPasswordPrompt
 	mouseBindings  map[string]string
 	searchInput    searchMode
@@ -606,6 +607,9 @@ func (a *App) handleSDLMouseButton(e *sdl.MouseButtonEvent) {
 	if e.Button == uint8(sdl.ButtonLeft) && e.Type == sdl.EventMouseButtonDown && a.clickFormField(float64(e.X), float64(e.Y)) {
 		return
 	}
+	if e.Button == uint8(sdl.ButtonRight) && e.Type == sdl.EventMouseButtonDown && a.openAnnotationMenu(e) {
+		return
+	}
 	if e.Button != uint8(sdl.ButtonLeft) || a.handleLinkButton(e) || !a.config.MouseTextSelect {
 		return
 	}
@@ -667,6 +671,7 @@ func (a *App) handleLinkButton(e *sdl.MouseButtonEvent) bool {
 }
 
 func (a *App) handleSDLMouseMotion(e *sdl.MouseMotionEvent) bool {
+	a.pointer = sdl.FPoint{X: e.X, Y: e.Y}
 	if view := a.activeModalUIView(); view != nil {
 		if view.onMouseMotion != nil {
 			return view.onMouseMotion(a, e)

@@ -219,3 +219,55 @@ func (d *Document) undo(redo bool) error {
 	}
 	return nil
 }
+
+// Annotation is a markup annotation on a page, such as a highlight; Index
+// identifies it for editing.
+type Annotation struct {
+	Index int
+	Type  string // as named by PDF, e.g. "Highlight"
+}
+
+// AnnotationAt returns the topmost annotation under point p on page, if any.
+// Links, popups and form fields are not included.
+func (d *Document) AnnotationAt(page int, p Point) (Annotation, bool, error) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if err := d.validatePageLocked(page); err != nil {
+		return Annotation{}, false, err
+	}
+	if C.gopdf_is_pdf(d.handle) == 0 {
+		return Annotation{}, false, nil
+	}
+	var index C.int
+	var ctype, cerr *C.char
+	if C.gopdf_annot_at(d.handle, C.int(page), C.float(p.X), C.float(p.Y), &index, &ctype, &cerr) == 0 {
+		return Annotation{}, false, consumeError("find annotation", cerr)
+	}
+	defer C.free(unsafe.Pointer(ctype))
+	if index < 0 {
+		return Annotation{}, false, nil
+	}
+	return Annotation{Index: int(index), Type: goString(ctype)}, true, nil
+}
+
+// DeleteAnnotation removes an annotation.
+func (d *Document) DeleteAnnotation(page, index int) error { return d.editAnnotation(page, index, nil) }
+
+// RecolorAnnotation changes an annotation's colour.
+func (d *Document) RecolorAnnotation(page, index int, color [3]uint8) error {
+	rgb := [3]C.float{C.float(color[0]) / 255, C.float(color[1]) / 255, C.float(color[2]) / 255}
+	return d.editAnnotation(page, index, &rgb[0])
+}
+
+func (d *Document) editAnnotation(page, index int, rgb *C.float) error {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if err := d.validatePageLocked(page); err != nil {
+		return err
+	}
+	var cerr *C.char
+	if C.gopdf_edit_annot(d.handle, C.int(page), C.int(index), rgb, &cerr) == 0 {
+		return consumeError("edit annotation", cerr)
+	}
+	return nil
+}

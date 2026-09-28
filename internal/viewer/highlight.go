@@ -23,26 +23,29 @@ func (a *App) annotationPalette() [][3]uint8 {
 }
 
 // pickHighlightColor opens the colour picker for highlighting the selection.
-// Digits pick a colour directly; the last one used is preselected.
 func (a *App) pickHighlightColor() {
-	palette, ok := a.highlightReady()
-	if !ok {
-		return
+	if palette, ok := a.highlightReady(); ok {
+		a.pickColor("Highlight colour", palette, a.highlightSelection)
 	}
+}
+
+// pickColor offers palette as swatch rows and calls apply with the chosen
+// index. Digits pick a colour directly; the last one used is preselected.
+func (a *App) pickColor(title string, palette [][3]uint8, apply func(int)) {
 	rows := make([]uiRow, len(palette))
 	for i, c := range palette {
 		swatch := rgb(c)
 		rows[i] = uiRow{index: i, text: fmt.Sprintf("%d  #%02x%02x%02x", i+1, c[0], c[1], c[2]), value: strconv.Itoa(i), swatch: &swatch}
 	}
 	a.closeAllUI()
-	view := a.createCoreListView("highlight-color", "Highlight colour", rows, 30, 40)
+	view := a.createCoreListView("color-picker", title, rows, 30, 40)
 	view.searchable = false
 	view.selected = clampInt(a.highlightColor, 0, len(rows)-1)
 	view.onKey = func(a *App, e *sdl.KeyboardEvent) bool {
 		if token, ok := keyToken(e.Key, e.Mod); ok && e.Type == sdl.EventKeyDown {
 			if n, err := strconv.Atoi(token); err == nil && n >= 1 && n <= len(palette) {
 				a.closeUIView(view, false)
-				a.highlightSelection(n - 1)
+				apply(n - 1)
 				return true
 			}
 		}
@@ -53,7 +56,7 @@ func (a *App) pickHighlightColor() {
 	view.onSelect = func(a *App, row uiRow) {
 		a.closeUIView(view, false)
 		n, _ := strconv.Atoi(row.value)
-		a.highlightSelection(n)
+		apply(n)
 	}
 	a.showUIView(view)
 }

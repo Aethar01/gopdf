@@ -194,6 +194,8 @@ func (a *App) runBuiltinAction(action string) error {
 		a.undoEdit(false)
 	case "redo":
 		a.undoEdit(true)
+	case "delete_annotation":
+		a.deleteAnnotationUnderPointer()
 	case "search_matches":
 		a.showSearchMatches()
 	case "confirm":

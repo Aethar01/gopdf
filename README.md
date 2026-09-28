@@ -25,6 +25,7 @@ Useful defaults:
 | `F5` | Presentation mode |
 | `H` | Highlight the selection (pick a colour) |
 | `u` / `U` | Undo / redo edits |
+| `x` | Delete the annotation under the pointer (right-click for more) |
 | `F` | Follow a link by typing its hint |
 | `gr` | Open recent files |
 | `:` | Open the command prompt |

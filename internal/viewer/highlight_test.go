@@ -31,3 +31,45 @@ func TestHighlightPickerAnnotatesSelection(t *testing.T) {
 		t.Fatal("selection or picker left open after highlighting")
 	}
 }
+
+func TestDeleteAndRecolourAnnotations(t *testing.T) {
+	app, screenX, lineY := testSelectionApp(t, "select this text")
+	app.config.AnnotationColors = config.Default().AnnotationColors
+	app.handleSDLMouseButton(&sdl.MouseButtonEvent{Type: sdl.EventMouseButtonDown, Button: uint8(sdl.ButtonLeft), Clicks: 2, X: screenX(120), Y: lineY})
+	app.highlightSelection(0)
+
+	app.pointer = sdl.FPoint{X: screenX(10), Y: lineY} // off the highlight
+	app.runAction("delete_annotation")
+	if app.message != "no annotation under the pointer" {
+		t.Fatalf("x off the highlight: %q", app.message)
+	}
+	app.pointer = sdl.FPoint{X: screenX(120), Y: lineY}
+	app.runAction("delete_annotation")
+	if app.message != "deleted highlight" {
+		t.Fatalf("x on the highlight: %q", app.message)
+	}
+	app.runAction("undo")
+
+	right := &sdl.MouseButtonEvent{Type: sdl.EventMouseButtonDown, Button: uint8(sdl.ButtonRight), X: screenX(120), Y: lineY}
+	app.handleSDLMouseButton(right)
+	menu := app.activeUIView()
+	if menu == nil || menu.title != "Highlight" {
+		t.Fatalf("right-click menu = %+v", menu)
+	}
+	menu.onSelect(app, menu.rows[1]) // Change colour…
+	picker := app.activeUIView()
+	if picker == nil || len(picker.rows) != 4 {
+		t.Fatalf("colour picker = %+v", picker)
+	}
+	revision := app.pageRevisions[0]
+	picker.onSelect(app, picker.rows[2])
+	if app.pageRevisions[0] != revision+1 || app.highlightColor != 2 {
+		t.Fatalf("recolour: revision %d→%d colour=%d msg=%q", revision, app.pageRevisions[0], app.highlightColor, app.message)
+	}
+
+	app.handleSDLMouseButton(right)
+	app.activeUIView().onSelect(app, app.activeUIView().rows[0]) // Delete
+	if _, ok := app.annotationAtScreen(float64(screenX(120)), float64(lineY)); ok {
+		t.Fatal("annotation left after deleting from the menu")
+	}
+}

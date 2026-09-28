@@ -48,6 +48,7 @@ var registry = []Action{
 	{Name: "highlight_selection", Keys: []string{"H"}},
 	{Name: "undo", Keys: []string{"u"}},
 	{Name: "redo", Keys: []string{"U"}},
+	{Name: "delete_annotation", Keys: []string{"x"}},
 	{Name: "search_matches", Keys: []string{"gm"}},
 	{Name: "show_completion", Keys: []string{"<Tab>"}},
 	{Name: "next_completion"},

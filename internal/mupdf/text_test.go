@@ -353,3 +353,33 @@ func TestUndoFormEdit(t *testing.T) {
 		t.Fatalf("value after undo = %q, want Ada", w.Value)
 	}
 }
+
+func TestFindRecolourAndDeleteAnnotation(t *testing.T) {
+	doc := mustOpen(t, testpdf.Write(t, "hello"))
+	quad := Quad{UL: Point{X: 72, Y: 80}, UR: Point{X: 150, Y: 80}, LL: Point{X: 72, Y: 95}, LR: Point{X: 150, Y: 95}}
+	if err := doc.AddHighlight(0, []Quad{quad}, [3]uint8{255, 0, 0}); err != nil {
+		t.Fatal(err)
+	}
+	annot, ok, err := doc.AnnotationAt(0, Point{X: 100, Y: 90})
+	if err != nil || !ok || annot.Type != "Highlight" {
+		t.Fatalf("AnnotationAt = %+v, %v, %v", annot, ok, err)
+	}
+	if _, ok, _ := doc.AnnotationAt(0, Point{X: 100, Y: 200}); ok {
+		t.Fatal("found an annotation outside the highlight")
+	}
+	if err := doc.RecolorAnnotation(0, annot.Index, [3]uint8{0, 0, 255}); err != nil {
+		t.Fatal(err)
+	}
+	if err := doc.DeleteAnnotation(0, annot.Index); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok, _ := doc.AnnotationAt(0, Point{X: 100, Y: 90}); ok {
+		t.Fatal("annotation still there after delete")
+	}
+	if err := doc.Undo(); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok, _ := doc.AnnotationAt(0, Point{X: 100, Y: 90}); !ok {
+		t.Fatal("undo did not restore the deleted annotation")
+	}
+}

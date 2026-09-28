@@ -40,26 +40,18 @@ func (a *App) clickFormField(sx, sy float64) bool {
 		a.mode = modeFormField
 		a.input.Set(w.Value)
 	case mupdf.WidgetCheckbox, mupdf.WidgetRadio:
-		a.editFormField(page, func() error { return a.doc.ToggleWidget(page, w.Index) })
+		a.editPage(page, func() error { return a.doc.ToggleWidget(page, w.Index) })
 	case mupdf.WidgetChoice:
 		a.pickFormChoice(page, w)
 	}
 	return true
 }
 
-func (a *App) editFormField(page int, edit func() error) {
-	if err := edit(); err != nil {
-		a.message = err.Error()
-		return
-	}
-	a.pageEdited(page)
-}
-
 func (a *App) submitFormField(value string) {
 	target := a.formField
 	a.formField = nil
 	if target != nil {
-		a.editFormField(target.page, func() error { return a.doc.SetWidgetValue(target.page, target.index, value) })
+		a.editPage(target.page, func() error { return a.doc.SetWidgetValue(target.page, target.index, value) })
 	}
 }
 
@@ -85,7 +77,7 @@ func (a *App) pickFormChoice(page int, w mupdf.Widget) {
 	view.onMouseMotion = func(a *App, e *sdl.MouseMotionEvent) bool { return a.handleGenericUIViewMouseMotion(view, e) }
 	view.onSelect = func(a *App, row uiRow) {
 		a.closeUIView(view, false)
-		a.editFormField(page, func() error { return a.doc.SetWidgetValue(page, w.Index, row.value) })
+		a.editPage(page, func() error { return a.doc.SetWidgetValue(page, w.Index, row.value) })
 	}
 	a.showUIView(view)
 }
