@@ -3,6 +3,7 @@ package mupdf
 /*
 #include <stdlib.h>
 #include "mupdf_bridge.h"
+#include <mupdf/pdf.h>
 */
 import "C"
 
@@ -92,4 +93,106 @@ func sameFile(a, b string) bool {
 	absA, _ := filepath.Abs(a)
 	absB, _ := filepath.Abs(b)
 	return absA == absB
+}
+
+// WidgetKind is the kind of a PDF form field.
+type WidgetKind int
+
+const (
+	WidgetOther WidgetKind = iota
+	WidgetText
+	WidgetCheckbox
+	WidgetRadio
+	WidgetChoice
+)
+
+// Widget is a form field on a page; Index identifies it for editing.
+type Widget struct {
+	Index    int
+	Kind     WidgetKind
+	ReadOnly bool
+	Bounds   Rect
+	Value    string
+}
+
+// WidgetAt returns the form field under point p on page, if any.
+func (d *Document) WidgetAt(page int, p Point) (Widget, bool, error) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if err := d.validatePageLocked(page); err != nil {
+		return Widget{}, false, err
+	}
+	if C.gopdf_is_pdf(d.handle) == 0 {
+		return Widget{}, false, nil
+	}
+	var info C.gopdf_widget_info
+	var cerr *C.char
+	if C.gopdf_widget_at(d.handle, C.int(page), C.float(p.X), C.float(p.Y), &info, &cerr) == 0 {
+		return Widget{}, false, consumeError("find form field", cerr)
+	}
+	if info.index < 0 {
+		return Widget{}, false, nil
+	}
+	defer C.free(unsafe.Pointer(info.value))
+	w := Widget{
+		Index:    int(info.index),
+		ReadOnly: info.readonly != 0,
+		Bounds:   Rect{X0: float32(info.rect.x0), Y0: float32(info.rect.y0), X1: float32(info.rect.x1), Y1: float32(info.rect.y1)},
+		Value:    goString(info.value),
+	}
+	switch info._type {
+	case C.PDF_WIDGET_TYPE_TEXT:
+		w.Kind = WidgetText
+	case C.PDF_WIDGET_TYPE_CHECKBOX:
+		w.Kind = WidgetCheckbox
+	case C.PDF_WIDGET_TYPE_RADIOBUTTON:
+		w.Kind = WidgetRadio
+	case C.PDF_WIDGET_TYPE_COMBOBOX, C.PDF_WIDGET_TYPE_LISTBOX:
+		w.Kind = WidgetChoice
+	}
+	return w, true, nil
+}
+
+// WidgetOptions returns the choices of a choice field.
+func (d *Document) WidgetOptions(page, index int) ([]string, error) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if err := d.validatePageLocked(page); err != nil {
+		return nil, err
+	}
+	var raw **C.char
+	var count C.int
+	var cerr *C.char
+	if C.gopdf_widget_options(d.handle, C.int(page), C.int(index), &raw, &count, &cerr) == 0 {
+		return nil, consumeError("form field options", cerr)
+	}
+	defer C.gopdf_free_strings(raw, count)
+	options := make([]string, int(count))
+	for i, s := range unsafe.Slice(raw, int(count)) {
+		options[i] = C.GoString(s)
+	}
+	return options, nil
+}
+
+// SetWidgetValue sets a text or choice field's value.
+func (d *Document) SetWidgetValue(page, index int, value string) error {
+	cvalue := C.CString(value)
+	defer C.free(unsafe.Pointer(cvalue))
+	return d.editWidget(page, index, cvalue)
+}
+
+// ToggleWidget toggles a check box or radio button.
+func (d *Document) ToggleWidget(page, index int) error { return d.editWidget(page, index, nil) }
+
+func (d *Document) editWidget(page, index int, value *C.char) error {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if err := d.validatePageLocked(page); err != nil {
+		return err
+	}
+	var cerr *C.char
+	if C.gopdf_widget_edit(d.handle, C.int(page), C.int(index), value, &cerr) == 0 {
+		return consumeError("edit form field", cerr)
+	}
+	return nil
 }

@@ -28,6 +28,7 @@ const (
 	modeGotoPage
 	modeSearch
 	modePassword
+	modeFormField
 )
 
 // pageMetrics holds a page's geometry. bounds is what layout and rendering
@@ -187,9 +188,10 @@ type inputState struct {
 	overview       *overviewState // non-nil while the page overview is shown
 	presentation   *presentationState
 	histories      map[string]*promptHistory
-	unsaved        bool // the document has edits not yet written
-	highlightColor int  // palette index last used for highlights
-	discardWarned  bool // the user was told that unsaved edits would be lost
+	unsaved        bool        // the document has edits not yet written
+	highlightColor int         // palette index last used for highlights
+	formField      *formTarget // the text field being edited in modeFormField
+	discardWarned  bool        // the user was told that unsaved edits would be lost
 	passwordPrompt pendingPasswordPrompt
 	mouseBindings  map[string]string
 	searchInput    searchMode
@@ -598,6 +600,9 @@ func (a *App) handleSDLMouseButton(e *sdl.MouseButtonEvent) {
 	if a.panning {
 		return
 	}
+	if e.Button == uint8(sdl.ButtonLeft) && e.Type == sdl.EventMouseButtonDown && a.clickFormField(float64(e.X), float64(e.Y)) {
+		return
+	}
 	if e.Button != uint8(sdl.ButtonLeft) || a.handleLinkButton(e) || !a.config.MouseTextSelect {
 		return
 	}
@@ -795,13 +800,15 @@ func (a *App) commitInputMode() {
 	}
 	currentMode := a.mode
 	input := strings.TrimSpace(a.input.Value)
-	if currentMode == modePassword {
+	// Passwords and field values are taken as typed, blank included.
+	verbatim := currentMode == modePassword || currentMode == modeFormField
+	if verbatim {
 		input = a.input.Value
 	}
 	a.mode = modeNormal
 	a.input.Reset()
 	a.closeCompletion()
-	if input == "" && currentMode != modePassword {
+	if input == "" && !verbatim {
 		return
 	}
 	a.recordPromptHistory(currentMode, input)
@@ -814,6 +821,8 @@ func (a *App) commitInputMode() {
 		a.startSearch(input, a.searchInput)
 	case modePassword:
 		a.submitDocumentPassword(input)
+	case modeFormField:
+		a.submitFormField(input)
 	}
 }
 

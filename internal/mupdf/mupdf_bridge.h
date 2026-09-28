@@ -95,6 +95,14 @@ typedef struct {
 } gopdf_link;
 
 typedef struct {
+	int index; /* -1 when no widget was found */
+	int type;  /* enum pdf_widget_type */
+	int readonly;
+	gopdf_rect rect;
+	char *value;
+} gopdf_widget_info;
+
+typedef struct {
 	gopdf_link *links;
 	int link_count;
 } gopdf_link_result;
@@ -126,6 +134,10 @@ int gopdf_page_info(gopdf_doc *handle, int page_number, gopdf_rect *bounds, char
 int gopdf_lookup_metadata(gopdf_doc *handle, const char *key, char **out, char **err);
 int gopdf_page_image_bounds(gopdf_doc *handle, int page_number, gopdf_rect **out, int *count, char **err);
 int gopdf_is_pdf(gopdf_doc *handle);
+int gopdf_widget_at(gopdf_doc *handle, int page_number, float x, float y, gopdf_widget_info *out, char **err);
+int gopdf_widget_options(gopdf_doc *handle, int page_number, int index, char ***out, int *count, char **err);
+int gopdf_widget_edit(gopdf_doc *handle, int page_number, int index, const char *value, char **err);
+void gopdf_free_strings(char **values, int count);
 int gopdf_add_highlight(gopdf_doc *handle, int page_number, const gopdf_quad *quads, int count, const float *rgb, char **err);
 int gopdf_save(gopdf_doc *handle, const char *path, int incremental, char **err);
 int gopdf_can_save_incrementally(gopdf_doc *handle);

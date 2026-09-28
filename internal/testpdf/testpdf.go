@@ -31,6 +31,27 @@ func WriteImage(t testing.TB) string {
 	})
 }
 
+// WriteForm creates a one-page PDF with three form fields: a text field
+// "name" (value "Ada") over (100,72)-(300,92), a check box "agree" over
+// (100,127)-(115,142), and a combo box "colour" (Red or Green) over
+// (100,172)-(200,192), in top-left page coordinates.
+func WriteForm(t testing.TB) string {
+	t.Helper()
+	appearance := "<</Type/XObject/Subtype/Form/BBox[0 0 15 15]/Length 0>>\nstream\n\nendstream"
+	return write(t, []string{
+		"<</Type/Catalog/Pages 2 0 R/AcroForm<</Fields[4 0 R 5 0 R 6 0 R]/DA(/Helv 12 Tf 0 g)/DR<</Font<</Helv 7 0 R>>>>>>>>",
+		"<</Type/Pages/Kids[3 0 R]/Count 1>>",
+		"<</Type/Page/Parent 2 0 R/MediaBox[0 0 612 792]/Annots[4 0 R 5 0 R 6 0 R]/Contents 8 0 R>>",
+		"<</Type/Annot/Subtype/Widget/FT/Tx/T(name)/V(Ada)/Rect[100 700 300 720]/P 3 0 R/DA(/Helv 12 Tf 0 g)/F 4>>",
+		"<</Type/Annot/Subtype/Widget/FT/Btn/T(agree)/V/Off/AS/Off/Rect[100 650 115 665]/P 3 0 R/F 4/AP<</N<</Yes 9 0 R/Off 10 0 R>>>>>>",
+		"<</Type/Annot/Subtype/Widget/FT/Ch/Ff 131072/T(colour)/Opt[(Red)(Green)]/V(Red)/Rect[100 600 200 620]/P 3 0 R/DA(/Helv 12 Tf 0 g)/F 4>>",
+		"<</Type/Font/Subtype/Type1/BaseFont/Helvetica>>",
+		"<</Length 0>>\nstream\n\nendstream",
+		appearance,
+		appearance,
+	})
+}
+
 // WritePages creates a PDF of Letter pages with each line set in 12pt
 // Helvetica, starting at (72, 700) with 14pt leading, and returns its path.
 func WritePages(t testing.TB, pages ...[]string) string {

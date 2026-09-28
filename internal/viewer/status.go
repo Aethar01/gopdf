@@ -59,6 +59,9 @@ func (a *App) formatStatusBar(template string) string {
 	case modePassword:
 		message = a.inputPrefix() + strings.Repeat("*", len([]rune(a.input.Value)))
 		inputToken = message
+	case modeFormField:
+		message = a.inputPrefix() + a.input.Value
+		inputToken = a.input.Value
 	}
 
 	page := fmt.Sprintf("%d", a.page+1)
@@ -155,6 +158,8 @@ func (a *App) inputPrefix() string {
 		return a.searchPromptToken()
 	case modePassword:
 		return " Password: "
+	case modeFormField:
+		return " Field: "
 	default:
 		return ""
 	}

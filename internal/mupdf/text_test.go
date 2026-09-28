@@ -260,3 +260,48 @@ func mustOpen(t *testing.T, path string) *Document {
 	t.Cleanup(doc.Close)
 	return doc
 }
+
+func TestFormWidgets(t *testing.T) {
+	path := testpdf.WriteForm(t)
+	doc := mustOpen(t, path)
+
+	text, ok, err := doc.WidgetAt(0, Point{X: 150, Y: 80})
+	if err != nil || !ok || text.Kind != WidgetText || text.Value != "Ada" {
+		t.Fatalf("text field = %+v, %v, %v", text, ok, err)
+	}
+	if err := doc.SetWidgetValue(0, text.Index, "Grace"); err != nil {
+		t.Fatal(err)
+	}
+	check, _, _ := doc.WidgetAt(0, Point{X: 107, Y: 135})
+	if check.Kind != WidgetCheckbox || check.Value != "Off" {
+		t.Fatalf("check box = %+v", check)
+	}
+	if err := doc.ToggleWidget(0, check.Index); err != nil {
+		t.Fatal(err)
+	}
+	choice, _, _ := doc.WidgetAt(0, Point{X: 150, Y: 180})
+	options, err := doc.WidgetOptions(0, choice.Index)
+	if choice.Kind != WidgetChoice || err != nil || len(options) != 2 || options[1] != "Green" {
+		t.Fatalf("choice = %+v options=%q err=%v", choice, options, err)
+	}
+	if err := doc.SetWidgetValue(0, choice.Index, "Green"); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok, _ := doc.WidgetAt(0, Point{X: 400, Y: 400}); ok {
+		t.Fatal("found a widget over empty page")
+	}
+
+	copyPath := path + ".filled.pdf"
+	if err := doc.Save(copyPath, path); err != nil {
+		t.Fatal(err)
+	}
+	saved := mustOpen(t, copyPath)
+	for _, c := range []struct {
+		at   Point
+		want string
+	}{{Point{X: 150, Y: 80}, "Grace"}, {Point{X: 107, Y: 135}, "Yes"}, {Point{X: 150, Y: 180}, "Green"}} {
+		if w, _, _ := saved.WidgetAt(0, c.at); w.Value != c.want {
+			t.Errorf("saved field at %v = %q, want %q", c.at, w.Value, c.want)
+		}
+	}
+}

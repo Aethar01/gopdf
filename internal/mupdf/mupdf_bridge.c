@@ -412,6 +412,128 @@ int gopdf_add_highlight(gopdf_doc *handle, int page_number, const gopdf_quad *qu
 	return 1;
 }
 
+/* Returns the index-th form widget of a PDF page, or NULL. The widget is
+ * borrowed from the page. */
+static pdf_annot *gopdf_widget(gopdf_doc *handle, int page_number, int index, pdf_page **page_out) {
+	pdf_page *page = pdf_page_from_fz_page(handle->ctx, gopdf_page_entry_for(handle, page_number)->page);
+	pdf_annot *widget = page ? pdf_first_widget(handle->ctx, page) : NULL;
+	for (int i = 0; widget != NULL && i < index; i++) {
+		widget = pdf_next_widget(handle->ctx, widget);
+	}
+	if (widget == NULL) {
+		fz_throw(handle->ctx, FZ_ERROR_ARGUMENT, "no such form field");
+	}
+	*page_out = page;
+	return widget;
+}
+
+/* Finds the form widget under a point, reporting its index (-1 if none),
+ * type, read-only flag, bounds and value. */
+int gopdf_widget_at(gopdf_doc *handle, int page_number, float x, float y, gopdf_widget_info *out, char **err) {
+	*err = NULL;
+	memset(out, 0, sizeof(*out));
+	out->index = -1;
+	fz_try(handle->ctx) {
+		pdf_page *page = pdf_page_from_fz_page(handle->ctx, gopdf_page_entry_for(handle, page_number)->page);
+		int i = 0;
+		for (pdf_annot *w = page ? pdf_first_widget(handle->ctx, page) : NULL; w != NULL; w = pdf_next_widget(handle->ctx, w), i++) {
+			fz_rect r = pdf_bound_widget(handle->ctx, w);
+			if (x >= r.x0 && x <= r.x1 && y >= r.y0 && y <= r.y1) {
+				out->index = i;
+				out->type = pdf_widget_type(handle->ctx, w);
+				out->readonly = pdf_widget_is_readonly(handle->ctx, w);
+				out->rect.x0 = r.x0;
+				out->rect.y0 = r.y0;
+				out->rect.x1 = r.x1;
+				out->rect.y1 = r.y1;
+				out->value = gopdf_dup_string_or_throw(handle->ctx, pdf_annot_field_value(handle->ctx, w));
+				break;
+			}
+		}
+	} fz_catch(handle->ctx) {
+		*err = gopdf_dup_string(fz_caught_message(handle->ctx));
+		return 0;
+	}
+	return 1;
+}
+
+/* Returns a choice widget's options as a malloc'd array of malloc'd strings. */
+int gopdf_widget_options(gopdf_doc *handle, int page_number, int index, char ***out, int *count, char **err) {
+	const char **opts = NULL;
+	*out = NULL;
+	*count = 0;
+	*err = NULL;
+	fz_var(opts);
+	fz_try(handle->ctx) {
+		pdf_page *page;
+		pdf_annot *widget = gopdf_widget(handle, page_number, index, &page);
+		int n = pdf_choice_widget_options(handle->ctx, widget, 0, NULL);
+		if (n > 0) {
+			opts = fz_malloc_array(handle->ctx, n, const char *);
+			pdf_choice_widget_options(handle->ctx, widget, 0, opts);
+			*out = (char **)calloc((size_t)n, sizeof(char *));
+			if (*out == NULL) {
+				fz_throw(handle->ctx, FZ_ERROR_SYSTEM, "calloc failed");
+			}
+			for (int i = 0; i < n; i++) {
+				(*out)[i] = gopdf_dup_string_or_throw(handle->ctx, opts[i]);
+				*count = i + 1;
+			}
+		}
+	} fz_always(handle->ctx) {
+		fz_free(handle->ctx, opts);
+	} fz_catch(handle->ctx) {
+		gopdf_free_strings(*out, *count);
+		*out = NULL;
+		*count = 0;
+		*err = gopdf_dup_string(fz_caught_message(handle->ctx));
+		return 0;
+	}
+	return 1;
+}
+
+void gopdf_free_strings(char **values, int count) {
+	for (int i = 0; values != NULL && i < count; i++) {
+		free(values[i]);
+	}
+	free(values);
+}
+
+/* Edits a form widget: sets a text or choice value, or toggles a check box
+ * or radio button when value is NULL, then refreshes the page. */
+int gopdf_widget_edit(gopdf_doc *handle, int page_number, int index, const char *value, char **err) {
+	*err = NULL;
+	fz_try(handle->ctx) {
+		pdf_page *page;
+		pdf_annot *widget = gopdf_widget(handle, page_number, index, &page);
+		switch (pdf_widget_type(handle->ctx, widget)) {
+		case PDF_WIDGET_TYPE_TEXT:
+			if (!pdf_set_text_field_value(handle->ctx, widget, value ? value : "")) {
+				fz_throw(handle->ctx, FZ_ERROR_ARGUMENT, "value rejected by the form");
+			}
+			break;
+		case PDF_WIDGET_TYPE_COMBOBOX:
+		case PDF_WIDGET_TYPE_LISTBOX: {
+			const char *opts[1] = { value ? value : "" };
+			pdf_choice_widget_set_value(handle->ctx, widget, 1, opts);
+			break;
+		}
+		case PDF_WIDGET_TYPE_CHECKBOX:
+		case PDF_WIDGET_TYPE_RADIOBUTTON:
+			pdf_toggle_widget(handle->ctx, widget);
+			break;
+		default:
+			fz_throw(handle->ctx, FZ_ERROR_ARGUMENT, "this form field cannot be edited");
+		}
+		pdf_update_page(handle->ctx, page);
+		gopdf_invalidate_page(handle, page_number);
+	} fz_catch(handle->ctx) {
+		*err = gopdf_dup_string(fz_caught_message(handle->ctx));
+		return 0;
+	}
+	return 1;
+}
+
 int gopdf_is_pdf(gopdf_doc *handle) {
 	return pdf_specifics(handle->ctx, handle->doc) != NULL;
 }
