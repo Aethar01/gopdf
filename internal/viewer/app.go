@@ -191,7 +191,8 @@ type inputState struct {
 	unsaved        bool        // the document has edits not yet written
 	highlightColor int         // palette index last used for highlights
 	formField      *formTarget // the text field being edited in modeFormField
-	discardWarned  bool        // the user was told that unsaved edits would be lost
+	preview        *linkPreview
+	discardWarned  bool // the user was told that unsaved edits would be lost
 	passwordPrompt pendingPasswordPrompt
 	mouseBindings  map[string]string
 	searchInput    searchMode
@@ -677,7 +678,9 @@ func (a *App) handleSDLMouseMotion(e *sdl.MouseMotionEvent) bool {
 	}
 	a.stopPan()
 
-	hoverChanged := a.setHoveredLink(a.linkAt(float64(e.X), float64(e.Y)))
+	link, overLink := a.linkAt(float64(e.X), float64(e.Y))
+	hoverChanged := a.setHoveredLink(link, overLink)
+	a.hoverLinkPreview(link, overLink, e.X, e.Y)
 
 	if !a.selection.active || uint32(e.State)&uint32(sdl.ButtonLMask) == 0 {
 		return hoverChanged

@@ -161,6 +161,7 @@ func (a *App) prefetchVisiblePages() {
 		}
 	})
 
+	visible = append(visible, a.previewTiles(scale)...)
 	wanted := make(map[tileKey]bool, len(visible)+len(prefetch))
 	onScreen := make(map[tileKey]bool, len(visible))
 	protected := make(map[tileKey]bool, 2*len(visible))

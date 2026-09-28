@@ -15,6 +15,7 @@ func Default() Config {
 		MuPDFStoreMB:        256,
 		HintChars:           "asdfghjkl",
 		AltColorsKeepImages: true,
+		LinkPreview:         true,
 		AnnotationColors:    []string{"#ffe066", "#8ce99a", "#74c0fc", "#ffa8a8"},
 		DualPage:            false,
 		FirstPageOffset:     true,

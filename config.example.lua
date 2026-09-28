@@ -23,6 +23,7 @@ gopdf.options.highlight_foreground = {0, 0, 0} -- Selection and search highlight
 gopdf.options.hint_chars = "asdfghjkl" -- Characters used for link hint labels, in order of preference.
 gopdf.options.invert_scroll = false -- Invert horizontal and vertical discrete mouse-wheel scrolling.
 gopdf.options.invert_smooth_scroll = false -- Invert horizontal and vertical smooth wheel or trackpad scrolling.
+gopdf.options.link_preview = true -- Preview the destination of an internal link after hovering it briefly.
 gopdf.options.link_schemes = {"http", "https", "mailto"} -- URI schemes that document links may open externally; other links only show their target.
 gopdf.options.max_zoom = 8 -- Maximum manual zoom scale.
 gopdf.options.min_zoom = 0.5 -- Minimum manual zoom scale.

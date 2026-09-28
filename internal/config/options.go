@@ -373,6 +373,7 @@ var configOptions = map[string]optionDesc{
 	"alt_colors_keep_images": boolOption("Keep raster images in their own colors in alternate-color mode.", func(c *Config) bool { return c.AltColorsKeepImages }, func(c *Config, v bool) { c.AltColorsKeepImages = v }),
 	"trim_margins":           boolOption("Lay pages out by their content, trimming blank margins.", func(c *Config) bool { return c.TrimMargins }, func(c *Config, v bool) { c.TrimMargins = v }),
 	"annotation_colors":      stringListOption("Highlight colours offered by the highlight picker, as #RRGGBB.", func(c *Config) []string { return c.AnnotationColors }, func(c *Config, v []string) { c.AnnotationColors = v }),
+	"link_preview":           boolOption("Preview the destination of an internal link after hovering it briefly.", func(c *Config) bool { return c.LinkPreview }, func(c *Config, v bool) { c.LinkPreview = v }),
 	"dual_page":              boolOption("Start in dual-page mode.", func(c *Config) bool { return c.DualPage }, func(c *Config, v bool) { c.DualPage = v }),
 	"first_page_offset":      boolOption("Treat the first page as a standalone cover in dual-page mode.", func(c *Config) bool { return c.FirstPageOffset }, func(c *Config, v bool) { c.FirstPageOffset = v }),
 	"anti_aliasing":          intOption("MuPDF antialiasing level from 0 through 8.", func(c *Config) int { return c.AntiAliasing }, func(c *Config, v int) { c.AntiAliasing = v }),

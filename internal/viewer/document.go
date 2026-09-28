@@ -215,6 +215,7 @@ func (a *App) resetForNewDocument(password string) {
 	a.jumpAhead = nil
 	a.pendingOpen = ""
 	a.hints = nil
+	a.preview = nil
 	a.unsaved, a.discardWarned = false, false
 	a.overview = nil
 	a.presentation = nil

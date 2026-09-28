@@ -86,6 +86,7 @@ func (a *App) Run() error {
 		a.pollDocumentUpdate()
 		a.expireSequence()
 		a.finishKeybindCapture(time.Now())
+		a.revealLinkPreview()
 		a.prefetchVisiblePages()
 		a.adjustRenderBaseScaleForExtremeZoom(a.scale)
 		a.emitViewStateEvents()
@@ -137,6 +138,9 @@ func (a *App) eventWaitTimeoutMS() int {
 		return int(smoothAnimationFrame / time.Millisecond)
 	}
 	deadline := a.captureDeadline()
+	if d := a.previewDeadline(); !d.IsZero() {
+		deadline = d
+	}
 	if len(a.sequence) > 0 {
 		deadline = a.sequenceAt.Add(time.Duration(a.config.SequenceTimeoutMS) * time.Millisecond)
 	}
@@ -193,6 +197,7 @@ func (a *App) handleSDLEvent(event *sdl.Event) error {
 		a.handleSDLKeyUp(&e)
 		redraw = false
 	case sdl.EventKeyDown:
+		a.preview = nil
 		e := event.Key()
 		if _, ok := a.repeatableMenuAction(&e); ok {
 			e.Repeat = false
@@ -204,6 +209,7 @@ func (a *App) handleSDLEvent(event *sdl.Event) error {
 		e := event.Text()
 		a.handleSDLTextInput(&e)
 	case sdl.EventMouseWheel:
+		a.preview = nil
 		e := event.Wheel()
 		a.handleAnimatedMouseWheel(&e)
 		redraw = false
@@ -217,6 +223,7 @@ func (a *App) handleSDLEvent(event *sdl.Event) error {
 		a.endPinch()
 		redraw = false
 	case sdl.EventMouseButtonDown, sdl.EventMouseButtonUp:
+		a.preview = nil
 		e := event.Button()
 		a.handleMouseButtonEvent(&e)
 	case sdl.EventMouseMotion:
@@ -357,6 +364,7 @@ func (a *App) drawFrame() error {
 	// An on-screen loader animates, so it asks for the next frame.
 	a.pendingRedraw = a.loaderVisible
 	a.drawLinkHints(a.renderer)
+	a.drawLinkPreview(a.renderer)
 	if a.statusVisible() {
 		if err := a.drawStatusBar(a.renderer); err != nil {
 			return err
