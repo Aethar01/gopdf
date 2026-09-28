@@ -92,8 +92,10 @@ func (a *App) pollMetricUpdates() {
 			changed = true
 		default:
 			if changed {
+				oldX, oldY := a.scrollX, a.scrollY
 				a.recomputeLayout(a.viewportSize())
 				a.restoreViewportAnchor(anchor)
+				a.shiftSmoothScroll(oldX, oldY)
 				a.pendingRedraw = true
 			}
 			return

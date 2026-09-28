@@ -358,6 +358,22 @@ func (a *App) advanceModalSmoothScrollBy(state *smoothScrollState, elapsed time.
 	return false
 }
 
+// shiftSmoothScroll carries an in-flight wheel animation across a relayout
+// that moved the viewport from (oldX, oldY) to keep the same content in view.
+// Without it the animation treats the anchor correction as a foreign scroll
+// and cancels, dropping the rest of the swipe.
+func (a *App) shiftSmoothScroll(oldX, oldY float64) {
+	state := a.smoothScrollState()
+	if state == nil || state.modalView != nil || state.appliedX != oldX || state.appliedY != oldY {
+		return
+	}
+	maxX, maxY := a.maxScrollOffsets()
+	state.targetX = clampFloat(state.targetX+a.scrollX-oldX, 0, maxX)
+	state.targetY = clampFloat(state.targetY+a.scrollY-oldY, 0, maxY)
+	state.appliedX = a.scrollX
+	state.appliedY = a.scrollY
+}
+
 func (a *App) smoothScrollState() *smoothScrollState {
 	return a.smoothScroll
 }

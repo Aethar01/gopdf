@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"gopdf/internal/config"
+	"gopdf/internal/mupdf"
 
 	"github.com/jupiterrider/purego-sdl3/sdl"
 )
@@ -206,4 +207,37 @@ func TestSmoothTowardNormalizesForElapsedTime(t *testing.T) {
 func TestSmoothTowardClampsDampening(t *testing.T) {
 	assertClose(t, smoothToward(0, 1, 2, smoothAnimationFrame, smoothAnimationFrame), 1)
 	assertClose(t, smoothToward(0, 1, 0, smoothAnimationFrame, smoothAnimationFrame), 0.01)
+}
+
+func TestMetricRelayoutKeepsPendingSmoothScrollDistance(t *testing.T) {
+	app := testLayoutApp(5)
+	app.config.SmoothScrollDampening = 0.35
+	app.recomputeLayout(1000, 100)
+	app.scrollY = 500
+	defer app.cancelSmoothScroll()
+
+	app.queueSmoothScroll(0, 100)
+	app.advanceSmoothScrollBy(smoothAnimationFrame)
+	remaining := app.smoothScrollState().targetY - app.scrollY
+
+	// A page above the viewport grows once its real size arrives, so the
+	// anchor restore shifts scrollY to keep the same content in view.
+	app.metricLoader = &metricLoader{updates: make(chan pageMetricUpdate, 1)}
+	app.metricLoader.updates <- pageMetricUpdate{page: 0, bounds: mupdf.Rect{X1: 100, Y1: 300}, width: 100, height: 300}
+	oldY := app.scrollY
+	app.pollMetricUpdates()
+	if app.scrollY == oldY {
+		t.Fatal("expected metric relayout to move the viewport")
+	}
+
+	shiftedY := app.scrollY
+	state := app.smoothScrollState()
+	if state == nil {
+		t.Fatal("expected metric relayout to keep the smooth scroll active")
+	}
+	assertClose(t, state.targetY-shiftedY, remaining)
+	for i := 0; i < 100 && app.smoothScrollActive(); i++ {
+		app.advanceSmoothScrollBy(smoothAnimationFrame)
+	}
+	assertClose(t, app.scrollY, shiftedY+remaining)
 }
