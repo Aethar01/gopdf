@@ -99,8 +99,6 @@ int gopdf_count_pages(gopdf_doc *handle, int *count, char **err);
 int gopdf_page_bounds(gopdf_doc *handle, int page_number, gopdf_rect *out, char **err);
 int gopdf_page_label(gopdf_doc *handle, int page_number, char **out, char **err);
 int gopdf_lookup_metadata(gopdf_doc *handle, const char *key, char **out, char **err);
-int gopdf_render_page_info(gopdf_doc *handle, int page_number, float scale, float rotation, int *width, int *height, int *stride, int *x, int *y, char **err);
-int gopdf_render_page_to_buffer(gopdf_doc *handle, int page_number, float scale, float rotation, int aa_level, unsigned char *samples, int width, int height, int stride, char **err);
 int gopdf_render_page_alloc(gopdf_doc *handle, int page_number, float scale, float rotation, int aa_level, unsigned char **samples, int *width, int *height, int *stride, int *x, int *y, char **err);
 void gopdf_cancel_render(gopdf_doc *handle);
 void gopdf_free_rendered_page(unsigned char *samples);
