@@ -2,9 +2,14 @@ package viewer
 
 import (
 	"container/list"
+	"fmt"
+	"slices"
 	"testing"
+	"time"
 
 	"gopdf/internal/config"
+	"gopdf/internal/mupdf"
+	"gopdf/internal/testpdf"
 )
 
 func listWithValues(values ...any) *list.List {
@@ -209,8 +214,8 @@ func TestPrefetchVisiblePagesQueuesBoundedLookahead(t *testing.T) {
 }
 
 func TestVisibleRequestPreemptsPreviouslyVisibleRender(t *testing.T) {
-	worker := &renderWorker{}
-	worker.activePage.Store(1)
+	worker := &renderWorker{slots: []*renderSlot{{}}}
+	worker.slots[0].activePage.Store(1)
 	app := &App{
 		documentWorkers: documentWorkers{renderWorker: worker},
 		renderService: renderService{
@@ -229,5 +234,53 @@ func TestVisibleRequestPreemptsPreviouslyVisibleRender(t *testing.T) {
 	}
 	if _, ok := app.renderPending["new"]; !ok {
 		t.Fatal("visible render was removed")
+	}
+}
+
+func TestRenderWorkerPoolRendersEveryRequest(t *testing.T) {
+	pages := make([][]string, 6)
+	for i := range pages {
+		pages[i] = []string{"page"}
+	}
+	doc, err := mupdf.Open(testpdf.WritePages(t, pages...), "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer doc.Close()
+	w := newRenderWorker(doc, 3)
+	defer w.Close()
+	if len(w.slots) != 3 {
+		t.Fatalf("slots = %d, want 3", len(w.slots))
+	}
+	for page := range pages {
+		if !w.Enqueue(renderRequest{page: page, scale: 0.5, cacheKey: fmt.Sprint(page)}) {
+			t.Fatalf("enqueue page %d failed", page)
+		}
+	}
+	seen := map[int]bool{}
+	timeout := time.After(5 * time.Second)
+	for len(seen) < len(pages) {
+		select {
+		case update := <-w.updates:
+			if update.err != nil {
+				t.Fatal(update.err)
+			}
+			update.rendered.Close()
+			if seen[update.request.page] {
+				t.Fatalf("page %d rendered twice", update.request.page)
+			}
+			seen[update.request.page] = true
+		case <-timeout:
+			t.Fatalf("rendered %d of %d pages", len(seen), len(pages))
+		}
+	}
+}
+
+func TestCancelNotVisibleChecksEverySlot(t *testing.T) {
+	w := &renderWorker{slots: []*renderSlot{{}, {}, {}}}
+	w.slots[0].activePage.Store(1) // page 0, visible
+	w.slots[1].activePage.Store(5) // page 4, offscreen
+	if got := w.CancelNotVisible(map[int]bool{0: true}); !slices.Equal(got, []int{4}) {
+		t.Fatalf("cancelled = %v, want [4]", got)
 	}
 }

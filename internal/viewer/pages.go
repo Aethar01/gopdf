@@ -232,13 +232,11 @@ func (a *App) preemptNonVisibleRender() {
 	if a.renderWorker == nil {
 		return
 	}
-	page, cancelled := a.renderWorker.CancelNotVisible(a.visibleCachePages)
-	if !cancelled {
-		return
-	}
-	for key, req := range a.renderPending {
-		if req.generation == a.renderGeneration && req.page == page {
-			delete(a.renderPending, key)
+	for _, page := range a.renderWorker.CancelNotVisible(a.visibleCachePages) {
+		for key, req := range a.renderPending {
+			if req.generation == a.renderGeneration && req.page == page {
+				delete(a.renderPending, key)
+			}
 		}
 	}
 }

@@ -4,6 +4,8 @@ import (
 	"container/list"
 	"fmt"
 	"math"
+	"runtime"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -56,29 +58,82 @@ type renderVariantKey struct {
 	aaLevel   int
 }
 
+// renderWorker rasterises pages on a pool of goroutines, each with its own
+// MuPDF renderer, taking the most urgent wanted request from a shared queue.
 type renderWorker struct {
 	workerLifecycle
-	renderer   *mupdf.Renderer
+	slots      []*renderSlot
 	requests   chan renderRequest
 	updates    chan renderUpdate
 	generation atomic.Int32
 	wanted     atomic.Value
 	visible    atomic.Value
-	activePage atomic.Int32
+
+	mu    sync.Mutex
+	queue []renderRequest
 }
 
-func newRenderWorker(doc *mupdf.Document) *renderWorker {
+type renderSlot struct {
+	renderer   *mupdf.Renderer
+	activePage atomic.Int32 // page+1 while rendering, 0 when idle
+}
+
+func (s *renderSlot) active() (int, bool) {
+	page := int(s.activePage.Load()) - 1
+	return page, page >= 0
+}
+
+func (s *renderSlot) cancel() {
+	if s.renderer != nil {
+		s.renderer.Cancel()
+	}
+}
+
+func newRenderWorker(doc *mupdf.Document, threads int) *renderWorker {
 	w := &renderWorker{
 		workerLifecycle: newWorkerLifecycle(),
 		requests:        make(chan renderRequest, 128),
 		updates:         make(chan renderUpdate, maxPendingPrefetchRenders),
 	}
-	err := fmt.Errorf("render worker: no document open")
-	if doc != nil {
-		w.renderer, err = doc.NewRenderer()
+	if err := w.startSlots(doc, threads); err != nil {
+		go func() {
+			sendWorkerUpdate(&w.workerLifecycle, w.updates, renderUpdate{err: err})
+			w.closeOnce.Do(func() { close(w.closing) })
+			close(w.done)
+		}()
+		return w
 	}
-	go w.run(err)
+	var wg sync.WaitGroup
+	for _, slot := range w.slots {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			w.run(slot)
+		}()
+	}
+	go func() {
+		wg.Wait()
+		close(w.done)
+	}()
 	return w
+}
+
+func (w *renderWorker) startSlots(doc *mupdf.Document, threads int) error {
+	if doc == nil {
+		return fmt.Errorf("render worker: no document open")
+	}
+	for range max(1, threads) {
+		renderer, err := doc.NewRenderer()
+		if err != nil {
+			for _, slot := range w.slots {
+				slot.renderer.Close()
+			}
+			w.slots = nil
+			return err
+		}
+		w.slots = append(w.slots, &renderSlot{renderer: renderer})
+	}
+	return nil
 }
 
 func (w *renderWorker) Close() {
@@ -87,8 +142,11 @@ func (w *renderWorker) Close() {
 }
 
 func (w *renderWorker) Cancel() {
-	if w != nil && w.renderer != nil {
-		w.renderer.Cancel()
+	if w == nil {
+		return
+	}
+	for _, slot := range w.slots {
+		slot.cancel()
 	}
 }
 
@@ -105,9 +163,10 @@ func (w *renderWorker) SetWantedPages(pages map[int]bool) {
 		}
 	}
 	w.wanted.Store(keep)
-	activePage := int(w.activePage.Load()) - 1
-	if activePage >= 0 && !keep[activePage] {
-		w.Cancel()
+	for _, slot := range w.slots {
+		if page, ok := slot.active(); ok && !keep[page] {
+			slot.cancel()
+		}
 	}
 }
 
@@ -121,13 +180,16 @@ func (w *renderWorker) SetVisiblePages(pages map[int]bool) {
 	w.visible.Store(visible)
 }
 
-func (w *renderWorker) CancelNotVisible(visible map[int]bool) (int, bool) {
-	activePage := int(w.activePage.Load()) - 1
-	if activePage < 0 || visible[activePage] {
-		return 0, false
+// CancelNotVisible cancels renders of pages outside visible and returns them.
+func (w *renderWorker) CancelNotVisible(visible map[int]bool) []int {
+	var cancelled []int
+	for _, slot := range w.slots {
+		if page, ok := slot.active(); ok && !visible[page] {
+			slot.cancel()
+			cancelled = append(cancelled, page)
+		}
 	}
-	w.Cancel()
-	return activePage, true
+	return cancelled
 }
 
 func (w *renderWorker) Enqueue(req renderRequest) bool {
@@ -141,22 +203,26 @@ func (w *renderWorker) Enqueue(req renderRequest) bool {
 	}
 }
 
+// DrainUnwanted drops queued requests that are stale or no longer wanted.
 func (w *renderWorker) DrainUnwanted(gen int) {
-	var keep []renderRequest
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	w.drainRequestsLocked()
+	queue := w.queue[:0]
+	for _, req := range w.queue {
+		if w.requestWanted(req, gen) {
+			queue = append(queue, req)
+		}
+	}
+	w.queue = queue
+}
+
+func (w *renderWorker) drainRequestsLocked() {
 	for {
 		select {
 		case req := <-w.requests:
-			if w.requestWanted(req, gen) {
-				keep = append(keep, req)
-			}
+			w.queue = append(w.queue, req)
 		default:
-			for _, req := range keep {
-				select {
-				case <-w.closing:
-					return
-				case w.requests <- req:
-				}
-			}
 			return
 		}
 	}
@@ -189,42 +255,40 @@ func (w *renderWorker) requestPriority(req renderRequest) int {
 	return req.priority
 }
 
-func (w *renderWorker) run(startErr error) {
-	defer close(w.done)
-	if startErr != nil {
-		sendWorkerUpdate(&w.workerLifecycle, w.updates, renderUpdate{err: startErr})
-		w.closeOnce.Do(func() { close(w.closing) })
-		return
-	}
-	defer w.renderer.Close()
-	var queue []renderRequest
+func (w *renderWorker) run(slot *renderSlot) {
+	defer slot.renderer.Close()
 	for {
-		if len(queue) == 0 {
-			select {
-			case <-w.closing:
-				return
-			case req := <-w.requests:
-				queue = append(queue, req)
-			}
-		}
-		drain := true
-		for drain {
-			select {
-			case req := <-w.requests:
-				queue = append(queue, req)
-			default:
-				drain = false
-			}
-		}
-		req, nextQueue, ok := w.popNextRequest(queue)
-		queue = nextQueue
+		req, ok := w.next()
 		if !ok {
-			continue
+			return
 		}
-		w.activePage.Store(int32(req.page + 1))
-		rendered, err := w.renderer.Render(req.page, req.scale, 0, req.aaLevel)
-		w.activePage.Store(0)
+		slot.activePage.Store(int32(req.page + 1))
+		rendered, err := slot.renderer.Render(req.page, req.scale, 0, req.aaLevel)
+		slot.activePage.Store(0)
 		sendWorkerUpdate(&w.workerLifecycle, w.updates, renderUpdate{request: req, rendered: rendered, err: err})
+	}
+}
+
+// next blocks until a wanted request is queued, or reports false once the
+// worker is closing.
+func (w *renderWorker) next() (renderRequest, bool) {
+	for {
+		w.mu.Lock()
+		w.drainRequestsLocked()
+		req, queue, ok := w.popNextRequest(w.queue)
+		w.queue = queue
+		w.mu.Unlock()
+		if ok {
+			return req, true
+		}
+		select {
+		case <-w.closing:
+			return renderRequest{}, false
+		case req := <-w.requests:
+			w.mu.Lock()
+			w.queue = append(w.queue, req)
+			w.mu.Unlock()
+		}
 	}
 }
 
@@ -255,7 +319,7 @@ func renderCacheKey(page int, scale float64, altColors bool, aaLevel int) string
 func (a *App) initRenderWorker() {
 	a.logf("start render worker path=%q", a.docPath)
 	a.renderPending = map[string]renderRequest{}
-	a.renderWorker = newRenderWorker(a.doc)
+	a.renderWorker = newRenderWorker(a.doc, renderThreadCount(a.config))
 	a.renderWorker.SetGeneration(a.renderGeneration)
 }
 
@@ -669,6 +733,14 @@ const (
 	thumbnailInitialZoom      = 0.5
 	thumbnailMaxZoom          = 0.5
 )
+
+// renderThreadCount leaves a core for the UI when render_threads is 0 (auto).
+func renderThreadCount(cfg config.Config) int {
+	if cfg.RenderThreads > 0 {
+		return cfg.RenderThreads
+	}
+	return min(4, max(1, runtime.NumCPU()-1))
+}
 
 func estimatedTextureBytes(width, height int) int64 {
 	if width <= 0 || height <= 0 {
