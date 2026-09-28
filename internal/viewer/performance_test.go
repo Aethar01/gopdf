@@ -188,7 +188,7 @@ func BenchmarkPerfHeavyPDFExtractSelection(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		// A drag across the page, as refreshSelection does per pointer move.
 		focus := mupdf.Point{X: float64(info.Bounds.X1) * float64(i%10+1) / 10, Y: float64(info.Bounds.Y1) / 2}
-		if _, err := doc.ExtractSelection(0, mupdf.Point{}, focus); err != nil {
+		if _, err := doc.ExtractSelection(0, mupdf.Point{}, focus, mupdf.SelectChars); err != nil {
 			b.Fatal(err)
 		}
 	}

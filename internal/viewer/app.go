@@ -40,6 +40,7 @@ type pageMetrics struct {
 
 type textSelection struct {
 	active bool
+	mode   mupdf.SelectMode // words or lines after a double or triple click
 	page   int
 	anchor mupdf.Point
 	focus  mupdf.Point
@@ -571,7 +572,10 @@ func (a *App) handleSDLMouseButton(e *sdl.MouseButtonEvent) {
 	if e.Type == sdl.EventMouseButtonDown {
 		a.selection = textSelection{}
 		if page, point, ok := a.pagePointAtScreen(float64(e.X), float64(e.Y)); ok {
-			a.selection = textSelection{active: true, page: page, anchor: point, focus: point}
+			a.selection = textSelection{active: true, mode: clickSelectMode(e.Clicks), page: page, anchor: point, focus: point}
+			if a.selection.mode != mupdf.SelectChars {
+				a.refreshSelection() // a double or triple click selects without a drag
+			}
 		}
 		a.emitSelectionChanged()
 		return
@@ -580,6 +584,17 @@ func (a *App) handleSDLMouseButton(e *sdl.MouseButtonEvent) {
 		a.selection.active = false
 		a.copySelectionToClipboard()
 		a.emitSelectionChanged()
+	}
+}
+
+func clickSelectMode(clicks uint8) mupdf.SelectMode {
+	switch {
+	case clicks >= 3:
+		return mupdf.SelectLines
+	case clicks == 2:
+		return mupdf.SelectWords
+	default:
+		return mupdf.SelectChars
 	}
 }
 

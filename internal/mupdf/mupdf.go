@@ -258,7 +258,16 @@ func (d *Document) Metadata() (Metadata, error) {
 	}, nil
 }
 
-func (d *Document) ExtractSelection(page int, a, b Point) (*Selection, error) {
+// SelectMode sets what a selection snaps to.
+type SelectMode int
+
+const (
+	SelectChars SelectMode = C.FZ_SELECT_CHARS
+	SelectWords SelectMode = C.FZ_SELECT_WORDS
+	SelectLines SelectMode = C.FZ_SELECT_LINES
+)
+
+func (d *Document) ExtractSelection(page int, a, b Point, mode SelectMode) (*Selection, error) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	if err := d.validatePageLocked(page); err != nil {
@@ -266,7 +275,7 @@ func (d *Document) ExtractSelection(page int, a, b Point) (*Selection, error) {
 	}
 	var sel C.gopdf_selection
 	var cerr *C.char
-	if ok := C.gopdf_extract_selection(d.handle, C.int(page), C.float(a.X), C.float(a.Y), C.float(b.X), C.float(b.Y), &sel, &cerr); ok == 0 {
+	if ok := C.gopdf_extract_selection(d.handle, C.int(page), C.float(a.X), C.float(a.Y), C.float(b.X), C.float(b.Y), C.int(mode), &sel, &cerr); ok == 0 {
 		return nil, consumeError("extract selection", cerr)
 	}
 	defer C.gopdf_free_selection(d.handle, &sel)

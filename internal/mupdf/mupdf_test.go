@@ -20,7 +20,7 @@ func TestClosedDocumentReturnsErrors(t *testing.T) {
 	if _, err := doc.NewRenderer(); err == nil {
 		t.Fatal("expected NewRenderer on closed document to fail")
 	}
-	if _, err := doc.ExtractSelection(0, Point{}, Point{}); err == nil {
+	if _, err := doc.ExtractSelection(0, Point{}, Point{}, SelectChars); err == nil {
 		t.Fatal("expected ExtractSelection on closed document to fail")
 	}
 	if _, err := doc.SearchPage(0, "needle"); err == nil {

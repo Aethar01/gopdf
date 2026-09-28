@@ -202,7 +202,7 @@ func (a *App) pageGeometryAtScreen(sx, sy float64) (int, float64, float64, bool)
 }
 
 func (a *App) refreshSelection() {
-	sel, err := a.doc.ExtractSelection(a.selection.page, a.selection.anchor, a.selection.focus)
+	sel, err := a.doc.ExtractSelection(a.selection.page, a.selection.anchor, a.selection.focus, a.selection.mode)
 	if err != nil {
 		a.message = err.Error()
 		return

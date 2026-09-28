@@ -128,7 +128,7 @@ func TestPageCacheEvictionKeepsPagesUsable(t *testing.T) {
 			rendered.Close()
 		}
 	}
-	sel, err := doc.ExtractSelection(0, Point{X: 0, Y: 0}, Point{X: 612, Y: 792})
+	sel, err := doc.ExtractSelection(0, Point{X: 0, Y: 0}, Point{X: 612, Y: 792}, SelectChars)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -174,7 +174,7 @@ func TestRenderersRunConcurrentlyWithDocumentCalls(t *testing.T) {
 		}()
 	}
 	for i := 0; i < 20; i++ {
-		if _, err := doc.ExtractSelection(i%len(pages), Point{}, Point{X: 612, Y: 792}); err != nil {
+		if _, err := doc.ExtractSelection(i%len(pages), Point{}, Point{X: 612, Y: 792}, SelectChars); err != nil {
 			t.Fatal(err)
 		}
 		if _, err := doc.TextLayer(i % len(pages)); err != nil {

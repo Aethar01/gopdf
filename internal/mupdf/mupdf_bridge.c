@@ -762,7 +762,8 @@ static fz_point gopdf_selection_normalize_point(fz_stext_page *text, fz_point po
 	return point;
 }
 
-int gopdf_extract_selection(gopdf_doc *handle, int page_number, float ax, float ay, float bx, float by, gopdf_selection *out, char **err) {
+/* mode is an fz_select_mode: characters, or whole words or lines. */
+int gopdf_extract_selection(gopdf_doc *handle, int page_number, float ax, float ay, float bx, float by, int mode, gopdf_selection *out, char **err) {
 	fz_stext_page *text = NULL;
 	fz_point a = { ax, ay };
 	fz_point b = { bx, by };
@@ -783,6 +784,9 @@ int gopdf_extract_selection(gopdf_doc *handle, int page_number, float ax, float 
 		text = gopdf_entry_text(handle->ctx, gopdf_page_entry_for(handle, page_number));
 		a = gopdf_selection_normalize_point(text, a);
 		b = gopdf_selection_normalize_point(text, b);
+		if (mode != FZ_SELECT_CHARS) {
+			fz_snap_selection(handle->ctx, text, &a, &b, mode);
+		}
 		copied = fz_copy_selection(handle->ctx, text, a, b, 0);
 		quads = fz_malloc_array(handle->ctx, cap, fz_quad);
 		for (;;) {
