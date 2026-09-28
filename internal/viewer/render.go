@@ -16,6 +16,7 @@ type renderService struct {
 	renderScaleReadyAt time.Time
 	minRenderBaseScale float64
 	renderGeneration   int
+	loaderVisible      bool // a loading indicator was drawn this frame
 }
 
 func (a *App) initRenderWorker() {

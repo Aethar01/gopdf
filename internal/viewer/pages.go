@@ -5,6 +5,7 @@ import (
 	"image/color"
 	"math"
 	"slices"
+	"time"
 
 	"gopdf/internal/mupdf"
 
@@ -12,6 +13,7 @@ import (
 )
 
 func (a *App) drawPages(renderer *sdl.Renderer) {
+	a.loaderVisible = false
 	if a.renderMode == "single" {
 		a.drawSinglePage(renderer)
 		return
@@ -28,7 +30,7 @@ func (a *App) drawContinuousPages(renderer *sdl.Renderer) {
 		if x+width < 0 || x > float64(viewportW) || y+height < 0 || y > float64(viewportH) {
 			return
 		}
-		a.drawPage(renderer, page, x, y)
+		a.drawPage(renderer, page, x, y, width, height)
 	})
 	a.drawSelection(renderer)
 }
@@ -44,16 +46,21 @@ func (a *App) drawSinglePage(renderer *sdl.Renderer) {
 		if x+row.pageW[i] < 0 || x > float64(viewportW) || y+row.pageH[i] < 0 || y > float64(viewportH) {
 			continue
 		}
-		a.drawPage(renderer, page, x, y)
+		a.drawPage(renderer, page, x, y, row.pageW[i], row.pageH[i])
 	}
 	a.drawSelection(renderer)
 }
 
-func (a *App) drawPage(renderer *sdl.Renderer, page int, x, y float64) {
+func (a *App) drawPage(renderer *sdl.Renderer, page int, x, y, width, height float64) {
 	_ = a.drawPageBackground(renderer, x, y, page)
 	viewportW, viewportH := a.viewportSize()
-	for _, tile := range a.cache.pageTiles(page, a.renderScaleFor(a.scale), a.generation) {
+	tiles := a.cache.pageTiles(page, a.renderScaleFor(a.scale), a.generation)
+	for _, tile := range tiles {
 		a.drawTile(renderer, tile, x, y, viewportW, viewportH)
+	}
+	if len(tiles) == 0 && a.pagePending(page) {
+		a.drawInkLoader(renderer, x, y, width, height, time.Since(loaderEpoch))
+		a.loaderVisible = true
 	}
 	a.drawSearchHighlightsForPage(renderer, page, x, y)
 }

@@ -350,9 +350,8 @@ func (a *App) drawFrame() error {
 		return fmt.Errorf("SDL clear failed: %s", sdl.GetError())
 	}
 	a.drawPages(a.renderer)
-	if a.pendingRedraw {
-		a.pendingRedraw = false
-	}
+	// An on-screen loader animates, so it asks for the next frame.
+	a.pendingRedraw = a.loaderVisible
 	if a.statusVisible() {
 		if err := a.drawStatusBar(a.renderer); err != nil {
 			return err
