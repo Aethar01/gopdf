@@ -191,6 +191,56 @@ func RecentFiles(limit int) []string {
 	return paths
 }
 
+// AddPromptHistory records entry as the newest in the named prompt history,
+// keeping the newest limit distinct entries.
+func AddPromptHistory(kind, entry string, limit int) error {
+	if kind == "" || entry == "" || limit < 1 {
+		return nil
+	}
+	db, err := openSessionDatabase()
+	if err != nil || db == nil {
+		return err
+	}
+	defer db.Close()
+	if _, err = db.Exec(`
+		INSERT INTO prompt_history (kind, entry, updated_at)
+		VALUES (?, ?, ?)
+		ON CONFLICT(kind, entry) DO UPDATE SET updated_at = excluded.updated_at
+	`, kind, entry, time.Now().UnixNano()); err != nil {
+		return err
+	}
+	_, err = db.Exec(`
+		DELETE FROM prompt_history
+		WHERE kind = ? AND entry NOT IN (
+			SELECT entry FROM prompt_history WHERE kind = ? ORDER BY updated_at DESC LIMIT ?
+		)
+	`, kind, kind, limit)
+	return err
+}
+
+// PromptHistory returns up to limit entries of the named history, newest
+// first.
+func PromptHistory(kind string, limit int) []string {
+	db, err := openSessionDatabase()
+	if err != nil || db == nil || limit < 1 {
+		return nil
+	}
+	defer db.Close()
+	rows, err := db.Query(`SELECT entry FROM prompt_history WHERE kind = ? ORDER BY updated_at DESC LIMIT ?`, kind, limit)
+	if err != nil {
+		return nil
+	}
+	defer rows.Close()
+	var entries []string
+	for rows.Next() {
+		var entry string
+		if rows.Scan(&entry) == nil {
+			entries = append(entries, entry)
+		}
+	}
+	return entries
+}
+
 func SetDocumentMark(path string, name string, mark DocumentMark) error {
 	path = AbsoluteDocumentPath(path)
 	if path == "" || name == "" {
@@ -311,6 +361,16 @@ func initSessionDatabase(db *sql.DB) error {
 			anchor_valid INTEGER NOT NULL,
 			updated_at INTEGER NOT NULL,
 			PRIMARY KEY (path, name)
+		)
+	`); err != nil {
+		return err
+	}
+	if _, err := db.Exec(`
+		CREATE TABLE IF NOT EXISTS prompt_history (
+			kind TEXT NOT NULL,
+			entry TEXT NOT NULL,
+			updated_at INTEGER NOT NULL,
+			PRIMARY KEY (kind, entry)
 		)
 	`); err != nil {
 		return err

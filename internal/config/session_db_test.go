@@ -114,3 +114,21 @@ func setTestDataDir(t *testing.T) {
 		t.Setenv("XDG_DATA_HOME", dir)
 	}
 }
+
+func TestPromptHistoryKeepsNewestDistinctEntries(t *testing.T) {
+	setTestDataDir(t)
+	for _, entry := range []string{"one", "two", "one", "three"} {
+		if err := AddPromptHistory("search", entry, 2); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := AddPromptHistory("command", "set x=1", 2); err != nil {
+		t.Fatal(err)
+	}
+	if got := PromptHistory("search", 10); len(got) != 2 || got[0] != "three" || got[1] != "one" {
+		t.Fatalf("search history = %q, want [three one]", got)
+	}
+	if got := PromptHistory("command", 10); len(got) != 1 {
+		t.Fatalf("command history = %q", got)
+	}
+}

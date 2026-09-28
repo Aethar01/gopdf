@@ -179,6 +179,7 @@ type inputState struct {
 	links          linkInputState
 	hints          *hintState     // non-nil while link hints are shown
 	overview       *overviewState // non-nil while the page overview is shown
+	histories      map[string]*promptHistory
 	passwordPrompt pendingPasswordPrompt
 	mouseBindings  map[string]string
 	searchInput    searchMode
@@ -416,6 +417,15 @@ func (a *App) handleSDLKeyDown(e *sdl.KeyboardEvent) {
 		case sdl.KeycodeDelete:
 			a.editInput(func(input *textInput) { input.Delete() })
 			return
+		case sdl.KeycodeUp, sdl.KeycodeDown:
+			older := 1
+			if e.Key == sdl.KeycodeDown {
+				older = -1
+			}
+			completing := a.completion.view != nil && a.completion.view.visible
+			if !completing && a.stepPromptHistory(older) {
+				return
+			}
 		}
 		if token, ok := keyToken(e.Key, e.Mod); ok && a.handleInputModeBinding(token) {
 			return
@@ -780,6 +790,7 @@ func (a *App) commitInputMode() {
 	if input == "" && currentMode != modePassword {
 		return
 	}
+	a.recordPromptHistory(currentMode, input)
 	switch currentMode {
 	case modeCommand:
 		a.runCommand(input)
