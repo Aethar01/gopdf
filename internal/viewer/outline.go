@@ -255,19 +255,7 @@ func (a *App) activateSelectedOutline() {
 		return
 	}
 	a.closeUIView(view, false)
-	if item.HasX || item.HasY {
-		x, y := item.X, item.Y
-		bounds := a.pageMetrics[item.Page].bounds
-		if !item.HasX {
-			x = float64(bounds.X0+bounds.X1) / 2
-		}
-		if !item.HasY {
-			y = float64(bounds.Y0)
-		}
-		a.alignPageToDocumentPoint(item.Page, x, y)
-		return
-	}
-	a.alignPageToAnchor(item.Page)
+	a.jumpToDestination(item.Page, item.X, item.Y, item.HasX, item.HasY)
 }
 
 func (a *App) collapseSelectedOutline() {

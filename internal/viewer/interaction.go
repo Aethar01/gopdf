@@ -344,7 +344,7 @@ func (a *App) activateLink(link mupdf.Link) {
 		return
 	}
 	if link.Page >= 0 {
-		a.alignPageToAnchor(link.Page)
+		a.jumpToDestination(link.Page, link.X, link.Y, link.HasX, link.HasY)
 		return
 	}
 	if link.URI != "" {

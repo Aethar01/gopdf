@@ -874,6 +874,26 @@ func (a *App) alignPageToViewportEdge(page int, bottom bool) {
 	}
 }
 
+// jumpToDestination navigates to a link or outline target. Missing
+// coordinates default to the horizontal centre and top edge of the page.
+func (a *App) jumpToDestination(page int, x, y float64, hasX, hasY bool) {
+	if page < 0 || page >= len(a.pageMetrics) {
+		return
+	}
+	if !hasX && !hasY {
+		a.alignPageToAnchor(page)
+		return
+	}
+	bounds := a.pageMetrics[page].bounds
+	if !hasX {
+		x = float64(bounds.X0+bounds.X1) / 2
+	}
+	if !hasY {
+		y = float64(bounds.Y0)
+	}
+	a.alignPageToDocumentPoint(page, x, y)
+}
+
 func (a *App) alignPageToDocumentPoint(page int, x, y float64) {
 	if page < 0 || page >= len(a.pageToRow) {
 		return

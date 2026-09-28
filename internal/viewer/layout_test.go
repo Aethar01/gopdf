@@ -354,3 +354,25 @@ func assertClose(t *testing.T, got, want float64) {
 		t.Fatalf("got %.3f, want %.3f", got, want)
 	}
 }
+
+func TestActivateLinkHonorsDestinationPoint(t *testing.T) {
+	app := testLayoutApp(5)
+	app.recomputeLayout(1000, 100)
+	app.activateLink(mupdf.Link{Page: 3, Y: 150, HasY: true})
+
+	want := testLayoutApp(5)
+	want.recomputeLayout(1000, 100)
+	want.alignPageToDocumentPoint(3, 50, 150)
+
+	assertClose(t, app.scrollY, want.scrollY)
+	if app.page != 3 {
+		t.Fatalf("page = %d, want 3", app.page)
+	}
+
+	top := testLayoutApp(5)
+	top.recomputeLayout(1000, 100)
+	top.alignPageToAnchor(3)
+	if math.Abs(app.scrollY-top.scrollY) < 1 {
+		t.Fatalf("link jump ignored destination y: scrollY=%.1f matches page top", app.scrollY)
+	}
+}
