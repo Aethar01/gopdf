@@ -19,7 +19,7 @@ type CommandReferenceEntry struct {
 
 var specs = []Spec{
 	{Name: "colors", ArgCompletions: []string{"alt", "normal"}, Help: ":colors normal|alt - Set color mode"},
-	{Name: "fit", ArgCompletions: []string{"manual", "page", "width"}, Help: ":fit width|page|manual - Set fit mode"},
+	{Name: "fit", ArgCompletions: []string{"height", "manual", "page", "width"}, Help: ":fit width|height|page|manual - Set fit mode"},
 	{Name: "help", Help: ":help - Show this command help window"},
 	{Name: "keybinds", Help: ":keybinds - Toggle the keybinds menu"},
 	{Name: "lua", Help: ":lua <code> - Execute Lua code inline"},

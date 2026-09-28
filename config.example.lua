@@ -14,7 +14,7 @@ gopdf.options.completion_max_items = 10 -- Maximum command-completion rows.
 gopdf.options.copy_on_select = true -- Copy selected text to the clipboard when the mouse selection is released.
 gopdf.options.dual_page = false -- Start in dual-page mode.
 gopdf.options.first_page_offset = true -- Treat the first page as a standalone cover in dual-page mode.
-gopdf.options.fit_mode = "page" -- Initial fit mode: page, width, or manual.
+gopdf.options.fit_mode = "page" -- Initial fit mode: page, width, height, or manual.
 gopdf.options.foreground = {20, 20, 20} -- UI foreground color.
 gopdf.options.highlight_background = {255, 224, 102} -- Selection and search highlight background.
 gopdf.options.highlight_foreground = {0, 0, 0} -- Selection and search highlight border and text.
@@ -95,6 +95,7 @@ gopdf.bind("-", gopdf.zoom_out)
 gopdf.bind("0", gopdf.reset_zoom)
 gopdf.bind("a", gopdf.fit_width)
 gopdf.bind("s", gopdf.fit_page)
+gopdf.bind("S", gopdf.fit_height)
 gopdf.bind("<C-S-r>", gopdf.reload_config)
 gopdf.bind("r", gopdf.rotate_cw)
 gopdf.bind("R", gopdf.rotate_ccw)

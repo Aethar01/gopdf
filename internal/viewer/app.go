@@ -772,35 +772,30 @@ func (a *App) currentScaleFromRows(viewportW, viewportH int, baseRows []rowLayou
 		return a.zoom
 	}
 	if a.renderMode == "single" && len(baseRows) > 0 && a.page >= 0 {
-		rowIndex := clampInt(a.baseRowIndexForPage(a.page, baseRows), 0, len(baseRows)-1)
-		row := baseRows[rowIndex]
-		marginW := float64(a.horizontalGap() * 2)
-		marginH := float64(a.verticalGap() * 2)
-		widthScale := math.Max(0.05, (float64(viewportW)-marginW)/math.Max(1, row.width))
-		if a.fitMode == "width" {
-			return widthScale
-		}
-		heightScale := math.Max(0.05, (float64(viewportH)-marginH)/math.Max(1, row.height))
+		row := baseRows[clampInt(a.baseRowIndexForPage(a.page, baseRows), 0, len(baseRows)-1)]
+		return a.fitScale(viewportW, viewportH, row.width, row.height)
+	}
+	maxRowWidth, maxRowHeight := 1.0, 1.0
+	for _, row := range baseRows {
+		maxRowWidth = math.Max(maxRowWidth, row.width)
+		maxRowHeight = math.Max(maxRowHeight, row.height)
+	}
+	return a.fitScale(viewportW, viewportH, maxRowWidth, maxRowHeight)
+}
+
+// fitScale is the scale at which content of the given unscaled size fits
+// the viewport under the current fit mode.
+func (a *App) fitScale(viewportW, viewportH int, width, height float64) float64 {
+	widthScale := (float64(viewportW) - float64(a.horizontalGap()*2)) / math.Max(1, width)
+	heightScale := (float64(viewportH) - float64(a.verticalGap()*2)) / math.Max(1, height)
+	switch a.fitMode {
+	case "width":
+		return math.Max(0.05, widthScale)
+	case "height":
+		return math.Max(0.05, heightScale)
+	default:
 		return math.Max(0.05, math.Min(widthScale, heightScale))
 	}
-	maxRowWidth := 1.0
-	maxRowHeight := 1.0
-	for _, row := range baseRows {
-		if row.width > maxRowWidth {
-			maxRowWidth = row.width
-		}
-		if row.height > maxRowHeight {
-			maxRowHeight = row.height
-		}
-	}
-	marginW := float64(a.horizontalGap() * 2)
-	marginH := float64(a.verticalGap() * 2)
-	widthScale := math.Max(0.05, (float64(viewportW)-marginW)/maxRowWidth)
-	if a.fitMode == "width" {
-		return widthScale
-	}
-	heightScale := math.Max(0.05, (float64(viewportH)-marginH)/maxRowHeight)
-	return math.Max(0.05, math.Min(widthScale, heightScale))
 }
 
 func (a *App) nextPage() {

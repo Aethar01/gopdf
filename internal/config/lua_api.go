@@ -639,11 +639,12 @@ func luaClearPendingKeys(rt *Runtime) lua.LGFunction {
 	}
 }
 
-// luaFitMode reads or changes the fit mode. Valid modes are manual, page, and width.
+// luaFitMode reads or changes the fit mode. Valid modes are manual, page, width,
+// and height.
 //
 // # Parameters
 //
-//   - mode: Optional manual, page, or width value. Omit it to read the current mode.
+//   - mode: Optional manual, page, width, or height value. Omit it to read the current mode.
 //
 // # Returns
 //

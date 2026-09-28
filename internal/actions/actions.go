@@ -35,6 +35,7 @@ var registry = []Action{
 	{Name: "reset_zoom", Keys: []string{"0"}},
 	{Name: "fit_width", Keys: []string{"a"}},
 	{Name: "fit_page", Keys: []string{"s"}},
+	{Name: "fit_height", Keys: []string{"S"}},
 	{Name: "reload_config", Keys: []string{"<C-S-r>"}},
 	{Name: "rotate_cw", Keys: []string{"r"}},
 	{Name: "rotate_ccw", Keys: []string{"R"}},

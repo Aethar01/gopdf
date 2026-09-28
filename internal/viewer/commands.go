@@ -191,6 +191,8 @@ func (a *App) runBuiltinAction(action string) error {
 		a.setFitMode("width")
 	case "fit_page":
 		a.setFitMode("page")
+	case "fit_height":
+		a.setFitMode("height")
 	case "reload_config":
 		a.reloadConfig()
 	case "rotate_cw":

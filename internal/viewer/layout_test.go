@@ -445,3 +445,14 @@ func TestHoveredLinkShowsTargetAndRestoresMessage(t *testing.T) {
 		t.Fatalf("leaving a link clobbered a newer message: %q", app.message)
 	}
 }
+
+func TestFitModesScaleToViewport(t *testing.T) {
+	app := testLayoutApp(3) // 100x200pt pages
+	for mode, want := range map[string]float64{"width": 10, "height": 4, "page": 4} {
+		app.fitMode = mode
+		app.recomputeLayout(1000, 800)
+		if math.Abs(app.scale-want) > 1e-9 {
+			t.Errorf("fit %s: scale = %v, want %v", mode, app.scale, want)
+		}
+	}
+}

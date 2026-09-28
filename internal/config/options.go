@@ -424,7 +424,7 @@ var configOptions = map[string]optionDesc{
 		}
 	}),
 	"render_mode":          stringOption("Initial render mode: continuous or single.", func(c *Config) string { return c.RenderMode }, func(c *Config, v string) { c.RenderMode = NormalizeRenderMode(v) }),
-	"fit_mode":             stringOption("Initial fit mode: page, width, or manual.", func(c *Config) string { return c.FitMode }, func(c *Config, v string) { c.FitMode = NormalizeFitMode(v) }),
+	"fit_mode":             stringOption("Initial fit mode: page, width, height, or manual.", func(c *Config) string { return c.FitMode }, func(c *Config, v string) { c.FitMode = NormalizeFitMode(v) }),
 	"anchor_position":      stringOption("Viewport anchor: center, top, or bottom.", func(c *Config) string { return c.AnchorPosition }, func(c *Config, v string) { c.AnchorPosition = NormalizeAnchorPosition(v) }),
 	"ui_font_path":         stringOption("Path to a UI font; empty uses the built-in default.", func(c *Config) string { return c.UIFontPath }, func(c *Config, v string) { c.UIFontPath = v }),
 	"status_bar_left":      stringOption("Left status bar template.", func(c *Config) string { return c.StatusBarLeft }, func(c *Config, v string) { c.StatusBarLeft = v }),
@@ -476,7 +476,7 @@ func readColor(tbl *lua.LTable, fallback [3]uint8) [3]uint8 {
 
 func NormalizeFitMode(s string) string {
 	s = strings.ToLower(strings.TrimSpace(s))
-	if s == "width" || s == "manual" {
+	if s == "width" || s == "height" || s == "manual" {
 		return s
 	}
 	return "page"
