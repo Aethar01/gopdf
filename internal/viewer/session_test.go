@@ -132,3 +132,14 @@ func TestViewStateAtDocumentStartPreservesPreferencesOnly(t *testing.T) {
 		t.Fatalf("expected viewer preferences to be preserved, got %#v", state)
 	}
 }
+
+func TestEscCancelsPendingMark(t *testing.T) {
+	app := &App{}
+	app.pendingMark = "set"
+	if !app.handleMarkToken("<Esc>") {
+		t.Fatal("Esc was not handled")
+	}
+	if app.pendingMark != "" || app.message != "" {
+		t.Fatalf("pendingMark=%q message=%q, want cancelled silently", app.pendingMark, app.message)
+	}
+}

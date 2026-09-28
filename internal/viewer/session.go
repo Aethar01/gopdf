@@ -226,7 +226,7 @@ func (a *App) recordRecentFile(path string) {
 
 func (a *App) handleMarkToken(token string) bool {
 	if a.pendingMark != "" {
-		if token == "<esc>" {
+		if normalizeBinding(token) == normalizeBinding("<Esc>") {
 			a.pendingMark = ""
 			a.message = ""
 			return true
