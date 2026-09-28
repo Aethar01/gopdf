@@ -185,6 +185,7 @@ type inputState struct {
 	links          linkInputState
 	hints          *hintState     // non-nil while link hints are shown
 	overview       *overviewState // non-nil while the page overview is shown
+	presentation   *presentationState
 	histories      map[string]*promptHistory
 	passwordPrompt pendingPasswordPrompt
 	mouseBindings  map[string]string
@@ -573,6 +574,10 @@ func (a *App) handleSDLMouseButton(e *sdl.MouseButtonEvent) {
 	}
 	if a.overview != nil {
 		a.clickOverview(e)
+		return
+	}
+	if a.presentation != nil {
+		a.clickPresentation(e)
 		return
 	}
 	if e.Type == sdl.EventMouseButtonUp && a.panning && e.Button == a.panButton {

@@ -11,6 +11,9 @@ func (a *App) statusVisible() bool {
 }
 
 func (a *App) backgroundColor() color.RGBA {
+	if a.presentation != nil {
+		return presentationBackground
+	}
 	if a.altColors {
 		return rgb(a.config.AltBackground)
 	}

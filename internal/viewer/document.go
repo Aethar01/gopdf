@@ -213,6 +213,7 @@ func (a *App) resetForNewDocument(password string) {
 	a.pendingOpen = ""
 	a.hints = nil
 	a.overview = nil
+	a.presentation = nil
 }
 
 func (a *App) promptDocumentPassword(path string, opts openDocumentOptions) {

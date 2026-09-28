@@ -69,6 +69,9 @@ func (a *App) runAction(action string) {
 	if a.overview != nil && a.runOverviewAction(action) {
 		return
 	}
+	if a.presentation != nil && a.runPresentationAction(action) {
+		return
+	}
 	if handled, dirty, err := a.runtime.RunAction(action); handled {
 		if err != nil {
 			a.message = err.Error()
@@ -183,6 +186,8 @@ func (a *App) runBuiltinAction(action string) error {
 		a.toggleOverview()
 	case "toggle_trim_margins":
 		a.toggleTrimMargins()
+	case "presentation":
+		a.togglePresentation()
 	case "search_matches":
 		a.showSearchMatches()
 	case "confirm":

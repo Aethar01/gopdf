@@ -111,6 +111,9 @@ func (a *App) captureViewState() viewState {
 	if a.overview != nil {
 		return a.overview.saved
 	}
+	if a.presentation != nil {
+		return a.presentation.saved
+	}
 	return viewState{
 		page:            a.page,
 		scrollX:         a.scrollX,

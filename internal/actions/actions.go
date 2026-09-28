@@ -29,6 +29,7 @@ var registry = []Action{
 	{Name: "toggle_trim_margins", Keys: []string{"ct"}},
 	{Name: "toggle_status_bar", Keys: []string{"<C-n>"}},
 	{Name: "toggle_fullscreen", Keys: []string{"f"}},
+	{Name: "presentation", Keys: []string{"<F5>"}},
 	{Name: "follow_link", Keys: []string{"F"}},
 	{Name: "outline", Keys: []string{"o"}},
 	{Name: "overview", Keys: []string{"O"}},

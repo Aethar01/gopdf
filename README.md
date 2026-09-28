@@ -22,6 +22,7 @@ Useful defaults:
 | `n` / `N` | Next / previous match |
 | `o` | Open the document outline |
 | `O` | Page overview grid |
+| `F5` | Presentation mode |
 | `F` | Follow a link by typing its hint |
 | `gr` | Open recent files |
 | `:` | Open the command prompt |
