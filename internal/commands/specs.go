@@ -29,6 +29,7 @@ var specs = []Spec{
 	{Name: "open", Help: ":open <filename> - Open another PDF relative to the current document"},
 	{Name: "open_file_picker", Help: ":open_file_picker - Open the PDF file picker"},
 	{Name: "page", Help: ":page PAGE, :p PAGE, :N - Jump to a page number or label"},
+	{Name: "print", Help: ":print [lp options] - Print the saved document, e.g. :print -d office -P 1-3"},
 	{Name: "quit", Help: ":quit, :q - Exit; :q! discards unsaved edits"},
 	{Name: "reload-config", Help: ":reload-config - Reload the config file"},
 	{Name: "recent", Help: ":recent - Open the recent-files menu"},

@@ -555,6 +555,8 @@ func (a *App) runCommand(input string) {
 		a.quit = a.confirmDiscard(":q")
 	case "q!", "quit!":
 		a.quit = true
+	case "print":
+		a.printDocument(args)
 	case "highlight":
 		a.highlightSelection(a.highlightColor)
 	case "w", "write":
