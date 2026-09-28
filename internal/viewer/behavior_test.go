@@ -463,15 +463,17 @@ func TestRunCommandSearchAndOpenMessages(t *testing.T) {
 	app.runCommand(":help")
 	view := app.activeUIView()
 	if view == nil {
-		t.Fatal("expected help command to open command help window")
+		t.Fatal("expected help command to open the help window")
 	}
-	if view.title != "Commands" {
+	if view.title != "Help" {
 		t.Fatalf("expected help window title, got %q", view.title)
 	}
 	if len(view.rows) == 0 {
 		t.Fatal("expected help window rows")
 	}
-	if !slices.ContainsFunc(view.rows, func(row uiRow) bool { return row.text == ":open_file_picker - Open the PDF file picker" }) {
+	if !slices.ContainsFunc(view.rows, func(row uiRow) bool {
+		return row.text == ":open_file_picker" && row.secondary == "Open the PDF file picker"
+	}) {
 		t.Fatal("expected help rows to include open_file_picker command")
 	}
 }

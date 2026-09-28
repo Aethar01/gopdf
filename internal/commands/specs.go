@@ -20,7 +20,7 @@ type CommandReferenceEntry struct {
 var specs = []Spec{
 	{Name: "colors", ArgCompletions: []string{"alt", "normal"}, Help: ":colors normal|alt - Set color mode"},
 	{Name: "fit", ArgCompletions: []string{"height", "manual", "page", "width"}, Help: ":fit width|height|page|manual - Set fit mode"},
-	{Name: "help", Help: ":help - Show this command help window"},
+	{Name: "help", Help: ":help - Show commands, key bindings, search flags and options"},
 	{Name: "keybinds", Help: ":keybinds - Toggle the keybinds menu"},
 	{Name: "lua", Help: ":lua <code> - Execute Lua code inline"},
 	{Name: "mode", ArgCompletions: []string{"continuous", "single"}, Help: ":mode continuous|single - Set render mode"},
@@ -49,15 +49,19 @@ func ArgCompletionValues(name string) []string {
 	return nil
 }
 
-func HelpRows() []string {
-	rows := make([]string, 0, len(specs)+1)
-	for _, spec := range specs {
-		if spec.Help != "" {
-			rows = append(rows, spec.Help)
-		}
+type SearchFlag struct {
+	Flag        string
+	Description string
+}
+
+// SearchFlags are the flags a search query may start with, such as -ri.
+func SearchFlags() []SearchFlag {
+	return []SearchFlag{
+		{Flag: "r", Description: "regular expression"},
+		{Flag: "i", Description: "ignore case"},
+		{Flag: "w", Description: "whole word"},
+		{Flag: "p", Description: "current page only"},
 	}
-	rows = append(rows, "Search flags: -r regex, -i ignore case, -w whole word, -p current page")
-	return rows
 }
 
 func CommandReferences() []CommandReferenceEntry {

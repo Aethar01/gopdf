@@ -7,7 +7,6 @@ import (
 	"strings"
 	"time"
 
-	commandmeta "gopdf/internal/commands"
 	"gopdf/internal/config"
 	"gopdf/internal/filepicker"
 	"gopdf/internal/mupdf"
@@ -173,6 +172,8 @@ func (a *App) runBuiltinAction(action string) error {
 		a.toggleOutlineMenu()
 	case "keybinds":
 		a.toggleKeybindMenu()
+	case "help":
+		a.toggleHelp()
 	case "confirm":
 		if a.completion.view != nil && a.completion.view.visible {
 			a.acceptCompletion()
@@ -596,7 +597,7 @@ func (a *App) runCommand(input string) {
 			a.applyRuntimeChanges("command")
 		}
 	case "help":
-		a.showCommandHelp()
+		a.toggleHelp()
 	default:
 		if a.runtime != nil {
 			if handled, err := a.runtime.RunPluginCommand(name, args); handled {
@@ -643,15 +644,6 @@ func (a *App) reloadConfig() {
 	a.applyConfig(cfg)
 	a.emitPluginEvent("config_reloaded", a.documentEventPayload())
 	a.message = boolWord(cfg.ConfigPath != "", "config reloaded", "defaults reloaded")
-}
-
-func (a *App) showCommandHelp() {
-	a.closeAllUI()
-	rows := commandmeta.HelpRows()
-	if a.runtime != nil {
-		rows = append(rows, a.runtime.CommandHelpRows()...)
-	}
-	a.showCoreList("commands", "Commands", rows, nil)
 }
 
 func (a *App) showRecentFiles() {

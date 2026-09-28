@@ -110,7 +110,8 @@ gopdf.bind("<C-i>", gopdf.jump_forward)
 gopdf.bind("<C-o>", gopdf.jump_backward)
 gopdf.bind("<C-S-o>", gopdf.open_file_picker)
 gopdf.bind("gr", gopdf.show_recent_files)
-gopdf.bind("<F1>", gopdf.keybinds)
+gopdf.bind("<F1>", gopdf.help)
+gopdf.bind("g?", gopdf.help)
 gopdf.bind("q", gopdf.quit)
 
 -- Default mouse bindings.

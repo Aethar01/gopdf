@@ -23,7 +23,7 @@ Useful defaults:
 | `o` | Open the document outline |
 | `gr` | Open recent files |
 | `:` | Open the command prompt |
-| `F1` | View and edit keybindings |
+| `F1` / `g?` | Help: commands, keys, search flags and options |
 | `q` | Quit |
 
 ## Installation
@@ -78,7 +78,7 @@ gopdf -v                     # print version
 gopdf -V                     # enable verbose logs
 ```
 
-Use `F1` to inspect or edit keybindings and `:help` to view available commands.
+Use `F1`, `g?` or `:help` to browse commands, key bindings, search flags and options; choosing a row runs it or fills in the prompt. `:keybinds` edits key bindings.
 
 ### Single instance
 

@@ -73,7 +73,15 @@ func renderReference(luaRefs []config.LuaReferenceEntry, luaDocs map[string]stri
 	for _, ref := range commands.CommandReferences() {
 		fmt.Fprintf(&b, "| %s | %s |\n", markdownCode(ref.Command), ref.Description)
 	}
-	b.WriteString("\nSearch flags: `-r` regular expression, `-i` ignore case, `-w` whole word, and `-p` current page only. Flags can be combined.\n")
+	b.WriteString("\nSearch flags:")
+	for i, flag := range commands.SearchFlags() {
+		sep := ","
+		if i == 0 {
+			sep = ""
+		}
+		fmt.Fprintf(&b, "%s `-%s` %s", sep, flag.Flag, flag.Description)
+	}
+	b.WriteString(". Flags can be combined.\n")
 	b.WriteString("\n## Lua functions\n\n")
 	b.WriteString("The index below is followed by a detailed entry for every function. Lua errors are raised as protected-call errors; use `pcall` when a script should handle them without aborting the current dispatch.\n\n")
 	b.WriteString("### Index\n\n| Function | Summary |\n|---|---|\n")
