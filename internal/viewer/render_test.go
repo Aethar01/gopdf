@@ -68,13 +68,39 @@ func TestPageTilesDrawSharpestCurrentTilesLast(t *testing.T) {
 	current := testTile(0, 2, 0, 0, 8)
 	sharper := testTile(0, 4, 0, 0, 8)
 	blurrier := testTile(0, 1, 0, 0, 8)
+	stale := testTile(0, 8, 0, 0, 8)
+	stale.key.gen = -1
 	thumb := &renderedTile{key: thumbnailKey(0), rect: image.Rect(0, 0, 8, 8), scale: 0.5}
-	for _, tile := range []*renderedTile{current, sharper, thumb, blurrier, testTile(1, 2, 0, 0, 8)} {
+	for _, tile := range []*renderedTile{current, stale, sharper, thumb, blurrier, testTile(1, 2, 0, 0, 8)} {
 		c.add(tile)
 	}
-	got := c.pageTiles(0, 2)
-	if want := []*renderedTile{thumb, blurrier, sharper, current}; !slices.Equal(got, want) {
-		t.Fatalf("draw order = %v, want thumbnail, other scales ascending, then current", got)
+	got := c.pageTiles(0, 2, 0)
+	if want := []*renderedTile{thumb, stale, blurrier, sharper, current}; !slices.Equal(got, want) {
+		t.Fatalf("draw order = %v, want thumbnail, stale generation, other scales ascending, then current", got)
+	}
+}
+
+func TestReloadPlaceholderCleanup(t *testing.T) {
+	var c tileCache
+	stale, fresh, thumb, gone := testTile(0, 1, 0, 0, 8), testTile(0, 1, 0, 0, 8), &renderedTile{key: thumbnailKey(0)}, testTile(2, 1, 0, 0, 8)
+	stale.key.gen, fresh.key.gen = 0, 1
+	for _, tile := range []*renderedTile{stale, fresh, thumb, gone} {
+		c.add(tile)
+	}
+
+	c.retainPages(2) // the reloaded document has two pages
+	if _, ok := c.entries[gone.key]; ok {
+		t.Fatal("tile for a page past the new end survived")
+	}
+	c.dropStale(0, 1)
+	if _, ok := c.entries[stale.key]; ok {
+		t.Fatal("stale placeholder survived")
+	}
+	if _, ok := c.entries[fresh.key]; !ok {
+		t.Fatal("fresh tile was dropped")
+	}
+	if _, ok := c.entries[thumb.key]; !ok {
+		t.Fatal("thumbnail was dropped; it is repainted rather than replaced")
 	}
 }
 

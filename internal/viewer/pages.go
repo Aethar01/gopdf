@@ -52,7 +52,7 @@ func (a *App) drawSinglePage(renderer *sdl.Renderer) {
 func (a *App) drawPage(renderer *sdl.Renderer, page int, x, y float64) {
 	_ = a.drawPageBackground(renderer, x, y, page)
 	viewportW, viewportH := a.viewportSize()
-	for _, tile := range a.cache.pageTiles(page, a.renderScaleFor(a.scale)) {
+	for _, tile := range a.cache.pageTiles(page, a.renderScaleFor(a.scale), a.generation) {
 		a.drawTile(renderer, tile, x, y, viewportW, viewportH)
 	}
 	a.drawSearchHighlightsForPage(renderer, page, x, y)
@@ -144,7 +144,7 @@ func (a *App) prefetchVisiblePages() {
 		onScreen := a.pageDeviceArea(page, x, y, viewport, scale)
 		for _, pt := range tilesCovering(pageRect, a.pageDeviceArea(page, x, y, area, scale)) {
 			rect := tileRect(pageRect, pt.X, pt.Y)
-			c := tileCandidate{key: tileKey{page: page, scale: scale, x: pt.X, y: pt.Y}, rect: rect, distance: rectDistance(rect, onScreen)}
+			c := tileCandidate{key: tileKey{page: page, scale: scale, x: pt.X, y: pt.Y, gen: a.generation}, rect: rect, distance: rectDistance(rect, onScreen)}
 			if c.distance == 0 {
 				visible = append(visible, c)
 			} else {

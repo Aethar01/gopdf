@@ -329,8 +329,14 @@ func (a *App) applyRuntimeChanges(source string) {
 }
 
 func (a *App) closeDocumentResources() {
-	a.closeDocumentWorkers()
+	a.closeDocument()
 	a.clearCache()
+}
+
+// closeDocument stops the document's workers and closes it, leaving
+// rendered tiles cached.
+func (a *App) closeDocument() {
+	a.closeDocumentWorkers()
 	a.documentAPIMu.Lock()
 	defer a.documentAPIMu.Unlock()
 	if a.doc != nil {

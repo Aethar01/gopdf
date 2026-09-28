@@ -315,7 +315,10 @@ func (a *App) softReloadDocument(path string, state viewState) error {
 	if a.runtime != nil {
 		a.runtime.SetPageCount(pages)
 	}
-	a.closeDocumentResources()
+	// Keep the old tiles on screen as placeholders until fresh ones arrive.
+	a.closeDocument()
+	a.cache.retainPages(pages)
+	a.invalidateRenderRequests()
 
 	a.installDocument(doc, path, pages, startPage)
 	a.rebindInstanceServer()

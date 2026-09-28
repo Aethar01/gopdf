@@ -67,6 +67,9 @@ func (a *App) acceptRenderUpdate(update renderUpdate) {
 	tile := &renderedTile{key: req.key, texture: tex, rect: img.Bounds().Add(origin), scale: req.key.scale}
 	a.cache.add(tile)
 	a.updateThumbnail(tile)
+	if !a.pagePending(req.key.page) {
+		a.cache.dropStale(req.key.page, req.key.gen)
+	}
 	a.cache.evict()
 	a.startPendingMetricLoader()
 	a.pendingRedraw = true
@@ -106,6 +109,15 @@ func (a *App) requestTile(key tileKey, rect image.Rectangle, priority int) bool 
 	}
 	a.renderPending[key] = req
 	return true
+}
+
+func (a *App) pagePending(page int) bool {
+	for key := range a.renderPending {
+		if key.page == page {
+			return true
+		}
+	}
+	return false
 }
 
 func (a *App) hasPendingVisibleRender() bool {
