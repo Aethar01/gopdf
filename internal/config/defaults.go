@@ -12,6 +12,7 @@ func Default() Config {
 		PinchSensitivity:    1,
 		PageCacheSize:       16,
 		PageCacheMemoryMB:   512,
+		LinkSchemes:         []string{"http", "https", "mailto"},
 		DualPage:            false,
 		FirstPageOffset:     true,
 		FitMode:             "page",

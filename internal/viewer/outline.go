@@ -240,15 +240,9 @@ func (a *App) activateSelectedOutline() {
 	}
 	item := a.outline[view.selected]
 	if item.External {
-		if item.URI == "" {
-			return
+		if a.openDocumentURI(item.URI) {
+			a.closeUIView(view, false)
 		}
-		if err := a.OpenExternal(item.URI); err != nil {
-			a.message = err.Error()
-			return
-		}
-		a.closeUIView(view, false)
-		a.message = item.URI
 		return
 	}
 	if item.Page < 0 {

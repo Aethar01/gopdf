@@ -20,6 +20,7 @@ gopdf.options.highlight_background = {255, 224, 102} -- Selection and search hig
 gopdf.options.highlight_foreground = {0, 0, 0} -- Selection and search highlight border and text.
 gopdf.options.invert_scroll = false -- Invert horizontal and vertical discrete mouse-wheel scrolling.
 gopdf.options.invert_smooth_scroll = false -- Invert horizontal and vertical smooth wheel or trackpad scrolling.
+gopdf.options.link_schemes = {"http", "https", "mailto"} -- URI schemes that document links may open externally; other links only show their target.
 gopdf.options.max_zoom = 8 -- Maximum manual zoom scale.
 gopdf.options.min_zoom = 0.5 -- Minimum manual zoom scale.
 gopdf.options.mouse_text_select = true -- Enable text selection with the left mouse button.

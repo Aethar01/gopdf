@@ -4,8 +4,10 @@ import (
 	"fmt"
 	"image/color"
 	"math"
+	"net/url"
 	"os/exec"
 	"runtime"
+	"slices"
 	"strings"
 
 	"gopdf/internal/mupdf"
@@ -333,14 +335,7 @@ func (a *App) linksForPageLocked(page int) ([]mupdf.Link, error) {
 
 func (a *App) activateLink(link mupdf.Link) {
 	if link.External {
-		if link.URI == "" {
-			return
-		}
-		if err := a.OpenExternal(link.URI); err != nil {
-			a.message = err.Error()
-			return
-		}
-		a.message = link.URI
+		a.openDocumentURI(link.URI)
 		return
 	}
 	if link.Page >= 0 {
@@ -350,6 +345,29 @@ func (a *App) activateLink(link mupdf.Link) {
 	if link.URI != "" {
 		a.message = link.URI
 	}
+}
+
+// openDocumentURI opens a URI found in the document. Only schemes listed in
+// link_schemes reach the OS; other URIs are shown instead.
+func (a *App) openDocumentURI(uri string) bool {
+	if uri == "" {
+		return false
+	}
+	if !linkSchemeAllowed(uri, a.config.LinkSchemes) {
+		a.message = "blocked link: " + uri
+		return false
+	}
+	if err := a.OpenExternal(uri); err != nil {
+		a.message = err.Error()
+		return false
+	}
+	a.message = uri
+	return true
+}
+
+func linkSchemeAllowed(uri string, schemes []string) bool {
+	u, err := url.Parse(uri)
+	return err == nil && u.Scheme != "" && slices.Contains(schemes, strings.ToLower(u.Scheme))
 }
 
 func (a *App) OpenExternal(uri string) error {

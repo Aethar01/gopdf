@@ -13,6 +13,7 @@ type Config struct {
 	PinchSensitivity      float64
 	PageCacheSize         int
 	PageCacheMemoryMB     int
+	LinkSchemes           []string
 	DualPage              bool
 	FirstPageOffset       bool
 	FitMode               string

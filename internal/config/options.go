@@ -146,6 +146,65 @@ func stringOption(description string, get func(*Config) string, set func(*Config
 	}
 }
 
+// stringListOption holds a Lua array of strings. The :set form accepts
+// comma- or space-separated words.
+func stringListOption(description string, get func(*Config) []string, set func(*Config, []string)) optionDesc {
+	return optionDesc{
+		kind:        "table",
+		description: description,
+		get: func(L *lua.LState, cfg *Config) lua.LValue {
+			tbl := L.NewTable()
+			for _, value := range get(cfg) {
+				tbl.Append(lua.LString(value))
+			}
+			return tbl
+		},
+		format: func(cfg *Config) string {
+			quoted := make([]string, 0, len(get(cfg)))
+			for _, value := range get(cfg) {
+				quoted = append(quoted, strconv.Quote(value))
+			}
+			return "{" + strings.Join(quoted, ", ") + "}"
+		},
+		applyText: func(cfg *Config, raw string) error {
+			raw = strings.Trim(strings.TrimSpace(raw), "{}")
+			fields := strings.FieldsFunc(raw, func(r rune) bool { return r == ',' || r == ' ' || r == '\t' })
+			values := make([]string, 0, len(fields))
+			for _, field := range fields {
+				values = append(values, strings.Trim(field, `"'`))
+			}
+			set(cfg, values)
+			return nil
+		},
+		apply: func(cfg *Config, value lua.LValue) error {
+			tbl, ok := value.(*lua.LTable)
+			if !ok {
+				return fmt.Errorf("expected table")
+			}
+			values := make([]string, 0, tbl.Len())
+			for i := 1; i <= tbl.Len(); i++ {
+				item := tbl.RawGetInt(i)
+				if item.Type() != lua.LTString {
+					return fmt.Errorf("expected table of strings")
+				}
+				values = append(values, item.String())
+			}
+			set(cfg, values)
+			return nil
+		},
+	}
+}
+
+func normalizeLinkSchemes(schemes []string) []string {
+	normalized := make([]string, 0, len(schemes))
+	for _, scheme := range schemes {
+		if scheme = strings.ToLower(strings.TrimSuffix(strings.TrimSpace(scheme), ":")); scheme != "" {
+			normalized = append(normalized, scheme)
+		}
+	}
+	return normalized
+}
+
 func colorOption(description string, get func(*Config) [3]uint8, set func(*Config, [3]uint8)) optionDesc {
 	return optionDesc{
 		kind:        "color",
@@ -311,6 +370,7 @@ var configOptions = map[string]optionDesc{
 	"dual_page":              boolOption("Start in dual-page mode.", func(c *Config) bool { return c.DualPage }, func(c *Config, v bool) { c.DualPage = v }),
 	"first_page_offset":      boolOption("Treat the first page as a standalone cover in dual-page mode.", func(c *Config) bool { return c.FirstPageOffset }, func(c *Config, v bool) { c.FirstPageOffset = v }),
 	"anti_aliasing":          intOption("MuPDF antialiasing level from 0 through 8.", func(c *Config) int { return c.AntiAliasing }, func(c *Config, v int) { c.AntiAliasing = v }),
+	"link_schemes":           stringListOption("URI schemes that document links may open externally; other links only show their target.", func(c *Config) []string { return c.LinkSchemes }, func(c *Config, v []string) { c.LinkSchemes = normalizeLinkSchemes(v) }),
 	"page_cache_memory_mb":   intOption("Maximum memory in MiB for cached page renders; 0 disables the limit.", func(c *Config) int { return c.PageCacheMemoryMB }, func(c *Config, v int) { c.PageCacheMemoryMB = max(0, v) }),
 	"page_cache_size":        intOption("Maximum rendered pages retained in the cache.", func(c *Config) int { return c.PageCacheSize }, func(c *Config, v int) { c.PageCacheSize = max(1, v) }),
 	"outline_initial_depth":  intOption("Outline levels expanded when the outline opens.", func(c *Config) int { return c.OutlineInitialDepth }, func(c *Config, v int) { c.OutlineInitialDepth = v }),

@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -1223,5 +1224,34 @@ func TestNoConfigIgnoresConfigurationFiles(t *testing.T) {
 	// The Lua runtime still exists, so plugins and callbacks remain usable.
 	if _, err := skipped.Eval(`assert(type(gopdf) == "table")`); err != nil {
 		t.Fatalf("no-config runtime is unusable: %v", err)
+	}
+}
+
+func TestLinkSchemesOption(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.lua")
+	if err := os.WriteFile(path, []byte(`gopdf.options.link_schemes = {"HTTPS", "gemini:"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	rt, err := Open(path, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rt.Close()
+
+	if got := rt.Config().LinkSchemes; !slices.Equal(got, []string{"https", "gemini"}) {
+		t.Fatalf("Lua link_schemes = %q", got)
+	}
+	if err := rt.SetOption("link_schemes", `{"http", 'mailto'}`); err != nil {
+		t.Fatal(err)
+	}
+	if value, err := rt.OptionValue("link_schemes"); err != nil || value != `{"http", "mailto"}` {
+		t.Fatalf("OptionValue(link_schemes) = %q, %v", value, err)
+	}
+	if err := rt.SetOption("link_schemes", "http, https"); err != nil {
+		t.Fatal(err)
+	}
+	if got := rt.Config().LinkSchemes; !slices.Equal(got, []string{"http", "https"}) {
+		t.Fatalf(":set link_schemes = %q", got)
 	}
 }

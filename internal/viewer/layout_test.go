@@ -376,3 +376,21 @@ func TestActivateLinkHonorsDestinationPoint(t *testing.T) {
 		t.Fatalf("link jump ignored destination y: scrollY=%.1f matches page top", app.scrollY)
 	}
 }
+
+func TestLinkSchemeAllowed(t *testing.T) {
+	schemes := config.Default().LinkSchemes
+	for uri, want := range map[string]bool{
+		"https://example.com":   true,
+		"HTTP://example.com":    true,
+		"mailto:a@example.com":  true,
+		"file:///etc/passwd":    false,
+		"javascript:alert(1)":   false,
+		"relative/path.pdf":     false,
+		"launch:calc.exe":       false,
+		"https://[invalid-host": false,
+	} {
+		if got := linkSchemeAllowed(uri, schemes); got != want {
+			t.Errorf("linkSchemeAllowed(%q) = %t, want %t", uri, got, want)
+		}
+	}
+}
