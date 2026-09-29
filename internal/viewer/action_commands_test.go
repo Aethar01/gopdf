@@ -123,3 +123,21 @@ func TestViewCommands(t *testing.T) {
 		t.Fatal(":noh kept the search")
 	}
 }
+
+func TestOtherActionCommands(t *testing.T) {
+	app := testPrefetchApp(3, 1)
+	app.search = searchState{query: "x", current: 0, matches: map[int][]mupdf.SearchHit{0: {{}}, 2: {{}}}, order: []searchHitRef{{page: 0}, {page: 2}}}
+	app.runCommand(":next")
+	if app.search.current != 1 {
+		t.Fatalf(":next left match %d", app.search.current)
+	}
+	app.runCommand(":prev")
+	if app.search.current != 0 {
+		t.Fatalf(":prev left match %d", app.search.current)
+	}
+	app.pageLinks = map[int][]mupdf.Link{0: {{Bounds: mupdf.Rect{X1: 50, Y1: 10}, Page: 1}}, 1: nil, 2: nil}
+	app.runCommand(":hints")
+	if app.hints == nil {
+		t.Fatal(":hints showed no hints")
+	}
+}

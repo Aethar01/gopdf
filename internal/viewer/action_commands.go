@@ -17,6 +17,10 @@ var actionCommands = map[string]string{
 	"noh":      "clear_search",
 	"back":     "jump_backward",
 	"forward":  "jump_forward",
+	"copy":     "copy",
+	"hints":    "follow_link",
+	"next":     "search_next",
+	"prev":     "search_prev",
 }
 
 // toggleCommand switches a setting: on, off, or with no argument to the
