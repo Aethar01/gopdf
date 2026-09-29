@@ -169,7 +169,6 @@ func (a *App) openDocumentWithPassword(path string, opts openDocumentOptions, pa
 	a.initRenderWorker()
 	a.initSearch()
 	a.recomputeLayout(a.viewportSize())
-	a.ensureRenderBaseScale()
 	if opts.preserveView != nil {
 		a.restoreViewState(*opts.preserveView)
 	} else if !opts.startPageExplicit && hasSavedState {
@@ -177,6 +176,7 @@ func (a *App) openDocumentWithPassword(path string, opts openDocumentOptions, pa
 	} else {
 		a.alignPageToAnchor(startPage)
 	}
+	a.resetRenderScale()
 	a.pendingRedraw = true
 	if a.runtime != nil {
 		a.emitPluginEvent("document_opened", a.documentEventPayload())
@@ -350,8 +350,8 @@ func (a *App) softReloadDocument(path string, state viewState) error {
 	a.initRenderWorker()
 	a.initSearch()
 	a.recomputeLayout(a.viewportSize())
-	a.ensureRenderBaseScale()
 	a.restoreViewState(state)
+	a.resetRenderScale()
 	a.pendingRedraw = true
 	if a.runtime != nil {
 		a.emitPluginEvent("document_reloaded", a.documentEventPayload())

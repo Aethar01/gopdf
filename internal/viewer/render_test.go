@@ -320,6 +320,24 @@ func TestRenderScalePolicy(t *testing.T) {
 	}
 }
 
+func TestRenderBaseScaleOversamplesOnce(t *testing.T) {
+	app := &App{viewStateFields: viewStateFields{scale: 1, zoom: 1, fitMode: "manual"}, config: config.Config{RenderOversample: 2}, renderService: renderService{minRenderBaseScale: 0.25}}
+	app.ensureRenderBaseScale()
+	assertClose(t, app.renderBaseScale, 2)
+}
+
+func TestResetRenderScaleUsesRestoredView(t *testing.T) {
+	app := &App{viewStateFields: viewStateFields{scale: 1, zoom: 1, fitMode: "manual"}, config: config.Config{RenderOversample: 1}, renderService: renderService{minRenderBaseScale: 0.25}}
+	app.scheduleRenderScaleTarget(1) // fixes the base before the saved view is restored
+	app.scale, app.zoom = 3, 3
+	app.scheduleRenderScaleTarget(3)
+	app.resetRenderScale()
+	assertClose(t, app.renderBaseScale, 3)
+	if !app.renderScaleReadyAt.IsZero() {
+		t.Fatal("expected the pending upgrade to be dropped")
+	}
+}
+
 func TestRenderScaleForAllowsLowZoomUndersampling(t *testing.T) {
 	app := &App{config: config.Config{RenderOversample: 1}, renderService: renderService{minRenderBaseScale: 0.25, renderBaseScale: 1}}
 

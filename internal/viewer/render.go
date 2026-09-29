@@ -245,7 +245,15 @@ func (a *App) ensureRenderBaseScale() {
 		}
 		return
 	}
-	a.renderBaseScale = math.Max(a.oversampledRenderScale(a.currentRenderTarget()), floor)
+	a.renderBaseScale = a.currentRenderTarget()
+}
+
+// resetRenderScale renders at the current view's scale from now on, for a
+// document just installed with no tiles to keep consistent with; called once
+// the view is restored so the first frames do not render at a stale scale.
+func (a *App) resetRenderScale() {
+	a.renderScaleTarget, a.renderScaleReadyAt = 0, time.Time{}
+	a.renderBaseScale = a.currentRenderTarget()
 }
 
 func (a *App) scheduleRenderScaleTarget(target float64) {
