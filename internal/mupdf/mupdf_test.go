@@ -3,6 +3,8 @@ package mupdf
 import (
 	"strings"
 	"testing"
+
+	"gopdf/internal/testpdf"
 )
 
 func TestClosedDocumentReturnsErrors(t *testing.T) {
@@ -77,6 +79,29 @@ func TestSupportedExtensionsComeFromTheBuild(t *testing.T) {
 	for _, ext := range extensions {
 		if !candidates[ext] {
 			t.Errorf("reported %q which is not a candidate", ext)
+		}
+	}
+}
+
+func TestPageInfoAppliesCropBoxRotationAndLabels(t *testing.T) {
+	path := testpdf.WriteObjects(t, []string{
+		"<</Type/Catalog/Pages 2 0 R/PageLabels<</Nums[0<</S/r>>1<</P(A-)/S/D>>]>>>>",
+		"<</Type/Pages/Kids[3 0 R 4 0 R]/Count 2/Rotate 90>>", // pages inherit the rotation
+		"<</Type/Page/Parent 2 0 R/MediaBox[0 0 612 792]/CropBox[10 20 310 420]>>",
+		"<</Type/Page/Parent 2 0 R/MediaBox[0 0 612 792]/Rotate 0/UserUnit 2>>",
+	})
+	doc, err := Open(path, OpenOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer doc.Close()
+	for page, want := range []PageInfo{
+		{Bounds: Rect{X1: 400, Y1: 300}, Label: "i"},
+		{Bounds: Rect{X1: 1224, Y1: 1584}, Label: "A-1"},
+	} {
+		info, err := doc.PageInfo(page)
+		if err != nil || info != want {
+			t.Errorf("page %d: PageInfo = %+v, %v; want %+v", page, info, err, want)
 		}
 	}
 }

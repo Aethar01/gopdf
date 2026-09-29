@@ -22,7 +22,7 @@ func WriteImage(t testing.TB) string {
 	image := "<</Type/XObject/Subtype/Image/Width 2/Height 2/ColorSpace/DeviceRGB/BitsPerComponent 8/Length 12>>\nstream\n" +
 		strings.Repeat("\xff\x00\x00", 4) + "\nendstream"
 	content := "q 100 0 0 100 100 592 cm /Im0 Do Q"
-	return write(t, []string{
+	return WriteObjects(t, []string{
 		"<</Type/Catalog/Pages 2 0 R>>",
 		"<</Type/Pages/Kids[3 0 R]/Count 1>>",
 		"<</Type/Page/Parent 2 0 R/MediaBox[0 0 612 792]/Resources<</XObject<</Im0 4 0 R>>>>/Contents 5 0 R>>",
@@ -38,7 +38,7 @@ func WriteImage(t testing.TB) string {
 func WriteForm(t testing.TB) string {
 	t.Helper()
 	appearance := "<</Type/XObject/Subtype/Form/BBox[0 0 15 15]/Length 0>>\nstream\n\nendstream"
-	return write(t, []string{
+	return WriteObjects(t, []string{
 		"<</Type/Catalog/Pages 2 0 R/AcroForm<</Fields[4 0 R 5 0 R 6 0 R]/DA(/Helv 12 Tf 0 g)/DR<</Font<</Helv 7 0 R>>>>>>>>",
 		"<</Type/Pages/Kids[3 0 R]/Count 1>>",
 		"<</Type/Page/Parent 2 0 R/MediaBox[0 0 612 792]/Annots[4 0 R 5 0 R 6 0 R]/Contents 8 0 R>>",
@@ -76,11 +76,12 @@ func WritePages(t testing.TB, pages ...[]string) string {
 		)
 	}
 	objects[1] = fmt.Sprintf("<</Type/Pages/Kids[%s]/Count %d>>", strings.Join(kids, " "), len(pages))
-	return write(t, objects)
+	return WriteObjects(t, objects)
 }
 
-// write numbers objects from 1 and writes them as a PDF with an xref table.
-func write(t testing.TB, objects []string) string {
+// WriteObjects numbers objects from 1, the first being the catalog, and
+// writes them as a PDF with an xref table.
+func WriteObjects(t testing.TB, objects []string) string {
 	t.Helper()
 	var pdf strings.Builder
 	pdf.WriteString("%PDF-1.4\n")

@@ -237,17 +237,27 @@ int gopdf_count_pages(gopdf_doc *handle, int *count, char **err) {
 
 /* Page metrics are read for every page up front, so the page is loaded
  * transiently instead of filling the page cache. */
+/* A page's bounds and label. PDF pages are read from the page tree, which
+ * is much cheaper than loading the page with its annotations. */
 int gopdf_page_info(gopdf_doc *handle, int page_number, gopdf_rect *bounds, char **label, char **err) {
+	pdf_document *pdf = pdf_specifics(handle->ctx, handle->doc);
 	fz_page *page = NULL;
 	fz_rect rect = fz_empty_rect;
+	fz_matrix ctm;
 	char buf[64] = { 0 };
 	*label = NULL;
 	*err = NULL;
 	fz_var(page);
 	fz_try(handle->ctx) {
-		page = fz_load_page(handle->ctx, handle->doc, page_number);
-		rect = fz_bound_page(handle->ctx, page);
-		fz_page_label(handle->ctx, page, buf, sizeof(buf));
+		if (pdf) {
+			pdf_page_obj_transform(handle->ctx, pdf_lookup_page_obj(handle->ctx, pdf, page_number), &rect, &ctm);
+			rect = fz_transform_rect(rect, ctm);
+			pdf_page_label(handle->ctx, pdf, page_number, buf, sizeof(buf));
+		} else {
+			page = fz_load_page(handle->ctx, handle->doc, page_number);
+			rect = fz_bound_page(handle->ctx, page);
+			fz_page_label(handle->ctx, page, buf, sizeof(buf));
+		}
 	} fz_always(handle->ctx) {
 		fz_drop_page(handle->ctx, page);
 	} fz_catch(handle->ctx) {
