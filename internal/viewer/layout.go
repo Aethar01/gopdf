@@ -82,10 +82,7 @@ func (a *App) baseRows() []rowLayout {
 	arena := newRowArena(a.pageCount)
 	if a.overview != nil {
 		// Every cell takes the widest cell's width so columns line up.
-		slot := 0.0
-		for _, spread := range spreads {
-			slot = math.Max(slot, a.spreadWidth(spread))
-		}
+		slot := a.overviewSlot()
 		columns := a.overviewColumns()
 		rows := make([]rowLayout, 0, len(spreads)/columns+1)
 		for i := 0; i < len(spreads); i += columns {

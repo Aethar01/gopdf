@@ -10,6 +10,9 @@ func (a *App) currentScaleFromRows(viewportW, viewportH int, baseRows []rowLayou
 	if a.fitMode == fitManual {
 		return a.zoom
 	}
+	if a.overview != nil {
+		return a.overviewScale(viewportW)
+	}
 	if a.renderMode == renderSingle && len(baseRows) > 0 && a.page >= 0 {
 		row := baseRows[clampInt(a.baseRowIndexForPage(a.page, baseRows), 0, len(baseRows)-1)]
 		return a.fitScale(viewportW, viewportH, []rowLayout{row})

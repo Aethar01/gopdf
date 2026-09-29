@@ -254,3 +254,18 @@ func TestOverviewColumnsFollowTheOverviewOptions(t *testing.T) {
 		t.Fatalf("columns = %d, want overview_max_columns 3", got)
 	}
 }
+
+func TestOverviewThumbnailSizeDoesNotDependOnPageCount(t *testing.T) {
+	long := testOverviewApp()
+	long.toggleOverview()
+	short := testLayoutApp(1)
+	short.winW, short.winH = 1000, 800
+	short.recomputeLayout(short.viewportSize())
+	short.toggleOverview()
+	if got, want := short.rows[0].pageW[0], long.rows[0].pageW[0]; math.Abs(got-want) > 0.01 {
+		t.Fatalf("one-page overview thumbnail is %.1fpx wide, want %.1fpx as with 20 pages", got, want)
+	}
+	if want := float64(short.config.OverviewThumbWidth); short.rows[0].pageW[0] > 2*want {
+		t.Fatalf("thumbnail is %.1fpx wide, far past overview_thumb_width %v", short.rows[0].pageW[0], want)
+	}
+}

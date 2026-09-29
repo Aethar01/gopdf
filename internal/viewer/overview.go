@@ -14,7 +14,6 @@ import (
 // normal continuous layout with several pages per row, so rendering and
 // scrolling work as usual; only navigation and the selection outline differ.
 
-
 type overviewState struct {
 	selected int       // the first page of the selected spread
 	columns  int       // 0 picks a count from the window width
@@ -124,17 +123,37 @@ func (a *App) prefetchOverviewThumbnails() {
 	}
 }
 
+// overviewColumns is how many cells a row of the grid holds. It does not
+// depend on how many pages there are, so a short document keeps the
+// thumbnail size a long one gets rather than stretching across the window.
 func (a *App) overviewColumns() int {
-	cells := len(a.spreads())
 	if a.overview.columns > 0 {
-		return min(a.overview.columns, max(1, cells))
+		return a.overview.columns
 	}
 	cellWidth := max(1, a.config.OverviewThumbWidth)
 	if a.dualPage {
 		cellWidth *= 2 // a spread takes two thumbnails' width
 	}
 	viewportW, _ := a.viewportSize()
-	return clampInt(viewportW/(cellWidth+a.config.OverviewGap), 2, max(2, min(cells, a.config.OverviewMaxColumns)))
+	return clampInt(viewportW/(cellWidth+a.config.OverviewGap), 2, max(2, a.config.OverviewMaxColumns))
+}
+
+// overviewSlot is the unscaled width of a grid cell: the widest spread's.
+func (a *App) overviewSlot() float64 {
+	slot := 0.0
+	for _, spread := range a.spreads() {
+		slot = math.Max(slot, a.spreadWidth(spread))
+	}
+	return slot
+}
+
+// overviewScale fits a full row of cells to the viewport width, whether or
+// not there are pages enough to fill one.
+func (a *App) overviewScale(viewportW int) float64 {
+	columns := a.overviewColumns()
+	gap := float64(a.config.OverviewGap)
+	available := float64(viewportW) - 2*gap - float64(columns-1)*gap
+	return math.Max(0.05, available/math.Max(1, float64(columns)*a.overviewSlot()))
 }
 
 func (a *App) relayoutOverview() {
