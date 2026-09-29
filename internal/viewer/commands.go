@@ -66,10 +66,13 @@ func (a *App) hasPrefix(joined string) bool {
 }
 
 func (a *App) runAction(action string) {
-	if a.overview != nil && a.runOverviewAction(action) {
+	// The overview and presentation modes reinterpret actions only while
+	// they have the keyboard, not while a prompt or menu opened over them.
+	inFront := a.mode == modeNormal && a.activeModalUIView() == nil
+	if inFront && a.overview != nil && a.runOverviewAction(action) {
 		return
 	}
-	if a.presentation != nil && a.runPresentationAction(action) {
+	if inFront && a.presentation != nil && a.runPresentationAction(action) {
 		return
 	}
 	if handled, dirty, err := a.runtime.RunAction(action); handled {

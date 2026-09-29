@@ -410,7 +410,9 @@ func (a *App) handleSDLKeyDown(e *sdl.KeyboardEvent) {
 		}
 		return
 	}
-	if view := a.activeModalUIView(); view != nil && view.onKey != nil {
+	// A prompt is always opened after any menu still showing, so it takes
+	// the keys first.
+	if view := a.activeModalUIView(); view != nil && view.onKey != nil && a.mode == modeNormal {
 		view.onKey(a, e)
 		return
 	}

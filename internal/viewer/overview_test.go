@@ -1,6 +1,12 @@
 package viewer
 
-import "testing"
+import (
+	"testing"
+
+	"gopdf/internal/config"
+
+	"github.com/jupiterrider/purego-sdl3/sdl"
+)
 
 func testOverviewApp() *App {
 	app := testLayoutApp(20)
@@ -96,5 +102,20 @@ func TestOverviewLargeScrollOffCentresSelection(t *testing.T) {
 	first := app.rowIndexAtContentY(app.scrollY + overviewGap)
 	if got, want := app.pageToRow[app.overview.selected]-first, (rows-1)/2; got != want {
 		t.Fatalf("selected row is %d rows below the top, want %d (centred)", got, want)
+	}
+}
+
+func TestPromptOverOverviewReceivesEnter(t *testing.T) {
+	app := testOverviewApp()
+	app.applyConfigState(config.Default(), false) // default key bindings
+	app.toggleOverview()
+	app.runAction("command_mode")
+	app.input.Set("colors alt")
+	app.handleSDLKeyDown(&sdl.KeyboardEvent{Type: sdl.EventKeyDown, Key: sdl.KeycodeReturn})
+	if app.mode != modeNormal || app.overview == nil {
+		t.Fatalf("Enter went to the overview: mode=%v overview=%v", app.mode, app.overview != nil)
+	}
+	if !app.altColors {
+		t.Fatal("command not run")
 	}
 }
