@@ -55,3 +55,12 @@ func TestLinkHintsFollowTypedLabel(t *testing.T) {
 		t.Fatal("Esc did not cancel hints")
 	}
 }
+
+func TestHintLabelsSitBelowTheirLink(t *testing.T) {
+	if box := hintBox(10, 100, 120, 30, 20, 800); box.X != 10 || box.Y != 120 {
+		t.Fatalf("label at %v, want just below the link", box)
+	}
+	if box := hintBox(10, 770, 790, 30, 20, 800); box.Y != 750 {
+		t.Fatalf("label at %v, want above a link at the bottom edge", box)
+	}
+}

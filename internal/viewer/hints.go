@@ -119,6 +119,7 @@ func (a *App) drawLinkHints(renderer *sdl.Renderer) {
 	if a.hints == nil {
 		return
 	}
+	_, viewportH := a.viewportSize()
 	metrics := a.fontFace.Metrics()
 	ascent, descent := metrics.Ascent.Ceil(), metrics.Descent.Ceil()
 	bg, fg := a.selectionColor(), a.highlightForegroundColor()
@@ -133,17 +134,28 @@ func (a *App) drawLinkHints(renderer *sdl.Renderer) {
 		if !ok {
 			continue
 		}
-		minX, minY, _, _ := a.quadScreenBounds(rectQuad(hint.link.Bounds), hint.page, x, y)
+		minX, minY, _, maxY := a.quadScreenBounds(rectQuad(hint.link.Bounds), hint.page, x, y)
 		const pad = 3
 		w := measureText(a.fontFace, hint.label) + 2*pad
-		box := sdl.FRect{X: float32(minX), Y: float32(minY), W: float32(w), H: float32(ascent + descent + 2*pad)}
+		box := hintBox(minX, minY, maxY, float64(w), float64(ascent+descent+2*pad), float64(viewportH))
 		fillRect(renderer, box, bg)
 		strokeRect(renderer, box, fg, 1)
-		baseline := int(minY) + pad + ascent
+		left, baseline := int(box.X)+pad, int(box.Y)+pad+ascent
 		typedW := measureText(a.fontFace, a.hints.typed)
-		a.drawText(renderer, a.hints.typed, int(minX)+pad, baseline, typedFG)
-		a.drawText(renderer, hint.label[len(a.hints.typed):], int(minX)+pad+typedW, baseline, fg)
+		a.drawText(renderer, a.hints.typed, left, baseline, typedFG)
+		a.drawText(renderer, hint.label[len(a.hints.typed):], left+typedW, baseline, fg)
 	}
+}
+
+// hintBox places a w by h label for the link spanning minY to maxY from
+// left edge x: below the link, leaving the link text readable, or above it
+// when there is no room below.
+func hintBox(x, minY, maxY, w, h, viewportH float64) sdl.FRect {
+	y := maxY
+	if y+h > viewportH && minY-h >= 0 {
+		y = minY - h
+	}
+	return sdl.FRect{X: float32(x), Y: float32(y), W: float32(w), H: float32(h)}
 }
 
 func rectQuad(r mupdf.Rect) mupdf.Quad {
