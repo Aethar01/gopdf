@@ -55,6 +55,7 @@ type textSelection struct {
 	focus      mupdf.Point
 	parts      []selectionPart // highlighted quads, one entry per page in order
 	text       string
+	wholePages map[int]*mupdf.Selection // pages between the ends, see selectionOnPage
 }
 
 type selectionPart struct {

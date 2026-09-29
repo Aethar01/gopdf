@@ -215,23 +215,13 @@ func (a *App) refreshSelection() {
 	sel.parts = sel.parts[:0]
 	var text []string
 	for page := first; page <= last; page++ {
-		start, end := firstPoint, lastPoint
-		if first != last {
-			textStart, textEnd, ok, err := a.doc.TextEnds(page)
-			if err != nil || !ok {
-				continue // no text to select on this page
-			}
-			if page != first {
-				start = textStart
-			}
-			if page != last {
-				end = textEnd
-			}
-		}
-		extracted, err := a.doc.ExtractSelection(page, start, end, sel.mode)
+		extracted, err := a.selectionOnPage(page, first, last, firstPoint, lastPoint)
 		if err != nil {
 			a.message = err.Error()
 			return
+		}
+		if extracted == nil {
+			continue
 		}
 		if len(extracted.Quads) > 0 {
 			sel.parts = append(sel.parts, selectionPart{page: page, quads: extracted.Quads})
@@ -242,6 +232,44 @@ func (a *App) refreshSelection() {
 	}
 	sel.text = strings.Join(text, "\n")
 	a.emitSelectionChanged()
+}
+
+// selectionOnPage extracts the selection on one page, or nil when the page
+// has no text. Pages between the ends are selected whole, so they are
+// extracted once per selection rather than on every drag motion.
+func (a *App) selectionOnPage(page, first, last int, firstPoint, lastPoint mupdf.Point) (*mupdf.Selection, error) {
+	sel := &a.selection
+	if page == first || page == last {
+		return a.extractSelection(page, first, last, firstPoint, lastPoint)
+	}
+	if extracted, ok := sel.wholePages[page]; ok {
+		return extracted, nil
+	}
+	extracted, err := a.extractSelection(page, first, last, firstPoint, lastPoint)
+	if err == nil {
+		if sel.wholePages == nil {
+			sel.wholePages = map[int]*mupdf.Selection{}
+		}
+		sel.wholePages[page] = extracted
+	}
+	return extracted, err
+}
+
+func (a *App) extractSelection(page, first, last int, firstPoint, lastPoint mupdf.Point) (*mupdf.Selection, error) {
+	start, end := firstPoint, lastPoint
+	if first != last {
+		textStart, textEnd, ok, err := a.doc.TextEnds(page)
+		if err != nil || !ok {
+			return nil, nil // no text to select on this page
+		}
+		if page != first {
+			start = textStart
+		}
+		if page != last {
+			end = textEnd
+		}
+	}
+	return a.doc.ExtractSelection(page, start, end, a.selection.mode)
 }
 
 func (a *App) emitSelectionChanged() {

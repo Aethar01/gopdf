@@ -125,6 +125,15 @@ func TestSelectionSpansPages(t *testing.T) {
 	if strings.Contains(app.selection.text, "alpha") || strings.Contains(app.selection.text, "three") {
 		t.Errorf("selection %q runs past its end points", app.selection.text)
 	}
+	if _, ok := app.selection.wholePages[1]; !ok {
+		t.Error("middle page was not kept for later drag motions")
+	}
+
+	x, y = at(1, 80) // back into "beta", making page 1 an end again
+	app.handleSDLMouseMotion(&sdl.MouseMotionEvent{State: sdl.ButtonLMask, X: x, Y: y})
+	if strings.Contains(app.selection.text, "two") || strings.Contains(app.selection.text, "gam") {
+		t.Errorf("selection %q still uses the whole of its new end page", app.selection.text)
+	}
 }
 
 func TestCrossPageSelectionFollowsReadingOrder(t *testing.T) {
