@@ -111,6 +111,13 @@ func (r *Runtime) AttachHost(host Host) {
 	r.host = host
 }
 
+// SetWake sets the function that wakes the viewer when a plugin operation
+// finishes, so it can call PollPluginOperations then rather than on a timer.
+// It must be safe to call from any goroutine.
+func (r *Runtime) SetWake(wake func()) {
+	r.wake = wake
+}
+
 func (r *Runtime) SetDocument(path string, pageCount ...int) error {
 	path = AbsoluteDocumentPath(path)
 	r.docPath = path

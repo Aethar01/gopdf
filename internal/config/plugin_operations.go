@@ -31,14 +31,28 @@ func (r *Runtime) startPluginOperation(pluginID, kind string, callback *lua.LFun
 	id := r.nextOperationID
 	op := &pluginOperation{id: id, plugin: pluginID, generation: r.pluginGeneration, kind: kind, cancel: cancel, callback: callback}
 	r.operations[id] = op
+	deliver := r.resultDelivery()
 	go func() {
 		values := run(ctx)
-		select {
-		case r.operationResults <- pluginOperationResult{id: id, plugin: pluginID, generation: op.generation, values: values}:
-		case <-ctx.Done():
-		}
+		deliver(ctx, pluginOperationResult{id: id, plugin: pluginID, generation: op.generation, values: values})
 	}()
 	return id
+}
+
+// resultDelivery returns a function for an operation's goroutine to hand its
+// result to the next poll with, waking the viewer to run that poll; it drops
+// the result once ctx is cancelled.
+func (r *Runtime) resultDelivery() func(context.Context, pluginOperationResult) {
+	results, wake := r.operationResults, r.wake
+	return func(ctx context.Context, result pluginOperationResult) {
+		select {
+		case results <- result:
+			if wake != nil {
+				wake()
+			}
+		case <-ctx.Done():
+		}
+	}
 }
 
 func (r *Runtime) startPluginTimer(pluginID string, delay time.Duration, repeat bool, callback *lua.LFunction) int {
@@ -55,15 +69,14 @@ func (r *Runtime) startPluginTimer(pluginID string, delay time.Duration, repeat 
 }
 
 func (r *Runtime) waitPluginTimer(ctx context.Context, op *pluginOperation, delay time.Duration) {
+	deliver := r.resultDelivery()
+	result := pluginOperationResult{id: op.id, plugin: op.plugin, generation: op.generation}
 	go func() {
 		timer := time.NewTimer(delay)
 		defer timer.Stop()
 		select {
 		case <-timer.C:
-			select {
-			case r.operationResults <- pluginOperationResult{id: op.id, plugin: op.plugin, generation: op.generation}:
-			case <-ctx.Done():
-			}
+			deliver(ctx, result)
 		case <-ctx.Done():
 		}
 	}()
@@ -160,10 +173,6 @@ func (r *Runtime) pollPluginOperations() bool {
 	}
 }
 
-func (r *Runtime) pluginOperationsActive() bool {
-	return r != nil && len(r.operations) > 0
-}
-
 func (r *Runtime) schedule(callback *lua.LFunction) (int, error) {
 	if r == nil || r.state == nil {
 		return 0, fmt.Errorf("Lua runtime unavailable")
@@ -172,8 +181,6 @@ func (r *Runtime) schedule(callback *lua.LFunction) (int, error) {
 }
 
 func (r *Runtime) PollPluginOperations() bool { return r.pollPluginOperations() }
-
-func (r *Runtime) PluginOperationsActive() bool { return r.pluginOperationsActive() }
 
 // callPluginLua dispatches a plugin-owned callback with the plugin attributed
 // so diagnostics such as gopdf.log() name the owner rather than the loader.

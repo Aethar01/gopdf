@@ -136,11 +136,6 @@ func (a *App) eventWaitTimeoutMS() int {
 	if a.smoothScrollActive() || a.smoothZoomAnimating() || a.loaderVisible {
 		return max(1, int(a.animationFrameDuration()/time.Millisecond))
 	}
-	// Render, search and metric workers wake the loop when they have
-	// results; plugin operations do not, so they are polled.
-	if a.runtime != nil && a.runtime.PluginOperationsActive() {
-		return int(smoothAnimationFrame / time.Millisecond)
-	}
 	// Wake for the earliest pending deadline.
 	deadlines := []time.Time{a.captureDeadline(), a.previewDeadline(), a.renderScaleReadyAt}
 	if len(a.sequence) > 0 {

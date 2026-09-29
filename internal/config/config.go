@@ -94,6 +94,7 @@ type Runtime struct {
 	plugins          *pluginState
 	operations       map[int]*pluginOperation
 	operationResults chan pluginOperationResult
+	wake             func() // wakes the viewer to poll a delivered result; may be nil
 	nextOperationID  int
 	pluginGeneration int
 	loadingPlugin    string

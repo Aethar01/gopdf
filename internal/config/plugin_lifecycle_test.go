@@ -388,3 +388,21 @@ assert(sample.job_done, "the job callback was skipped by the same poll")
 		t.Fatal(err)
 	}
 }
+
+func TestFinishedPluginOperationsWakeTheViewer(t *testing.T) {
+	rt := openPluginRuntime(t, `return gopdf.plugin.register("sample")`)
+	woken := make(chan struct{}, 1)
+	rt.SetWake(func() { woken <- struct{}{} })
+	if _, err := rt.Eval(`sample.timer:after(1, function() sample.fired = true end)`); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-woken:
+	case <-time.After(5 * time.Second):
+		t.Fatal("timer finished without waking the viewer")
+	}
+	rt.PollPluginOperations()
+	if _, err := rt.Eval(`assert(sample.fired, "the timer callback did not run")`); err != nil {
+		t.Fatal(err)
+	}
+}

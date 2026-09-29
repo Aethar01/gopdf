@@ -64,6 +64,7 @@ func New(docPath string, runtime *config.Runtime, startPage int, iconBytes []byt
 	}
 	app.logf("create viewer doc=%q startPage=%d", docPath, startPage+1)
 	runtime.AttachHost(app)
+	runtime.SetWake(app.wakeLoop)
 	app.applyConfigState(cfg, false)
 	app.message = cfg.NormalMessage
 	if docPath != "" {
