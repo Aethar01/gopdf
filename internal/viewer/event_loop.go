@@ -133,10 +133,12 @@ func (a *App) openInitialDocument() error {
 }
 
 func (a *App) eventWaitTimeoutMS() int {
-	if a.smoothScrollActive() || a.smoothZoomAnimating() {
+	if a.smoothScrollActive() || a.smoothZoomAnimating() || a.loaderVisible {
 		return max(1, int(a.animationFrameDuration()/time.Millisecond))
 	}
-	if a.hasPendingVisibleRender() || a.search.running || a.runtime != nil && a.runtime.PluginOperationsActive() {
+	// Render, search and metric workers wake the loop when they have
+	// results; plugin operations do not, so they are polled.
+	if a.runtime != nil && a.runtime.PluginOperationsActive() {
 		return int(smoothAnimationFrame / time.Millisecond)
 	}
 	// Wake for the earliest pending deadline.
