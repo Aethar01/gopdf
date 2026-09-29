@@ -200,11 +200,10 @@ func (a *App) alignPageToDocumentPoint(page int, x, y float64) {
 			break
 		}
 	}
-	originX, originY := rotatedBoundsOrigin(a.pageMetrics[page].bounds, a.scale, a.rotation)
-	tx, ty := transformPoint(x, y, a.scale, a.rotation)
+	dx, dy := a.pageTransform(page).toScreen(x, y)
 	viewportW, viewportH := a.viewportSize()
-	a.scrollX = row.pageX[pageIndex] + tx - originX - float64(viewportW)/2
-	a.scrollY = row.pageY[pageIndex] + ty - originY - float64(viewportH)/4
+	a.scrollX = row.pageX[pageIndex] + dx - float64(viewportW)/2
+	a.scrollY = row.pageY[pageIndex] + dy - float64(viewportH)/4
 	a.page = page
 	a.clampScroll()
 }

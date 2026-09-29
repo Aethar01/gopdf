@@ -359,6 +359,35 @@ func rotatedBoundsSize(bounds mupdf.Rect, rotation float64) (float64, float64) {
 	return maxX - minX, maxY - minY
 }
 
+// pageTransform maps between a page's points and screen offsets from the
+// top-left corner of the page as drawn, scaled and rotated.
+type pageTransform struct {
+	originX, originY float64 // the rotated page's top-left, before offsetting
+	scale, rotation  float64
+}
+
+func newPageTransform(bounds mupdf.Rect, scale, rotation float64) pageTransform {
+	originX, originY := rotatedBoundsOrigin(bounds, scale, rotation)
+	return pageTransform{originX: originX, originY: originY, scale: scale, rotation: rotation}
+}
+
+// pageTransform is the transform of page as currently drawn.
+func (a *App) pageTransform(page int) pageTransform {
+	return newPageTransform(a.pageMetrics[page].bounds, a.scale, a.rotation)
+}
+
+// toScreen returns the screen offset of page point (x, y).
+func (t pageTransform) toScreen(x, y float64) (float64, float64) {
+	tx, ty := transformPoint(x, y, t.scale, t.rotation)
+	return tx - t.originX, ty - t.originY
+}
+
+// toPage returns the page point at screen offset (dx, dy).
+func (t pageTransform) toPage(dx, dy float64) mupdf.Point {
+	x, y := inverseTransformPoint(dx+t.originX, dy+t.originY, t.scale, t.rotation)
+	return mupdf.Point{X: x, Y: y}
+}
+
 func rotatedBoundsOrigin(bounds mupdf.Rect, scale, rotation float64) (float64, float64) {
 	minX, minY, _, _ := rotatedBounds(bounds, rotation)
 	return minX * scale, minY * scale

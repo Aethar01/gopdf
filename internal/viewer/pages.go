@@ -79,11 +79,10 @@ func (a *App) drawTile(renderer *sdl.Renderer, tile *renderedTile, x, y float64,
 	drawScale := a.scale / tile.scale
 	drawW := float64(tile.rect.Dx()) * drawScale
 	drawH := float64(tile.rect.Dy()) * drawScale
-	originX, originY := rotatedBoundsOrigin(a.pageMetrics[tile.key.page].bounds, a.scale, a.rotation)
 	pageX := (float64(tile.rect.Min.X) + float64(tile.rect.Dx())/2) / tile.scale
 	pageY := (float64(tile.rect.Min.Y) + float64(tile.rect.Dy())/2) / tile.scale
-	tx, ty := transformPoint(pageX, pageY, a.scale, a.rotation)
-	centerX, centerY := x+tx-originX, y+ty-originY
+	dx, dy := a.pageTransform(tile.key.page).toScreen(pageX, pageY)
+	centerX, centerY := x+dx, y+dy
 	if radius := math.Max(drawW, drawH) / 2; centerX+radius < 0 || centerY+radius < 0 || centerX-radius > float64(viewportW) || centerY-radius > float64(viewportH) {
 		return
 	}
@@ -110,7 +109,7 @@ func (a *App) drawPageBackground(renderer *sdl.Renderer, x, y float64, page int)
 }
 
 func pageBackgroundVertices(x, y float64, bounds mupdf.Rect, scale, rotation float64, clr color.RGBA) []sdl.Vertex {
-	originX, originY := rotatedBoundsOrigin(bounds, scale, rotation)
+	t := newPageTransform(bounds, scale, rotation)
 	points := []mupdf.Point{
 		{X: float64(bounds.X0), Y: float64(bounds.Y0)},
 		{X: float64(bounds.X1), Y: float64(bounds.Y0)},
@@ -120,9 +119,9 @@ func pageBackgroundVertices(x, y float64, bounds mupdf.Rect, scale, rotation flo
 	vertices := make([]sdl.Vertex, len(points))
 	color := sdl.FColor{R: float32(clr.R) / 255, G: float32(clr.G) / 255, B: float32(clr.B) / 255, A: float32(clr.A) / 255}
 	for i, point := range points {
-		tx, ty := transformPoint(point.X, point.Y, scale, rotation)
+		dx, dy := t.toScreen(point.X, point.Y)
 		vertices[i] = sdl.Vertex{
-			Position: sdl.FPoint{X: float32(x + tx - originX), Y: float32(y + ty - originY)},
+			Position: sdl.FPoint{X: float32(x + dx), Y: float32(y + dy)},
 			Color:    color,
 		}
 	}

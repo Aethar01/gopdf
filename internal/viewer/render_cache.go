@@ -210,8 +210,7 @@ func tilesCovering(page, area image.Rectangle) []image.Point {
 // pageDeviceArea maps a screen rect onto page, whose screen origin is
 // (x, y), and returns it in device pixels at scale.
 func (a *App) pageDeviceArea(page int, x, y float64, screen sdl.FRect, scale float64) image.Rectangle {
-	bounds := a.pageMetrics[page].bounds
-	originX, originY := rotatedBoundsOrigin(bounds, a.scale, a.rotation)
+	t := a.pageTransform(page)
 	minX, minY := math.Inf(1), math.Inf(1)
 	maxX, maxY := math.Inf(-1), math.Inf(-1)
 	for _, corner := range [][2]float64{
@@ -220,9 +219,9 @@ func (a *App) pageDeviceArea(page int, x, y float64, screen sdl.FRect, scale flo
 		{float64(screen.X), float64(screen.Y + screen.H)},
 		{float64(screen.X + screen.W), float64(screen.Y + screen.H)},
 	} {
-		px, py := inverseTransformPoint(corner[0]-x+originX, corner[1]-y+originY, a.scale, a.rotation)
-		minX, minY = math.Min(minX, px), math.Min(minY, py)
-		maxX, maxY = math.Max(maxX, px), math.Max(maxY, py)
+		p := t.toPage(corner[0]-x, corner[1]-y)
+		minX, minY = math.Min(minX, p.X), math.Min(minY, p.Y)
+		maxX, maxY = math.Max(maxX, p.X), math.Max(maxY, p.Y)
 	}
 	return image.Rect(int(math.Floor(minX*scale)), int(math.Floor(minY*scale)), int(math.Ceil(maxX*scale)), int(math.Ceil(maxY*scale)))
 }

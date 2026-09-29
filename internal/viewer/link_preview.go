@@ -73,14 +73,13 @@ func (a *App) previewPlacement() (popup sdl.FRect, x, y float64) {
 	if link.HasY {
 		destY = link.Y
 	}
-	originX, originY := rotatedBoundsOrigin(m.bounds, a.scale, a.rotation)
-	tx, ty := transformPoint(destX, destY, a.scale, a.rotation)
+	dx, dy := newPageTransform(m.bounds, a.scale, a.rotation).toScreen(destX, destY)
 	const inset = 16
 	screenX := float64(popup.X + popup.W/2) // centre the page when x is not given
 	if link.HasX {
 		screenX = float64(popup.X) + inset
 	}
-	return popup, screenX - (tx - originX), float64(popup.Y) + inset - (ty - originY)
+	return popup, screenX - dx, float64(popup.Y) + inset - dy
 }
 
 // previewTiles lists the target page's tiles that the popup shows.

@@ -656,3 +656,21 @@ func TestResizeKeepsConfiguredViewportAnchorPosition(t *testing.T) {
 	assertClose(t, x+tx-originX, targetX)
 	assertClose(t, y+ty-originY, targetY)
 }
+
+func TestPageTransformRoundTripsAndStartsAtTheDrawnCorner(t *testing.T) {
+	bounds := mupdf.Rect{X1: 100, Y1: 200}
+	for _, rotation := range []float64{0, 90, 180, 270} {
+		tr := newPageTransform(bounds, 1.5, rotation)
+		minX, minY := math.Inf(1), math.Inf(1)
+		for _, corner := range []mupdf.Point{{X: 0, Y: 0}, {X: 100, Y: 0}, {X: 0, Y: 200}, {X: 100, Y: 200}} {
+			dx, dy := tr.toScreen(corner.X, corner.Y)
+			minX, minY = math.Min(minX, dx), math.Min(minY, dy)
+			if back := tr.toPage(dx, dy); math.Abs(back.X-corner.X) > 1e-9 || math.Abs(back.Y-corner.Y) > 1e-9 {
+				t.Fatalf("rotation %v: %v came back as %v", rotation, corner, back)
+			}
+		}
+		if math.Abs(minX) > 1e-9 || math.Abs(minY) > 1e-9 {
+			t.Fatalf("rotation %v: drawn page starts at (%v, %v), want its top-left at 0", rotation, minX, minY)
+		}
+	}
+}

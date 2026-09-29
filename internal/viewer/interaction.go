@@ -21,9 +21,7 @@ func (a *App) captureViewportAnchor() viewportAnchor {
 	if !ok {
 		return viewportAnchor{}
 	}
-	originX, originY := rotatedBoundsOrigin(a.pageMetrics[page].bounds, a.scale, a.rotation)
-	pageX, pageY := inverseTransformPoint(x+originX, y+originY, a.scale, a.rotation)
-	return viewportAnchor{page: page, point: mupdf.Point{X: pageX, Y: pageY}, valid: true}
+	return viewportAnchor{page: page, point: a.pageTransform(page).toPage(x, y), valid: true}
 }
 
 func (a *App) restoreViewportAnchor(anchor viewportAnchor) {
@@ -36,15 +34,14 @@ func (a *App) restoreViewportAnchor(anchor viewportAnchor) {
 		a.clampScroll()
 		return
 	}
-	tx, ty := transformPoint(anchor.point.X, anchor.point.Y, a.scale, a.rotation)
-	originX, originY := rotatedBoundsOrigin(a.pageMetrics[anchor.page].bounds, a.scale, a.rotation)
+	dx, dy := a.pageTransform(anchor.page).toScreen(anchor.point.X, anchor.point.Y)
 	targetX, targetY := a.viewportAnchorScreenPoint()
-	a.scrollX += pageX + tx - originX - targetX
-	a.scrollY += pageY + ty - originY - targetY
+	a.scrollX += pageX + dx - targetX
+	a.scrollY += pageY + dy - targetY
 	a.clampScroll()
 	if a.renderMode == "continuous" {
 		pageX, pageY, ok = a.pageScreenOrigin(anchor.page)
-		if ok && (math.Abs(pageX+tx-originX-targetX) > 0.5 || math.Abs(pageY+ty-originY-targetY) > 0.5) {
+		if ok && (math.Abs(pageX+dx-targetX) > 0.5 || math.Abs(pageY+dy-targetY) > 0.5) {
 			a.page = anchor.page
 		} else {
 			a.updateCurrentPageFromScroll()
@@ -168,9 +165,7 @@ func (a *App) pagePointAtScreen(sx, sy float64) (int, mupdf.Point, bool) {
 	if !ok || page < 0 || page >= len(a.pageMetrics) {
 		return 0, mupdf.Point{}, false
 	}
-	originX, originY := rotatedBoundsOrigin(a.pageMetrics[page].bounds, a.scale, a.rotation)
-	pageX, pageY := inverseTransformPoint(transformedX+originX, transformedY+originY, a.scale, a.rotation)
-	return page, mupdf.Point{X: pageX, Y: pageY}, true
+	return page, a.pageTransform(page).toPage(transformedX, transformedY), true
 }
 
 func (a *App) pageGeometryAtScreen(sx, sy float64) (int, float64, float64, bool) {
@@ -427,11 +422,10 @@ func (a *App) quadScreenBounds(quad mupdf.Quad, page int, x, y float64) (float64
 	pts := []mupdf.Point{quad.UL, quad.UR, quad.LL, quad.LR}
 	minX, minY := math.MaxFloat64, math.MaxFloat64
 	maxX, maxY := -math.MaxFloat64, -math.MaxFloat64
-	originX, originY := rotatedBoundsOrigin(a.pageMetrics[page].bounds, a.scale, a.rotation)
+	t := a.pageTransform(page)
 	for _, pt := range pts {
-		tx, ty := transformPoint(pt.X, pt.Y, a.scale, a.rotation)
-		sx := x + tx - originX
-		sy := y + ty - originY
+		dx, dy := t.toScreen(pt.X, pt.Y)
+		sx, sy := x+dx, y+dy
 		minX = math.Min(minX, sx)
 		minY = math.Min(minY, sy)
 		maxX = math.Max(maxX, sx)
