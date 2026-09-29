@@ -177,3 +177,56 @@ func mustWrite(t *testing.T, path string) {
 		t.Fatal(err)
 	}
 }
+
+func TestCompletionAcceptCloseAndVisibleRows(t *testing.T) {
+	app := &App{
+		inputState: inputState{input: textInput{Value: "open par", Cursor: 8}},
+		config:     config.Config{CompletionMaxItems: 3},
+		uiState: uiState{completion: completionState{
+			view:  &uiView{visible: true, selected: 1},
+			start: 5,
+			end:   8,
+			items: []completionItem{
+				{display: "one", value: "one"},
+				{display: "paper.pdf", value: "paper.pdf"},
+			},
+		}},
+	}
+	app.acceptCompletion()
+	if app.input.Value != "open paper.pdf" || app.input.Cursor != len([]rune("open paper.pdf")) || app.completion.view != nil || !app.pendingRedraw {
+		t.Fatalf("expected selected completion to replace range and close menu, input=%q cursor=%d completion=%+v redraw=%v", app.input.Value, app.input.Cursor, app.completion, app.pendingRedraw)
+	}
+
+	app.completion = completionState{view: &uiView{visible: true}, items: []completionItem{{display: "a", value: "a"}}}
+	app.pendingRedraw = false
+	app.closeCompletion()
+	if app.completion.view != nil || len(app.completion.items) != 0 || !app.pendingRedraw {
+		t.Fatalf("expected closeCompletion to clear menu and request redraw, completion=%+v redraw=%v", app.completion, app.pendingRedraw)
+	}
+
+	app.completion = completionState{view: &uiView{selected: 3}, items: []completionItem{{display: "a"}, {display: "b"}, {display: "c"}, {display: "d"}, {display: "e"}}}
+	rows := app.visibleCompletionRows()
+	if got, want := completionRowTexts(rows), []string{"...", "d", "e"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("expected truncated visible completion rows %v, got %v", want, got)
+	}
+	if !rows[1].selected {
+		t.Fatalf("expected selected completion row to remain marked, rows=%+v", rows)
+	}
+
+	app.completion = completionState{view: &uiView{selected: 1}, items: []completionItem{{display: "old.pdf", recent: true}, {display: "paper.pdf", recent: true}, {display: "docs" + pathSeparator(), value: "docs" + pathSeparator()}}}
+	rows = app.visibleCompletionRows()
+	if got, want := completionRowTexts(rows), []string{"Recents:", "  old.pdf", "  paper.pdf", "Suggestions:", "  docs" + pathSeparator()}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("expected recent completion section %v, got %v", want, got)
+	}
+	if !rows[2].selected {
+		t.Fatalf("expected selected recent row to remain marked under header, rows=%+v", rows)
+	}
+}
+
+func completionRowTexts(rows []completionRow) []string {
+	texts := make([]string, len(rows))
+	for i, row := range rows {
+		texts[i] = row.text
+	}
+	return texts
+}

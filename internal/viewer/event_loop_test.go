@@ -213,3 +213,47 @@ func TestRepeatedZoomActionsAccumulateTarget(t *testing.T) {
 	}
 	assertClose(t, math.Exp(state.targetLog), 2*1.15*1.15)
 }
+
+func TestHandleDroppedFileQueuesOpenWithoutRuntime(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "dropped.pdf")
+	app := &App{}
+
+	app.handleDroppedFile(path)
+
+	if app.pendingOpen != path {
+		t.Fatalf("expected dropped path %q to be queued, got %q", path, app.pendingOpen)
+	}
+	if !app.quit {
+		t.Fatal("expected drop open without runtime to quit for restart")
+	}
+}
+
+func TestTextInputNeededOnlyForActiveTextEntry(t *testing.T) {
+	modalApp := func(searching bool) *App {
+		view := &uiView{visible: true, modal: true, searching: searching}
+		return &App{uiState: uiState{views: uiManager{active: view}}}
+	}
+	// App carries a mutex, so cases hold pointers rather than copies.
+	tests := []struct {
+		name string
+		app  *App
+		want bool
+	}{
+		{name: "normal", app: &App{}, want: false},
+		{name: "command prompt", app: &App{inputState: inputState{mode: modeCommand}}, want: true},
+		{name: "goto prompt", app: &App{inputState: inputState{mode: modeGotoPage}}, want: true},
+		{name: "search prompt", app: &App{inputState: inputState{mode: modeSearch}}, want: true},
+		{name: "password prompt", app: &App{inputState: inputState{mode: modePassword}}, want: true},
+		{name: "modal menu", app: modalApp(false), want: false},
+		{name: "modal search", app: modalApp(true), want: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.app.textInputNeeded(); got != tt.want {
+				t.Fatalf("textInputNeeded() = %t, want %t", got, tt.want)
+			}
+		})
+	}
+}

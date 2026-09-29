@@ -1,0 +1,101 @@
+package viewer
+
+import (
+	"reflect"
+	"testing"
+
+	"gopdf/internal/config"
+	"gopdf/internal/mupdf"
+
+	"golang.org/x/image/font/basicfont"
+)
+
+func TestVisibleOutlineIndicesRespectExpandedAncestors(t *testing.T) {
+	app := &App{
+		documentState: documentState{outline: []mupdf.OutlineItem{
+			{Title: "Chapter 1", Page: 0, Parent: -1, HasChildren: true},
+			{Title: "Section 1.1", Page: 1, Parent: 0, HasChildren: true},
+			{Title: "Topic 1.1.1", Page: 2, Parent: 1},
+			{Title: "Chapter 2", Page: 5, Parent: -1},
+		}},
+		uiState: uiState{outlineMenu: outlineMenuState{expanded: map[int]bool{}}},
+	}
+
+	if got, want := app.visibleOutlineIndices(), []int{0, 3}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("expected collapsed top-level outline %v, got %v", want, got)
+	}
+	app.outlineMenu.expanded[0] = true
+	if got, want := app.visibleOutlineIndices(), []int{0, 1, 3}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("expected first level expanded outline %v, got %v", want, got)
+	}
+	app.outlineMenu.expanded[1] = true
+	if got, want := app.visibleOutlineIndices(), []int{0, 1, 2, 3}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("expected nested expanded outline %v, got %v", want, got)
+	}
+}
+
+func TestOutlineIndexForPageUsesNearestPreviousDestination(t *testing.T) {
+	app := &App{documentState: documentState{outline: []mupdf.OutlineItem{
+		{Title: "Intro", Page: 0},
+		{Title: "Chapter", Page: 5},
+		{Title: "Appendix", Page: 10},
+	}}}
+
+	tests := []struct {
+		page int
+		want int
+	}{
+		{page: 0, want: 0},
+		{page: 4, want: 0},
+		{page: 5, want: 1},
+		{page: 9, want: 1},
+		{page: 99, want: 2},
+	}
+	for _, tt := range tests {
+		if got := app.outlineIndexForPage(tt.page); got != tt.want {
+			t.Fatalf("outlineIndexForPage(%d) = %d, want %d", tt.page, got, tt.want)
+		}
+	}
+}
+
+func TestOutlineSelectionMovementAndExpandCollapse(t *testing.T) {
+	app := &App{
+		layoutState: layoutState{winW: 800, winH: 600},
+		sdlState:    sdlState{fontFace: basicfont.Face7x13},
+		config:      config.Default(),
+		documentState: documentState{outline: []mupdf.OutlineItem{
+			{Title: "Chapter 1", Page: 0, Parent: -1, HasChildren: true},
+			{Title: "Section 1.1", Page: 1, Parent: 0},
+			{Title: "Chapter 2", Page: 5, Parent: -1},
+		}},
+		uiState: uiState{outlineMenu: outlineMenuState{expanded: map[int]bool{}}},
+	}
+	app.outlineMenu.view = app.newOutlineView()
+	app.refreshOutlineView()
+
+	app.moveOutlineSelection(1)
+	if app.outlineMenu.view.selected != 2 {
+		t.Fatalf("expected collapsed outline to move to next visible top-level item, got %d", app.outlineMenu.view.selected)
+	}
+
+	app.outlineMenu.view.selected = 0
+	app.expandSelectedOutline()
+	if !app.outlineMenu.expanded[0] {
+		t.Fatal("expected expanding selected parent to reveal children")
+	}
+
+	app.moveOutlineSelection(1)
+	if app.outlineMenu.view.selected != 1 {
+		t.Fatalf("expected expanded outline to move into child item, got %d", app.outlineMenu.view.selected)
+	}
+
+	app.collapseSelectedOutline()
+	if app.outlineMenu.view.selected != 0 {
+		t.Fatalf("expected collapsing child to select its parent, got %d", app.outlineMenu.view.selected)
+	}
+
+	app.collapseSelectedOutline()
+	if app.outlineMenu.expanded[0] {
+		t.Fatal("expected collapsing expanded parent to hide children")
+	}
+}

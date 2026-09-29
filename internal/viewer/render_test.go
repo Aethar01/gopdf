@@ -2,6 +2,7 @@ package viewer
 
 import (
 	"image"
+	"math"
 	"slices"
 	"testing"
 	"time"
@@ -259,5 +260,122 @@ func TestCancelNotVisibleChecksEverySlot(t *testing.T) {
 	w.slots[1].rendering.Store(&offscreen)
 	if got := w.CancelNotVisible(map[tileKey]bool{visible: true}); !slices.Equal(got, []tileKey{offscreen}) {
 		t.Fatalf("cancelled = %v, want [%v]", got, offscreen)
+	}
+}
+
+func TestRenderScalePolicy(t *testing.T) {
+	if validRenderScale(0) || validRenderScale(math.NaN()) || validRenderScale(math.Inf(1)) {
+		t.Fatal("expected zero, NaN, and infinity to be invalid render scales")
+	}
+	if !validRenderScale(0.5) {
+		t.Fatal("expected positive finite scale to be valid")
+	}
+
+	app := &App{config: config.Config{RenderOversample: math.NaN()}, renderService: renderService{minRenderBaseScale: math.NaN()}}
+	assertClose(t, app.renderScaleFloor(), defaultMinRenderBaseScale)
+	assertClose(t, app.renderOversampleFactor(), defaultRenderOversample)
+	assertClose(t, app.oversampledRenderScale(math.NaN()), 1)
+
+	app = &App{viewStateFields: viewStateFields{scale: 1, zoom: 1, fitMode: "manual"}, config: config.Config{RenderOversample: 1}, renderService: renderService{minRenderBaseScale: 0.25, renderBaseScale: 2, renderPending: map[tileKey]renderRequest{{page: 1}: {key: tileKey{page: 1}}}}}
+	if !app.applyRenderBaseScaleTarget(app.oversampledRenderScale(4)) {
+		t.Fatal("expected target above tolerance to upgrade render base scale")
+	}
+	assertClose(t, app.renderBaseScale, 4)
+	if app.renderGeneration != 1 || len(app.renderPending) != 0 {
+		t.Fatalf("expected upgrade to invalidate render requests, generation=%d pending=%d", app.renderGeneration, len(app.renderPending))
+	}
+
+	app.settleRenderScale() // back to the view's own scale, 1
+	assertClose(t, app.renderBaseScale, 1)
+	if app.renderGeneration != 2 {
+		t.Fatalf("expected downgrade to invalidate render requests, generation=%d", app.renderGeneration)
+	}
+}
+
+func TestRenderScaleForAllowsLowZoomUndersampling(t *testing.T) {
+	app := &App{config: config.Config{RenderOversample: 1}, renderService: renderService{minRenderBaseScale: 0.25, renderBaseScale: 1}}
+
+	assertClose(t, app.renderScaleFor(1), 1)
+	assertClose(t, app.renderScaleFor(0.2), 0.4)
+	assertClose(t, app.renderScaleFor(0.05), 0.25)
+}
+
+func TestRenderScaleTargetDebouncesFastZoom(t *testing.T) {
+	app := &App{viewStateFields: viewStateFields{scale: 1, zoom: 1, fitMode: "manual"}, config: config.Config{RenderOversample: 1}, renderService: renderService{minRenderBaseScale: 0.25, renderBaseScale: 1, renderPending: map[tileKey]renderRequest{{page: 1}: {key: tileKey{page: 1}}}}}
+
+	app.scheduleRenderScaleTarget(2)
+	app.scheduleRenderScaleTarget(3)
+	if app.applyScheduledRenderScaleTarget() {
+		t.Fatal("render scale target applied before settle delay")
+	}
+	assertClose(t, app.renderBaseScale, 1)
+	if app.renderGeneration != 0 || len(app.renderPending) != 1 {
+		t.Fatalf("unexpected early invalidation generation=%d pending=%d", app.renderGeneration, len(app.renderPending))
+	}
+
+	app.renderScaleReadyAt = time.Now().Add(-time.Millisecond)
+	if !app.applyScheduledRenderScaleTarget() {
+		t.Fatal("expected settled render scale target to apply")
+	}
+	assertClose(t, app.renderBaseScale, 3)
+	if app.renderGeneration != 1 || len(app.renderPending) != 0 {
+		t.Fatalf("expected settled target to invalidate once, generation=%d pending=%d", app.renderGeneration, len(app.renderPending))
+	}
+}
+
+func TestRenderWorkerPrioritizesVisibleRequests(t *testing.T) {
+	w := &renderWorker{}
+	w.generation.Store(2)
+	queue := []renderRequest{
+		{generation: 2, key: tileKey{page: 10}, priority: 10},
+		{generation: 1, key: tileKey{page: 1}, priority: 0},
+		{generation: 2, key: tileKey{page: 3}, priority: 0},
+	}
+
+	req, queue, ok := w.popNextRequest(queue)
+	if !ok || req.key.page != 3 {
+		t.Fatalf("expected current-generation visible request, got %#v ok=%v", req, ok)
+	}
+	req, queue, ok = w.popNextRequest(queue)
+	if !ok || req.key.page != 10 {
+		t.Fatalf("expected prefetch request after visible request, got %#v ok=%v", req, ok)
+	}
+	_, _, ok = w.popNextRequest(queue)
+	if ok {
+		t.Fatal("expected stale-only queue to have no request")
+	}
+}
+
+func TestRenderWorkerPromotesVisiblePrefetchRequest(t *testing.T) {
+	w := &renderWorker{}
+	w.generation.Store(2)
+	w.SetVisible(map[tileKey]bool{{page: 10}: true})
+	queue := []renderRequest{
+		{generation: 2, key: tileKey{page: 3}, priority: 0},
+		{generation: 2, key: tileKey{page: 10}, priority: 10},
+	}
+
+	req, _, ok := w.popNextRequest(queue)
+	if !ok || req.key.page != 10 {
+		t.Fatalf("expected visible prefetch request to be promoted, got %#v ok=%v", req, ok)
+	}
+}
+
+func TestRenderWorkerSkipsUnwantedRequests(t *testing.T) {
+	w := &renderWorker{}
+	w.generation.Store(2)
+	w.SetWanted(map[tileKey]bool{{page: 5}: true})
+	queue := []renderRequest{
+		{generation: 2, key: tileKey{page: 3}, priority: 0},
+		{generation: 2, key: tileKey{page: 5}, priority: 10},
+	}
+
+	req, queue, ok := w.popNextRequest(queue)
+	if !ok || req.key.page != 5 {
+		t.Fatalf("expected only wanted page to render, got %#v ok=%v", req, ok)
+	}
+	_, _, ok = w.popNextRequest(queue)
+	if ok {
+		t.Fatal("expected unwanted page to be skipped")
 	}
 }

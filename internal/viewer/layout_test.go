@@ -13,6 +13,7 @@ import (
 	"gopdf/internal/testpdf"
 
 	"github.com/jupiterrider/purego-sdl3/sdl"
+	"golang.org/x/image/font/basicfont"
 )
 
 func TestRecomputeLayoutUsesRotatedPageDimensions(t *testing.T) {
@@ -504,4 +505,154 @@ func TestFitWidthKeepsSpreadGapUnscaled(t *testing.T) {
 	if right := row.pageX[1] + row.pageW[1] + 40; math.Abs(right-1000) > 0.01 {
 		t.Fatalf("spread ends at %.2f px with its margin, want the 1000px viewport edge", right)
 	}
+}
+
+func TestViewportAndContentOffsets(t *testing.T) {
+	app := &App{layoutState: layoutState{winW: 800, winH: 600}, sdlState: sdlState{fontFace: basicfont.Face7x13}, viewStateFields: viewStateFields{statusBarShown: true}}
+	w, h := app.viewportSize()
+	if w != 800 || h != 583 {
+		t.Fatalf("expected status bar to reduce viewport height, got %dx%d", w, h)
+	}
+
+	app.statusBarShown = false
+	app.mode = modeCommand
+	w, h = app.viewportSize()
+	if w != 800 || h != 583 {
+		t.Fatalf("expected input mode to reserve status bar height, got %dx%d", w, h)
+	}
+
+	app.mode = modeNormal
+	app.contentW = 400
+	app.contentH = 200
+	app.renderMode = "single"
+	x, y := app.contentViewportOffset()
+	assertClose(t, x, 200)
+	assertClose(t, y, 200)
+
+	app.renderMode = "continuous"
+	x, y = app.contentViewportOffset()
+	assertClose(t, x, 200)
+	assertClose(t, y, 0)
+}
+
+func TestTransformAndInverseTransformRoundTrip(t *testing.T) {
+	for _, rotation := range []float64{0, 45, 90, 180, 270, -90} {
+		x, y := transformPoint(12, 34, 1.5, rotation)
+		gotX, gotY := inverseTransformPoint(x, y, 1.5, rotation)
+		assertClose(t, gotX, 12)
+		assertClose(t, gotY, 34)
+	}
+}
+
+func TestLayoutGapAndRotationEdgeCases(t *testing.T) {
+	app := &App{config: config.Config{PageGap: 12, PageGapVertical: -1, SpreadGap: 34, PageGapHorizontal: -1}}
+	if app.verticalGap() != 12 || app.horizontalGap() != 34 {
+		t.Fatalf("expected fallback gaps from page/spread gap, got vertical=%d horizontal=%d", app.verticalGap(), app.horizontalGap())
+	}
+	app.config.PageGapVertical = 7
+	app.config.PageGapHorizontal = 9
+	if app.verticalGap() != 7 || app.horizontalGap() != 9 {
+		t.Fatalf("expected explicit gaps to win, got vertical=%d horizontal=%d", app.verticalGap(), app.horizontalGap())
+	}
+
+	for _, tt := range []struct {
+		input float64
+		want  float64
+	}{
+		{input: -90, want: 270},
+		{input: 450, want: 90},
+		{input: 720, want: 0},
+	} {
+		assertClose(t, normalizeRotation(tt.input), tt.want)
+	}
+}
+
+func TestViewportAnchorRowIndexAndCurrentPageFollowScroll(t *testing.T) {
+	app := testLayoutApp(4)
+	app.winW = 100
+	app.winH = 100
+	app.config.PageGapVertical = 10
+	app.recomputeLayout(app.viewportSize())
+
+	app.renderMode = "continuous"
+	app.scrollY = app.rows[2].y - 1
+	if got := app.viewportAnchorRowIndex(); got != 2 {
+		t.Fatalf("expected viewport midpoint in row 2, got row %d", got)
+	}
+	app.updateCurrentPageFromScroll()
+	if app.page != app.rows[2].pages[0] {
+		t.Fatalf("expected current page to follow row 2, got page %d", app.page)
+	}
+
+	app.renderMode = "single"
+	app.page = 3
+	if got := app.viewportAnchorRowIndex(); got != app.pageToRow[3] {
+		t.Fatalf("expected single-page row from current page, got %d want %d", got, app.pageToRow[3])
+	}
+}
+
+func TestViewportAnchorRowIndexUsesDocumentEdgesWhenClamped(t *testing.T) {
+	for _, anchor := range []string{"top", "center", "bottom"} {
+		t.Run(anchor, func(t *testing.T) {
+			app := testLayoutApp(5)
+			app.winW = 300
+			app.winH = 500
+			app.config.AnchorPosition = anchor
+			app.recomputeLayout(app.viewportSize())
+
+			app.scrollY = 0
+			if got := app.viewportAnchorRowIndex(); got != 0 {
+				t.Fatalf("expected document start to anchor row 0, got %d", got)
+			}
+
+			app.scrollY = app.clampedScrollY(app.contentH)
+			if got := app.viewportAnchorRowIndex(); got != len(app.rows)-1 {
+				t.Fatalf("expected document end to anchor last row, got %d", got)
+			}
+		})
+	}
+}
+
+func TestViewportAnchorRowIndexUsesConfiguredAnchorPosition(t *testing.T) {
+	app := testLayoutApp(4)
+	app.winW = 100
+	app.winH = 100
+	app.config.PageGapVertical = 10
+	app.recomputeLayout(app.viewportSize())
+	app.renderMode = "continuous"
+	app.scrollY = app.rows[2].y - 1
+
+	app.config.AnchorPosition = "top"
+	if got := app.viewportAnchorRowIndex(); got != 1 {
+		t.Fatalf("expected top anchor to use row 1 sliver, got row %d", got)
+	}
+	app.config.AnchorPosition = "bottom"
+	if got := app.viewportAnchorRowIndex(); got != 2 {
+		t.Fatalf("expected bottom anchor to use row 2, got row %d", got)
+	}
+}
+
+func TestResizeKeepsConfiguredViewportAnchorPosition(t *testing.T) {
+	app := testLayoutApp(4)
+	app.winW = 220
+	app.winH = 300
+	app.fitMode = "width"
+	app.config.AnchorPosition = "top"
+	app.recomputeLayout(app.viewportSize())
+	app.scrollY = app.rows[1].pageY[0] - 24
+	anchor := app.captureViewportAnchor()
+
+	app.winW = 420
+	app.recomputeLayout(app.viewportSize())
+	app.restoreViewportAnchor(anchor)
+
+	x, y, ok := app.pageScreenOrigin(anchor.page)
+	if !ok {
+		t.Fatal("expected anchored page to remain placed")
+	}
+	tx, ty := transformPoint(anchor.point.X, anchor.point.Y, app.scale, app.rotation)
+	originX, originY := rotatedBoundsOrigin(app.pageMetrics[anchor.page].bounds, app.scale, app.rotation)
+	targetX, targetY := app.viewportAnchorScreenPoint()
+	assertClose(t, x+tx-originX, targetX)
+	assertClose(t, y+ty-originY, targetY)
 }
