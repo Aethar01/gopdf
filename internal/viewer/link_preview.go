@@ -29,6 +29,7 @@ func (a *App) hoverLinkPreview(link mupdf.Link, over bool, x, y float32) {
 		a.preview = nil
 	case a.preview == nil || a.preview.link != link:
 		a.preview = &linkPreview{link: link, since: time.Now(), anchor: sdl.FPoint{X: x, Y: y}}
+		a.wakeAfter(linkPreviewDelay)
 	}
 }
 

@@ -17,6 +17,7 @@ import (
 func (a *App) pushToken(token string) {
 	a.sequence = append(a.sequence, token)
 	a.sequenceAt = time.Now()
+	a.wakeAfter(time.Duration(a.config.SequenceTimeoutMS) * time.Millisecond)
 	for len(a.sequence) > 0 {
 		joined := strings.Join(a.sequence, " ")
 		cmd, exact := a.sequenceLookup[joined]

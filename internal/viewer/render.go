@@ -278,6 +278,7 @@ func (a *App) scheduleRenderScaleTarget(target float64) {
 	}
 	a.renderScaleTarget = target
 	a.renderScaleReadyAt = time.Now().Add(renderScaleSettleDelay)
+	a.wakeAfter(renderScaleSettleDelay)
 }
 
 func (a *App) applyScheduledRenderScaleTarget() bool {

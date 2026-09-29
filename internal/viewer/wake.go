@@ -2,6 +2,7 @@ package viewer
 
 import (
 	"sync/atomic"
+	"time"
 	"unsafe"
 
 	"github.com/jupiterrider/purego-sdl3/sdl"
@@ -34,6 +35,14 @@ func (a *App) wakeLoop() {
 	*(*sdl.EventType)(unsafe.Pointer(&event)) = w.eventType
 	if !sdl.PushEvent(&event) {
 		w.queued.Store(false)
+	}
+}
+
+// wakeAfter wakes the loop once d has passed, for work due at a deadline,
+// so it happens even if the wait for events outlasts its timeout.
+func (a *App) wakeAfter(d time.Duration) {
+	if a.waker != nil {
+		time.AfterFunc(d, a.wakeLoop)
 	}
 }
 

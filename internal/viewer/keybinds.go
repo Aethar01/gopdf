@@ -96,6 +96,7 @@ func (a *App) handleKeybindMenuKey(e *sdl.KeyboardEvent) bool {
 			}
 			a.keybindMenu.captured = append(a.keybindMenu.captured, token)
 			a.keybindMenu.capturedAt = time.Now()
+			a.wakeAfter(time.Duration(a.config.SequenceTimeoutMS) * time.Millisecond)
 			return true
 		}
 		if action, ok := a.sequenceLookup[normalizeBinding(token)]; ok {

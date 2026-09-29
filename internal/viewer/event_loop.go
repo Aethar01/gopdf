@@ -139,12 +139,16 @@ func (a *App) eventWaitTimeoutMS() int {
 	if a.hasPendingVisibleRender() || a.search.running || a.runtime != nil && a.runtime.PluginOperationsActive() {
 		return int(smoothAnimationFrame / time.Millisecond)
 	}
-	deadline := a.captureDeadline()
-	if d := a.previewDeadline(); !d.IsZero() {
-		deadline = d
-	}
+	// Wake for the earliest pending deadline.
+	deadlines := []time.Time{a.captureDeadline(), a.previewDeadline(), a.renderScaleReadyAt}
 	if len(a.sequence) > 0 {
-		deadline = a.sequenceAt.Add(time.Duration(a.config.SequenceTimeoutMS) * time.Millisecond)
+		deadlines = append(deadlines, a.sequenceAt.Add(time.Duration(a.config.SequenceTimeoutMS)*time.Millisecond))
+	}
+	var deadline time.Time
+	for _, d := range deadlines {
+		if !d.IsZero() && (deadline.IsZero() || d.Before(deadline)) {
+			deadline = d
+		}
 	}
 	if !deadline.IsZero() {
 		remaining := time.Until(deadline)
