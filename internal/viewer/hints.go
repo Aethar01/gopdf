@@ -121,7 +121,7 @@ func (a *App) drawLinkHints(renderer *sdl.Renderer) {
 	}
 	metrics := a.fontFace.Metrics()
 	ascent, descent := metrics.Ascent.Ceil(), metrics.Descent.Ceil()
-	bg, fg := a.highlightBackgroundColor(), a.highlightForegroundColor()
+	bg, fg := a.selectionColor(), a.highlightForegroundColor()
 	bg.A = 0xff
 	typedFG := fg
 	typedFG.A /= 2

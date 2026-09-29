@@ -401,7 +401,7 @@ func (a *App) OpenExternal(uri string) error {
 func (a *App) drawSelection(renderer *sdl.Renderer) {
 	for _, part := range a.selection.parts {
 		if x, y, ok := a.pageScreenOrigin(part.page); ok {
-			a.drawHighlightQuads(renderer, part.quads, part.page, x, y, false)
+			a.drawHighlightQuads(renderer, part.quads, part.page, x, y, a.selectionColor(), 1)
 		}
 	}
 }
@@ -410,10 +410,11 @@ func (a *App) highlightForegroundColor() color.RGBA {
 	return rgb(a.config.HighlightForeground)
 }
 
-func (a *App) highlightBackgroundColor() color.RGBA {
-	bg := rgb(a.config.HighlightBackground)
-	bg.A = 0xaa
-	return bg
+// selectionColor is the translucent highlight of selections.
+func (a *App) selectionColor() color.RGBA { return translucent(a.config.SelectionColor, 0xaa) }
+
+func translucent(c [3]uint8, alpha uint8) color.RGBA {
+	return color.RGBA{R: c[0], G: c[1], B: c[2], A: alpha}
 }
 
 // quadScreenBounds maps a quad on page, whose screen origin is (x, y), to

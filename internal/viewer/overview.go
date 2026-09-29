@@ -267,5 +267,5 @@ func (a *App) drawOverviewSelection(renderer *sdl.Renderer) {
 	}
 	const border = 3
 	rect := sdl.FRect{X: float32(minX - border), Y: float32(minY - border), W: float32(maxX - minX + 2*border), H: float32(maxY - minY + 2*border)}
-	strokeRect(renderer, rect, rgb(a.config.HighlightBackground), border)
+	strokeRect(renderer, rect, rgb(a.config.SelectionColor), border)
 }

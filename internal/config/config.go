@@ -34,7 +34,9 @@ type Config struct {
 	AltForeground         [3]uint8
 	AltStatusBarColor     [3]uint8
 	HighlightForeground   [3]uint8
-	HighlightBackground   [3]uint8
+	SelectionColor        [3]uint8
+	SearchHighlightColor  [3]uint8
+	SearchCurrentColor    [3]uint8
 	AltColors             bool
 	PageGap               int
 	SpreadGap             int

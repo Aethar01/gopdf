@@ -42,7 +42,7 @@ func (a *App) drawModalListFrame(renderer *sdl.Renderer, rect sdl.FRect) error {
 }
 
 func (a *App) drawModalListSelection(renderer *sdl.Renderer, rect sdl.FRect, y, rowHeight int) error {
-	hl := a.highlightBackgroundColor()
+	hl := a.selectionColor()
 	hl.A = 0xd8
 	return fillRect(renderer, sdl.FRect{X: rect.X + 6, Y: float32(y), W: rect.W - 12, H: float32(rowHeight)}, hl)
 }

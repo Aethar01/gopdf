@@ -2,6 +2,7 @@ package viewer
 
 import (
 	"fmt"
+	"image/color"
 	"math"
 	"regexp"
 	"strings"
@@ -455,23 +456,18 @@ func (a *App) drawSearchHighlightsForPage(renderer *sdl.Renderer, page int, x, y
 		return
 	}
 	for i, hit := range hits {
-		active := false
+		bg, stroke := translucent(a.config.SearchHighlightColor, 0xaa), 1
 		if a.search.current >= 0 && a.search.current < len(a.search.order) {
-			ref := a.search.order[a.search.current]
-			active = ref.page == page && ref.hit == i
+			if ref := a.search.order[a.search.current]; ref.page == page && ref.hit == i {
+				bg, stroke = translucent(a.config.SearchCurrentColor, 0xdd), 2
+			}
 		}
-		a.drawHighlightQuads(renderer, hit.Quads, page, x, y, active)
+		a.drawHighlightQuads(renderer, hit.Quads, page, x, y, bg, stroke)
 	}
 }
 
-func (a *App) drawHighlightQuads(renderer *sdl.Renderer, quads []mupdf.Quad, page int, x, y float64, active bool) {
-	bg := a.highlightBackgroundColor()
+func (a *App) drawHighlightQuads(renderer *sdl.Renderer, quads []mupdf.Quad, page int, x, y float64, bg color.RGBA, stroke int) {
 	fg := a.highlightForegroundColor()
-	stroke := 1
-	if active {
-		bg.A = 0xdd
-		stroke = 2
-	}
 	for _, quad := range quads {
 		minX, minY, maxX, maxY := a.quadScreenBounds(quad, page, x, y)
 		rect := sdl.FRect{X: float32(minX), Y: float32(minY), W: float32(maxX - minX), H: float32(maxY - minY)}

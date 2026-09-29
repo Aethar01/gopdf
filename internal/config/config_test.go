@@ -1139,7 +1139,9 @@ options.alt_page_background = { 13, 14, 15 }
 options.alt_foreground = { 16, 17, 18 }
 options.alt_status_bar_color = { 19, 20, 21 }
 options.highlight_foreground = { 22, 23, 24 }
-options.highlight_background = { 25, 26, 27 }
+options.selection_color = { 25, 26, 27 }
+options.search_highlight_color = { 28, 29, 30 }
+options.search_current_color = { 31, 32, 33 }
 `), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -1165,7 +1167,9 @@ options.highlight_background = { 25, 26, 27 }
 		{name: "alt foreground", got: cfg.AltForeground, want: [3]uint8{16, 17, 18}},
 		{name: "alt status bar", got: cfg.AltStatusBarColor, want: [3]uint8{19, 20, 21}},
 		{name: "highlight foreground", got: cfg.HighlightForeground, want: [3]uint8{22, 23, 24}},
-		{name: "highlight background", got: cfg.HighlightBackground, want: [3]uint8{25, 26, 27}},
+		{name: "selection", got: cfg.SelectionColor, want: [3]uint8{25, 26, 27}},
+		{name: "search highlight", got: cfg.SearchHighlightColor, want: [3]uint8{28, 29, 30}},
+		{name: "search current", got: cfg.SearchCurrentColor, want: [3]uint8{31, 32, 33}},
 	}
 
 	for _, check := range checks {

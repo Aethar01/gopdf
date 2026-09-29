@@ -96,7 +96,7 @@ func (a *App) drawInputSelection(renderer *sdl.Renderer, barY, vertOffset int) e
 	mt := a.fontFace.Metrics()
 	top := barY + vertOffset - mt.Ascent.Ceil()
 	bottom := barY + vertOffset + mt.Descent.Ceil()
-	return fillRect(renderer, sdl.FRect{X: float32(x), Y: float32(top), W: float32(w), H: float32(max(1, bottom-top))}, a.highlightBackgroundColor())
+	return fillRect(renderer, sdl.FRect{X: float32(x), Y: float32(top), W: float32(w), H: float32(max(1, bottom-top))}, a.selectionColor())
 }
 
 func (a *App) drawInputCursor(renderer *sdl.Renderer, barY, vertOffset int) error {
