@@ -103,7 +103,6 @@ func newLuaModule(L *lua.LState, rt *Runtime, cfg *Config) *lua.LTable {
 		{Signature: "gopdf.zoom([scale])", Function: luaZoom(rt)},
 		{Signature: "gopdf.rotation([degrees])", Function: luaRotation(rt)},
 		{Signature: "gopdf.fullscreen([enabled])", Function: luaFullscreen(rt)},
-		{Signature: "gopdf.status_bar_visible([visible])", Function: luaStatusBarVisible(rt, cfg)},
 	})
 	options := newLuaOptionsTable(L, rt, cfg)
 	L.SetField(mod, "options", options)
@@ -350,16 +349,20 @@ func newLuaStatusBarTable(L *lua.LState, rt *Runtime, cfg *Config) *lua.LTable {
 		switch name {
 		case "left":
 			cfg.StatusBarLeft = lua.LVAsString(value)
+			rt.dirty = true
 		case "right":
 			cfg.StatusBarRight = lua.LVAsString(value)
+			rt.dirty = true
 		case "visible":
+			cfg.StatusBarVisible = lua.LVAsBool(value)
 			if rt.host != nil {
-				rt.host.SetStatusBarVisible(lua.LVAsBool(value))
+				if err := rt.host.SetStatusBarVisible(cfg.StatusBarVisible); err != nil {
+					L.RaiseError("status_bar.visible: %v", err)
+				}
 			}
 		default:
 			L.RaiseError("status_bar.%s: unknown option", name)
 		}
-		rt.dirty = true
 		return 0
 	}))
 	L.SetField(mt, "__index", L.NewFunction(func(L *lua.LState) int {

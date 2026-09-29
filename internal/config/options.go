@@ -362,7 +362,6 @@ func parseColorOption(raw string) ([3]uint8, error) {
 }
 
 var configOptions = map[string]optionDesc{
-	"status_bar_visible":     boolOption("Show the status bar at startup.", func(c *Config) bool { return c.StatusBarVisible }, func(c *Config, v bool) { c.StatusBarVisible = v }),
 	"mouse_text_select":      boolOption("Enable text selection with the left mouse button.", func(c *Config) bool { return c.MouseTextSelect }, func(c *Config, v bool) { c.MouseTextSelect = v }),
 	"smooth_scroll":          smoothInputSourcesOption("Animate scrolling for selected inputs; assignments update only specified mouse, trackpad, and keyboard fields.", func(c *Config) SmoothInputSources { return c.SmoothScrollSources }, func(c *Config, v SmoothInputSources) { c.SmoothScrollSources = v }),
 	"smooth_zoom":            smoothInputSourcesOption("Animate zooming for selected inputs; assignments update only specified mouse, trackpad, and keyboard fields.", func(c *Config) SmoothInputSources { return c.SmoothZoomSources }, func(c *Config, v SmoothInputSources) { c.SmoothZoomSources = v }),

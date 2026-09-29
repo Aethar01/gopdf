@@ -56,13 +56,13 @@ gopdf.options.status_bar_color = {220, 220, 220} -- Normal status bar background
 gopdf.options.status_bar_left = "{modified}{message}" -- Left status bar template.
 gopdf.options.status_bar_padding = 8 -- Horizontal status bar padding in pixels.
 gopdf.options.status_bar_right = "{page}/{total} {mode} fit={fit} rot={rot} {zoom}" -- Right status bar template.
-gopdf.options.status_bar_visible = true -- Show the status bar at startup.
 gopdf.options.trim_margins = false -- Lay pages out by their content, trimming blank margins.
 gopdf.options.ui_font = "" -- Installed UI font family; empty uses the built-in font.
 gopdf.options.ui_font_path = "" -- Explicit UI font file path; overrides ui_font, ui_font_style, and ui_font_weight.
 gopdf.options.ui_font_size = 14 -- UI font size in pixels.
 gopdf.options.ui_font_style = "normal" -- UI font style: normal, italic, or oblique.
 gopdf.options.ui_font_weight = 400 -- UI font weight as CSS number 100-900 or alias such as normal, medium, semibold, bold, or black.
+gopdf.status_bar.visible = true -- Show the status bar.
 
 -- Default key bindings.
 

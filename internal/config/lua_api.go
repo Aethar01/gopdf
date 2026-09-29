@@ -812,38 +812,6 @@ func luaFullscreen(rt *Runtime) lua.LGFunction {
 	}
 }
 
-// luaStatusBarVisible reads or changes status-bar visibility.
-//
-// # Parameters
-//
-//   - visible: Optional boolean. Omit it to read the current state.
-//
-// # Returns
-//
-// The current status-bar visibility.
-//
-// # Example
-//
-//	gopdf.status_bar_visible(false)
-func luaStatusBarVisible(rt *Runtime, cfg *Config) lua.LGFunction {
-	return func(L *lua.LState) int {
-		if L.GetTop() > 0 {
-			if rt.host == nil {
-				L.RaiseError("status_bar_visible: viewer host unavailable")
-			}
-			if err := rt.host.SetStatusBarVisible(lua.LVAsBool(L.CheckAny(1))); err != nil {
-				L.RaiseError("status_bar_visible: %v", err)
-			}
-		}
-		if rt.host == nil {
-			L.Push(lua.LBool(cfg.StatusBarVisible))
-			return 1
-		}
-		L.Push(lua.LBool(rt.host.StatusBarVisible()))
-		return 1
-	}
-}
-
 // luaCacheEntries returns the number of cached page tiles and thumbnails.
 //
 // # Returns

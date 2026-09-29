@@ -140,6 +140,8 @@ func renderExampleConfig() string {
 	for _, ref := range config.OptionReferences() {
 		fmt.Fprintf(&b, "gopdf.options.%s = %s -- %s\n", ref.Name, ref.Default, ref.Description)
 	}
+	cfg := config.Default()
+	fmt.Fprintf(&b, "gopdf.status_bar.visible = %t -- Show the status bar.\n", cfg.StatusBarVisible)
 	b.WriteString("\n-- Default key bindings.\n\n")
 	for _, action := range actions.All() {
 		for _, key := range action.Keys {
@@ -147,7 +149,6 @@ func renderExampleConfig() string {
 		}
 	}
 	b.WriteString("\n-- Default mouse bindings.\n\n")
-	cfg := config.Default()
 	events := make([]string, 0, len(cfg.MouseBindings))
 	for event := range cfg.MouseBindings {
 		events = append(events, event)

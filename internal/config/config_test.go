@@ -729,7 +729,8 @@ bind("X", function()
   local zoom = gopdf.zoom(1.75)
   local rotation = gopdf.rotation(180)
   local fullscreen = gopdf.fullscreen(false)
-  local status_bar_visible = gopdf.status_bar_visible(false)
+  gopdf.status_bar.visible = false
+  local status_bar_visible = gopdf.status_bar.visible
   gopdf.search("needle", true)
   local keys = gopdf.pending_keys()
   local cache_limit = gopdf.cache.limit(48)
@@ -740,7 +741,7 @@ bind("X", function()
      zoom ~= gopdf.zoom() or
      rotation ~= gopdf.rotation() or
      fullscreen ~= gopdf.fullscreen() or
-     status_bar_visible ~= gopdf.status_bar_visible() or
+     status_bar_visible ~= false or
      cache_limit ~= gopdf.cache.limit() then
     error("setter did not return the current value")
   end
@@ -1079,7 +1080,7 @@ options.background = { -5, 128, 999 }
 func TestLoadReturnsConfigFromExplicitPath(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "config.lua")
-	if err := os.WriteFile(path, []byte(`options.status_bar_visible = false`), 0o644); err != nil {
+	if err := os.WriteFile(path, []byte(`gopdf.status_bar.visible = false`), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -1117,9 +1118,9 @@ func TestLuaCanReadCurrentOptionValues(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "config.lua")
 	if err := os.WriteFile(path, []byte(`
-options.status_bar_visible = false
+options.alt_colors = true
 options.page_gap = 14
-if options.status_bar_visible == false and options.page_gap == 14 then
+if options.alt_colors == true and options.page_gap == 14 then
   options.status_bar_left = "read"
 end
 `), 0o644); err != nil {
@@ -1133,7 +1134,7 @@ end
 	defer rt.Close()
 
 	cfg := rt.Config()
-	if cfg.StatusBarVisible || cfg.PageGap != 14 || cfg.StatusBarLeft != "read" {
+	if !cfg.AltColors || cfg.PageGap != 14 || cfg.StatusBarLeft != "read" {
 		t.Fatalf("expected Lua to read option values and default message, got %+v", cfg)
 	}
 }
