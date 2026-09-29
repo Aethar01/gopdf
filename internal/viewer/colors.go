@@ -48,26 +48,40 @@ func rgb(c [3]uint8) color.RGBA {
 // remapPageColors maps each pixel's luminance onto the fg-bg range, leaving
 // pixels inside keep, in img's coordinates, as they are.
 func remapPageColors(img *image.RGBA, bg, fg [3]uint8, keep []image.Rectangle) {
+	var palette [256][3]uint8 // the colour each luminance maps to
+	for t := range palette {
+		for c := range 3 {
+			palette[t][c] = mixChannel(fg[c], bg[c], uint8(t))
+		}
+	}
+	keep = slices.SortedFunc(slices.Values(keep), func(a, b image.Rectangle) int { return a.Min.X - b.Min.X })
 	bounds := img.Bounds()
 	for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
 		row := img.Pix[(y-bounds.Min.Y)*img.Stride:]
-		for x := bounds.Min.X; x < bounds.Max.X; x++ {
-			if !slices.ContainsFunc(keep, image.Pt(x, y).In) {
-				remapPixel(row[(x-bounds.Min.X)*4:], bg, fg)
+		// Remap the runs of the row between the kept rects crossing it.
+		x := bounds.Min.X
+		for _, r := range keep {
+			if y < r.Min.Y || y >= r.Max.Y {
+				continue
 			}
+			remapRun(row, &palette, x-bounds.Min.X, min(r.Min.X, bounds.Max.X)-bounds.Min.X)
+			x = max(x, r.Max.X)
 		}
+		remapRun(row, &palette, x-bounds.Min.X, bounds.Dx())
 	}
 }
 
-func remapPixel(px []uint8, bg, fg [3]uint8) {
-	if px[3] == 0 {
-		return
+// remapRun remaps the pixels from index from to index to of row.
+func remapRun(row []uint8, palette *[256][3]uint8, from, to int) {
+	for i := from * 4; i < to*4; i += 4 {
+		px := row[i : i+4 : i+4]
+		if px[3] == 0 {
+			continue
+		}
+		lum := uint16(px[0])*77 + uint16(px[1])*150 + uint16(px[2])*29
+		c := palette[lum>>8]
+		px[0], px[1], px[2] = c[0], c[1], c[2]
 	}
-	lum := uint16(px[0])*77 + uint16(px[1])*150 + uint16(px[2])*29
-	t := uint8(lum >> 8)
-	px[0] = mixChannel(fg[0], bg[0], t)
-	px[1] = mixChannel(fg[1], bg[1], t)
-	px[2] = mixChannel(fg[2], bg[2], t)
 }
 
 func mixChannel(fg, bg, t uint8) uint8 {

@@ -3,6 +3,8 @@ package viewer
 import (
 	"image"
 	"image/color"
+	"math/rand/v2"
+	"slices"
 	"testing"
 
 	"gopdf/internal/config"
@@ -71,4 +73,54 @@ func TestRemapPageColorsKeepsImageAreas(t *testing.T) {
 		t.Fatal("pixel outside the image area was not remapped")
 	}
 	assertColor(t, img.RGBAAt(1, 0), red)
+}
+
+func TestRemapPageColorsMatchesPerPixelRemap(t *testing.T) {
+	rng := rand.New(rand.NewPCG(1, 2))
+	bg, fg := [3]uint8{30, 40, 50}, [3]uint8{220, 210, 200}
+	for range 50 {
+		bounds := image.Rect(rng.IntN(20)-10, rng.IntN(20)-10, 0, 0)
+		bounds.Max = bounds.Min.Add(image.Pt(1+rng.IntN(40), 1+rng.IntN(40)))
+		img := image.NewRGBA(bounds)
+		for i := range img.Pix {
+			img.Pix[i] = uint8(rng.IntN(256))
+		}
+		var keep []image.Rectangle
+		for range rng.IntN(6) {
+			min := image.Pt(bounds.Min.X+rng.IntN(50)-5, bounds.Min.Y+rng.IntN(50)-5)
+			keep = append(keep, image.Rectangle{Min: min, Max: min.Add(image.Pt(rng.IntN(20), rng.IntN(20)))})
+		}
+		want := image.NewRGBA(bounds)
+		copy(want.Pix, img.Pix)
+		for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
+			for x := bounds.Min.X; x < bounds.Max.X; x++ {
+				px := want.Pix[want.PixOffset(x, y):][:4]
+				if px[3] == 0 || slices.ContainsFunc(keep, image.Pt(x, y).In) {
+					continue
+				}
+				lum := uint8((uint16(px[0])*77 + uint16(px[1])*150 + uint16(px[2])*29) >> 8)
+				for c := range 3 {
+					px[c] = mixChannel(fg[c], bg[c], lum)
+				}
+			}
+		}
+		remapPageColors(img, bg, fg, keep)
+		if !slices.Equal(img.Pix, want.Pix) {
+			t.Fatalf("bounds %v keep %v: remapped pixels differ from a per-pixel remap", bounds, keep)
+		}
+	}
+}
+
+func BenchmarkRemapPageColors(b *testing.B) {
+	img := image.NewRGBA(image.Rect(0, 0, 1024, 1024))
+	for i := range img.Pix {
+		img.Pix[i] = 0xff
+	}
+	var keep []image.Rectangle
+	for i := range 50 {
+		keep = append(keep, image.Rect(i*20, i*20, i*20+100, i*20+60))
+	}
+	for b.Loop() {
+		remapPageColors(img, [3]uint8{0, 0, 0}, [3]uint8{255, 255, 255}, keep)
+	}
 }
