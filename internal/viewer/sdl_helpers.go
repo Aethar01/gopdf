@@ -313,9 +313,6 @@ func (a *App) drawText(renderer *sdl.Renderer, s string, x, baselineY int, clr c
 
 func (a *App) cachedTextTexture(renderer *sdl.Renderer, s string, clr color.Color) (cachedTextTexture, error) {
 	key := newTextTextureKey(s, clr)
-	if a.textCache == nil {
-		a.textCache = map[textTextureKey]cachedTextTexture{}
-	}
 	if entry, ok := a.textCache[key]; ok {
 		return entry, nil
 	}
@@ -323,12 +320,20 @@ func (a *App) cachedTextTexture(renderer *sdl.Renderer, s string, clr color.Colo
 	if err != nil {
 		return cachedTextTexture{}, err
 	}
-	if len(a.textCache) >= maxTextTextureCacheEntries {
-		a.clearTextTextureCache()
-	}
 	entry := cachedTextTexture{texture: tex, width: w, height: h, ascent: ascent}
-	a.textCache[key] = entry
+	a.storeTextTexture(key, entry)
 	return entry, nil
+}
+
+// storeTextTexture caches a text texture, emptying the cache when it is full.
+func (s *sdlState) storeTextTexture(key textTextureKey, entry cachedTextTexture) {
+	if len(s.textCache) >= maxTextTextureCacheEntries {
+		s.clearTextTextureCache()
+	}
+	if s.textCache == nil {
+		s.textCache = map[textTextureKey]cachedTextTexture{}
+	}
+	s.textCache[key] = entry
 }
 
 func newTextTextureKey(s string, clr color.Color) textTextureKey {
