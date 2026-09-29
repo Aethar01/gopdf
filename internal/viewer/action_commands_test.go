@@ -59,3 +59,22 @@ func TestModeCommands(t *testing.T) {
 		t.Fatal(":outline did not open the outline")
 	}
 }
+
+func TestLayoutToggleCommands(t *testing.T) {
+	app := testLayoutApp(4)
+	app.winW, app.winH = 1000, 800
+	app.recomputeLayout(app.viewportSize())
+	app.runCommand(":dual on")
+	app.runCommand(":cover off")
+	app.runCommand(":statusbar off")
+	if !app.dualPage || app.firstPageOffset || app.statusBarShown {
+		t.Fatalf("dual=%v cover=%v statusbar=%v", app.dualPage, app.firstPageOffset, app.statusBarShown)
+	}
+	if len(app.rows[0].pages) != 2 {
+		t.Fatalf("first row has %d pages with :dual on :cover off", len(app.rows[0].pages))
+	}
+	app.runCommand(":dual")
+	if app.dualPage {
+		t.Fatal(":dual did not toggle off")
+	}
+}

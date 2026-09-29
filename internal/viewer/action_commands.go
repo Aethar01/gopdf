@@ -25,6 +25,10 @@ type toggleCommand struct {
 
 var toggleCommands = map[string]toggleCommand{
 	"fullscreen": {action: "toggle_fullscreen", on: func(a *App) bool { return a.fullscreen }},
+	"dual":       {action: "toggle_dual_page", on: func(a *App) bool { return a.dualPage }},
+	"cover":      {action: "toggle_first_page_offset", on: func(a *App) bool { return a.firstPageOffset }},
+	"trim":       {action: "toggle_trim_margins", on: func(a *App) bool { return a.trimMargins }},
+	"statusbar":  {action: "toggle_status_bar", on: func(a *App) bool { return a.statusBarShown }},
 }
 
 // runActionCommand runs name if it is an action or toggle command,

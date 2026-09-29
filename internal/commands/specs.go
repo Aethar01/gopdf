@@ -15,6 +15,8 @@ type CommandReferenceEntry struct {
 
 var specs = []Spec{
 	{Name: "colors", ArgCompletions: []string{"alt", "normal"}, Help: ":colors normal|alt - Set color mode"},
+	{Name: "cover", ArgCompletions: []string{"on", "off"}, Help: ":cover [on|off] - Show the first page alone in dual-page mode"},
+	{Name: "dual", ArgCompletions: []string{"on", "off"}, Help: ":dual [on|off] - Toggle or set dual-page mode"},
 	{Name: "fit", ArgCompletions: []string{"height", "manual", "page", "width"}, Help: ":fit width|height|page|manual - Set fit mode"},
 	{Name: "fullscreen", ArgCompletions: []string{"on", "off"}, Help: ":fullscreen [on|off] - Toggle or set fullscreen"},
 	{Name: "help", Help: ":help - Show commands, key bindings, search flags and options"},
@@ -36,6 +38,8 @@ var specs = []Spec{
 	{Name: "reload-config", Help: ":reload-config - Reload the config file"},
 	{Name: "search", Help: ":search [-r] [-i] [-w] [-p] <text> - Search document text"},
 	{Name: "set", Help: ":set [option[?]|option!|option=value] - Inspect or change options"},
+	{Name: "statusbar", ArgCompletions: []string{"on", "off"}, Help: ":statusbar [on|off] - Show or hide the status bar"},
+	{Name: "trim", ArgCompletions: []string{"on", "off"}, Help: ":trim [on|off] - Lay pages out by their content, trimming margins"},
 	{Name: "undo", Help: ":undo - Undo the last edit"},
 	{Name: "write", Help: ":write [path], :w - Save edits, or a copy to path; :wq saves and exits"},
 }
