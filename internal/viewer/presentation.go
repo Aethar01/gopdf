@@ -1,13 +1,9 @@
 package viewer
 
-import (
-	"image/color"
+import "github.com/jupiterrider/purego-sdl3/sdl"
 
-	"github.com/jupiterrider/purego-sdl3/sdl"
-)
-
-// Presentation mode shows one page at a time, fitted to a full screen with
-// a black surround, and restores the previous view when it ends.
+// Presentation mode shows one page at a time, fitted to a full screen within
+// presentation_background, and restores the previous view when it ends.
 
 type presentationState struct {
 	saved      viewState
@@ -76,5 +72,3 @@ func (a *App) clickPresentation(e *sdl.MouseButtonEvent) {
 		a.prevPage()
 	}
 }
-
-var presentationBackground = color.RGBA{A: 0xff}

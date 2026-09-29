@@ -13,8 +13,9 @@ func TestPresentationStepsPagesAndRestoresView(t *testing.T) {
 	if app.renderMode != renderSingle || app.fitMode != fitPage || app.statusBarShown || !app.fullscreen {
 		t.Fatalf("presenting: mode=%q fit=%q status=%v fullscreen=%v", app.renderMode, app.fitMode, app.statusBarShown, app.fullscreen)
 	}
-	if app.backgroundColor() != presentationBackground {
-		t.Fatal("presentation background not black")
+	app.config.PresentationBackground = [3]uint8{1, 2, 3}
+	if app.backgroundColor() != rgb(app.config.PresentationBackground) {
+		t.Fatal("presentation background not presentation_background")
 	}
 	app.runAction("scroll_down")
 	app.runAction("scroll_right")
