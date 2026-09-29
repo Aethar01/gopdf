@@ -6,8 +6,6 @@ import (
 	"strings"
 
 	"gopdf/internal/mupdf"
-
-	"github.com/jupiterrider/purego-sdl3/sdl"
 )
 
 // showSearchMatches lists every match of the current search with the line
@@ -24,19 +22,15 @@ func (a *App) showSearchMatches() {
 	for i, ref := range a.search.order {
 		rows[i] = uiRow{index: i, text: a.searchMatchContext(ref), secondary: "p. " + a.pageLabel(ref.page), value: strconv.Itoa(i)}
 	}
-	a.closeAllUI()
-	view := a.createCoreListView("matches", fmt.Sprintf("Matches for /%s", a.searchDisplayQuery()), rows, 80, 70)
-	view.onKey = func(a *App, e *sdl.KeyboardEvent) bool { return a.handleGenericUIViewKey(view, e) }
-	view.onMouseButton = func(a *App, e *sdl.MouseButtonEvent) bool { return a.handleGenericUIViewMouseButton(view, e) }
-	view.onMouseMotion = func(a *App, e *sdl.MouseMotionEvent) bool { return a.handleGenericUIViewMouseMotion(view, e) }
-	view.onSelect = func(a *App, row uiRow) {
-		a.closeUIView(view, false)
-		a.search.current, _ = strconv.Atoi(row.value)
-		a.focusSearchCurrent()
-		a.message = a.searchStatusMessage()
-	}
-	view.selected = max(0, a.search.current)
-	a.showUIView(view)
+	a.showRowList("matches", fmt.Sprintf("Matches for /%s", a.searchDisplayQuery()), rows, 80, 70, func(view *uiView) {
+		view.onSelect = func(a *App, row uiRow) {
+			a.closeUIView(view, false)
+			a.search.current, _ = strconv.Atoi(row.value)
+			a.focusSearchCurrent()
+			a.message = a.searchStatusMessage()
+		}
+		view.selected = max(0, a.search.current)
+	})
 }
 
 // searchMatchContext returns the text of the line a match is on.

@@ -76,7 +76,7 @@ func TestPrintDialogFillsInFoundPrinters(t *testing.T) {
 	app.docPath, app.docName = "/tmp/doc.pdf", "doc.pdf"
 	found := make(chan printerList, 1)
 	app.printersFound = found
-	app.showPrintDialog()
+	app.showPrintDialog(0)
 	if got := app.activeUIView().rows[0].secondary; got != "looking…" {
 		t.Fatalf("printer before lookup = %q", got)
 	}

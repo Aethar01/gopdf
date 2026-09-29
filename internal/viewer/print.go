@@ -3,6 +3,7 @@ package viewer
 import (
 	"os/exec"
 	"runtime"
+	"slices"
 	"strconv"
 	"strings"
 )
@@ -53,7 +54,7 @@ func (a *App) printDocument(args string) {
 		return
 	}
 	a.findPrinters()
-	a.showPrintDialog()
+	a.showPrintDialog(0)
 }
 
 // printerList is what lpstat reported: the printers and CUPS' default.
@@ -73,7 +74,7 @@ func (a *App) findPrinters() {
 	}()
 }
 
-func (a *App) showPrintDialog() {
+func (a *App) showPrintDialog(selected int) {
 	s := &a.printSettings
 	s.copies = max(1, s.copies)
 	sides := "off"
@@ -103,41 +104,48 @@ func (a *App) showPrintDialog() {
 	for i := range rows {
 		rows[i].index = i
 	}
-	view := a.showRowList("print", "Print "+a.docName, rows, 50, 40)
-	view.searchable = false
-	view.onSelect = func(a *App, row uiRow) {
-		switch row.value {
-		case "printer":
-			a.pickPrinter(a.printers.names)
-		case "pages":
-			a.askPrompt("Pages (e.g. 1-3,5; blank for all)", s.pages, func(v string) {
-				s.pages = strings.ReplaceAll(v, " ", "")
-				a.showPrintDialog()
-			})
-		case "copies":
-			a.askPrompt("Copies", strconv.Itoa(s.copies), func(v string) {
-				if n, err := strconv.Atoi(strings.TrimSpace(v)); err == nil && n >= 1 {
-					s.copies = n
-				}
-				a.showPrintDialog()
-			})
-		case "sides":
-			for i, side := range printSides {
-				if side.value == s.sides {
-					s.sides = printSides[(i+1)%len(printSides)].value
-					break
-				}
+	a.showRowList("print", "Print "+a.docName, rows, 50, 40, func(view *uiView) {
+		view.searchable = false
+		view.selected = selected
+		view.onSelect = func(a *App, row uiRow) { a.choosePrintRow(row) }
+	})
+}
+
+// choosePrintRow edits the setting on a dialog row, returning to the dialog
+// with that row selected, or prints.
+func (a *App) choosePrintRow(row uiRow) {
+	s := &a.printSettings
+	back := func() { a.showPrintDialog(row.index) }
+	switch row.value {
+	case "printer":
+		a.pickPrinter(a.printers.names, back)
+	case "pages":
+		a.askPrompt("Pages (e.g. 1-3,5; blank for all)", s.pages, func(v string) {
+			s.pages = strings.ReplaceAll(v, " ", "")
+			back()
+		})
+	case "copies":
+		a.askPrompt("Copies", strconv.Itoa(s.copies), func(v string) {
+			if n, err := strconv.Atoi(strings.TrimSpace(v)); err == nil && n >= 1 {
+				s.copies = n
 			}
-			a.showPrintDialog()
-			a.activeUIView().selected = row.index
-		case "print":
-			a.closeAllUI()
-			a.runPrint(s.lpArgs())
+			back()
+		})
+	case "sides":
+		for i, side := range printSides {
+			if side.value == s.sides {
+				s.sides = printSides[(i+1)%len(printSides)].value
+				break
+			}
 		}
+		back()
+	case "print":
+		a.closeAllUI()
+		a.runPrint(s.lpArgs())
 	}
 }
 
-func (a *App) pickPrinter(printers []string) {
+func (a *App) pickPrinter(printers []string, back func()) {
 	if len(printers) == 0 {
 		a.message = "no printers found (lpstat -e)"
 		return
@@ -146,11 +154,13 @@ func (a *App) pickPrinter(printers []string) {
 	for i, p := range printers {
 		rows[i] = uiRow{index: i, text: p, value: p}
 	}
-	view := a.showRowList("printers", "Printer", rows, 40, 40)
-	view.onSelect = func(a *App, row uiRow) {
-		a.printSettings.printer = row.value
-		a.showPrintDialog()
-	}
+	a.showRowList("printers", "Printer", rows, 40, 40, func(view *uiView) {
+		view.selected = max(0, slices.Index(printers, a.printSettings.printer))
+		view.onSelect = func(a *App, row uiRow) {
+			a.printSettings.printer = row.value
+			back()
+		}
+	})
 }
 
 // runPrint starts printing in the background; pollPrintResult reports the
@@ -196,9 +206,7 @@ func (a *App) pollPrintResult() {
 			a.printSettings.printer = found.defaultName
 		}
 		if view := a.activeUIView(); view != nil && view.id == "print" {
-			selected := view.selected
-			a.showPrintDialog()
-			a.activeUIView().selected = selected
+			a.showPrintDialog(view.selected)
 		}
 		a.pendingRedraw = true
 	default:

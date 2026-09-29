@@ -6,8 +6,6 @@ import (
 
 	commandmeta "gopdf/internal/commands"
 	"gopdf/internal/config"
-
-	"github.com/jupiterrider/purego-sdl3/sdl"
 )
 
 // Help rows carry what Enter does in their id, with the payload in value.
@@ -27,14 +25,10 @@ func (a *App) toggleHelp() {
 		a.closeUIView(view, false)
 		return
 	}
-	a.closeAllUI()
-	view := a.createCoreListView(helpViewID, "Help", a.helpRows(), 70, 80)
-	view.onKey = func(a *App, e *sdl.KeyboardEvent) bool { return a.handleGenericUIViewKey(view, e) }
-	view.onMouseButton = func(a *App, e *sdl.MouseButtonEvent) bool { return a.handleGenericUIViewMouseButton(view, e) }
-	view.onMouseMotion = func(a *App, e *sdl.MouseMotionEvent) bool { return a.handleGenericUIViewMouseMotion(view, e) }
-	view.onSelect = func(a *App, row uiRow) { a.activateHelpRow(row) }
-	view.selected = firstEnabledRow(view.rows)
-	a.showUIView(view)
+	a.showRowList(helpViewID, "Help", a.helpRows(), 70, 80, func(view *uiView) {
+		view.onSelect = func(a *App, row uiRow) { a.activateHelpRow(row) }
+		view.selected = firstEnabledRow(view.rows)
+	})
 }
 
 func (a *App) activateHelpRow(row uiRow) {

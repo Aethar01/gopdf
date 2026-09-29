@@ -66,26 +66,22 @@ func (a *App) openAnnotationMenu(e *sdl.MouseButtonEvent) bool {
 	if !ok {
 		return false
 	}
-	a.closeAllUI()
 	rows := []uiRow{{index: 0, text: "Delete", value: "delete"}, {index: 1, text: "Change colour…", value: "colour"}}
-	view := a.createCoreListView("annotation-menu", target.Type, rows, 25, 20)
-	view.searchable = false
-	view.onKey = func(a *App, e *sdl.KeyboardEvent) bool { return a.handleGenericUIViewKey(view, e) }
-	view.onMouseButton = func(a *App, e *sdl.MouseButtonEvent) bool { return a.handleGenericUIViewMouseButton(view, e) }
-	view.onMouseMotion = func(a *App, e *sdl.MouseMotionEvent) bool { return a.handleGenericUIViewMouseMotion(view, e) }
-	view.onSelect = func(a *App, row uiRow) {
-		a.closeUIView(view, false)
-		switch row.value {
-		case "delete":
-			a.deleteAnnotation(target)
-		case "colour":
-			palette := a.annotationPalette()
-			a.pickColor("Annotation colour", palette, func(i int) {
-				a.editPage(target.page, func() error { return a.doc.RecolorAnnotation(target.page, target.Index, palette[i]) })
-				a.highlightColor = i
-			})
+	a.showRowList("annotation-menu", target.Type, rows, 25, 20, func(view *uiView) {
+		view.searchable = false
+		view.onSelect = func(a *App, row uiRow) {
+			a.closeUIView(view, false)
+			switch row.value {
+			case "delete":
+				a.deleteAnnotation(target)
+			case "colour":
+				palette := a.annotationPalette()
+				a.pickColor("Annotation colour", palette, func(i int) {
+					a.editPage(target.page, func() error { return a.doc.RecolorAnnotation(target.page, target.Index, palette[i]) })
+					a.highlightColor = i
+				})
+			}
 		}
-	}
-	a.showUIView(view)
+	})
 	return true
 }

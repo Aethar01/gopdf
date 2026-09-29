@@ -37,28 +37,25 @@ func (a *App) pickColor(title string, palette [][3]uint8, apply func(int)) {
 		swatch := rgb(c)
 		rows[i] = uiRow{index: i, text: fmt.Sprintf("%d  #%02x%02x%02x", i+1, c[0], c[1], c[2]), value: strconv.Itoa(i), swatch: &swatch}
 	}
-	a.closeAllUI()
-	view := a.createCoreListView("color-picker", title, rows, 30, 40)
-	view.searchable = false
-	view.selected = clampInt(a.highlightColor, 0, len(rows)-1)
-	view.onKey = func(a *App, e *sdl.KeyboardEvent) bool {
-		if token, ok := keyToken(e.Key, e.Mod); ok && e.Type == sdl.EventKeyDown {
-			if n, err := strconv.Atoi(token); err == nil && n >= 1 && n <= len(palette) {
-				a.closeUIView(view, false)
-				apply(n - 1)
-				return true
+	a.showRowList("color-picker", title, rows, 30, 40, func(view *uiView) {
+		view.searchable = false
+		view.selected = clampInt(a.highlightColor, 0, len(rows)-1)
+		view.onKey = func(a *App, e *sdl.KeyboardEvent) bool {
+			if token, ok := keyToken(e.Key, e.Mod); ok && e.Type == sdl.EventKeyDown {
+				if n, err := strconv.Atoi(token); err == nil && n >= 1 && n <= len(palette) {
+					a.closeUIView(view, false)
+					apply(n - 1)
+					return true
+				}
 			}
+			return a.handleGenericUIViewKey(view, e)
 		}
-		return a.handleGenericUIViewKey(view, e)
-	}
-	view.onMouseButton = func(a *App, e *sdl.MouseButtonEvent) bool { return a.handleGenericUIViewMouseButton(view, e) }
-	view.onMouseMotion = func(a *App, e *sdl.MouseMotionEvent) bool { return a.handleGenericUIViewMouseMotion(view, e) }
-	view.onSelect = func(a *App, row uiRow) {
-		a.closeUIView(view, false)
-		n, _ := strconv.Atoi(row.value)
-		apply(n)
-	}
-	a.showUIView(view)
+		view.onSelect = func(a *App, row uiRow) {
+			a.closeUIView(view, false)
+			n, _ := strconv.Atoi(row.value)
+			apply(n)
+		}
+	})
 }
 
 // highlightReady reports whether the selection can be highlighted, with the

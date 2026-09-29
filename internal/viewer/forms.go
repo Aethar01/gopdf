@@ -1,10 +1,6 @@
 package viewer
 
-import (
-	"gopdf/internal/mupdf"
-
-	"github.com/jupiterrider/purego-sdl3/sdl"
-)
+import "gopdf/internal/mupdf"
 
 // Clicking a form field edits it: text fields open a prompt with the value,
 // check boxes and radio buttons toggle, and choice fields open a list.
@@ -59,14 +55,11 @@ func (a *App) pickFormChoice(page int, w mupdf.Widget) {
 			selected = i
 		}
 	}
-	view := a.createCoreListView("form-choice", "Choose", rows, 40, 50)
-	view.selected = selected
-	view.onKey = func(a *App, e *sdl.KeyboardEvent) bool { return a.handleGenericUIViewKey(view, e) }
-	view.onMouseButton = func(a *App, e *sdl.MouseButtonEvent) bool { return a.handleGenericUIViewMouseButton(view, e) }
-	view.onMouseMotion = func(a *App, e *sdl.MouseMotionEvent) bool { return a.handleGenericUIViewMouseMotion(view, e) }
-	view.onSelect = func(a *App, row uiRow) {
-		a.closeUIView(view, false)
-		a.editPage(page, func() error { return a.doc.SetWidgetValue(page, w.Index, row.value) })
-	}
-	a.showUIView(view)
+	a.showRowList("form-choice", "Choose", rows, 40, 50, func(view *uiView) {
+		view.selected = selected
+		view.onSelect = func(a *App, row uiRow) {
+			a.closeUIView(view, false)
+			a.editPage(page, func() error { return a.doc.SetWidgetValue(page, w.Index, row.value) })
+		}
+	})
 }
