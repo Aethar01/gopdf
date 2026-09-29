@@ -93,9 +93,23 @@ func newRenderWorker(doc *mupdf.Document, threads int, wake func()) *renderWorke
 	}
 	go func() {
 		wg.Wait()
+		w.discardUpdates()
 		close(w.done)
 	}()
 	return w
+}
+
+// discardUpdates frees the tiles of updates left uncollected once the
+// workers have stopped.
+func (w *renderWorker) discardUpdates() {
+	for {
+		select {
+		case update := <-w.updates:
+			update.rendered.Close()
+		default:
+			return
+		}
+	}
 }
 
 func (w *renderWorker) startSlots(doc *mupdf.Document, threads int) error {
@@ -234,7 +248,9 @@ func (w *renderWorker) run(slot *renderSlot) {
 			remapPageColors(rendered.Image, req.altBackground, req.altForeground, w.keptImageRects(req, rendered))
 		}
 		slot.rendering.Store(nil)
-		sendWorkerUpdate(&w.workerLifecycle, w.updates, renderUpdate{request: req, rendered: rendered, err: err})
+		if !sendWorkerUpdate(&w.workerLifecycle, w.updates, renderUpdate{request: req, rendered: rendered, err: err}) {
+			rendered.Close()
+		}
 	}
 }
 

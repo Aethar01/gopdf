@@ -253,6 +253,34 @@ func TestRenderWorkerPoolRendersEveryRequest(t *testing.T) {
 	}
 }
 
+func TestRenderWorkerFreesUncollectedTilesOnClose(t *testing.T) {
+	pages := make([][]string, 2*maxPendingPrefetchRenders)
+	for i := range pages {
+		pages[i] = []string{"page"}
+	}
+	doc, err := mupdf.Open(testpdf.WritePages(t, pages...), mupdf.OpenOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer doc.Close()
+	w := newRenderWorker(doc, 2, nil)
+	for page := range pages {
+		w.Enqueue(renderRequest{key: tileKey{page: page, scale: 0.5}, scale: 0.5, rect: image.Rect(0, 0, renderTileSize, renderTileSize)})
+	}
+	deadline := time.Now().Add(5 * time.Second)
+	for len(w.updates) < cap(w.updates) {
+		if time.Now().After(deadline) {
+			t.Fatalf("only %d of %d updates queued", len(w.updates), cap(w.updates))
+		}
+		time.Sleep(time.Millisecond)
+	}
+	w.Close()
+	<-w.done
+	if n := len(w.updates); n != 0 {
+		t.Fatalf("%d rendered tiles left in the closed worker's queue", n)
+	}
+}
+
 func TestCancelNotVisibleChecksEverySlot(t *testing.T) {
 	visible, offscreen := tileKey{page: 0}, tileKey{page: 4}
 	w := &renderWorker{slots: []*renderSlot{{}, {}, {}}}
