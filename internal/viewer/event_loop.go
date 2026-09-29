@@ -4,7 +4,6 @@ import (
 	"encoding/binary"
 	"fmt"
 	"math"
-	"os"
 	"time"
 
 	"github.com/jupiterrider/purego-sdl3/sdl"
@@ -22,19 +21,14 @@ func (a *App) Run() error {
 		return fmt.Errorf("SDL init failed: %s", sdl.GetError())
 	}
 	sdl.SetHint("SDL_RENDER_SCALE_QUALITY", "2")
-	window := sdl.CreateWindow("gopdf", 1400, 900, sdl.WindowResizable|sdl.WindowHighPixelDensity)
-	if window == nil {
+	var window *sdl.Window
+	var renderer *sdl.Renderer
+	if !sdl.CreateWindowAndRenderer("gopdf", 1400, 900, sdl.WindowResizable|sdl.WindowHighPixelDensity, &window, &renderer) {
 		sdl.Quit()
 		return fmt.Errorf("SDL window creation failed: %s", sdl.GetError())
 	}
-	renderer := createRenderer(window)
-	if renderer == nil {
-		sdl.DestroyWindow(window)
-		sdl.Quit()
-		return fmt.Errorf("SDL renderer creation failed: %s", sdl.GetError())
-	}
 	configureNativeWindow(window)
-	a.logf("created SDL window 1400x900 renderer=%s", sdl.GetRendererName(renderer))
+	a.logf("created SDL window 1400x900")
 	a.window = window
 	a.renderer = renderer
 	a.waker = newLoopWaker()
@@ -136,18 +130,6 @@ func (a *App) openInitialDocument() error {
 		a.pendingRedraw = true
 	}
 	return nil
-}
-
-// createRenderer prefers SDL's GPU renderer, whose custom shaders draw the
-// alternate colours, falling back to SDL's default choice. SDL_RENDER_DRIVER
-// set in the environment chooses the renderer instead.
-func createRenderer(window *sdl.Window) *sdl.Renderer {
-	if os.Getenv("SDL_RENDER_DRIVER") == "" {
-		if renderer := sdl.CreateRenderer(window, "gpu"); renderer != nil {
-			return renderer
-		}
-	}
-	return sdl.CreateRenderer(window, "")
 }
 
 func (a *App) eventWaitTimeoutMS() int {
