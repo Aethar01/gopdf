@@ -53,17 +53,21 @@ func (a *App) contentBoxesLoaded() bool {
 }
 
 // spreads groups pages as they are read: in dual-page mode the cover alone
-// when first_page_offset is set, then pairs; otherwise one page each.
+// when first_page_offset is set, then pairs; otherwise one page each. Each
+// spread is a slice of one shared page list, which callers must not modify.
 func (a *App) spreads() [][]int {
+	pages := make([]int, a.pageCount)
+	for i := range pages {
+		pages[i] = i
+	}
 	spreads := make([][]int, 0, a.pageCount)
 	for page := 0; page < a.pageCount; {
+		n := 2
 		if !a.dualPage || a.firstPageOffset && page == 0 || page+1 >= a.pageCount {
-			spreads = append(spreads, []int{page})
-			page++
-			continue
+			n = 1
 		}
-		spreads = append(spreads, []int{page, page + 1})
-		page += 2
+		spreads = append(spreads, pages[page:page+n:page+n])
+		page += n
 	}
 	return spreads
 }
@@ -72,6 +76,7 @@ func (a *App) spreads() [][]int {
 // overview a grid of spreads, their pages edge to edge.
 func (a *App) baseRows() []rowLayout {
 	spreads := a.spreads()
+	arena := newRowArena(a.pageCount)
 	if a.overview != nil {
 		// Every cell takes the widest cell's width so columns line up.
 		slot := 0.0
@@ -81,15 +86,34 @@ func (a *App) baseRows() []rowLayout {
 		columns := a.overviewColumns()
 		rows := make([]rowLayout, 0, len(spreads)/columns+1)
 		for i := 0; i < len(spreads); i += columns {
-			rows = append(rows, a.baseRow(spreads[i:min(len(spreads), i+columns)], overviewGap, 0, slot))
+			rows = append(rows, a.baseRow(arena, spreads[i:min(len(spreads), i+columns)], overviewGap, 0, slot))
 		}
 		return rows
 	}
 	rows := make([]rowLayout, len(spreads))
-	for i, spread := range spreads {
-		rows[i] = a.baseRow([][]int{spread}, 0, float64(a.horizontalGap()), 0)
+	for i := range spreads {
+		rows[i] = a.baseRow(arena, spreads[i:i+1], 0, float64(a.horizontalGap()), 0)
 	}
 	return rows
+}
+
+// rowArena hands out the per-page slices of a layout's rows from one
+// allocation each, since every layout lays out all pages afresh; smooth
+// zooming lays out every frame.
+type rowArena struct {
+	pages  []int
+	floats []float64
+}
+
+func newRowArena(pages int) *rowArena {
+	return &rowArena{pages: make([]int, pages), floats: make([]float64, 6*pages)}
+}
+
+// carve takes the next n elements of buf as an empty slice with room for n.
+func carve[T any](buf *[]T, n int) []T {
+	s := (*buf)[:0:n]
+	*buf = (*buf)[n:]
+	return s
 }
 
 func (a *App) spreadWidth(spread []int) float64 {
@@ -104,8 +128,20 @@ func (a *App) spreadWidth(spread []int) float64 {
 // pageGap pixels between the pages of a cell. With a slot width, each cell
 // is padded to it: a lone dual-mode cover to the right, as a book's first
 // page, another lone page to the left, and single-page cells centred.
-func (a *App) baseRow(cells [][]int, cellGap, pageGap, slot float64) rowLayout {
-	var row rowLayout
+func (a *App) baseRow(arena *rowArena, cells [][]int, cellGap, pageGap, slot float64) rowLayout {
+	n := 0
+	for _, cell := range cells {
+		n += len(cell)
+	}
+	row := rowLayout{
+		pages:     carve(&arena.pages, n),
+		gapBefore: carve(&arena.floats, n),
+		padBefore: carve(&arena.floats, n),
+		pageW:     carve(&arena.floats, n),
+		pageH:     carve(&arena.floats, n),
+		pageX:     carve(&arena.floats, n)[:n],
+		pageY:     carve(&arena.floats, n)[:n],
+	}
 	trail := 0.0 // padding left over from the previous cell
 	for c, cell := range cells {
 		spare := math.Max(0, slot-a.spreadWidth(cell))
@@ -137,8 +173,6 @@ func (a *App) baseRow(cells [][]int, cellGap, pageGap, slot float64) rowLayout {
 		trail = spare - lead
 	}
 	row.width += trail
-	row.pageX = make([]float64, len(row.pages))
-	row.pageY = make([]float64, len(row.pages))
 	return row
 }
 
@@ -157,17 +191,19 @@ func (a *App) recomputeLayout(viewportW, viewportH int) {
 	if len(a.pageMetrics) == 0 {
 		return
 	}
-	base := a.baseRows()
-	a.scale = a.currentScaleFromRows(viewportW, viewportH, base)
-	a.rows = make([]rowLayout, len(base))
-	a.pageToRow = make([]int, a.pageCount)
+	rows := a.baseRows()
+	a.scale = a.currentScaleFromRows(viewportW, viewportH, rows)
+	if len(a.pageToRow) != a.pageCount {
+		a.pageToRow = make([]int, a.pageCount)
+	}
 	maxRowWidth := 0.0
-	for _, row := range base {
+	for _, row := range rows {
 		maxRowWidth = math.Max(maxRowWidth, row.width*a.scale+row.gaps)
 	}
 	a.contentW = maxRowWidth + float64(a.horizontalGap()*2)
 	y := float64(a.verticalGap())
-	for i, row := range base {
+	for i := range rows {
+		row := &rows[i] // scaled in place
 		row.width = row.width*a.scale + row.gaps
 		row.height *= a.scale
 		row.x = float64(a.horizontalGap()) + (maxRowWidth-row.width)/2
@@ -187,9 +223,9 @@ func (a *App) recomputeLayout(viewportW, viewportH int) {
 			x += pw
 			a.pageToRow[page] = i
 		}
-		a.rows[i] = row
 		y += row.height + float64(a.verticalGap())
 	}
+	a.rows = rows
 	a.contentH = y
 	if a.renderMode == "single" && len(a.rows) > 0 {
 		row := a.rows[clampInt(a.pageToRow[a.page], 0, len(a.rows)-1)]
