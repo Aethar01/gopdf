@@ -37,6 +37,10 @@ func (d *Document) NewRenderer() (*Renderer, error) {
 	if err := d.ensureOpenLocked(); err != nil {
 		return nil, err
 	}
+	return d.newRendererLocked()
+}
+
+func (d *Document) newRendererLocked() (*Renderer, error) {
 	var cerr *C.char
 	handle := C.gopdf_new_renderer(d.handle, &cerr)
 	if handle == nil {

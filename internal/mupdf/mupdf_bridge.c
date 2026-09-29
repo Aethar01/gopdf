@@ -735,6 +735,34 @@ int gopdf_page_display_list(gopdf_doc *handle, int page_number, fz_display_list 
 	return 1;
 }
 
+/* Returns a new reference to a display list of the page for reading its
+ * text: the cached list when the page is cached, or else one built for
+ * the call, leaving the page cache alone so that reading every page's text
+ * does not evict the pages on screen. */
+int gopdf_page_text_list(gopdf_doc *handle, int page_number, fz_display_list **out, char **err) {
+	fz_page *page = NULL;
+	*out = NULL;
+	*err = NULL;
+	for (int i = 0; i < GOPDF_PAGE_CACHE_SIZE; i++) {
+		gopdf_page_entry *entry = &handle->pages[i];
+		if (entry->number == page_number && entry->list != NULL) {
+			*out = fz_keep_display_list(handle->ctx, entry->list);
+			return 1;
+		}
+	}
+	fz_var(page);
+	fz_try(handle->ctx) {
+		page = fz_load_page(handle->ctx, handle->doc, page_number);
+		*out = fz_new_display_list_from_page(handle->ctx, page);
+	} fz_always(handle->ctx) {
+		fz_drop_page(handle->ctx, page);
+	} fz_catch(handle->ctx) {
+		*err = gopdf_dup_string(fz_caught_message(handle->ctx));
+		return 0;
+	}
+	return 1;
+}
+
 /* Must be called with the document lock held, since cloning reads the
  * document context. */
 gopdf_renderer *gopdf_new_renderer(gopdf_doc *handle, char **err) {
@@ -892,18 +920,23 @@ static int gopdf_collect_search_hit(fz_context *ctx, void *opaque, int num_quads
 	return 0;
 }
 
-int gopdf_search_page(gopdf_doc *handle, int page_number, const char *needle, gopdf_search_result *out, char **err) {
+/* Searches a display list on the renderer's context, consuming the
+ * caller's reference to list. */
+int gopdf_search_display_list(gopdf_renderer *renderer, fz_display_list *list, const char *needle, gopdf_search_result *out, char **err) {
+	fz_context *ctx = renderer->ctx;
 	gopdf_search_builder builder = { 0 };
 	*err = NULL;
 	out->hits = NULL;
 	out->hit_count = 0;
-	fz_try(handle->ctx) {
-		fz_search_page_number_cb(handle->ctx, handle->doc, page_number, needle, gopdf_collect_search_hit, &builder);
+	fz_try(ctx) {
+		fz_search_display_list_cb(ctx, list, needle, gopdf_collect_search_hit, &builder);
 		out->hits = builder.hits;
 		out->hit_count = builder.hit_count;
-	} fz_catch(handle->ctx) {
+	} fz_always(ctx) {
+		fz_drop_display_list(ctx, list);
+	} fz_catch(ctx) {
 		gopdf_free_search_builder(&builder);
-		*err = gopdf_dup_string(fz_caught_message(handle->ctx));
+		*err = gopdf_dup_string(fz_caught_message(ctx));
 		return 0;
 	}
 	return 1;
@@ -1367,8 +1400,10 @@ void gopdf_free_text(gopdf_doc *handle, char *text) {
 	}
 }
 
-int gopdf_extract_page_chars(gopdf_doc *handle, int page_number, gopdf_char_result *out, char **err) {
-	fz_page *page = NULL;
+/* Extracts a display list's characters on the renderer's context,
+ * consuming the caller's reference to list. */
+int gopdf_display_list_chars(gopdf_renderer *renderer, fz_display_list *list, gopdf_char_result *out, char **err) {
+	fz_context *ctx = renderer->ctx;
 	fz_stext_page *text = NULL;
 	gopdf_char *chars = NULL;
 	int count = 0;
@@ -1376,16 +1411,14 @@ int gopdf_extract_page_chars(gopdf_doc *handle, int page_number, gopdf_char_resu
 	*err = NULL;
 	out->chars = NULL;
 	out->char_count = 0;
-	fz_var(page);
 	fz_var(text);
 	fz_var(chars);
 	fz_var(count);
 	fz_var(cap);
-	fz_try(handle->ctx) {
+	fz_try(ctx) {
 		int block_index = 0;
 		int line_index = 0;
-		page = fz_load_page(handle->ctx, handle->doc, page_number);
-		text = fz_new_stext_page_from_page(handle->ctx, page, NULL);
+		text = fz_new_stext_page_from_display_list(ctx, list, NULL);
 		for (fz_stext_block *block = text->first_block; block != NULL; block = block->next) {
 			if (block->type != FZ_STEXT_BLOCK_TEXT) {
 				continue;
@@ -1396,7 +1429,7 @@ int gopdf_extract_page_chars(gopdf_doc *handle, int page_number, gopdf_char_resu
 						int next_cap = cap == 0 ? 256 : cap * 2;
 						gopdf_char *next = (gopdf_char *)realloc(chars, sizeof(gopdf_char) * next_cap);
 						if (next == NULL) {
-							fz_throw(handle->ctx, FZ_ERROR_SYSTEM, "realloc failed");
+							fz_throw(ctx, FZ_ERROR_SYSTEM, "realloc failed");
 						}
 						chars = next;
 						cap = next_cap;
@@ -1414,16 +1447,12 @@ int gopdf_extract_page_chars(gopdf_doc *handle, int page_number, gopdf_char_resu
 		out->chars = chars;
 		out->char_count = count;
 		chars = NULL;
-	} fz_always(handle->ctx) {
-		if (text != NULL) {
-			fz_drop_stext_page(handle->ctx, text);
-		}
-		if (page != NULL) {
-			fz_drop_page(handle->ctx, page);
-		}
-	} fz_catch(handle->ctx) {
+	} fz_always(ctx) {
+		fz_drop_stext_page(ctx, text);
+		fz_drop_display_list(ctx, list);
+	} fz_catch(ctx) {
 		free(chars);
-		*err = gopdf_dup_string(fz_caught_message(handle->ctx));
+		*err = gopdf_dup_string(fz_caught_message(ctx));
 		return 0;
 	}
 	return 1;

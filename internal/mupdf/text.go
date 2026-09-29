@@ -36,27 +36,29 @@ type pageChar struct {
 	quad  Quad
 }
 
+// TextLayer returns page's text with the position of every character. Only
+// fetching the page's display list takes the document lock; see readText.
 func (d *Document) TextLayer(page int) (*TextLayer, error) {
-	d.mu.Lock()
-	defer d.mu.Unlock()
-	if err := d.validatePageLocked(page); err != nil {
-		return nil, err
-	}
-	var result C.gopdf_char_result
-	var cerr *C.char
-	if ok := C.gopdf_extract_page_chars(d.handle, C.int(page), &result, &cerr); ok == 0 {
-		return nil, consumeError("extract page chars", cerr)
-	}
-	defer C.gopdf_free_char_result(&result)
-	var chars []pageChar
-	if result.char_count > 0 && result.chars != nil {
-		raw := unsafe.Slice(result.chars, int(result.char_count))
-		chars = make([]pageChar, len(raw))
-		for i, ch := range raw {
-			chars[i] = pageChar{r: rune(ch.c), line: int(ch.line), block: int(ch.block), quad: copyQuad(ch.quad)}
+	var layer *TextLayer
+	err := d.readText(page, func(r *C.gopdf_renderer, list *C.fz_display_list) error {
+		var result C.gopdf_char_result
+		var cerr *C.char
+		if C.gopdf_display_list_chars(r, list, &result, &cerr) == 0 {
+			return consumeError("extract page chars", cerr)
 		}
-	}
-	return newTextLayer(chars), nil
+		defer C.gopdf_free_char_result(&result)
+		var chars []pageChar
+		if result.char_count > 0 && result.chars != nil {
+			raw := unsafe.Slice(result.chars, int(result.char_count))
+			chars = make([]pageChar, len(raw))
+			for i, ch := range raw {
+				chars[i] = pageChar{r: rune(ch.c), line: int(ch.line), block: int(ch.block), quad: copyQuad(ch.quad)}
+			}
+		}
+		layer = newTextLayer(chars)
+		return nil
+	})
+	return layer, err
 }
 
 func newTextLayer(chars []pageChar) *TextLayer {

@@ -33,6 +33,10 @@ type Document struct {
 	mu     sync.Mutex
 	handle *C.gopdf_doc
 	pages  int
+	// text is a context of the document's own for reading page text off
+	// the document lock; textMu keeps it to one call at a time.
+	textMu sync.Mutex
+	text   *Renderer
 }
 
 type RenderedPage struct {
@@ -176,6 +180,12 @@ func IsPasswordError(err error) bool {
 func (d *Document) Close() {
 	if d == nil {
 		return
+	}
+	d.textMu.Lock()
+	defer d.textMu.Unlock()
+	if d.text != nil {
+		d.text.Close()
+		d.text = nil
 	}
 	d.mu.Lock()
 	defer d.mu.Unlock()
@@ -343,32 +353,68 @@ func (d *Document) TextEnds(page int) (start, end Point, ok bool, err error) {
 	return Point{X: float64(s.x), Y: float64(s.y)}, Point{X: float64(e.x), Y: float64(e.y)}, found != 0, nil
 }
 
+// SearchPage returns the hits of needle on page. Only fetching the page's
+// display list takes the document lock; see readText.
 func (d *Document) SearchPage(page int, needle string) ([]SearchHit, error) {
+	if needle == "" {
+		return nil, nil
+	}
+	var hits []SearchHit
+	err := d.readText(page, func(r *C.gopdf_renderer, list *C.fz_display_list) error {
+		cneedle := C.CString(needle)
+		defer C.free(unsafe.Pointer(cneedle))
+		var result C.gopdf_search_result
+		var cerr *C.char
+		if C.gopdf_search_display_list(r, list, cneedle, &result, &cerr) == 0 {
+			return consumeError("search page", cerr)
+		}
+		defer C.gopdf_free_search_result(&result)
+		if result.hit_count == 0 || result.hits == nil {
+			return nil
+		}
+		rawHits := unsafe.Slice(result.hits, int(result.hit_count))
+		hits = make([]SearchHit, len(rawHits))
+		for i, rawHit := range rawHits {
+			hits[i].Quads = copyQuads(rawHit.quads, int(rawHit.quad_count))
+		}
+		return nil
+	})
+	return hits, err
+}
+
+// readText runs read on a display list of page with the document's own
+// context for reading text, which read must consume. Only fetching the list
+// takes the document lock, so reading text neither holds up renders nor
+// waits on them beyond that.
+func (d *Document) readText(page int, read func(*C.gopdf_renderer, *C.fz_display_list) error) error {
+	d.textMu.Lock()
+	defer d.textMu.Unlock()
+	list, err := d.textList(page)
+	if err != nil {
+		return err
+	}
+	return read(d.text.handle, list)
+}
+
+func (d *Document) textList(page int) (*C.fz_display_list, error) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	if err := d.validatePageLocked(page); err != nil {
 		return nil, err
 	}
-	if needle == "" {
-		return nil, nil
+	if d.text == nil {
+		text, err := d.newRendererLocked()
+		if err != nil {
+			return nil, err
+		}
+		d.text = text
 	}
-	cneedle := C.CString(needle)
-	defer C.free(unsafe.Pointer(cneedle))
-	var result C.gopdf_search_result
+	var list *C.fz_display_list
 	var cerr *C.char
-	if ok := C.gopdf_search_page(d.handle, C.int(page), cneedle, &result, &cerr); ok == 0 {
-		return nil, consumeError("search page", cerr)
+	if C.gopdf_page_text_list(d.handle, C.int(page), &list, &cerr) == 0 {
+		return nil, consumeError("page text", cerr)
 	}
-	defer C.gopdf_free_search_result(&result)
-	if result.hit_count == 0 || result.hits == nil {
-		return nil, nil
-	}
-	rawHits := unsafe.Slice(result.hits, int(result.hit_count))
-	hits := make([]SearchHit, len(rawHits))
-	for i, rawHit := range rawHits {
-		hits[i].Quads = copyQuads(rawHit.quads, int(rawHit.quad_count))
-	}
-	return hits, nil
+	return list, nil
 }
 
 func (d *Document) PageText(page int) (string, error) {
