@@ -144,7 +144,9 @@ func (w *searchWorker) run(doc *mupdf.Document) {
 					restarted = true
 					break
 				}
-				sendWorkerUpdate(&w.workerLifecycle, w.updates, searchUpdate{generation: req.generation, page: page, hits: hits})
+				if len(hits) > 0 { // pages without hits change nothing on screen
+					sendWorkerUpdate(&w.workerLifecycle, w.updates, searchUpdate{generation: req.generation, page: page, hits: hits})
+				}
 			}
 			if restarted {
 				continue

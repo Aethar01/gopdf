@@ -4,6 +4,7 @@ import (
 	"math"
 	"reflect"
 	"testing"
+	"time"
 
 	"gopdf/internal/mupdf"
 	"gopdf/internal/testpdf"
@@ -272,5 +273,35 @@ func TestClearSearchResetsSearchState(t *testing.T) {
 	}
 	if app.search.generation != 11 || app.search.mode != searchModeForward || app.message != "" {
 		t.Fatalf("expected generation increment, forward mode, and empty message; search=%+v message=%q", app.search, app.message)
+	}
+}
+
+func TestSearchWorkerReportsOnlyPagesWithHits(t *testing.T) {
+	doc, err := mupdf.Open(testpdf.WritePages(t, []string{"hay"}, []string{"needle"}, []string{"hay"}), mupdf.OpenOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer doc.Close()
+	w := newSearchWorker(doc, nil)
+	defer w.Close()
+	w.Start(searchRequest{generation: 1, query: "needle", pageCount: 3})
+	var pages []int
+	timeout := time.After(5 * time.Second)
+	for {
+		select {
+		case update := <-w.updates:
+			if update.err != nil {
+				t.Fatal(update.err)
+			}
+			if update.done {
+				if len(pages) != 1 || pages[0] != 1 {
+					t.Fatalf("updates for pages %v, want only page 1", pages)
+				}
+				return
+			}
+			pages = append(pages, update.page)
+		case <-timeout:
+			t.Fatal("search did not finish")
+		}
 	}
 }
