@@ -175,7 +175,7 @@ type sdlState struct {
 	cursorIsHand bool
 	iconBytes    []byte
 	fontFace     font.Face
-	textCache    map[textTextureKey]cachedTextTexture
+	textCache    textTextureCache
 }
 
 // linkInputState tracks the link under the pointer.

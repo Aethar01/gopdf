@@ -19,13 +19,26 @@ func TestTextTextureKeyIncludesTextAndColor(t *testing.T) {
 	}
 }
 
-func TestStoreTextTextureSurvivesAFullCache(t *testing.T) {
-	var s sdlState
-	for i := range maxTextTextureCacheEntries + 1 { // the last store empties a full cache
-		s.storeTextTexture(newTextTextureKey(fmt.Sprint(i), color.Black), cachedTextTexture{})
+func TestTextTextureCacheEvictsLeastRecentlyUsed(t *testing.T) {
+	var c textTextureCache
+	key := func(i int) textTextureKey { return newTextTextureKey(fmt.Sprint(i), color.Black) }
+	for i := range maxTextTextureCacheEntries {
+		c.add(key(i), cachedTextTexture{width: i})
 	}
-	if len(s.textCache) != 1 {
-		t.Fatalf("entries after overflowing = %d, want 1", len(s.textCache))
+	c.get(key(0)) // 0 is now the most recently used
+	c.add(key(-1), cachedTextTexture{})
+	if _, ok := c.get(key(1)); ok {
+		t.Fatal("least recently used entry kept past the limit")
+	}
+	if got, ok := c.get(key(0)); !ok || got.width != 0 {
+		t.Fatal("recently used entry was evicted")
+	}
+	if len(c.entries) != maxTextTextureCacheEntries || c.order.Len() != maxTextTextureCacheEntries {
+		t.Fatalf("entries=%d order=%d", len(c.entries), c.order.Len())
+	}
+	c.clear()
+	if _, ok := c.get(key(0)); ok || c.order.Len() != 0 {
+		t.Fatal("clear left entries")
 	}
 }
 

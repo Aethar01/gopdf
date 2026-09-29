@@ -1,6 +1,7 @@
 package viewer
 
 import (
+	"container/list"
 	"encoding/binary"
 	"fmt"
 	"image"
@@ -309,7 +310,7 @@ func (a *App) drawText(renderer *sdl.Renderer, s string, x, baselineY int, clr c
 
 func (a *App) cachedTextTexture(renderer *sdl.Renderer, s string, clr color.Color) (cachedTextTexture, error) {
 	key := newTextTextureKey(s, clr)
-	if entry, ok := a.textCache[key]; ok {
+	if entry, ok := a.textCache.get(key); ok {
 		return entry, nil
 	}
 	tex, w, h, ascent, err := textTexture(renderer, a.fontFace, s, clr)
@@ -317,19 +318,50 @@ func (a *App) cachedTextTexture(renderer *sdl.Renderer, s string, clr color.Colo
 		return cachedTextTexture{}, err
 	}
 	entry := cachedTextTexture{texture: tex, width: w, height: h, ascent: ascent}
-	a.storeTextTexture(key, entry)
+	a.textCache.add(key, entry)
 	return entry, nil
 }
 
-// storeTextTexture caches a text texture, emptying the cache when it is full.
-func (s *sdlState) storeTextTexture(key textTextureKey, entry cachedTextTexture) {
-	if len(s.textCache) >= maxTextTextureCacheEntries {
-		s.clearTextTextureCache()
+// textTextureCache keeps rendered strings, evicting the least recently used
+// once full. Its zero value is empty and ready to use.
+type textTextureCache struct {
+	entries map[textTextureKey]*list.Element // values are textCacheEntry
+	order   list.List
+}
+
+type textCacheEntry struct {
+	key textTextureKey
+	tex cachedTextTexture
+}
+
+func (c *textTextureCache) get(key textTextureKey) (cachedTextTexture, bool) {
+	elem, ok := c.entries[key]
+	if !ok {
+		return cachedTextTexture{}, false
 	}
-	if s.textCache == nil {
-		s.textCache = map[textTextureKey]cachedTextTexture{}
+	c.order.MoveToBack(elem)
+	return elem.Value.(textCacheEntry).tex, true
+}
+
+func (c *textTextureCache) add(key textTextureKey, tex cachedTextTexture) {
+	if c.entries == nil {
+		c.entries = map[textTextureKey]*list.Element{}
 	}
-	s.textCache[key] = entry
+	if len(c.entries) >= maxTextTextureCacheEntries {
+		oldest := c.order.Front()
+		entry := c.order.Remove(oldest).(textCacheEntry)
+		delete(c.entries, entry.key)
+		destroyTexture(entry.tex.texture)
+	}
+	c.entries[key] = c.order.PushBack(textCacheEntry{key: key, tex: tex})
+}
+
+func (c *textTextureCache) clear() {
+	for _, elem := range c.entries {
+		destroyTexture(elem.Value.(textCacheEntry).tex.texture)
+	}
+	c.entries = nil
+	c.order.Init()
 }
 
 func newTextTextureKey(s string, clr color.Color) textTextureKey {
@@ -338,12 +370,7 @@ func newTextTextureKey(s string, clr color.Color) textTextureKey {
 }
 
 func (s *sdlState) clearTextTextureCache() {
-	for _, entry := range s.textCache {
-		if entry.texture != nil {
-			sdl.DestroyTexture(entry.texture)
-		}
-	}
-	s.textCache = nil
+	s.textCache.clear()
 }
 
 func (s *sdlState) Close() {
