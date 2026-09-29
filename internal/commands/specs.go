@@ -1,10 +1,6 @@
 package commands
 
-import (
-	"strings"
-
-	"gopdf/internal/config"
-)
+import "strings"
 
 type Spec struct {
 	Name           string
@@ -35,7 +31,7 @@ var specs = []Spec{
 	{Name: "reload-config", Help: ":reload-config - Reload the config file"},
 	{Name: "recent", Help: ":recent - Open the recent-files menu"},
 	{Name: "search", Help: ":search [-r] [-i] [-w] [-p] <text> - Search document text"},
-	{Name: "set", ArgCompletions: config.OptionNames(), Help: ":set [option[?]|option!|option=value] - Inspect or change options"},
+	{Name: "set", Help: ":set [option[?]|option!|option=value] - Inspect or change options"},
 	{Name: "undo", Help: ":undo - Undo the last edit"},
 	{Name: "write", Help: ":write [path], :w - Save edits, or a copy to path; :wq saves and exits"},
 }
@@ -44,6 +40,15 @@ func All() []Spec {
 	result := make([]Spec, len(specs))
 	copy(result, specs)
 	return result
+}
+
+// Names lists the built-in commands, which plugins may not reuse.
+func Names() []string {
+	names := make([]string, len(specs))
+	for i, spec := range specs {
+		names[i] = spec.Name
+	}
+	return names
 }
 
 func ArgCompletionValues(name string) []string {

@@ -9,12 +9,14 @@ import (
 	"os/exec"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
 
 	"gopdf/internal/actions"
+	"gopdf/internal/commands"
 
 	lua "github.com/yuin/gopher-lua"
 )
@@ -1316,10 +1318,8 @@ func validPluginMemberName(name string) bool {
 
 func (r *Runtime) commandExists(name string) bool {
 	name = strings.ToLower(name)
-	for _, core := range []string{"colors", "fit", "help", "highlight", "keybinds", "lua", "matches", "mode", "open", "open_file_picker", "page", "print", "quit", "reload-config", "redo", "recent", "search", "set", "undo", "write"} {
-		if name == core {
-			return true
-		}
+	if slices.Contains(commands.Names(), name) {
+		return true
 	}
 	if r == nil || r.plugins == nil {
 		return false

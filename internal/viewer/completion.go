@@ -106,9 +106,13 @@ func (a *App) commandCompletions() ([]completionItem, int, int) {
 	if cmd == "open" {
 		return a.openPathCompletions(arg), argStart, argEnd
 	}
-	if cmd == "set" && a.runtime != nil {
+	if cmd == "set" {
+		names := config.OptionNames()
+		if a.runtime != nil {
+			names = a.runtime.OptionNames()
+		}
 		items := []completionItem{}
-		for _, name := range a.runtime.OptionNames() {
+		for _, name := range names {
 			if strings.HasPrefix(name, arg) {
 				items = append(items, completionItem{value: name, display: name})
 			}
