@@ -111,23 +111,15 @@ func (a *App) overviewVisibleRows() int {
 	return max(1, int(float64(viewportH)/(a.rows[0].height+overviewGap)))
 }
 
-// scrollOverviewSelectionIntoView scrolls so the selected row shows with
-// scroll_off rows of context above and below where the screen allows.
+// scrollOverviewSelectionIntoView scrolls by whole rows so the selected row
+// keeps scroll_off rows of context, the same way menus do.
 func (a *App) scrollOverviewSelectionIntoView() {
 	if a.overview.selected >= len(a.pageToRow) {
 		return
 	}
-	rowIndex := a.pageToRow[a.overview.selected]
-	context := min(a.config.ScrollOff, (a.overviewVisibleRows()-1)/2)
-	top := a.rows[max(0, rowIndex-context)]
-	bottom := a.rows[min(len(a.rows)-1, rowIndex+context)]
-	_, viewportH := a.viewportSize()
-	switch {
-	case top.y-overviewGap < a.scrollY:
-		a.scrollY = top.y - overviewGap
-	case bottom.y+bottom.height+overviewGap > a.scrollY+float64(viewportH):
-		a.scrollY = bottom.y + bottom.height + overviewGap - float64(viewportH)
-	}
+	first := a.rowIndexAtContentY(a.scrollY + overviewGap)
+	first = modalListScrollForSelection(first, a.pageToRow[a.overview.selected], a.overviewVisibleRows(), len(a.rows), a.config.ScrollOff)
+	a.scrollY = a.rows[first].y - overviewGap
 	a.clampScroll()
 }
 

@@ -243,7 +243,7 @@ func (a *App) moveUIViewSelection(view *uiView, delta int) {
 	}
 	view.selected = items[row].index
 	_, rows := view.contentGeometry(a)
-	view.scroll = modalListScrollForSelection(view.scroll, row, rows, len(items))
+	view.scroll = modalListScrollForSelection(view.scroll, row, rows, len(items), a.config.ScrollOff)
 	a.pendingRedraw = true
 }
 
@@ -259,7 +259,7 @@ func (a *App) ensureUIViewSelectionVisible(view *uiView) {
 	}
 	row := uiViewSelectedRow(view, items)
 	_, rows := view.contentGeometry(a)
-	view.scroll = modalListScrollForSelection(view.scroll, row, rows, len(items))
+	view.scroll = modalListScrollForSelection(view.scroll, row, rows, len(items), a.config.ScrollOff)
 }
 
 func uiViewSelectedRow(view *uiView, items []uiRow) int {

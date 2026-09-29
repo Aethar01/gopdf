@@ -9,8 +9,6 @@ import (
 
 const modalScrollbarWidth = 8
 
-var modalListScrollOff int
-
 func handleModalListMouseMotion(e *sdl.MouseMotionEvent, dragging bool, scroll, selected *int, drag func(int), hover func(int, int)) bool {
 	if dragging {
 		old := *scroll
@@ -47,7 +45,6 @@ func resetModalListSelection(visible []int, selected, scroll *int, ensureVisible
 }
 
 func (a *App) modalListGeometry(widthPct, heightPct int) (sdl.FRect, int) {
-	modalListScrollOff = max(0, a.config.ScrollOff)
 	viewportW, viewportH := a.viewportSize()
 	widthPct = clampInt(widthPct, 20, 100)
 	heightPct = clampInt(heightPct, 20, 100)
@@ -171,12 +168,15 @@ func modalListDragScrollbar(rect sdl.FRect, rowHeight, rows, total, y int, scrol
 	*scroll = modalListScrollbarScrollForY(track, thumb, rows, total, y, dragOffset)
 }
 
-func modalListScrollForSelection(scroll, selected, rows, total int) int {
+// modalListScrollForSelection returns the first row to show so the selected
+// row has scrollOff rows of context above and below; like vim, a scrollOff of
+// half the window or more keeps the selection centred.
+func modalListScrollForSelection(scroll, selected, rows, total, scrollOff int) int {
 	if rows < 1 {
 		rows = 1
 	}
 	maxScroll := max(0, total-rows)
-	scrollOff := max(0, modalListScrollOff)
+	scrollOff = max(0, scrollOff)
 	if scrollOff*2 >= rows {
 		middleRow := (rows - 1) / 2
 		return clampInt(selected-middleRow, 0, maxScroll)

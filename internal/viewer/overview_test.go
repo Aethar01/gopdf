@@ -79,3 +79,22 @@ func TestOverviewPagesByScreenAndKeepsScrollOff(t *testing.T) {
 		t.Fatalf("PgUp moved to %d", app.overview.selected)
 	}
 }
+
+func TestOverviewLargeScrollOffCentresSelection(t *testing.T) {
+	app := testLayoutApp(200)
+	app.winW, app.winH = 1000, 1500
+	app.config.ScrollOff = 8
+	app.recomputeLayout(app.viewportSize())
+	app.toggleOverview()
+	rows := app.overviewVisibleRows()
+	if rows < 3 {
+		t.Fatalf("visible rows = %d, want at least 3 for the test", rows)
+	}
+	for range 10 {
+		app.runAction("scroll_down")
+	}
+	first := app.rowIndexAtContentY(app.scrollY + overviewGap)
+	if got, want := app.pageToRow[app.overview.selected]-first, (rows-1)/2; got != want {
+		t.Fatalf("selected row is %d rows below the top, want %d (centred)", got, want)
+	}
+}

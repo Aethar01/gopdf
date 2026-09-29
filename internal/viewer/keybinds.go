@@ -245,7 +245,7 @@ func (a *App) moveKeybindSelection(delta int) {
 	}
 	a.keybindMenu.view.selected = clampInt(a.keybindMenu.view.selected+delta, minSelection, len(a.keybindMenu.rows)-1)
 	if a.keybindMenu.view.selected >= 0 {
-		a.keybindMenu.view.scroll = modalListScrollForSelection(a.keybindMenu.view.scroll, a.keybindMenu.view.selected, rows, len(a.keybindMenu.rows))
+		a.keybindMenu.view.scroll = modalListScrollForSelection(a.keybindMenu.view.scroll, a.keybindMenu.view.selected, rows, len(a.keybindMenu.rows), a.config.ScrollOff)
 	}
 }
 
