@@ -80,10 +80,14 @@ type rowLayout struct {
 	width  float64
 	gaps   float64
 	height float64
-	pageX  []float64
-	pageY  []float64
-	pageW  []float64
-	pageH  []float64
+	// Before each page in the row come gapBefore screen pixels and
+	// padBefore unscaled units of blank space.
+	gapBefore []float64
+	padBefore []float64
+	pageX     []float64
+	pageY     []float64
+	pageW     []float64
+	pageH     []float64
 }
 
 type App struct {

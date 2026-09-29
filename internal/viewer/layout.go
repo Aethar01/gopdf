@@ -45,56 +45,94 @@ func (a *App) contentBoxesLoaded() bool {
 	return true
 }
 
-func (a *App) baseRows() []rowLayout {
-	rows := make([]rowLayout, 0, a.pageCount)
-	appendRow := func(pages ...int) {
-		row := rowLayout{pages: append([]int(nil), pages...), pageX: make([]float64, len(pages)), pageY: make([]float64, len(pages)), pageW: make([]float64, len(pages)), pageH: make([]float64, len(pages))}
-		for i, page := range pages {
-			m := a.pageMetrics[page]
-			row.pageW[i] = m.width
-			row.pageH[i] = m.height
-			row.width += m.width
-			if i > 0 {
-				row.gaps += float64(a.horizontalGap())
-			}
-			if m.height > row.height {
-				row.height = m.height
-			}
-		}
-		rows = append(rows, row)
-	}
-	if a.overview != nil {
-		columns := a.overviewColumns()
-		for page := 0; page < a.pageCount; page += columns {
-			pages := make([]int, 0, columns)
-			for p := page; p < min(a.pageCount, page+columns); p++ {
-				pages = append(pages, p)
-			}
-			appendRow(pages...)
-		}
-		return rows
-	}
-	if !a.dualPage {
-		for page := 0; page < a.pageCount; page++ {
-			appendRow(page)
-		}
-		return rows
-	}
+// spreads groups pages as they are read: in dual-page mode the cover alone
+// when first_page_offset is set, then pairs; otherwise one page each.
+func (a *App) spreads() [][]int {
+	spreads := make([][]int, 0, a.pageCount)
 	for page := 0; page < a.pageCount; {
-		if a.firstPageOffset && page == 0 {
-			appendRow(page)
+		if !a.dualPage || a.firstPageOffset && page == 0 || page+1 >= a.pageCount {
+			spreads = append(spreads, []int{page})
 			page++
 			continue
 		}
-		if page+1 < a.pageCount {
-			appendRow(page, page+1)
-			page += 2
-			continue
+		spreads = append(spreads, []int{page, page + 1})
+		page += 2
+	}
+	return spreads
+}
+
+// baseRows groups pages into unscaled rows: a spread per row, or in the
+// overview a grid of spreads, their pages edge to edge.
+func (a *App) baseRows() []rowLayout {
+	spreads := a.spreads()
+	if a.overview != nil {
+		// Every cell takes the widest cell's width so columns line up.
+		slot := 0.0
+		for _, spread := range spreads {
+			slot = math.Max(slot, a.spreadWidth(spread))
 		}
-		appendRow(page)
-		page++
+		columns := a.overviewColumns()
+		rows := make([]rowLayout, 0, len(spreads)/columns+1)
+		for i := 0; i < len(spreads); i += columns {
+			rows = append(rows, a.baseRow(spreads[i:min(len(spreads), i+columns)], overviewGap, 0, slot))
+		}
+		return rows
+	}
+	rows := make([]rowLayout, len(spreads))
+	for i, spread := range spreads {
+		rows[i] = a.baseRow([][]int{spread}, 0, float64(a.horizontalGap()), 0)
 	}
 	return rows
+}
+
+func (a *App) spreadWidth(spread []int) float64 {
+	width := 0.0
+	for _, page := range spread {
+		width += a.pageMetrics[page].width
+	}
+	return width
+}
+
+// baseRow lays cells of pages side by side, cellGap pixels apart, with
+// pageGap pixels between the pages of a cell. With a slot width, each cell
+// is padded to it: a lone dual-mode cover to the right, as a book's first
+// page, another lone page to the left, and single-page cells centred.
+func (a *App) baseRow(cells [][]int, cellGap, pageGap, slot float64) rowLayout {
+	var row rowLayout
+	trail := 0.0 // padding left over from the previous cell
+	for c, cell := range cells {
+		spare := math.Max(0, slot-a.spreadWidth(cell))
+		lead := spare / 2
+		if a.dualPage {
+			lead = 0
+			if a.firstPageOffset && cell[0] == 0 {
+				lead = spare
+			}
+		}
+		for i, page := range cell {
+			gap, pad := pageGap, 0.0
+			switch {
+			case c == 0 && i == 0:
+				gap, pad = 0, lead
+			case i == 0:
+				gap, pad = cellGap, trail+lead
+			}
+			m := a.pageMetrics[page]
+			row.pages = append(row.pages, page)
+			row.gapBefore = append(row.gapBefore, gap)
+			row.padBefore = append(row.padBefore, pad)
+			row.pageW = append(row.pageW, m.width)
+			row.pageH = append(row.pageH, m.height)
+			row.width += pad + m.width
+			row.gaps += gap
+			row.height = math.Max(row.height, m.height)
+		}
+		trail = spare - lead
+	}
+	row.width += trail
+	row.pageX = make([]float64, len(row.pages))
+	row.pageY = make([]float64, len(row.pages))
+	return row
 }
 
 func (a *App) baseRowIndexForPage(page int, rows []rowLayout) int {
@@ -134,11 +172,12 @@ func (a *App) recomputeLayout(viewportW, viewportH int) {
 		for j, page := range row.pages {
 			pw := row.pageW[j] * a.scale
 			ph := row.pageH[j] * a.scale
+			x += row.gapBefore[j] + row.padBefore[j]*a.scale
 			row.pageW[j] = pw
 			row.pageH[j] = ph
 			row.pageX[j] = x
 			row.pageY[j] = y + (row.height-ph)/2
-			x += pw + float64(a.horizontalGap())
+			x += pw
 			a.pageToRow[page] = i
 		}
 		a.rows[i] = row

@@ -21,7 +21,7 @@ const (
 )
 
 type overviewState struct {
-	selected int
+	selected int       // the first page of the selected spread
 	columns  int       // 0 picks a count from the window width
 	saved    viewState // the view to return to
 }
@@ -32,7 +32,7 @@ func (a *App) toggleOverview() {
 		return
 	}
 	a.closeAllUI()
-	a.overview = &overviewState{selected: a.page, saved: a.captureViewState()}
+	a.overview = &overviewState{selected: a.spreadStart(a.page), saved: a.captureViewState()}
 	a.renderMode = "continuous"
 	a.fitMode = "width"
 	a.relayoutOverview()
@@ -119,11 +119,16 @@ func (a *App) prefetchOverviewThumbnails() {
 }
 
 func (a *App) overviewColumns() int {
+	cells := len(a.spreads())
 	if a.overview.columns > 0 {
-		return min(a.overview.columns, max(1, a.pageCount))
+		return min(a.overview.columns, max(1, cells))
+	}
+	cellWidth := overviewThumbWidth
+	if a.dualPage {
+		cellWidth *= 2 // a spread takes two thumbnails' width
 	}
 	viewportW, _ := a.viewportSize()
-	return clampInt(viewportW/(overviewThumbWidth+overviewGap), 2, max(2, min(a.pageCount, overviewMaxColumns)))
+	return clampInt(viewportW/(cellWidth+overviewGap), 2, max(2, min(cells, overviewMaxColumns)))
 }
 
 func (a *App) relayoutOverview() {
@@ -150,9 +155,9 @@ func (a *App) runOverviewAction(action string) bool {
 	case "prev_page":
 		a.moveOverviewSelection(-a.overviewVisibleRows() * columns)
 	case "first_page":
-		a.moveOverviewSelection(-a.overview.selected)
+		a.moveOverviewSelection(-a.pageCount)
 	case "last_page":
-		a.moveOverviewSelection(a.pageCount - 1 - a.overview.selected)
+		a.moveOverviewSelection(a.pageCount)
 	case "zoom_in":
 		a.overview.columns = max(1, columns-1)
 		a.relayoutOverview()
@@ -172,10 +177,32 @@ func (a *App) runOverviewAction(action string) bool {
 	return true
 }
 
+// moveOverviewSelection moves the selection by delta spreads.
 func (a *App) moveOverviewSelection(delta int) {
-	a.overview.selected = clampInt(a.overview.selected+delta, 0, max(0, a.pageCount-1))
+	spreads := a.spreads()
+	if len(spreads) == 0 {
+		return
+	}
+	i, _ := a.spreadOf(a.overview.selected)
+	a.overview.selected = spreads[clampInt(i+delta, 0, len(spreads)-1)][0]
 	a.page = a.overview.selected
 	a.scrollOverviewSelectionIntoView()
+}
+
+// spreadOf returns the index and pages of the spread holding page.
+func (a *App) spreadOf(page int) (int, []int) {
+	for i, spread := range a.spreads() {
+		if slices.Contains(spread, page) {
+			return i, spread
+		}
+	}
+	return 0, []int{page}
+}
+
+// spreadStart is the first page of the spread holding page.
+func (a *App) spreadStart(page int) int {
+	_, spread := a.spreadOf(page)
+	return spread[0]
 }
 
 // overviewVisibleRows is how many whole rows of thumbnails fit on screen.
@@ -213,16 +240,21 @@ func (a *App) drawOverviewSelection(renderer *sdl.Renderer) {
 	if a.overview == nil {
 		return
 	}
-	x, y, ok := a.pageScreenOrigin(a.overview.selected)
-	if !ok {
+	if a.overview.selected >= len(a.pageToRow) {
 		return
 	}
+	// Outline the whole selected spread.
 	row := a.rows[a.pageToRow[a.overview.selected]]
+	_, spread := a.spreadOf(a.overview.selected)
+	minX, minY, maxX, maxY := math.Inf(1), math.Inf(1), math.Inf(-1), math.Inf(-1)
 	for i, page := range row.pages {
-		if page == a.overview.selected {
-			const border = 3
-			rect := sdl.FRect{X: float32(x - border), Y: float32(y - border), W: float32(row.pageW[i] + 2*border), H: float32(row.pageH[i] + 2*border)}
-			strokeRect(renderer, rect, rgb(a.config.HighlightBackground), border)
+		if slices.Contains(spread, page) {
+			x, y := a.rowPageScreenOrigin(row, i)
+			minX, minY = math.Min(minX, x), math.Min(minY, y)
+			maxX, maxY = math.Max(maxX, x+row.pageW[i]), math.Max(maxY, y+row.pageH[i])
 		}
 	}
+	const border = 3
+	rect := sdl.FRect{X: float32(minX - border), Y: float32(minY - border), W: float32(maxX - minX + 2*border), H: float32(maxY - minY + 2*border)}
+	strokeRect(renderer, rect, rgb(a.config.HighlightBackground), border)
 }

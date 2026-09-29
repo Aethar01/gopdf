@@ -3,6 +3,7 @@ package viewer
 import (
 	"image"
 	"math"
+	"slices"
 	"testing"
 
 	"gopdf/internal/config"
@@ -182,5 +183,44 @@ func TestOverviewGridFitsWidthAndAlignsLastRow(t *testing.T) {
 	first, lastRow := app.rows[0], app.rows[len(app.rows)-1]
 	if len(lastRow.pages) == 5 || lastRow.pageX[0] != first.pageX[0] {
 		t.Fatalf("last row starts at %.1f, first row at %.1f", lastRow.pageX[0], first.pageX[0])
+	}
+}
+
+func TestOverviewGroupsSpreadsInDualMode(t *testing.T) {
+	app := testLayoutApp(9)
+	app.winW, app.winH = 1000, 800
+	app.dualPage, app.firstPageOffset = true, true
+	app.recomputeLayout(app.viewportSize())
+	app.alignPageToAnchor(4) // in the spread 3-4
+	app.toggleOverview()
+	if app.overview.selected != 3 {
+		t.Fatalf("selected = %d, want the spread's first page 3", app.overview.selected)
+	}
+	row := app.rows[app.pageToRow[3]]
+	i := slices.Index(row.pages, 3)
+	if row.pages[i+1] != 4 || row.pageX[i+1] != row.pageX[i]+row.pageW[i] {
+		t.Fatalf("spread 3-4 is not edge to edge: %v at %v", row.pages, row.pageX)
+	}
+	cover := app.rows[0]
+	if cover.pageX[1]-(cover.pageX[0]+cover.pageW[0]) != overviewGap {
+		t.Fatal("no gap between the cover and the next spread")
+	}
+	// Two spreads per row: columns line up, the cover on its slot's right.
+	x := func(page int) float64 {
+		return app.rows[app.pageToRow[page]].pageX[slices.Index(app.rows[app.pageToRow[page]].pages, page)]
+	}
+	if app.overviewColumns() != 2 || x(1) != x(5) {
+		t.Fatalf("columns=%d; spread 1-2 at x=%.1f, spread 5-6 at x=%.1f", app.overviewColumns(), x(1), x(5))
+	}
+	if math.Abs(x(0)+cover.pageW[0]-(x(4)+cover.pageW[0])) > 1e-9 {
+		t.Fatalf("cover ends at %.1f, the spread below it at %.1f", x(0)+cover.pageW[0], x(4)+cover.pageW[0])
+	}
+	app.runAction("scroll_right")
+	if app.overview.selected != 5 {
+		t.Fatalf("moving right selected %d, want the next spread 5", app.overview.selected)
+	}
+	app.runAction("last_page")
+	if app.overview.selected != 7 {
+		t.Fatalf("last spread starts at %d, want 7", app.overview.selected)
 	}
 }
