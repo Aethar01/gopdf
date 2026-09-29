@@ -21,16 +21,15 @@ type renderRequest struct {
 	aaLevel    int
 	priority   int
 
-	// Colors the render is remapped to when altColors is set, leaving the
-	// page's raster images alone, which pageImages asks to be reported.
+	// Colors the render is remapped to when altColors is set, leaving
+	// raster images alone when keepImages is.
 	altBackground, altForeground [3]uint8
-	pageImages                   bool
+	keepImages                   bool
 }
 
 type renderUpdate struct {
 	request  renderRequest
 	rendered *mupdf.RenderedPage
-	images   []mupdf.Rect // the page's raster images, when request.pageImages
 	err      error
 }
 
@@ -246,15 +245,11 @@ func (w *renderWorker) run(slot *renderSlot) {
 		slot.renderer.Arm()
 		slot.rendering.Store(&req.key)
 		rendered, err := slot.renderer.Render(req.key.page, req.scale, req.rect, req.aaLevel)
-		var images []mupdf.Rect
-		if err == nil && req.pageImages {
-			images, _ = w.doc.ImageBounds(req.key.page)
-		}
 		if err == nil && req.altColors {
-			remapPageColors(rendered.Image, req.altBackground, req.altForeground, tileImageRects(images, req.scale, image.Pt(rendered.X, rendered.Y)))
+			remapPageColors(rendered.Image, req.altBackground, req.altForeground, w.keptImageRects(req, rendered))
 		}
 		slot.rendering.Store(nil)
-		if !sendWorkerUpdate(&w.workerLifecycle, w.updates, renderUpdate{request: req, rendered: rendered, images: images, err: err}) {
+		if !sendWorkerUpdate(&w.workerLifecycle, w.updates, renderUpdate{request: req, rendered: rendered, err: err}) {
 			rendered.Close()
 		}
 	}
@@ -283,12 +278,20 @@ func (w *renderWorker) next() (renderRequest, bool) {
 	}
 }
 
-// tileImageRects returns the image areas of a page, in the pixels of a tile
-// rendered at scale whose top-left is origin.
-func tileImageRects(images []mupdf.Rect, scale float64, origin image.Point) []image.Rectangle {
+// keptImageRects returns the image areas a recolour should skip, in the
+// rendered tile's pixel coordinates.
+func (w *renderWorker) keptImageRects(req renderRequest, rendered *mupdf.RenderedPage) []image.Rectangle {
+	if !req.keepImages || w.doc == nil {
+		return nil
+	}
+	images, err := w.doc.ImageBounds(req.key.page)
+	if err != nil {
+		return nil
+	}
+	origin := image.Pt(rendered.X, rendered.Y)
 	rects := make([]image.Rectangle, len(images))
 	for i, bounds := range images {
-		rects[i] = mupdf.DeviceRect(bounds, scale).Sub(origin)
+		rects[i] = mupdf.DeviceRect(bounds, req.scale).Sub(origin)
 	}
 	return rects
 }
