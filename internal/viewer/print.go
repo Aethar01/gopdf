@@ -1,16 +1,15 @@
 package viewer
 
 import (
-	"os/exec"
-	"runtime"
 	"slices"
 	"strconv"
 	"strings"
 )
 
-// Printing goes through CUPS' lp on Linux and macOS, from a small dialog
-// for the printer, pages, copies and sides, or straight from :print with lp
-// options. Windows hands the file to the shell's print verb.
+// Printing starts from a small dialog for the printer, pages, copies and
+// sides, or straight from :print with lp options. It goes through CUPS' lp
+// on Linux and macOS, and on Windows renders the pages to the printer
+// through GDI.
 
 type printSettings struct {
 	printer string
@@ -25,23 +24,6 @@ var printSides = []struct{ value, label string }{
 	{"two-sided-short-edge", "short edge"},
 }
 
-func (s printSettings) lpArgs() []string {
-	var args []string
-	if s.printer != "" {
-		args = append(args, "-d", s.printer)
-	}
-	if s.pages != "" {
-		args = append(args, "-P", s.pages)
-	}
-	if s.copies > 1 {
-		args = append(args, "-n", strconv.Itoa(s.copies))
-	}
-	if s.sides != "" {
-		args = append(args, "-o", "sides="+s.sides)
-	}
-	return args
-}
-
 // printDocument prints the document file: with lp options given, at once,
 // and otherwise through the print dialog.
 func (a *App) printDocument(args string) {
@@ -49,28 +31,27 @@ func (a *App) printDocument(args string) {
 		a.message = "no document open"
 		return
 	}
-	if runtime.GOOS == "windows" || strings.TrimSpace(args) != "" {
-		a.runPrint(strings.Fields(args))
+	if fields := strings.Fields(args); len(fields) > 0 {
+		a.runPrint(printSettings{}, fields)
 		return
 	}
 	a.findPrinters()
 	a.showPrintDialog(0)
 }
 
-// printerList is what lpstat reported: the printers and CUPS' default.
+// printerList is the printers found and the system's default one.
 type printerList struct {
 	names       []string
 	defaultName string
 }
 
-// findPrinters asks CUPS for printers in the background, as lpstat can take
-// a second while it looks for network printers.
+// findPrinters looks for printers in the background, as that can take a
+// second while the system looks for network printers.
 func (a *App) findPrinters() {
 	found := make(chan printerList, 1)
 	a.printersFound = found
 	go func() {
-		names := listPrinters()
-		found <- printerList{names: names, defaultName: defaultPrinter(names)}
+		found <- findPrinterList()
 		a.wakeLoop()
 	}()
 }
@@ -142,13 +123,13 @@ func (a *App) choosePrintRow(row uiRow) {
 		back()
 	case "print":
 		a.closeAllUI()
-		a.runPrint(s.lpArgs())
+		a.runPrint(*s, nil)
 	}
 }
 
 func (a *App) pickPrinter(printers []string, back func()) {
 	if len(printers) == 0 {
-		a.message = "no printers found (lpstat -e)"
+		a.message = "no printers found"
 		return
 	}
 	rows := make([]uiRow, len(printers))
@@ -164,10 +145,14 @@ func (a *App) pickPrinter(printers []string, back func()) {
 	})
 }
 
-// runPrint starts printing in the background; pollPrintResult reports the
-// outcome.
-func (a *App) runPrint(args []string) {
-	cmd := printCommand(a.docPath, args)
+// runPrint starts printing the saved file in the background with settings s,
+// or with lpArgs when given; pollPrintResult reports the outcome.
+func (a *App) runPrint(s printSettings, lpArgs []string) {
+	job, err := a.printJob(s, lpArgs)
+	if err != nil {
+		a.message = "print failed: " + err.Error()
+		return
+	}
 	note := ""
 	if a.unsaved {
 		note = " (without unsaved edits)"
@@ -176,8 +161,7 @@ func (a *App) runPrint(args []string) {
 	results := make(chan string, 1)
 	a.printResult = results
 	go func() {
-		out, err := cmd.CombinedOutput()
-		msg := strings.TrimSpace(string(out))
+		msg, err := job()
 		switch {
 		case err != nil && msg != "":
 			msg = "print failed: " + msg
@@ -213,40 +197,4 @@ func (a *App) pollPrintResult() {
 		a.pendingRedraw = true
 	default:
 	}
-}
-
-func printCommand(path string, args []string) *exec.Cmd {
-	if runtime.GOOS == "windows" {
-		return exec.Command("powershell", "-NoProfile", "-Command", "Start-Process", "-FilePath", powershellQuote(path), "-Verb", "Print")
-	}
-	return exec.Command("lp", append(args, "--", path)...)
-}
-
-func powershellQuote(s string) string {
-	return "'" + strings.ReplaceAll(s, "'", "''") + "'"
-}
-
-func listPrinters() []string {
-	out, err := exec.Command("lpstat", "-e").Output()
-	if err != nil {
-		return nil
-	}
-	return strings.Fields(string(out))
-}
-
-// defaultPrinter is CUPS' default destination, or the first printer.
-func defaultPrinter(printers []string) string {
-	out, _ := exec.Command("lpstat", "-d").Output()
-	if name, ok := parseDefaultPrinter(string(out)); ok {
-		return name
-	}
-	if len(printers) > 0 {
-		return printers[0]
-	}
-	return ""
-}
-
-func parseDefaultPrinter(lpstat string) (string, bool) {
-	_, name, ok := strings.Cut(strings.TrimSpace(lpstat), "system default destination: ")
-	return strings.TrimSpace(name), ok && name != ""
 }
