@@ -3,6 +3,8 @@ package main
 import (
 	"fmt"
 	"strings"
+
+	"gopdf/internal/config"
 )
 
 type apiEntry struct {
@@ -15,18 +17,6 @@ var portableModules = []apiEntry{
 	{"gopdf.platform", "table", "Also available from `require(\"gopdf.platform\")`. Fields: `os` (`linux`, `macos`, or `windows`), `arch`, `home_dir`, `config_dir`, `data_dir`, `cache_dir`, and `temp_dir`. Directory fields are absolute when the platform supplies a location and may be empty when it does not."},
 	{"gopdf.path", "table", "Also available from `require(\"gopdf.path\")`. Fields: `separator`, `list_separator`; functions: `join(...)`, `clean(path)`, `basename(path)`, `dirname(path)`, `extension(path)`, `is_absolute(path)`, `absolute(path)`, `relative(base, target)`, and `expand_home(path)`. Operations use native platform path rules; `expand_home` expands only `~`, `~/...`, and `~\\...`."},
 	{"gopdf.json", "table", "Also available from `require(\"gopdf.json\")`. `encode(value)` returns compact JSON and `decode(text)` returns a Lua value. `null` is the stable module-local JSON null sentinel. Arrays require contiguous positive integer keys; objects require string keys. Cycles, sparse or mixed tables, non-finite numbers, unsupported Lua values, and trailing input are errors. Decoded empty arrays and objects retain their shape when re-encoded."},
-}
-
-var hostFunctions = []apiEntry{
-	{"gopdf.schedule(callback)", "handle", "Queue `callback()` on the main Lua thread after the current dispatch. It is asynchronous and can be cancelled through the returned handle."},
-	{"gopdf.log(level, message)", "none", "Write a diagnostic without changing the viewer message. `level` must be `debug`, `info`, `warn`, or `error`; output is tagged with the loading plugin ID, or `config` outside plugin loading."},
-	{"gopdf.open_external(uri_or_path)", "none", "Ask the operating system to open a URI or path with its default application. Raises an error when the viewer host is unavailable or rejects the request."},
-	{"gopdf.formats.extensions()", "string[]", "Return the lower-case extensions, without a leading dot, that the linked document engine can open. The set is read from the engine, so it matches what this build supports."},
-	{"gopdf.formats.supports(path)", "boolean", "Report whether a path's extension names an openable format. Matching ignores case. Opening also recognises documents by content, so a file with a missing or misleading extension may still open."},
-	{"gopdf.clipboard.get_text()", "string", "Synchronously return the current UTF-8 clipboard text. Raises an error when clipboard access is unavailable."},
-	{"gopdf.clipboard.set_text(text)", "none", "Synchronously replace the clipboard with UTF-8 text. Raises an error when clipboard access is unavailable or fails."},
-	{"gopdf.pick_file(callback)", "none", "Open the native document picker, filtered to the formats this build can open, then call `callback(result)`. The call returns after the picker and callback complete."},
-	{"gopdf.pick_directory(callback)", "none", "Open the native directory picker, then call `callback(result)`. The call returns after the picker and callback complete."},
 }
 
 var documentFunctions = []apiEntry{
@@ -72,9 +62,6 @@ func renderPortablePluginReference(b *strings.Builder) {
 	b.WriteString("The `gopdf` tables below are available to configuration and plugin Lua code.\n\n")
 	renderAPITable(b, "Module", portableModules)
 
-	b.WriteString("\n#### Host services\n\n")
-	renderAPITable(b, "Function", hostFunctions)
-
 	b.WriteString("\n#### Document inspection\n\n")
 	b.WriteString("These read the open document. The `gopdf.document` fields `path`, `name`, `extension`, `exists`, `size_bytes`, and `page_count` remain available and are refreshed when the document changes. The functions below raise an error when no document is open. Rectangles are `x0`, `y0`, `x1`, `y1` in unrotated PDF points.\n\n")
 	renderAPITable(b, "Function", documentFunctions)
@@ -94,7 +81,8 @@ func renderPortablePluginReference(b *strings.Builder) {
 	b.WriteString("\n#### Lifecycle\n\n")
 	b.WriteString("Each plugin has an isolated local-module cache and search root. It may require another discovered plugin by ID only when that ID is declared in `dependencies`. Dependencies load first, and events are delivered in activation order, so dependencies receive an event before their dependents. Registration of actions, commands, and event subscriptions is allowed only while the plugin entrypoint is loading; `off(id)`, storage calls, timers, filesystem and HTTP operations, and jobs remain available afterward.\n\n")
 	b.WriteString("A successful `:reload-config` replaces the Lua state and cancels all handles and jobs from the old generation without invoking their callbacks. If reload fails, the previous state and its operations remain active. A failed plugin load rolls back that plugin and cancels work it started. Viewer shutdown emits `shutdown` before runtime close; close then cancels remaining operations and jobs. Storage is keyed by plugin ID in the session database and survives reloads and application restarts.\n\n")
-	b.WriteString("Supported events are `app_ready`, `document_open_pre`, `document_opened`, `document_close_pre`, `document_closed`, `document_reloaded`, `config_reloaded`, `mouse_button_pre`, `mouse_button`, `selection_changed`, `page_changed`, `zoom_changed`, `option_changed`, and `shutdown`. `page_changed` carries `page`, `label`, `previous_page`, and `page_count`; `zoom_changed` carries `scale`, `previous_scale`, and `percent`. Both are emitted once per frame with the settled value, so a continuous gesture reports where it came to rest. Event callbacks run in subscription order within each plugin; returning true marks an event consumed where the host supports consumption but does not stop later callbacks.\n\n")
+	fmt.Fprintf(b, "Supported events are %s. ", codeList(config.PluginEvents))
+	b.WriteString("`page_changed` carries `page`, `label`, `previous_page`, and `page_count`; `zoom_changed` carries `scale`, `previous_scale`, and `percent`. Both are emitted once per frame with the settled value, so a continuous gesture reports where it came to rest. Event callbacks run in subscription order within each plugin; returning true marks an event consumed where the host supports consumption but does not stop later callbacks.\n\n")
 	b.WriteString("Plugin search paths are the platform data/config plugin directories and are rescanned by `:reload-config`. Disable plugin discovery with `--no-plugins`, or start from built-in defaults with `--no-config`, which also skips the generated settings file.\n\n#### Single instance\n\nInstances are per document. Each window listens on a socket named after the document it is showing, and the address follows the document when the window opens another one. `--unique` hands the request to the window already showing that document and exits; with no such window, this process opens it. `--goto PAGE` opens at a page and `--goto PAGE:X:Y` at a point on it, overriding any remembered session position, whether the work is done here or by an existing window. `--command TEXT` runs a viewer command there, as typed after `:`, including any command registered by a plugin. An unrecognised command exits non-zero. `X` and `Y` are points measured from the page's top-left corner, which is also SyncTeX's convention. Sockets live under `$XDG_RUNTIME_DIR/gopdf` on Linux, the per-user temporary directory on macOS, and `%LOCALAPPDATA%\\gopdf` on Windows. They are mode 0600 and named by a hash of the document path, which keeps them within the platform socket length limit. A socket left by a crashed process is reclaimed on the next start.\n")
 }
 
@@ -103,4 +91,16 @@ func renderAPITable(b *strings.Builder, firstColumn string, entries []apiEntry) 
 	for _, entry := range entries {
 		fmt.Fprintf(b, "| %s | %s | %s |\n", markdownCode(entry.name), entry.result, entry.description)
 	}
+}
+
+// codeList formats names as code in a sentence's list: `a`, `b`, and `c`.
+func codeList(names []string) string {
+	quoted := make([]string, len(names))
+	for i, name := range names {
+		quoted[i] = "`" + name + "`"
+	}
+	if len(quoted) < 2 {
+		return strings.Join(quoted, "")
+	}
+	return strings.Join(quoted[:len(quoted)-1], ", ") + ", and " + quoted[len(quoted)-1]
 }

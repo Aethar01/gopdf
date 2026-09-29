@@ -966,14 +966,19 @@ func (r *Runtime) setPluginOptionValue(name string, value lua.LValue) error {
 	return nil
 }
 
-func validPluginEvent(event string) bool {
-	switch event {
-	case "app_ready", "document_open_pre", "document_opened", "document_close_pre", "document_closed", "document_reloaded", "config_reloaded", "mouse_button_pre", "mouse_button", "selection_changed", "page_changed", "zoom_changed", "option_changed", "shutdown":
-		return true
-	default:
-		return false
-	}
+// PluginEvents are the events plugins can subscribe to, which the viewer
+// emits; a viewer test keeps the two in step.
+var PluginEvents = []string{
+	"app_ready",
+	"document_open_pre", "document_opened",
+	"document_close_pre", "document_closed",
+	"document_reloaded", "config_reloaded",
+	"mouse_button_pre", "mouse_button",
+	"selection_changed", "page_changed", "zoom_changed", "option_changed",
+	"shutdown",
 }
+
+func validPluginEvent(event string) bool { return slices.Contains(PluginEvents, event) }
 
 func (r *Runtime) emitPluginEvent(event string, payload map[string]any) bool {
 	if r == nil || r.state == nil || r.plugins == nil {

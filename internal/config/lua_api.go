@@ -199,7 +199,8 @@ func luaOpen(rt *Runtime) lua.LGFunction {
 	}
 }
 
-// luaPickFile opens the native document picker and invokes a callback with its result.
+// luaPickFile opens the native document picker, filtered to the formats this
+// build can open, and invokes a callback with its result.
 //
 // # Parameters
 //
@@ -310,7 +311,8 @@ func luaSchedule(rt *Runtime) lua.LGFunction {
 // # Parameters
 //
 //   - level: debug, info, warn, or error.
-//   - message: Diagnostic text written to the application log.
+//   - message: Diagnostic text written to the application log, tagged with
+//     the plugin responsible, or config outside plugin code.
 //
 // # Returns
 //
