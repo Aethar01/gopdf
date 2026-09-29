@@ -101,8 +101,22 @@ func TestSearchMatchesListsContextAndSelects(t *testing.T) {
 	if view.rows[1].text != "a second needle" || view.rows[1].secondary != "p. 3" {
 		t.Fatalf("second row = %+v", view.rows[1])
 	}
-	view.onSelect(app, view.rows[1])
-	if app.search.current != 1 || app.activeUIView() != nil {
-		t.Fatalf("after choosing: current=%d view=%v", app.search.current, app.activeUIView())
+	view.selected = 1
+	app.activateUIView(view) // Enter on the second match
+	if app.search.current != 1 || app.activeUIView() != nil || len(app.search.order) != 2 {
+		t.Fatalf("after choosing: current=%d view=%v matches=%d", app.search.current, app.activeUIView(), len(app.search.order))
+	}
+	if app.page != 2 {
+		t.Fatalf("page = %d after choosing the match on page 3", app.page+1)
+	}
+}
+
+func TestOpeningPromptsKeepsSearch(t *testing.T) {
+	app := testLayoutApp(1)
+	app.search = searchState{query: "needle", order: []searchHitRef{{}}, matches: map[int][]mupdf.SearchHit{0: {{}}}}
+	app.runAction("command_mode")
+	app.runAction("close")
+	if app.search.query != "needle" {
+		t.Fatal("opening the command prompt cleared the search")
 	}
 }

@@ -289,9 +289,6 @@ func (a *App) closeAllUIWithCallbacks(callCallbacks bool) {
 		a.input.Reset()
 		a.ignoreText = ""
 	}
-	if a.search.query != "" || len(a.search.order) > 0 || a.search.running {
-		a.clearSearch()
-	}
 }
 
 func (a *App) closeActiveUI() {
