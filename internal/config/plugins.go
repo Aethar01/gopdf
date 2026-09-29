@@ -678,7 +678,9 @@ func (instance *pluginInstance) registerCommand(L *lua.LState) int {
 	if err != nil {
 		L.RaiseError("plugin %s command: %v", instance.manifest.ID, err)
 	}
-	if !validPluginMemberName(name) {
+	// Plugin IDs may contain "-", so command names may not: that keeps the
+	// last "-" of a full name the separator, and full names unique.
+	if !validPluginMemberName(name) || strings.Contains(name, "-") {
 		L.RaiseError("plugin %s command: invalid name %q", instance.manifest.ID, name)
 	}
 	fullName := instance.manifest.ID + "-" + name

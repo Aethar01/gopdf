@@ -414,3 +414,20 @@ func containsString(values []string, want string) bool {
 	}
 	return false
 }
+
+func TestPluginCommandNamesCannotContainHyphens(t *testing.T) {
+	root := writeTestPlugin(t, "sample", `
+local M = gopdf.plugin.register("sample")
+M:register_command("say-hi", function() end)
+return M
+`)
+	rt, err := OpenWithOptions(filepath.Join(t.TempDir(), "missing.lua"), "", OpenOptions{PluginPaths: []string{root}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rt.Close()
+	// "sample-say-hi" would clash with command "hi" of a plugin "sample-say".
+	if _, err := rt.Eval(`require("sample")`); err == nil || !strings.Contains(err.Error(), `invalid name "say-hi"`) {
+		t.Fatalf("expected hyphenated command name to be rejected, err=%v", err)
+	}
+}

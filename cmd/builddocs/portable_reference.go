@@ -81,7 +81,7 @@ func renderPortablePluginReference(b *strings.Builder) {
 
 	b.WriteString("\n### Plugins\n\n")
 	b.WriteString("Plugins are discovered without being executed. Enable one explicitly with `local plugin = require(\"plugin-id\")`; only the required plugin and its declared dependencies execute. The entrypoint must call `gopdf.plugin.register(\"plugin-id\"[, spec])`; `require` returns the registered module.\n\n")
-	b.WriteString("A plugin manifest is `gopdf-plugin.json` with `id`, `version`, `module`, and `dependencies`; only `id` is required, and unrecognised fields are ignored. `module` selects `lua/<module>.lua` or `lua/<module>/init.lua`. Plugin modules contain `id`, `version`, `actions`, `fs`, `timer`, `storage`, `http`, and `document`, plus `register_action`, `register_command`, `on`, `off`, and `job`. Registered actions use `plugin-id.action`; commands use `:plugin-id-command`; options use `plugin-id.option`.\n\n")
+	b.WriteString("A plugin manifest is `gopdf-plugin.json` with `id`, `version`, `module`, and `dependencies`; only `id` is required, and unrecognised fields are ignored. `module` selects `lua/<module>.lua` or `lua/<module>/init.lua`. Plugin modules contain `id`, `version`, `actions`, `fs`, `timer`, `storage`, `http`, and `document`, plus `register_action`, `register_command`, `on`, `off`, and `job`. Registered actions use `plugin-id.action`; commands use `:plugin-id-command`, where the command name cannot contain `-`; options use `plugin-id.option`.\n\n")
 	renderAPITable(b, "Function", pluginFunctions)
 
 	b.WriteString("\n#### Handles and results\n\n")
