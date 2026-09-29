@@ -487,3 +487,21 @@ func TestToggleTrimMarginsLaysPagesOutByContent(t *testing.T) {
 		t.Fatalf("untrimmed bounds = %v, want the full page", got)
 	}
 }
+
+func TestFitWidthKeepsSpreadGapUnscaled(t *testing.T) {
+	app := testLayoutApp(3)
+	for i := range app.pageMetrics { // Letter pages: the spread fits below 1x
+		app.pageMetrics[i] = newPageMetrics(mupdf.PageInfo{Bounds: mupdf.Rect{X1: 612, Y1: 792}})
+	}
+	app.dualPage, app.firstPageOffset = true, false
+	app.config.PageGapHorizontal = 40
+	app.fitMode = "width"
+	app.recomputeLayout(1000, 800)
+	row := app.rows[0]
+	if gap := row.pageX[1] - (row.pageX[0] + row.pageW[0]); math.Abs(gap-40) > 0.01 {
+		t.Fatalf("spread gap = %.2f px, want 40", gap)
+	}
+	if right := row.pageX[1] + row.pageW[1] + 40; math.Abs(right-1000) > 0.01 {
+		t.Fatalf("spread ends at %.2f px with its margin, want the 1000px viewport edge", right)
+	}
+}

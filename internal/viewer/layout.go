@@ -55,7 +55,7 @@ func (a *App) baseRows() []rowLayout {
 			row.pageH[i] = m.height
 			row.width += m.width
 			if i > 0 {
-				row.width += float64(a.horizontalGap())
+				row.gaps += float64(a.horizontalGap())
 			}
 			if m.height > row.height {
 				row.height = m.height
@@ -118,16 +118,17 @@ func (a *App) recomputeLayout(viewportW, viewportH int) {
 	a.pageToRow = make([]int, a.pageCount)
 	maxRowWidth := 0.0
 	for _, row := range base {
-		if row.width > maxRowWidth {
-			maxRowWidth = row.width
-		}
+		maxRowWidth = math.Max(maxRowWidth, row.width*a.scale+row.gaps)
 	}
-	a.contentW = maxRowWidth*a.scale + float64(a.horizontalGap()*2)
+	a.contentW = maxRowWidth + float64(a.horizontalGap()*2)
 	y := float64(a.verticalGap())
 	for i, row := range base {
-		row.width *= a.scale
+		row.width = row.width*a.scale + row.gaps
 		row.height *= a.scale
-		row.x = float64(a.horizontalGap()) + (maxRowWidth*a.scale-row.width)/2
+		row.x = float64(a.horizontalGap()) + (maxRowWidth-row.width)/2
+		if a.overview != nil {
+			row.x = float64(a.horizontalGap()) // a grid: a short last row starts at the left
+		}
 		row.y = y
 		x := row.x
 		for j, page := range row.pages {

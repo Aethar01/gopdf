@@ -70,11 +70,15 @@ type viewportAnchor struct {
 	valid bool
 }
 
+// rowLayout is a row of pages. In the base rows that layout starts from,
+// width is the pages' total unscaled width and gaps the screen pixels
+// between them; once laid out, width is the row's full screen width.
 type rowLayout struct {
 	pages  []int
 	x      float64
 	y      float64
 	width  float64
+	gaps   float64
 	height float64
 	pageX  []float64
 	pageY  []float64
@@ -859,21 +863,25 @@ func (a *App) currentScaleFromRows(viewportW, viewportH int, baseRows []rowLayou
 	}
 	if a.renderMode == "single" && len(baseRows) > 0 && a.page >= 0 {
 		row := baseRows[clampInt(a.baseRowIndexForPage(a.page, baseRows), 0, len(baseRows)-1)]
-		return a.fitScale(viewportW, viewportH, row.width, row.height)
+		return a.fitScale(viewportW, viewportH, []rowLayout{row})
 	}
-	maxRowWidth, maxRowHeight := 1.0, 1.0
-	for _, row := range baseRows {
-		maxRowWidth = math.Max(maxRowWidth, row.width)
-		maxRowHeight = math.Max(maxRowHeight, row.height)
-	}
-	return a.fitScale(viewportW, viewportH, maxRowWidth, maxRowHeight)
+	return a.fitScale(viewportW, viewportH, baseRows)
 }
 
-// fitScale is the scale at which content of the given unscaled size fits
-// the viewport under the current fit mode.
-func (a *App) fitScale(viewportW, viewportH int, width, height float64) float64 {
-	widthScale := (float64(viewportW) - float64(a.horizontalGap()*2)) / math.Max(1, width)
-	heightScale := (float64(viewportH) - float64(a.verticalGap()*2)) / math.Max(1, height)
+// fitScale is the scale at which base rows fit the viewport under the
+// current fit mode. Gaps between pages keep their size, so each row fits
+// when its pages' scaled width plus its gaps does.
+func (a *App) fitScale(viewportW, viewportH int, rows []rowLayout) float64 {
+	available := float64(viewportW) - float64(a.horizontalGap()*2)
+	widthScale, maxHeight := math.Inf(1), 1.0
+	for _, row := range rows {
+		widthScale = math.Min(widthScale, (available-row.gaps)/math.Max(1, row.width))
+		maxHeight = math.Max(maxHeight, row.height)
+	}
+	if math.IsInf(widthScale, 1) {
+		widthScale = available
+	}
+	heightScale := (float64(viewportH) - float64(a.verticalGap()*2)) / maxHeight
 	switch a.fitMode {
 	case "width":
 		return math.Max(0.05, widthScale)

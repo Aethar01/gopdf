@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"gopdf/internal/config"
+	"gopdf/internal/mupdf"
 
 	"github.com/jupiterrider/purego-sdl3/sdl"
 )
@@ -134,5 +135,28 @@ func TestLeavingOverviewRestoresRenderScaleAtOnce(t *testing.T) {
 	app.runAction("confirm")
 	if app.renderBaseScale < app.scale*renderUpgradeTolerance {
 		t.Fatalf("render scale %.3f after leaving the overview, view scale %.3f", app.renderBaseScale, app.scale)
+	}
+}
+
+func TestOverviewGridFitsWidthAndAlignsLastRow(t *testing.T) {
+	app := testLayoutApp(13)         // 5 columns leave a short last row
+	for i := range app.pageMetrics { // Letter pages, so thumbnails are below 1x
+		app.pageMetrics[i] = newPageMetrics(mupdf.PageInfo{Bounds: mupdf.Rect{X1: 612, Y1: 792}})
+	}
+	app.winW, app.winH = 1300, 800
+	app.recomputeLayout(app.viewportSize())
+	app.toggleOverview()
+	app.overview.columns = 5
+	app.relayoutOverview()
+	viewportW, _ := app.viewportSize()
+	for i, row := range app.rows {
+		last := len(row.pages) - 1
+		if right := row.pageX[last] + row.pageW[last] + overviewGap; right > float64(viewportW)+0.5 {
+			t.Fatalf("row %d ends at %.1f, past the %dpx viewport", i, right, viewportW)
+		}
+	}
+	first, lastRow := app.rows[0], app.rows[len(app.rows)-1]
+	if len(lastRow.pages) == 5 || lastRow.pageX[0] != first.pageX[0] {
+		t.Fatalf("last row starts at %.1f, first row at %.1f", lastRow.pageX[0], first.pageX[0])
 	}
 }
