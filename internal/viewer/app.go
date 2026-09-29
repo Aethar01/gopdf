@@ -857,10 +857,6 @@ func (a *App) editInput(edit func(*textInput)) {
 	edit(&a.input)
 }
 
-func (a *App) currentScale(viewportW, viewportH int) float64 {
-	return a.currentScaleFromRows(viewportW, viewportH, a.baseRows())
-}
-
 func (a *App) currentScaleFromRows(viewportW, viewportH int, baseRows []rowLayout) float64 {
 	if a.fitMode == "manual" {
 		return a.zoom

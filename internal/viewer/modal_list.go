@@ -9,41 +9,6 @@ import (
 
 const modalScrollbarWidth = 8
 
-func handleModalListMouseMotion(e *sdl.MouseMotionEvent, dragging bool, scroll, selected *int, drag func(int), hover func(int, int)) bool {
-	if dragging {
-		old := *scroll
-		drag(int(e.Y))
-		return *scroll != old
-	}
-	old := *selected
-	hover(int(e.X), int(e.Y))
-	return *selected != old
-}
-
-func modalListSelectedRow(visible []int, selected *int, scroll int) int {
-	for i, index := range visible {
-		if index == *selected {
-			return i
-		}
-	}
-	if len(visible) == 0 {
-		return 0
-	}
-	row := clampInt(scroll, 0, len(visible)-1)
-	*selected = visible[row]
-	return row
-}
-
-func resetModalListSelection(visible []int, selected, scroll *int, ensureVisible func()) {
-	*scroll = 0
-	if len(visible) == 0 {
-		*selected = -1
-		return
-	}
-	*selected = visible[0]
-	ensureVisible()
-}
-
 func (a *App) modalListGeometry(widthPct, heightPct int) (sdl.FRect, int) {
 	viewportW, viewportH := a.viewportSize()
 	widthPct = clampInt(widthPct, 20, 100)
@@ -94,18 +59,6 @@ func (a *App) modalListRowAt(rect sdl.FRect, rows, rowHeight, x, y int) (int, bo
 		return 0, false
 	}
 	return row, true
-}
-
-func (a *App) modalListIndexAt(rect sdl.FRect, rows, rowHeight, x, y, scroll, total int) (int, bool) {
-	row, ok := a.modalListRowAt(rect, rows, rowHeight, x, y)
-	if !ok {
-		return 0, false
-	}
-	index := scroll + row
-	if index < 0 || index >= total {
-		return 0, false
-	}
-	return index, true
 }
 
 func modalListScrollbarRects(rect sdl.FRect, rowHeight, rows, total, scroll int) (sdl.FRect, sdl.FRect, bool) {

@@ -257,15 +257,6 @@ return M
 	}
 }
 
-func containsSubstring(values []string, want string) bool {
-	for _, value := range values {
-		if strings.Contains(value, want) {
-			return true
-		}
-	}
-	return false
-}
-
 func luaStringField(rt *Runtime, global string, fields ...string) string {
 	if err := rt.state.DoString(`__api_test_value = ` + global + `.` + strings.Join(fields, ".")); err != nil {
 		return ""

@@ -1289,10 +1289,6 @@ func (r *Runtime) pluginJobsActive() bool {
 	return r != nil && len(r.jobs) > 0
 }
 
-func (r *Runtime) actionNamesForCompletion() []string {
-	return r.actionNames()
-}
-
 func normalizePluginID(id string) string {
 	return strings.ToLower(strings.TrimSpace(id))
 }

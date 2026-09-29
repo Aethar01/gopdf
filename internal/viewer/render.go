@@ -248,27 +248,6 @@ func (a *App) ensureRenderBaseScale() {
 	a.renderBaseScale = math.Max(a.oversampledRenderScale(a.currentRenderTarget()), floor)
 }
 
-func (a *App) maybeUpgradeRenderScale(target float64) bool {
-	a.ensureRenderBaseScale()
-	if !validRenderScale(target) {
-		return false
-	}
-	target = a.oversampledRenderScale(target)
-	if target <= a.renderBaseScale*renderUpgradeTolerance {
-		return false
-	}
-	return a.applyRenderBaseScaleTarget(target)
-}
-
-func (a *App) maybeDowngradeRenderScale() {
-	a.ensureRenderBaseScale()
-	target := a.currentRenderTarget()
-	if target*renderDowngradeHeadroom >= a.renderBaseScale {
-		return
-	}
-	a.applyRenderBaseScaleTarget(target)
-}
-
 func (a *App) scheduleRenderScaleTarget(target float64) {
 	a.ensureRenderBaseScale()
 	if !validRenderScale(target) {

@@ -254,21 +254,12 @@ func (a *App) moveKeybindSelection(delta int) {
 	}
 }
 
-func (a *App) scrollKeybindMenu(delta int) {
-	_, rows := a.keybindMenuListGeometry()
-	scrollUIView(a.keybindMenu.view, delta, rows)
-}
-
 func (a *App) ensureKeybindSelectionVisible() {
 	if a.keybindMenu.view.selected < 0 {
 		a.keybindMenu.view.scroll = 0
 		return
 	}
 	a.ensureUIViewSelectionVisible(a.keybindMenu.view)
-}
-
-func (a *App) startKeybindScrollbarDrag(x, y int) bool {
-	return a.uiViewStartScrollbarDrag(a.keybindMenu.view, x, y)
 }
 
 func (a *App) dragKeybindScrollbar(y int) {

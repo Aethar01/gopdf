@@ -449,22 +449,6 @@ var configOptions = map[string]optionDesc{
 	"highlight_background": colorOption("Selection and search highlight background.", func(c *Config) [3]uint8 { return c.HighlightBackground }, func(c *Config, v [3]uint8) { c.HighlightBackground = v }),
 }
 
-func luaSettingValue(L *lua.LState, name string, cfg *Config) (lua.LValue, error) {
-	desc, ok := configOptions[name]
-	if !ok {
-		return lua.LNil, fmt.Errorf("unknown setting")
-	}
-	return desc.get(L, cfg), nil
-}
-
-func applyLuaSetting(name string, value lua.LValue, cfg *Config) error {
-	desc, ok := configOptions[name]
-	if !ok {
-		return fmt.Errorf("unknown setting")
-	}
-	return desc.apply(cfg, value)
-}
-
 func readColor(tbl *lua.LTable, fallback [3]uint8) [3]uint8 {
 	out := fallback
 	for i := 1; i <= 3; i++ {

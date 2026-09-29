@@ -185,21 +185,6 @@ func (a *App) updateOutlineSearchQuery(query string) {
 	a.refreshOutlineView()
 }
 
-func (a *App) insertOutlineSearchText(text string) {
-	if a.outlineMenu.view == nil || !a.outlineMenu.view.searching {
-		return
-	}
-	a.updateOutlineSearchQuery(a.outlineMenu.view.query + text)
-}
-
-func (a *App) backspaceOutlineSearch() {
-	if a.outlineMenu.view == nil || !a.outlineMenu.view.searching || a.outlineMenu.view.query == "" {
-		return
-	}
-	runes := []rune(a.outlineMenu.view.query)
-	a.updateOutlineSearchQuery(string(runes[:len(runes)-1]))
-}
-
 func (a *App) closeOutlineSearch() bool {
 	if a.outlineMenu.view == nil || (!a.outlineMenu.view.searching && a.outlineMenu.view.query == "") {
 		return false
@@ -215,22 +200,6 @@ func (a *App) ensureOutlineSelectionVisible() {
 
 func (a *App) moveOutlineSelection(delta int) {
 	a.moveUIViewSelection(a.outlineMenu.view, delta)
-}
-
-func (a *App) scrollOutlineMenu(delta int) {
-	if a.outlineMenu.view == nil {
-		return
-	}
-	_, rows := a.outlineMenuGeometry()
-	scrollUIView(a.outlineMenu.view, delta, rows)
-}
-
-func (a *App) startOutlineScrollbarDrag(x, y int) bool {
-	return a.uiViewStartScrollbarDrag(a.outlineMenu.view, x, y)
-}
-
-func (a *App) dragOutlineScrollbar(y int) {
-	a.uiViewDragScrollbar(a.outlineMenu.view, y)
 }
 
 func (a *App) activateSelectedOutline() {
@@ -363,8 +332,4 @@ func (a *App) handleOutlineViewMouseButton(view *uiView, e *sdl.MouseButtonEvent
 
 func (a *App) outlineMenuGeometry() (sdl.FRect, int) {
 	return a.modalListGeometry(a.config.OutlineWidthPercent, a.config.OutlineHeightPercent)
-}
-
-func (a *App) outlineMenuRowHeight() int {
-	return a.modalListRowHeight()
 }

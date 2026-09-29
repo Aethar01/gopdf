@@ -167,10 +167,6 @@ func loadFontFileAt(path string, size, collectionIndex int) (font.Face, error) {
 	return &fileBackedFontFace{Face: face, file: file}, nil
 }
 
-func firstOpenTypeFontReader(file *os.File) (io.ReaderAt, error) {
-	return openTypeFontReaderAt(file, 0)
-}
-
 func openTypeFontReaderAt(file *os.File, collectionIndex int) (io.ReaderAt, error) {
 	if collectionIndex < 0 {
 		return nil, fmt.Errorf("negative font collection index")

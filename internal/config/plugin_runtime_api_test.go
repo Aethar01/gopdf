@@ -210,16 +210,6 @@ func pollRuntimeUntil(t *testing.T, rt *Runtime, ready func() bool) {
 	t.Fatalf("timed out waiting for plugin operation (operations=%d jobs=%d)", len(rt.operations), len(rt.jobs))
 }
 
-func luaGlobalBool(rt *Runtime, global string, field ...string) bool {
-	value := rt.state.GetGlobal(global)
-	if len(field) > 0 {
-		if table, ok := value.(*lua.LTable); ok {
-			value = table.RawGetString(field[0])
-		}
-	}
-	return lua.LVAsBool(value)
-}
-
 func evalBool(rt *Runtime, expression string) bool {
 	if err := rt.state.DoString(`__api_test_ready = not not (` + expression + `)`); err != nil {
 		return false

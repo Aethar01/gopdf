@@ -722,7 +722,7 @@ func TestRenderScalePolicy(t *testing.T) {
 	assertClose(t, app.oversampledRenderScale(math.NaN()), 1)
 
 	app = &App{viewStateFields: viewStateFields{scale: 1, zoom: 1, fitMode: "manual"}, config: config.Config{RenderOversample: 1}, renderService: renderService{minRenderBaseScale: 0.25, renderBaseScale: 2, renderPending: map[tileKey]renderRequest{{page: 1}: {key: tileKey{page: 1}}}}}
-	if !app.maybeUpgradeRenderScale(4) {
+	if !app.applyRenderBaseScaleTarget(app.oversampledRenderScale(4)) {
 		t.Fatal("expected target above tolerance to upgrade render base scale")
 	}
 	assertClose(t, app.renderBaseScale, 4)
@@ -730,7 +730,7 @@ func TestRenderScalePolicy(t *testing.T) {
 		t.Fatalf("expected upgrade to invalidate render requests, generation=%d pending=%d", app.renderGeneration, len(app.renderPending))
 	}
 
-	app.maybeDowngradeRenderScale()
+	app.settleRenderScale() // back to the view's own scale, 1
 	assertClose(t, app.renderBaseScale, 1)
 	if app.renderGeneration != 2 {
 		t.Fatalf("expected downgrade to invalidate render requests, generation=%d", app.renderGeneration)
