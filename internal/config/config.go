@@ -73,34 +73,40 @@ type Config struct {
 }
 
 type Runtime struct {
+	luaGeneration
 	explicitPath     string
 	docPath          string
 	docName          string
 	docMeta          documentMeta
-	cfg              Config
-	state            *lua.LState
 	host             Host
-	callbacks        map[string]*lua.LFunction
-	callbackSeq      int
 	uiSeq            int
 	luaCallDepth     int
 	deferredOpen     string
-	dirty            bool
 	assigned         map[string]bool // built-in options assigned since ConsumeDirty
 	verbose          bool
-	pluginCatalog    *pluginCatalog
 	pluginPaths      []string
 	disabledPlugins  []string
 	noConfig         bool
-	plugins          *pluginState
-	operations       map[int]*pluginOperation
 	operationResults chan pluginOperationResult
 	wake             func() // wakes the viewer to poll a delivered result; may be nil
 	nextOperationID  int
-	pluginGeneration int
 	loadingPlugin    string
 	activePlugin     string
 	loadingAutogen   bool
+}
+
+// luaGeneration is what one load of the configuration builds. Reload
+// replaces it as a whole and, if loading fails, puts the old one back.
+type luaGeneration struct {
+	state            *lua.LState
+	cfg              Config
+	callbacks        map[string]*lua.LFunction
+	callbackSeq      int
+	dirty            bool
+	pluginCatalog    *pluginCatalog
+	plugins          *pluginState
+	operations       map[int]*pluginOperation
+	pluginGeneration int
 }
 
 type UIOverlay struct {

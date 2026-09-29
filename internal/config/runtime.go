@@ -52,7 +52,6 @@ func OpenWithOptions(explicitPath, docPath string, options OpenOptions) (*Runtim
 		docName:          docName,
 		docMeta:          loadDocumentMeta(docPath),
 		verbose:          options.Verbose,
-		operations:       map[int]*pluginOperation{},
 		operationResults: make(chan pluginOperationResult, 64),
 	}
 	var pluginPaths []string
@@ -155,46 +154,29 @@ func (r *Runtime) SetPageCount(pages int) {
 
 func (r *Runtime) Reload() error {
 	r.logf("reload config explicit=%q doc=%q", r.explicitPath, r.docPath)
-	oldState := r.state
-	oldConfig := r.cfg
-	oldCallbacks := r.callbacks
-	oldCallbackSeq := r.callbackSeq
-	oldPlugins := r.plugins
-	oldPluginCatalog := r.pluginCatalog
-	oldOperations := r.operations
-	oldPluginGeneration := r.pluginGeneration
-	oldDirty := r.dirty
+	old := r.luaGeneration
 	committed := false
-	r.state = nil
-	r.plugins = nil
-	r.pluginCatalog = discoverPluginCatalog(r.pluginPaths, r.disabledPlugins)
+	r.luaGeneration = luaGeneration{
+		cfg:              Default(),
+		callbacks:        map[string]*lua.LFunction{},
+		pluginCatalog:    discoverPluginCatalog(r.pluginPaths, r.disabledPlugins),
+		operations:       map[int]*pluginOperation{},
+		pluginGeneration: old.pluginGeneration,
+	}
 	for _, warning := range r.pluginCatalog.warnings {
 		r.logf("%s", warning)
 	}
-	r.cfg = Default()
-	r.callbacks = map[string]*lua.LFunction{}
-	r.callbackSeq = 0
-	r.dirty = false
-	r.operations = make(map[int]*pluginOperation)
 	defer func() {
 		if committed {
 			r.assigned = nil // loading the config is not a change to it
-			cancelPluginOperationMap(oldOperations)
-			if oldState != nil {
-				oldState.Close()
+			cancelPluginOperationMap(old.operations)
+			if old.state != nil {
+				old.state.Close()
 			}
 			return
 		}
 		r.Close()
-		r.state = oldState
-		r.cfg = oldConfig
-		r.callbacks = oldCallbacks
-		r.callbackSeq = oldCallbackSeq
-		r.plugins = oldPlugins
-		r.pluginCatalog = oldPluginCatalog
-		r.operations = oldOperations
-		r.pluginGeneration = oldPluginGeneration
-		r.dirty = oldDirty
+		r.luaGeneration = old
 	}()
 	// --no-config means built-in defaults only: neither the user's file nor the
 	// generated one is read, and nothing is written back.
@@ -212,7 +194,6 @@ func (r *Runtime) Reload() error {
 			r.loadingAutogen = true
 			if err := r.applyLuaConfig(autogenPath); err != nil {
 				r.loadingAutogen = false
-				r.Close()
 				return err
 			}
 			r.loadingAutogen = false
@@ -236,7 +217,6 @@ func (r *Runtime) Reload() error {
 		}
 		r.logf("apply config %q", path)
 		if err := r.applyLuaConfig(path); err != nil {
-			r.Close()
 			return err
 		}
 		r.cfg.ConfigPath = path
