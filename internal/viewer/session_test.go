@@ -113,22 +113,22 @@ func TestDocumentSessionNoChangeWithoutModification(t *testing.T) {
 }
 
 func TestViewStateRoundTrip(t *testing.T) {
-	app := &App{documentState: documentState{page: 3}, viewStateFields: viewStateFields{scrollX: 12, scrollY: 34, zoom: 1.5, fitMode: "manual", renderMode: "single", dualPage: true, firstPageOffset: false, statusBarShown: true, altColors: true}}
+	app := &App{documentState: documentState{page: 3}, viewStateFields: viewStateFields{scrollX: 12, scrollY: 34, zoom: 1.5, fitMode: fitManual, renderMode: renderSingle, dualPage: true, firstPageOffset: false, statusBarShown: true, altColors: true}}
 	state := app.captureViewState()
 
-	if state.page != 3 || state.scrollX != 12 || state.scrollY != 34 || state.zoom != 1.5 || state.fitMode != "manual" || state.renderMode != "single" || !state.dualPage || state.firstPageOffset || !state.statusBarShown || !state.altColors {
+	if state.page != 3 || state.scrollX != 12 || state.scrollY != 34 || state.zoom != 1.5 || state.fitMode != fitManual || state.renderMode != renderSingle || !state.dualPage || state.firstPageOffset || !state.statusBarShown || !state.altColors {
 		t.Fatalf("unexpected captured view state: %#v", state)
 	}
 }
 
 func TestViewStateAtDocumentStartPreservesPreferencesOnly(t *testing.T) {
-	state := viewState{page: 7, scrollX: 12, scrollY: 34, zoom: 1.5, fitMode: "manual", renderMode: "single", dualPage: true, firstPageOffset: true, statusBarShown: true, altColors: true}
+	state := viewState{page: 7, scrollX: 12, scrollY: 34, zoom: 1.5, fitMode: fitManual, renderMode: renderSingle, dualPage: true, firstPageOffset: true, statusBarShown: true, altColors: true}
 	state = state.atDocumentStart()
 
 	if state.page != 0 || state.scrollX != 0 || state.scrollY != 0 {
 		t.Fatalf("expected document start location, got %#v", state)
 	}
-	if state.zoom != 1.5 || state.fitMode != "manual" || state.renderMode != "single" || !state.dualPage || !state.firstPageOffset || !state.statusBarShown || !state.altColors {
+	if state.zoom != 1.5 || state.fitMode != fitManual || state.renderMode != renderSingle || !state.dualPage || !state.firstPageOffset || !state.statusBarShown || !state.altColors {
 		t.Fatalf("expected viewer preferences to be preserved, got %#v", state)
 	}
 }

@@ -107,7 +107,7 @@ func TestHandleSDLEventFocusLossStopsKeyPanning(t *testing.T) {
 func TestHandleSDLEventPinchUpdatesZoom(t *testing.T) {
 	app := &App{
 		config:          config.Config{PinchSensitivity: 2, MinZoom: 0.5, MaxZoom: 8, SmoothZoomSources: config.SmoothInputAll, SmoothZoomDampening: 0.35},
-		viewStateFields: viewStateFields{zoom: 2, fitMode: "manual"},
+		viewStateFields: viewStateFields{zoom: 2, fitMode: fitManual},
 	}
 	begin := sdl.Event{}
 	binary.NativeEndian.PutUint32(begin[:], uint32(sdl.EventPinchBegin))
@@ -133,7 +133,7 @@ func TestHandleSDLEventPinchUpdatesZoom(t *testing.T) {
 	if app.zoom <= 2 || app.zoom >= 3.125 {
 		t.Fatalf("expected pinch frame to scale zoom between 2 and 3.125, got %v", app.zoom)
 	}
-	if app.fitMode != "manual" {
+	if app.fitMode != fitManual {
 		t.Fatalf("expected pinch animation to switch to manual zoom, got %q", app.fitMode)
 	}
 	end := sdl.Event{}
@@ -153,7 +153,7 @@ func TestHandleSDLEventPinchUpdatesZoom(t *testing.T) {
 }
 
 func TestHandleSDLEventPinchOutDoesNotReverseDirection(t *testing.T) {
-	app := &App{config: config.Config{MinZoom: 0.5, MaxZoom: 8, SmoothZoomSources: config.SmoothInputAll, SmoothZoomDampening: 0.35}, viewStateFields: viewStateFields{zoom: 2, fitMode: "manual"}}
+	app := &App{config: config.Config{MinZoom: 0.5, MaxZoom: 8, SmoothZoomSources: config.SmoothInputAll, SmoothZoomDampening: 0.35}, viewStateFields: viewStateFields{zoom: 2, fitMode: fitManual}}
 	for _, scale := range []float32{0.98, 0.99, 0.97} {
 		event := sdl.Event{}
 		binary.NativeEndian.PutUint32(event[:], uint32(sdl.EventPinchUpdate))
@@ -173,7 +173,7 @@ func TestHandleSDLEventPinchOutDoesNotReverseDirection(t *testing.T) {
 func TestZoomActionAnimatesTowardTarget(t *testing.T) {
 	app := &App{
 		config:          config.Config{MinZoom: 0.5, MaxZoom: 8, SmoothZoomSources: config.SmoothInputAll, SmoothZoomDampening: 0.35},
-		viewStateFields: viewStateFields{zoom: 2, fitMode: "manual"},
+		viewStateFields: viewStateFields{zoom: 2, fitMode: fitManual},
 	}
 
 	if err := app.runBuiltinAction("zoom_in"); err != nil {
@@ -197,7 +197,7 @@ func TestZoomActionAnimatesTowardTarget(t *testing.T) {
 func TestRepeatedZoomActionsAccumulateTarget(t *testing.T) {
 	app := &App{
 		config:          config.Config{MinZoom: 0.5, MaxZoom: 8, SmoothZoomSources: config.SmoothInputAll, SmoothZoomDampening: 0.35},
-		viewStateFields: viewStateFields{zoom: 2, fitMode: "manual"},
+		viewStateFields: viewStateFields{zoom: 2, fitMode: fitManual},
 	}
 
 	if err := app.runBuiltinAction("zoom_in"); err != nil {

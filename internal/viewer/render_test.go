@@ -304,7 +304,7 @@ func TestRenderScalePolicy(t *testing.T) {
 	assertClose(t, app.renderOversampleFactor(), defaultRenderOversample)
 	assertClose(t, app.oversampledRenderScale(math.NaN()), 1)
 
-	app = &App{viewStateFields: viewStateFields{scale: 1, zoom: 1, fitMode: "manual"}, config: config.Config{RenderOversample: 1}, renderService: renderService{minRenderBaseScale: 0.25, renderBaseScale: 2, renderPending: map[tileKey]renderRequest{{page: 1}: {key: tileKey{page: 1}}}}}
+	app = &App{viewStateFields: viewStateFields{scale: 1, zoom: 1, fitMode: fitManual}, config: config.Config{RenderOversample: 1}, renderService: renderService{minRenderBaseScale: 0.25, renderBaseScale: 2, renderPending: map[tileKey]renderRequest{{page: 1}: {key: tileKey{page: 1}}}}}
 	if !app.applyRenderBaseScaleTarget(app.oversampledRenderScale(4)) {
 		t.Fatal("expected target above tolerance to upgrade render base scale")
 	}
@@ -321,13 +321,13 @@ func TestRenderScalePolicy(t *testing.T) {
 }
 
 func TestRenderBaseScaleOversamplesOnce(t *testing.T) {
-	app := &App{viewStateFields: viewStateFields{scale: 1, zoom: 1, fitMode: "manual"}, config: config.Config{RenderOversample: 2}, renderService: renderService{minRenderBaseScale: 0.25}}
+	app := &App{viewStateFields: viewStateFields{scale: 1, zoom: 1, fitMode: fitManual}, config: config.Config{RenderOversample: 2}, renderService: renderService{minRenderBaseScale: 0.25}}
 	app.ensureRenderBaseScale()
 	assertClose(t, app.renderBaseScale, 2)
 }
 
 func TestResetRenderScaleUsesRestoredView(t *testing.T) {
-	app := &App{viewStateFields: viewStateFields{scale: 1, zoom: 1, fitMode: "manual"}, config: config.Config{RenderOversample: 1}, renderService: renderService{minRenderBaseScale: 0.25}}
+	app := &App{viewStateFields: viewStateFields{scale: 1, zoom: 1, fitMode: fitManual}, config: config.Config{RenderOversample: 1}, renderService: renderService{minRenderBaseScale: 0.25}}
 	app.scheduleRenderScaleTarget(1) // fixes the base before the saved view is restored
 	app.scale, app.zoom = 3, 3
 	app.scheduleRenderScaleTarget(3)
@@ -347,7 +347,7 @@ func TestRenderScaleForAllowsLowZoomUndersampling(t *testing.T) {
 }
 
 func TestRenderScaleTargetDebouncesFastZoom(t *testing.T) {
-	app := &App{viewStateFields: viewStateFields{scale: 1, zoom: 1, fitMode: "manual"}, config: config.Config{RenderOversample: 1}, renderService: renderService{minRenderBaseScale: 0.25, renderBaseScale: 1, renderPending: map[tileKey]renderRequest{{page: 1}: {key: tileKey{page: 1}}}}}
+	app := &App{viewStateFields: viewStateFields{scale: 1, zoom: 1, fitMode: fitManual}, config: config.Config{RenderOversample: 1}, renderService: renderService{minRenderBaseScale: 0.25, renderBaseScale: 1, renderPending: map[tileKey]renderRequest{{page: 1}: {key: tileKey{page: 1}}}}}
 
 	app.scheduleRenderScaleTarget(2)
 	app.scheduleRenderScaleTarget(3)

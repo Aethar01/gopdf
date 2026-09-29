@@ -7,10 +7,10 @@ import (
 )
 
 func (a *App) currentScaleFromRows(viewportW, viewportH int, baseRows []rowLayout) float64 {
-	if a.fitMode == "manual" {
+	if a.fitMode == fitManual {
 		return a.zoom
 	}
-	if a.renderMode == "single" && len(baseRows) > 0 && a.page >= 0 {
+	if a.renderMode == renderSingle && len(baseRows) > 0 && a.page >= 0 {
 		row := baseRows[clampInt(a.baseRowIndexForPage(a.page, baseRows), 0, len(baseRows)-1)]
 		return a.fitScale(viewportW, viewportH, []rowLayout{row})
 	}
@@ -32,9 +32,9 @@ func (a *App) fitScale(viewportW, viewportH int, rows []rowLayout) float64 {
 	}
 	heightScale := (float64(viewportH) - float64(a.verticalGap()*2)) / maxHeight
 	switch a.fitMode {
-	case "width":
+	case fitWidth:
 		return math.Max(0.05, widthScale)
-	case "height":
+	case fitHeight:
 		return math.Max(0.05, heightScale)
 	default:
 		return math.Max(0.05, math.Min(widthScale, heightScale))
@@ -102,7 +102,7 @@ func (a *App) scrollBy(dx, dy float64) {
 	a.scrollX += dx
 	a.scrollY += dy
 	a.clampScroll()
-	if a.renderMode == "single" || (a.scrollX == oldX && a.scrollY == oldY) {
+	if a.renderMode == renderSingle || (a.scrollX == oldX && a.scrollY == oldY) {
 		return
 	}
 	a.updateCurrentPageFromScroll()
@@ -126,7 +126,7 @@ func (a *App) alignPageToAnchor(page int) {
 		return
 	}
 	a.recordJump()
-	if a.renderMode == "single" {
+	if a.renderMode == renderSingle {
 		a.page = page
 		a.scrollX = 0
 		a.scrollY = 0
@@ -188,7 +188,7 @@ func (a *App) alignPageToDocumentPoint(page int, x, y float64) {
 	}
 	page = a.anchorPage(page)
 	a.recordJump()
-	if a.renderMode == "single" {
+	if a.renderMode == renderSingle {
 		a.page = page
 		a.recomputeLayout(a.viewportSize())
 	}
@@ -259,7 +259,7 @@ func (a *App) restoreJump(jump jumpPosition) {
 }
 
 func (a *App) positionMatchesPageAnchor(page int) bool {
-	if a.renderMode == "single" {
+	if a.renderMode == renderSingle {
 		return a.page == page && a.scrollX == 0 && a.scrollY == 0
 	}
 	row := a.rows[a.pageToRow[page]]
@@ -311,7 +311,7 @@ func (a *App) clampZoom(zoom float64) float64 {
 	return clampFloat(zoom, minZoom, maxZoom)
 }
 
-func (a *App) setFitMode(mode string) {
+func (a *App) setFitMode(mode fitMode) {
 	a.cancelSmoothZoom()
 	a.relayoutWithViewportAnchor(func() {
 		a.fitMode = mode

@@ -68,22 +68,22 @@ func TestRunCommandAppliesViewerSettings(t *testing.T) {
 	app.page = 2
 
 	app.runCommand(":mode single")
-	if app.renderMode != "single" || app.page != 2 {
+	if app.renderMode != renderSingle || app.page != 2 {
 		t.Fatalf("expected :mode single to preserve page 2, mode=%q page=%d", app.renderMode, app.page)
 	}
 
 	app.runCommand(":mode sideways")
-	if app.renderMode != "continuous" {
+	if app.renderMode != renderContinuous {
 		t.Fatalf("expected invalid render mode to fall back to continuous, got %q", app.renderMode)
 	}
 
 	app.runCommand(":fit width")
-	if app.fitMode != "width" {
+	if app.fitMode != fitWidth {
 		t.Fatalf("expected :fit width to set fit mode, got %q", app.fitMode)
 	}
 
 	app.runCommand(":fit unknown")
-	if app.fitMode != "page" {
+	if app.fitMode != fitPage {
 		t.Fatalf("expected invalid fit mode to fall back to page, got %q", app.fitMode)
 	}
 

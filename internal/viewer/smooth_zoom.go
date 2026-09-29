@@ -18,7 +18,7 @@ type smoothZoomState struct {
 
 func (a *App) displayedZoom() float64 {
 	zoom := a.zoom
-	if a.fitMode != "manual" {
+	if a.fitMode != fitManual {
 		zoom = a.scale
 	}
 	if zoom <= 0 {
@@ -173,7 +173,7 @@ func (a *App) advanceSmoothZoomBy(elapsed time.Duration) bool {
 
 func (a *App) applySmoothZoom(zoom float64) {
 	a.relayoutWithViewportAnchor(func() {
-		a.fitMode = "manual"
+		a.fitMode = fitManual
 		a.zoom = a.clampZoom(zoom)
 		a.scheduleRenderScaleTarget(a.zoom)
 	})

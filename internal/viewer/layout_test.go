@@ -27,7 +27,7 @@ func TestRecomputeLayoutUsesRotatedPageDimensions(t *testing.T) {
 
 	app := &App{
 		documentState:   documentState{pageCount: 5, page: 0},
-		viewStateFields: viewStateFields{zoom: 1, fitMode: "manual", renderMode: "continuous", dualPage: true, firstPageOffset: true},
+		viewStateFields: viewStateFields{zoom: 1, fitMode: fitManual, renderMode: renderContinuous, dualPage: true, firstPageOffset: true},
 		config:          config.Config{PageGap: -1, PageGapHorizontal: -1, PageGapVertical: -1, SpreadGap: -1},
 		metricsService:  metricsService{pageMetrics: metrics},
 	}
@@ -71,7 +71,7 @@ func TestNewAllowsBlankViewerWithoutDocument(t *testing.T) {
 
 func TestSetRotationKeepsCurrentPage(t *testing.T) {
 	app := testLayoutApp(5)
-	app.renderMode = "continuous"
+	app.renderMode = renderContinuous
 	app.page = 3
 
 	if err := app.SetRotation(90); err != nil {
@@ -85,7 +85,7 @@ func TestSetRotationKeepsCurrentPage(t *testing.T) {
 
 func TestSetRenderModeKeepsCurrentPage(t *testing.T) {
 	app := testLayoutApp(5)
-	app.renderMode = "single"
+	app.renderMode = renderSingle
 	app.page = 3
 	app.recomputeLayout(1000, 1000)
 
@@ -332,7 +332,7 @@ func TestRowPageScreenOrigin(t *testing.T) {
 	assertClose(t, x, 135)
 	assertClose(t, y, 50)
 
-	app.renderMode = "single"
+	app.renderMode = renderSingle
 	x, y = app.rowPageScreenOrigin(row, 0)
 	assertClose(t, x, 165)
 	assertClose(t, y, 170)
@@ -345,7 +345,7 @@ func testLayoutApp(pageCount int) *App {
 	}
 	return &App{
 		documentState:   documentState{pageCount: pageCount},
-		viewStateFields: viewStateFields{zoom: 1, fitMode: "manual", renderMode: "continuous", firstPageOffset: true},
+		viewStateFields: viewStateFields{zoom: 1, fitMode: fitManual, renderMode: renderContinuous, firstPageOffset: true},
 		config:          config.Config{PageGap: -1, PageGapHorizontal: -1, PageGapVertical: -1, SpreadGap: -1, SmoothScrollSources: config.SmoothInputAll},
 		metricsService:  metricsService{pageMetrics: metrics},
 	}
@@ -451,7 +451,7 @@ func TestHoveredLinkShowsTargetAndRestoresMessage(t *testing.T) {
 
 func TestFitModesScaleToViewport(t *testing.T) {
 	app := testLayoutApp(3) // 100x200pt pages
-	for mode, want := range map[string]float64{"width": 10, "height": 4, "page": 4} {
+	for mode, want := range map[fitMode]float64{fitWidth: 10, fitHeight: 4, fitPage: 4} {
 		app.fitMode = mode
 		app.recomputeLayout(1000, 800)
 		if math.Abs(app.scale-want) > 1e-9 {
@@ -496,7 +496,7 @@ func TestFitWidthKeepsSpreadGapUnscaled(t *testing.T) {
 	}
 	app.dualPage, app.firstPageOffset = true, false
 	app.config.PageGapHorizontal = 40
-	app.fitMode = "width"
+	app.fitMode = fitWidth
 	app.recomputeLayout(1000, 800)
 	row := app.rows[0]
 	if gap := row.pageX[1] - (row.pageX[0] + row.pageW[0]); math.Abs(gap-40) > 0.01 {
@@ -524,12 +524,12 @@ func TestViewportAndContentOffsets(t *testing.T) {
 	app.mode = modeNormal
 	app.contentW = 400
 	app.contentH = 200
-	app.renderMode = "single"
+	app.renderMode = renderSingle
 	x, y := app.contentViewportOffset()
 	assertClose(t, x, 200)
 	assertClose(t, y, 200)
 
-	app.renderMode = "continuous"
+	app.renderMode = renderContinuous
 	x, y = app.contentViewportOffset()
 	assertClose(t, x, 200)
 	assertClose(t, y, 0)
@@ -574,7 +574,7 @@ func TestViewportAnchorRowIndexAndCurrentPageFollowScroll(t *testing.T) {
 	app.config.PageGapVertical = 10
 	app.recomputeLayout(app.viewportSize())
 
-	app.renderMode = "continuous"
+	app.renderMode = renderContinuous
 	app.scrollY = app.rows[2].y - 1
 	if got := app.viewportAnchorRowIndex(); got != 2 {
 		t.Fatalf("expected viewport midpoint in row 2, got row %d", got)
@@ -584,7 +584,7 @@ func TestViewportAnchorRowIndexAndCurrentPageFollowScroll(t *testing.T) {
 		t.Fatalf("expected current page to follow row 2, got page %d", app.page)
 	}
 
-	app.renderMode = "single"
+	app.renderMode = renderSingle
 	app.page = 3
 	if got := app.viewportAnchorRowIndex(); got != app.pageToRow[3] {
 		t.Fatalf("expected single-page row from current page, got %d want %d", got, app.pageToRow[3])
@@ -619,7 +619,7 @@ func TestViewportAnchorRowIndexUsesConfiguredAnchorPosition(t *testing.T) {
 	app.winH = 100
 	app.config.PageGapVertical = 10
 	app.recomputeLayout(app.viewportSize())
-	app.renderMode = "continuous"
+	app.renderMode = renderContinuous
 	app.scrollY = app.rows[2].y - 1
 
 	app.config.AnchorPosition = "top"
@@ -636,7 +636,7 @@ func TestResizeKeepsConfiguredViewportAnchorPosition(t *testing.T) {
 	app := testLayoutApp(4)
 	app.winW = 220
 	app.winH = 300
-	app.fitMode = "width"
+	app.fitMode = fitWidth
 	app.config.AnchorPosition = "top"
 	app.recomputeLayout(app.viewportSize())
 	app.scrollY = app.rows[1].pageY[0] - 24

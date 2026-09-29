@@ -39,7 +39,7 @@ func (a *App) restoreViewportAnchor(anchor viewportAnchor) {
 	a.scrollX += pageX + dx - targetX
 	a.scrollY += pageY + dy - targetY
 	a.clampScroll()
-	if a.renderMode == "continuous" {
+	if a.renderMode == renderContinuous {
 		pageX, pageY, ok = a.pageScreenOrigin(anchor.page)
 		if ok && (math.Abs(pageX+dx-targetX) > 0.5 || math.Abs(pageY+dy-targetY) > 0.5) {
 			a.page = anchor.page
@@ -123,7 +123,7 @@ func (a *App) pageScreenOrigin(page int) (float64, float64, bool) {
 }
 
 func (a *App) rowPageScreenOrigin(row rowLayout, pageIndex int) (float64, float64) {
-	if a.renderMode == "single" {
+	if a.renderMode == renderSingle {
 		viewportW, viewportH := a.viewportSize()
 		baseX := math.Max(float64(a.horizontalGap()), (float64(viewportW)-row.width)/2)
 		baseY := math.Max(float64(a.verticalGap()), (float64(viewportH)-row.height)/2)
@@ -149,7 +149,7 @@ func (a *App) contentViewportOffset() (float64, float64) {
 	viewportW, viewportH := a.viewportSize()
 	offsetX := math.Max(0, (float64(viewportW)-a.contentW)/2)
 	offsetY := math.Max(0, (float64(viewportH)-a.contentH)/2)
-	if a.renderMode == "continuous" {
+	if a.renderMode == renderContinuous {
 		offsetY = 0
 	}
 	return offsetX, offsetY
@@ -172,7 +172,7 @@ func (a *App) pageGeometryAtScreen(sx, sy float64) (int, float64, float64, bool)
 	if len(a.rows) == 0 {
 		return 0, 0, 0, false
 	}
-	if a.renderMode == "single" {
+	if a.renderMode == renderSingle {
 		if a.page < 0 || a.page >= len(a.pageToRow) {
 			return 0, 0, 0, false
 		}

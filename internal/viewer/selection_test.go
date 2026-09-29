@@ -98,7 +98,7 @@ func TestSelectionSpansPages(t *testing.T) {
 		app.pageMetrics[page] = newPageMetrics(info)
 	}
 	app.config.MouseTextSelect = true
-	app.fitMode = "width"
+	app.fitMode = fitWidth
 	app.winW, app.winH = 300, 2000 // all three pages on screen
 	app.recomputeLayout(app.viewportSize())
 	at := func(page int, px float64) (float32, float32) {

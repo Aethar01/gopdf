@@ -431,7 +431,7 @@ func (a *App) focusSearchCurrent() {
 	centerX := (minX + maxX) / 2
 	centerY := (minY + maxY) / 2
 	a.scrollBy(centerX-float64(viewportW)/2, centerY-float64(viewportH)/2)
-	if a.renderMode == "single" {
+	if a.renderMode == renderSingle {
 		a.page = ref.page
 	}
 }

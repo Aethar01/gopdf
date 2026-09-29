@@ -5,12 +5,12 @@ import "testing"
 func TestPresentationStepsPagesAndRestoresView(t *testing.T) {
 	app := testLayoutApp(5)
 	app.winW, app.winH = 1000, 800
-	app.renderMode, app.fitMode, app.statusBarShown = "continuous", "width", true
+	app.renderMode, app.fitMode, app.statusBarShown = renderContinuous, fitWidth, true
 	app.recomputeLayout(app.viewportSize())
 	app.alignPageToAnchor(1)
 
 	app.togglePresentation()
-	if app.renderMode != "single" || app.fitMode != "page" || app.statusBarShown || !app.fullscreen {
+	if app.renderMode != renderSingle || app.fitMode != fitPage || app.statusBarShown || !app.fullscreen {
 		t.Fatalf("presenting: mode=%q fit=%q status=%v fullscreen=%v", app.renderMode, app.fitMode, app.statusBarShown, app.fullscreen)
 	}
 	if app.backgroundColor() != presentationBackground {
@@ -21,12 +21,12 @@ func TestPresentationStepsPagesAndRestoresView(t *testing.T) {
 	if app.page != 3 {
 		t.Fatalf("page = %d after two steps, want 3", app.page)
 	}
-	if state := app.captureViewState(); state.renderMode != "continuous" {
+	if state := app.captureViewState(); state.renderMode != renderContinuous {
 		t.Fatalf("persisted state %+v, want the pre-presentation view", state)
 	}
 
 	app.runAction("close")
-	if app.presentation != nil || app.renderMode != "continuous" || app.fitMode != "width" || !app.statusBarShown || app.fullscreen {
+	if app.presentation != nil || app.renderMode != renderContinuous || app.fitMode != fitWidth || !app.statusBarShown || app.fullscreen {
 		t.Fatalf("after close: mode=%q fit=%q status=%v fullscreen=%v", app.renderMode, app.fitMode, app.statusBarShown, app.fullscreen)
 	}
 	if app.page != 3 {
@@ -53,7 +53,7 @@ func TestSettingsChangedWhilePresentingCarryOver(t *testing.T) {
 func TestOverviewFromPresentationEndsPresentation(t *testing.T) {
 	app := testLayoutApp(5)
 	app.winW, app.winH = 1000, 800
-	app.renderMode, app.fitMode, app.statusBarShown = "continuous", "width", true
+	app.renderMode, app.fitMode, app.statusBarShown = renderContinuous, fitWidth, true
 	app.recomputeLayout(app.viewportSize())
 	app.togglePresentation()
 	app.runAction("overview")
@@ -61,7 +61,7 @@ func TestOverviewFromPresentationEndsPresentation(t *testing.T) {
 		t.Fatalf("presentation=%v overview=%v, want only the overview", app.presentation != nil, app.overview != nil)
 	}
 	app.runAction("overview")
-	if app.overview != nil || app.renderMode != "continuous" || app.fitMode != "width" || !app.statusBarShown || app.fullscreen {
+	if app.overview != nil || app.renderMode != renderContinuous || app.fitMode != fitWidth || !app.statusBarShown || app.fullscreen {
 		t.Fatalf("after the overview: mode=%q fit=%q status=%v fullscreen=%v", app.renderMode, app.fitMode, app.statusBarShown, app.fullscreen)
 	}
 }

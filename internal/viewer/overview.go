@@ -34,8 +34,8 @@ func (a *App) toggleOverview() {
 	a.closeViewMode()
 	a.closeAllUI()
 	a.overview = &overviewState{selected: a.spreadStart(a.page), saved: a.captureViewState()}
-	a.renderMode = "continuous"
-	a.fitMode = "width"
+	a.renderMode = renderContinuous
+	a.fitMode = fitWidth
 	a.relayoutOverview()
 }
 

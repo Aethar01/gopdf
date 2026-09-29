@@ -16,7 +16,7 @@ func TestFormatStatusBarReplacesTemplateTokens(t *testing.T) {
 			pageCount: 9,
 			docName:   "paper.pdf",
 		},
-		viewStateFields: viewStateFields{renderMode: "continuous", fitMode: "width", rotation: 90, zoom: 1.25},
+		viewStateFields: viewStateFields{renderMode: renderContinuous, fitMode: fitWidth, rotation: 90, zoom: 1.25},
 		inputState:      inputState{message: "ready"},
 		uiState:         uiState{search: searchState{query: "term", current: 0, order: []searchHitRef{{page: 2}}}},
 	}

@@ -189,8 +189,8 @@ func (a *App) applyConfigState(cfg config.Config) {
 	a.config = cfg
 	a.cancelSmoothZoom()
 	a.cancelSmoothScroll()
-	a.fitMode = sanitizeFitMode(cfg.FitMode)
-	a.renderMode = sanitizeRenderMode(cfg.RenderMode)
+	a.fitMode = parseFitMode(cfg.FitMode)
+	a.renderMode = parseRenderMode(cfg.RenderMode)
 	a.altColors = cfg.AltColors
 	a.dualPage = cfg.DualPage
 	a.trimMargins = cfg.TrimMargins
@@ -229,8 +229,8 @@ func (a *App) applyConfig(cfg config.Config, assigned map[string]bool) {
 				changed = true
 			}
 		}
-		apply(prev.FitMode != cfg.FitMode, "fit_mode", func() { a.fitMode = sanitizeFitMode(cfg.FitMode) })
-		apply(prev.RenderMode != cfg.RenderMode, "render_mode", func() { a.renderMode = sanitizeRenderMode(cfg.RenderMode) })
+		apply(prev.FitMode != cfg.FitMode, "fit_mode", func() { a.fitMode = parseFitMode(cfg.FitMode) })
+		apply(prev.RenderMode != cfg.RenderMode, "render_mode", func() { a.renderMode = parseRenderMode(cfg.RenderMode) })
 		apply(prev.DualPage != cfg.DualPage, "dual_page", func() { a.dualPage = cfg.DualPage })
 		apply(prev.FirstPageOffset != cfg.FirstPageOffset, "first_page_offset", func() { a.firstPageOffset = cfg.FirstPageOffset })
 		apply(prev.StatusBarVisible != cfg.StatusBarVisible, "status_bar_visible", func() { a.statusBarShown = cfg.StatusBarVisible })
@@ -318,17 +318,17 @@ func (a *App) ClearPendingKeys() {
 	}
 }
 
-func (a *App) FitMode() string { return a.fitMode }
+func (a *App) FitMode() string { return a.fitMode.String() }
 
-func (a *App) SetFitMode(mode string) error {
-	a.setFitMode(sanitizeFitMode(mode))
+func (a *App) SetFitMode(name string) error {
+	a.setFitMode(parseFitMode(name))
 	return nil
 }
 
-func (a *App) RenderMode() string { return a.renderMode }
+func (a *App) RenderMode() string { return a.renderMode.String() }
 
-func (a *App) SetRenderMode(mode string) error {
-	mode = sanitizeRenderMode(mode)
+func (a *App) SetRenderMode(name string) error {
+	mode := parseRenderMode(name)
 	if a.renderMode == mode {
 		return nil
 	}
@@ -344,7 +344,7 @@ func (a *App) SetZoom(zoom float64) error {
 	}
 	a.cancelSmoothZoom()
 	a.relayoutWithViewportAnchor(func() {
-		a.fitMode = "manual"
+		a.fitMode = fitManual
 		a.zoom = a.clampZoom(zoom)
 		a.scheduleRenderScaleTarget(a.zoom)
 	})
@@ -642,6 +642,3 @@ func (a *App) runMouseBinding(event string) bool {
 	return false
 }
 
-func sanitizeFitMode(mode string) string { return config.NormalizeFitMode(mode) }
-
-func sanitizeRenderMode(mode string) string { return config.NormalizeRenderMode(mode) }

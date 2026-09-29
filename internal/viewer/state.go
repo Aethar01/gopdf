@@ -120,8 +120,8 @@ type documentState struct {
 type viewStateFields struct {
 	rotation        float64
 	zoom            float64
-	fitMode         string
-	renderMode      string
+	fitMode         fitMode
+	renderMode      renderMode
 	scale           float64
 	dualPage        bool
 	firstPageOffset bool

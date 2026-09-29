@@ -15,7 +15,7 @@ import (
 func testOverviewApp() *App {
 	app := testLayoutApp(20)
 	app.winW, app.winH = 1000, 800
-	app.fitMode, app.renderMode = "page", "single"
+	app.fitMode, app.renderMode = fitPage, renderSingle
 	app.page = 5
 	app.recomputeLayout(app.viewportSize())
 	return app
@@ -28,10 +28,10 @@ func TestOverviewGridNavigationAndConfirm(t *testing.T) {
 	if columns != 1000/(overviewThumbWidth+overviewGap) {
 		t.Fatalf("columns = %d", columns)
 	}
-	if len(app.rows[0].pages) != columns || app.renderMode != "continuous" {
+	if len(app.rows[0].pages) != columns || app.renderMode != renderContinuous {
 		t.Fatalf("first row has %d pages, mode %q", len(app.rows[0].pages), app.renderMode)
 	}
-	if state := app.captureViewState(); state.renderMode != "single" || state.page != 5 {
+	if state := app.captureViewState(); state.renderMode != renderSingle || state.page != 5 {
 		t.Fatalf("persisted state = %+v, want the view from before the overview", state)
 	}
 
@@ -46,7 +46,7 @@ func TestOverviewGridNavigationAndConfirm(t *testing.T) {
 	}
 
 	app.runAction("confirm")
-	if app.overview != nil || app.renderMode != "single" || app.fitMode != "page" {
+	if app.overview != nil || app.renderMode != renderSingle || app.fitMode != fitPage {
 		t.Fatalf("after confirm: overview=%v mode=%q fit=%q", app.overview, app.renderMode, app.fitMode)
 	}
 	if app.page != 5+columns+1 {
@@ -126,7 +126,7 @@ func TestPromptOverOverviewReceivesEnter(t *testing.T) {
 
 func TestOverviewRendersThumbnailsOnly(t *testing.T) {
 	app := testOverviewApp()
-	app.fitMode = "width" // the reading view renders at scale 10
+	app.fitMode = fitWidth // the reading view renders at scale 10
 	app.recomputeLayout(app.viewportSize())
 	app.config.RenderOversample = 1
 	app.ensureRenderBaseScale()
@@ -230,14 +230,14 @@ func TestSettingsChangedInOverviewCarryOver(t *testing.T) {
 	app.toggleOverview()
 	app.runAction("toggle_dual_page")
 	app.runAction("toggle_alt_colors")
-	if state := app.captureViewState(); !state.dualPage || state.renderMode != "single" {
+	if state := app.captureViewState(); !state.dualPage || state.renderMode != renderSingle {
 		t.Fatalf("session state %+v, want dual on with the pre-overview render mode", state)
 	}
 	app.runAction("close")
 	if !app.dualPage || !app.altColors {
 		t.Fatalf("after the overview: dual=%v alt=%v, want both kept", app.dualPage, app.altColors)
 	}
-	if app.renderMode != "single" || app.fitMode != "page" {
+	if app.renderMode != renderSingle || app.fitMode != fitPage {
 		t.Fatalf("overview's own settings not restored: mode=%q fit=%q", app.renderMode, app.fitMode)
 	}
 }

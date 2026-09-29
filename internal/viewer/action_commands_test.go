@@ -98,7 +98,7 @@ func TestViewCommands(t *testing.T) {
 	}
 
 	app.runCommand(":zoom 150%")
-	if app.fitMode != "manual" || math.Abs(app.zoom-1.5) > 1e-9 {
+	if app.fitMode != fitManual || math.Abs(app.zoom-1.5) > 1e-9 {
 		t.Fatalf(":zoom 150%%: fit=%q zoom=%v", app.fitMode, app.zoom)
 	}
 	app.runCommand(":zoom 200")

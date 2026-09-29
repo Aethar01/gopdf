@@ -227,13 +227,13 @@ func (a *App) recomputeLayout(viewportW, viewportH int) {
 	}
 	a.rows = rows
 	a.contentH = y
-	if a.renderMode == "single" && len(a.rows) > 0 {
+	if a.renderMode == renderSingle && len(a.rows) > 0 {
 		row := a.rows[clampInt(a.pageToRow[a.page], 0, len(a.rows)-1)]
 		a.contentW = row.width + float64(a.horizontalGap()*2)
 		a.contentH = row.height + float64(a.verticalGap()*2)
 	}
 	a.clampScroll()
-	if a.renderMode == "continuous" {
+	if a.renderMode == renderContinuous {
 		a.updateCurrentPageFromScroll()
 	}
 }
@@ -267,7 +267,7 @@ func (a *App) viewportAnchorRowIndex() int {
 	if len(a.rows) == 0 {
 		return 0
 	}
-	if a.renderMode == "single" {
+	if a.renderMode == renderSingle {
 		return a.rowIndexForPage(a.page)
 	}
 	_, viewportH := a.viewportSize()

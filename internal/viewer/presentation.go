@@ -23,7 +23,7 @@ func (a *App) togglePresentation() {
 	a.closeAllUI()
 	a.presentation = &presentationState{saved: a.captureViewState(), fullscreen: a.fullscreen}
 	a.relayoutWithViewportAnchor(func() {
-		a.renderMode, a.fitMode, a.dualPage, a.statusBarShown = "single", "page", false, false
+		a.renderMode, a.fitMode, a.dualPage, a.statusBarShown = renderSingle, fitPage, false, false
 	})
 	a.SetFullscreen(true)
 	a.settleRenderScale()

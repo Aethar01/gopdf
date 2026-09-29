@@ -247,7 +247,7 @@ func (a *App) currentRenderTarget() float64 {
 	if !validRenderScale(target) {
 		target = 1
 	}
-	if a.fitMode != "manual" && validRenderScale(a.zoom) {
+	if a.fitMode != fitManual && validRenderScale(a.zoom) {
 		target = math.Max(target, a.zoom)
 	}
 	return a.oversampledRenderScale(target)

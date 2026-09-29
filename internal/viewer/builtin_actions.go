@@ -72,9 +72,9 @@ func init() {
 		"zoom_in":    do(func(a *App) { a.setManualZoom(1.15) }),
 		"zoom_out":   do(func(a *App) { a.setManualZoom(1 / 1.15) }),
 		"reset_zoom": do(func(a *App) { a.setManualZoomTarget(1) }),
-		"fit_width":  do(func(a *App) { a.setFitMode("width") }),
-		"fit_page":   do(func(a *App) { a.setFitMode("page") }),
-		"fit_height": do(func(a *App) { a.setFitMode("height") }),
+		"fit_width":  do(func(a *App) { a.setFitMode(fitWidth) }),
+		"fit_page":   do(func(a *App) { a.setFitMode(fitPage) }),
+		"fit_height": do(func(a *App) { a.setFitMode(fitHeight) }),
 		"rotate_cw":  do(func(a *App) { a.rotateBy(90) }),
 		"rotate_ccw": do(func(a *App) { a.rotateBy(270) }),
 
@@ -145,13 +145,13 @@ func (a *App) openSearchPrompt(direction searchMode) {
 
 func (a *App) toggleRenderMode() {
 	a.relayoutWithViewportAnchor(func() {
-		if a.renderMode == "single" {
-			a.renderMode = "continuous"
+		if a.renderMode == renderSingle {
+			a.renderMode = renderContinuous
 		} else {
-			a.renderMode = "single"
+			a.renderMode = renderSingle
 		}
 	})
-	a.message = "render mode " + a.renderMode
+	a.message = "render mode " + a.renderMode.String()
 }
 
 func (a *App) rotateBy(degrees float64) {

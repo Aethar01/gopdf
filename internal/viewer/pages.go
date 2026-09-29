@@ -14,7 +14,7 @@ import (
 
 func (a *App) drawPages(renderer *sdl.Renderer) {
 	a.loaderVisible = false
-	if a.renderMode == "single" {
+	if a.renderMode == renderSingle {
 		a.drawSinglePage(renderer)
 		return
 	}
@@ -149,7 +149,7 @@ func (a *App) prefetchVisiblePages() {
 	viewportW, viewportH := a.viewportSize()
 	viewport := sdl.FRect{W: float32(viewportW), H: float32(viewportH)}
 	margin := 0.0
-	if a.renderMode != "single" {
+	if a.renderMode != renderSingle {
 		margin = math.Max(a.renderMargin()*2, float64(viewportH))
 	}
 	area := sdl.FRect{Y: float32(-margin), W: viewport.W, H: viewport.H + float32(2*margin)}
@@ -215,7 +215,7 @@ func (a *App) prefetchVisiblePages() {
 // forEachDisplayedPage visits the pages shown in the viewport extended
 // vertically by margin, with their screen origins.
 func (a *App) forEachDisplayedPage(margin float64, visit func(page int, x, y float64)) {
-	if a.renderMode == "single" {
+	if a.renderMode == renderSingle {
 		if a.page < 0 || a.page >= len(a.pageToRow) {
 			return
 		}

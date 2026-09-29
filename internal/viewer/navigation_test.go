@@ -9,7 +9,7 @@ import (
 func TestZoomUsesConfiguredBounds(t *testing.T) {
 	app := &App{
 		config:          config.Config{MinZoom: 1, MaxZoom: 8},
-		viewStateFields: viewStateFields{zoom: 1, scale: 1, fitMode: "manual"},
+		viewStateFields: viewStateFields{zoom: 1, scale: 1, fitMode: fitManual},
 	}
 
 	if got := app.clampZoom(0.5); got != 1 {
@@ -107,9 +107,9 @@ func TestPageNavigationAlignsTargetToViewportAnchor(t *testing.T) {
 }
 
 func TestPageNavigationAlignsDocumentBoundaryPagesToViewportEdges(t *testing.T) {
-	for _, renderMode := range []string{"continuous", "single"} {
+	for _, renderMode := range []renderMode{renderContinuous, renderSingle} {
 		for _, dualPage := range []bool{false, true} {
-			name := renderMode
+			name := renderMode.String()
 			if dualPage {
 				name += " dual"
 			}

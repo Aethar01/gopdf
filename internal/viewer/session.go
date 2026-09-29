@@ -96,8 +96,8 @@ type viewState struct {
 	scrollY         float64
 	anchor          viewportAnchor
 	zoom            float64
-	fitMode         string
-	renderMode      string
+	fitMode         fitMode
+	renderMode      renderMode
 	rotation        float64
 	dualPage        bool
 	firstPageOffset bool
@@ -167,7 +167,7 @@ func (a *App) restoreViewState(state viewState) {
 		a.scrollY = state.scrollY
 		a.clampScroll()
 	}
-	if a.renderMode == "continuous" {
+	if a.renderMode == renderContinuous {
 		a.updateCurrentPageFromScroll()
 	}
 }
@@ -189,8 +189,8 @@ func (state viewState) documentSession() config.DocumentSession {
 		AnchorY:         state.anchor.point.Y,
 		AnchorValid:     state.anchor.valid,
 		Zoom:            state.zoom,
-		FitMode:         state.fitMode,
-		RenderMode:      state.renderMode,
+		FitMode:         state.fitMode.String(),
+		RenderMode:      state.renderMode.String(),
 		Rotation:        state.rotation,
 		DualPage:        state.dualPage,
 		FirstPageOffset: state.firstPageOffset,
@@ -210,8 +210,8 @@ func viewStateFromDocumentSession(session config.DocumentSession) viewState {
 			valid: session.AnchorValid,
 		},
 		zoom:            session.Zoom,
-		fitMode:         session.FitMode,
-		renderMode:      session.RenderMode,
+		fitMode:         parseFitMode(session.FitMode),
+		renderMode:      parseRenderMode(session.RenderMode),
 		rotation:        session.Rotation,
 		dualPage:        session.DualPage,
 		firstPageOffset: session.FirstPageOffset,
@@ -336,7 +336,7 @@ func (a *App) jumpDocumentMark(name string) {
 		a.scrollY = mark.ScrollY
 		a.clampScroll()
 	}
-	if a.renderMode == "continuous" {
+	if a.renderMode == renderContinuous {
 		a.updateCurrentPageFromScroll()
 	}
 	a.message = "jumped to mark " + name
