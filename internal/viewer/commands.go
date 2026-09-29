@@ -218,7 +218,7 @@ func (a *App) applyConfig(cfg config.Config, assigned map[string]bool) {
 	if prev.TrimMargins != cfg.TrimMargins || assigned["trim_margins"] {
 		a.setTrimMargins(cfg.TrimMargins)
 	}
-	if renderedDifferently(prev, cfg) {
+	if a.tilesRenderedDifferently(prev, cfg) {
 		a.clearCache()
 	}
 	a.relayoutWithViewportAnchor(func() {
@@ -264,11 +264,15 @@ func (a *App) loadUIFont() {
 	closeFontFace(oldFontFace)
 }
 
-// renderedDifferently reports whether tiles rendered under one config would
-// come out differently under the other.
-func renderedDifferently(a, b config.Config) bool {
-	return a.AntiAliasing != b.AntiAliasing || a.AltBackground != b.AltBackground ||
-		a.AltForeground != b.AltForeground || a.AltColorsKeepImages != b.AltColorsKeepImages
+// tilesRenderedDifferently reports whether tiles rendered under one config
+// would come out differently under the other. The shader draws alternate
+// colours from untouched tiles, but only knows the images of pages rendered
+// while alt_colors_keep_images was on.
+func (a *App) tilesRenderedDifferently(prev, cfg config.Config) bool {
+	if prev.AntiAliasing != cfg.AntiAliasing || prev.AltColorsKeepImages != cfg.AltColorsKeepImages {
+		return true
+	}
+	return a.altColorsShader == nil && (prev.AltBackground != cfg.AltBackground || prev.AltForeground != cfg.AltForeground)
 }
 
 func (a *App) Mode() string {

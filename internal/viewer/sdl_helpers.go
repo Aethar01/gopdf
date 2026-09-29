@@ -414,6 +414,8 @@ func (s *sdlState) Close() {
 		sdl.DestroyCursor(s.cursorArrow)
 		s.cursorArrow = nil
 	}
+	s.altColorsShader.Close()
+	s.altColorsShader = nil
 	if s.renderer != nil {
 		sdl.DestroyRenderer(s.renderer)
 		s.renderer = nil

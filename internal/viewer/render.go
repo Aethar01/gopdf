@@ -60,6 +60,12 @@ func (a *App) acceptRenderUpdate(update renderUpdate) {
 		a.message = update.err.Error()
 		return
 	}
+	if req.pageImages {
+		if a.pageImages == nil {
+			a.pageImages = map[int][]mupdf.Rect{}
+		}
+		a.pageImages[req.key.page] = update.images
+	}
 	img := update.rendered.Image
 	if img.Bounds().Empty() {
 		return
@@ -112,11 +118,15 @@ func (a *App) queueRender(req renderRequest, priority int) bool {
 	}
 	req.generation = a.renderGeneration
 	req.priority = priority
-	req.altColors = a.altColors
 	req.aaLevel = a.config.AntiAliasing
-	if req.altColors {
+	keepImages := a.config.AltColorsKeepImages
+	if a.altColorsShader == nil {
+		// Without the shader, tiles are rendered in the colours shown.
+		req.altColors = a.altColors
 		req.altBackground, req.altForeground = a.config.AltBackground, a.config.AltForeground
-		req.keepImages = a.config.AltColorsKeepImages
+		req.pageImages = a.altColors && keepImages
+	} else if _, known := a.pageImages[req.key.page]; keepImages && !known {
+		req.pageImages = true
 	}
 	if !a.renderWorker.Enqueue(req) {
 		a.logf("render enqueue skipped page=%d tile=%d,%d", req.key.page+1, req.key.x, req.key.y)

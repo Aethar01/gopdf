@@ -325,5 +325,7 @@ func (a *App) setAltColors(enabled bool) {
 		return
 	}
 	a.altColors = enabled
-	a.clearCache()
+	if a.altColorsShader == nil {
+		a.clearCache() // the tiles were rendered in the old colours
+	}
 }

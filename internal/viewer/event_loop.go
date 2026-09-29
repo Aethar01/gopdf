@@ -37,6 +37,11 @@ func (a *App) Run() error {
 	a.logf("created SDL window 1400x900 renderer=%s", sdl.GetRendererName(renderer))
 	a.window = window
 	a.renderer = renderer
+	if shader, err := newAltColorsShader(renderer); err != nil {
+		a.logf("alternate colours remapped on the CPU: %v", err)
+	} else {
+		a.altColorsShader = shader
+	}
 	a.waker = newLoopWaker()
 	if rw := sdl.IOFromConstMem(a.iconBytes); rw != nil {
 		if icon := sdl.LoadBMPIO(rw, true); icon != nil {
