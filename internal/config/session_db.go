@@ -143,7 +143,7 @@ func RecordRecentFile(path string, maxEntries int) error {
 	}
 	if _, err = db.Exec(`
 		INSERT INTO recent_files (path, updated_at)
-		VALUES (?, ?)
+		VALUES (?, MAX(?, (SELECT COALESCE(MAX(updated_at), 0) + 1 FROM recent_files)))
 		ON CONFLICT(path) DO UPDATE SET updated_at = excluded.updated_at
 	`, path, time.Now().UnixNano()); err != nil {
 		return err
@@ -200,9 +200,9 @@ func AddPromptHistory(kind, entry string, limit int) error {
 	}
 	if _, err = db.Exec(`
 		INSERT INTO prompt_history (kind, entry, updated_at)
-		VALUES (?, ?, ?)
+		VALUES (?, ?, MAX(?, (SELECT COALESCE(MAX(updated_at), 0) + 1 FROM prompt_history WHERE kind = ?)))
 		ON CONFLICT(kind, entry) DO UPDATE SET updated_at = excluded.updated_at
-	`, kind, entry, time.Now().UnixNano()); err != nil {
+	`, kind, entry, time.Now().UnixNano(), kind); err != nil {
 		return err
 	}
 	_, err = db.Exec(`
