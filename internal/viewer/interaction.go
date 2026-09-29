@@ -306,17 +306,33 @@ func (a *App) linkAt(sx, sy float64) (mupdf.Link, bool) {
 	if !ok {
 		return mupdf.Link{}, false
 	}
-	links, err := a.linksForPage(page)
-	if err != nil {
-		a.logf("load links page=%d err=%v", page+1, err)
-		return mupdf.Link{}, false
-	}
+	links, _ := a.loadedLinks(page)
 	for _, link := range links {
 		if link.Bounds.Contains(point) {
 			return link, true
 		}
 	}
 	return mupdf.Link{}, false
+}
+
+// loadedLinks returns a page's links if they are loaded. The pointer looks
+// for links on every motion, so it never waits on the document, which a
+// render can hold for long: render workers load a page's links with its
+// first tile.
+func (a *App) loadedLinks(page int) ([]mupdf.Link, bool) {
+	a.documentAPIMu.Lock()
+	defer a.documentAPIMu.Unlock()
+	links, ok := a.pageLinks[page]
+	return links, ok
+}
+
+func (a *App) storeLinks(page int, links []mupdf.Link) {
+	a.documentAPIMu.Lock()
+	defer a.documentAPIMu.Unlock()
+	if a.pageLinks == nil {
+		a.pageLinks = map[int][]mupdf.Link{}
+	}
+	a.pageLinks[page] = links
 }
 
 func (a *App) linksForPage(page int) ([]mupdf.Link, error) {

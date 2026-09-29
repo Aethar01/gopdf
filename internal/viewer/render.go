@@ -49,6 +49,9 @@ func (a *App) pollRenderUpdates() {
 
 func (a *App) acceptRenderUpdate(update renderUpdate) {
 	req := update.request
+	if req.links && update.err == nil {
+		a.storeLinks(req.key.page, update.links) // the links do not depend on the render
+	}
 	if _, pending := a.renderPending[req.key]; !pending || req.generation != a.renderGeneration {
 		return
 	}
@@ -113,6 +116,9 @@ func (a *App) queueRender(req renderRequest, priority int) bool {
 	}
 	req.generation = a.renderGeneration
 	req.priority = priority
+	if _, loaded := a.loadedLinks(req.key.page); !loaded && !req.key.thumb {
+		req.links = true
+	}
 	req.altColors = a.altColors
 	req.aaLevel = a.config.AntiAliasing
 	if req.altColors {

@@ -20,6 +20,7 @@ type renderRequest struct {
 	altColors  bool
 	aaLevel    int
 	priority   int
+	links      bool // report the page's links, which the viewer lacks
 
 	// Colors the render is remapped to when altColors is set, leaving
 	// raster images alone when keepImages is.
@@ -30,6 +31,7 @@ type renderRequest struct {
 type renderUpdate struct {
 	request  renderRequest
 	rendered *mupdf.RenderedPage
+	links    []mupdf.Link // when request.links
 	err      error
 }
 
@@ -249,7 +251,11 @@ func (w *renderWorker) run(slot *renderSlot) {
 			remapPageColors(rendered.Image, req.altBackground, req.altForeground, w.keptImageRects(req, rendered))
 		}
 		slot.rendering.Store(nil)
-		if !sendWorkerUpdate(&w.workerLifecycle, w.updates, renderUpdate{request: req, rendered: rendered, err: err}) {
+		var links []mupdf.Link
+		if err == nil && req.links {
+			links, _ = w.doc.Links(req.key.page) // a page without links is as good as one whose links fail to load
+		}
+		if !sendWorkerUpdate(&w.workerLifecycle, w.updates, renderUpdate{request: req, rendered: rendered, links: links, err: err}) {
 			rendered.Close()
 		}
 	}

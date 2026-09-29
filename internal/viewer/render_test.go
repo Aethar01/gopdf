@@ -449,3 +449,41 @@ func TestAltColorsToggleKeepsTilesUntilReplaced(t *testing.T) {
 		}
 	}
 }
+
+func TestRenderWorkerDeliversPageLinksWithTile(t *testing.T) {
+	path := testpdf.WriteObjects(t, []string{
+		"<</Type/Catalog/Pages 2 0 R>>",
+		"<</Type/Pages/Kids[3 0 R]/Count 1>>",
+		"<</Type/Page/Parent 2 0 R/MediaBox[0 0 612 792]/Annots[4 0 R]>>",
+		"<</Type/Annot/Subtype/Link/Rect[72 700 200 720]/A<</S/URI/URI(https://example.com)>>>>",
+	})
+	doc, err := mupdf.Open(path, mupdf.OpenOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer doc.Close()
+	w := newRenderWorker(doc, 1, nil)
+	defer w.Close()
+
+	app := &App{documentWorkers: documentWorkers{renderWorker: w}, renderService: renderService{renderPending: map[tileKey]renderRequest{}}}
+	key := tileKey{scale: 0.5}
+	app.queueRender(renderRequest{key: key, scale: 0.5, rect: image.Rect(0, 0, 306, 396)}, 0)
+	if !app.renderPending[key].links {
+		t.Fatal("first tile of a page did not ask for its links")
+	}
+	select {
+	case update := <-w.updates:
+		defer update.rendered.Close()
+		if len(update.links) != 1 || update.links[0].URI != "https://example.com" {
+			t.Fatalf("links = %+v, want the page's one link", update.links)
+		}
+		app.storeLinks(0, update.links)
+	case <-time.After(5 * time.Second):
+		t.Fatal("no render update")
+	}
+	next := tileKey{scale: 1}
+	app.queueRender(renderRequest{key: next, scale: 1, rect: image.Rect(0, 0, 612, 792)}, 0)
+	if app.renderPending[next].links {
+		t.Fatal("links asked for again once loaded")
+	}
+}
