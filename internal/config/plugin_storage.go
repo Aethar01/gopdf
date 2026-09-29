@@ -87,7 +87,6 @@ func getPluginStorageValue(pluginID, key string) ([]byte, bool, error) {
 	if err != nil || db == nil {
 		return nil, false, err
 	}
-	defer db.Close()
 	var data []byte
 	err = db.QueryRow(`SELECT value FROM plugin_storage WHERE plugin_id = ? AND key = ?`, pluginID, key).Scan(&data)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -104,7 +103,6 @@ func setPluginStorageValue(pluginID, key string, data []byte) error {
 	if db == nil {
 		return errPluginStorageUnavailable
 	}
-	defer db.Close()
 	_, err = db.Exec(`
 		INSERT INTO plugin_storage (plugin_id, key, value) VALUES (?, ?, ?)
 		ON CONFLICT(plugin_id, key) DO UPDATE SET value = excluded.value
@@ -120,7 +118,6 @@ func deletePluginStorageValue(pluginID, key string) error {
 	if db == nil {
 		return errPluginStorageUnavailable
 	}
-	defer db.Close()
 	_, err = db.Exec(`DELETE FROM plugin_storage WHERE plugin_id = ? AND key = ?`, pluginID, key)
 	return err
 }
@@ -130,7 +127,6 @@ func pluginStorageKeys(pluginID string) ([]string, error) {
 	if err != nil || db == nil {
 		return nil, err
 	}
-	defer db.Close()
 	rows, err := db.Query(`SELECT key FROM plugin_storage WHERE plugin_id = ? ORDER BY key`, pluginID)
 	if err != nil {
 		return nil, err

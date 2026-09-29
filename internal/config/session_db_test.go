@@ -113,6 +113,7 @@ func setTestDataDir(t *testing.T) {
 	default:
 		t.Setenv("XDG_DATA_HOME", dir)
 	}
+	t.Cleanup(CloseSessionDatabase)
 }
 
 func TestPromptHistoryKeepsNewestDistinctEntries(t *testing.T) {

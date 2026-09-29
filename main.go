@@ -108,6 +108,7 @@ func run() error {
 		return fmt.Errorf("load config: %w", err)
 	}
 	defer runtime.Close()
+	defer config.CloseSessionDatabase() // after the viewer saves its session
 
 	app, err := viewer.New(docPath, runtime, startPage-1, iconBMP, viewer.NewOptions{Verbose: verbose, StartPageExplicit: pageSet})
 	if err != nil {

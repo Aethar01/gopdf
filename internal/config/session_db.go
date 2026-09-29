@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	_ "modernc.org/sqlite"
@@ -56,7 +57,6 @@ func GetDocumentSession(path string) (DocumentSession, bool) {
 	if err != nil || db == nil {
 		return DocumentSession{}, false
 	}
-	defer db.Close()
 	var s DocumentSession
 	err = db.QueryRow(`
 		SELECT page, scroll_x, scroll_y, anchor_page, anchor_x, anchor_y, anchor_valid,
@@ -99,7 +99,6 @@ func SetDocumentSession(path string, s DocumentSession) error {
 	if db == nil {
 		return nil
 	}
-	defer db.Close()
 	_, err = db.Exec(`
 		INSERT INTO document_sessions (
 			path, page, scroll_x, scroll_y, anchor_page, anchor_x, anchor_y, anchor_valid,
@@ -142,7 +141,6 @@ func RecordRecentFile(path string, maxEntries int) error {
 	if db == nil {
 		return nil
 	}
-	defer db.Close()
 	if _, err = db.Exec(`
 		INSERT INTO recent_files (path, updated_at)
 		VALUES (?, ?)
@@ -170,7 +168,6 @@ func RecentFiles(limit int) []string {
 	if err != nil || db == nil {
 		return nil
 	}
-	defer db.Close()
 	rows, err := db.Query(`
 		SELECT path
 		FROM recent_files
@@ -201,7 +198,6 @@ func AddPromptHistory(kind, entry string, limit int) error {
 	if err != nil || db == nil {
 		return err
 	}
-	defer db.Close()
 	if _, err = db.Exec(`
 		INSERT INTO prompt_history (kind, entry, updated_at)
 		VALUES (?, ?, ?)
@@ -225,7 +221,6 @@ func PromptHistory(kind string, limit int) []string {
 	if err != nil || db == nil || limit < 1 {
 		return nil
 	}
-	defer db.Close()
 	rows, err := db.Query(`SELECT entry FROM prompt_history WHERE kind = ? ORDER BY updated_at DESC LIMIT ?`, kind, limit)
 	if err != nil {
 		return nil
@@ -253,7 +248,6 @@ func SetDocumentMark(path string, name string, mark DocumentMark) error {
 	if db == nil {
 		return nil
 	}
-	defer db.Close()
 	_, err = db.Exec(`
 		INSERT INTO document_marks (
 			path, name, page, scroll_x, scroll_y, anchor_page, anchor_x, anchor_y, anchor_valid, updated_at
@@ -280,7 +274,6 @@ func GetDocumentMark(path string, name string) (DocumentMark, bool) {
 	if err != nil || db == nil {
 		return DocumentMark{}, false
 	}
-	defer db.Close()
 	var mark DocumentMark
 	err = db.QueryRow(`
 		SELECT page, scroll_x, scroll_y, anchor_page, anchor_x, anchor_y, anchor_valid
@@ -293,11 +286,26 @@ func GetDocumentMark(path string, name string) (DocumentMark, bool) {
 	return mark, true
 }
 
+var sessionDB struct {
+	sync.Mutex
+	path string
+	db   *sql.DB
+}
+
+// openSessionDatabase returns the shared connection to the session database,
+// opening and migrating it on first use, or nil when there is no data
+// directory. Callers must not close it.
 func openSessionDatabase() (*sql.DB, error) {
 	path := SessionDatabasePath()
 	if path == "" {
 		return nil, nil
 	}
+	sessionDB.Lock()
+	defer sessionDB.Unlock()
+	if sessionDB.db != nil && sessionDB.path == path {
+		return sessionDB.db, nil
+	}
+	closeSessionDatabaseLocked() // the data directory moved
 	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
 		return nil, err
 	}
@@ -305,11 +313,28 @@ func openSessionDatabase() (*sql.DB, error) {
 	if err != nil {
 		return nil, err
 	}
+	db.SetMaxOpenConns(1) // one writer; spares connections waiting on each other's locks
 	if err := initSessionDatabase(db); err != nil {
 		db.Close()
 		return nil, err
 	}
+	sessionDB.path, sessionDB.db = path, db
 	return db, nil
+}
+
+// CloseSessionDatabase closes the shared session database connection, if
+// open; the next use reopens it.
+func CloseSessionDatabase() {
+	sessionDB.Lock()
+	defer sessionDB.Unlock()
+	closeSessionDatabaseLocked()
+}
+
+func closeSessionDatabaseLocked() {
+	if sessionDB.db != nil {
+		sessionDB.db.Close()
+		sessionDB.path, sessionDB.db = "", nil
+	}
 }
 
 func initSessionDatabase(db *sql.DB) error {
