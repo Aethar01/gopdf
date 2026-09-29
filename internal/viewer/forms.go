@@ -9,8 +9,6 @@ import (
 // Clicking a form field edits it: text fields open a prompt with the value,
 // check boxes and radio buttons toggle, and choice fields open a list.
 
-type formTarget struct{ page, index int }
-
 // clickFormField handles a press at a screen point, reporting whether it
 // landed on an editable kind of form field.
 func (a *App) clickFormField(sx, sy float64) bool {
@@ -35,24 +33,15 @@ func (a *App) clickFormField(sx, sy float64) bool {
 	}
 	switch w.Kind {
 	case mupdf.WidgetText:
-		a.closeAllUI()
-		a.formField = &formTarget{page: page, index: w.Index}
-		a.mode = modeFormField
-		a.input.Set(w.Value)
+		a.askPrompt("Field", w.Value, func(value string) {
+			a.editPage(page, func() error { return a.doc.SetWidgetValue(page, w.Index, value) })
+		})
 	case mupdf.WidgetCheckbox, mupdf.WidgetRadio:
 		a.editPage(page, func() error { return a.doc.ToggleWidget(page, w.Index) })
 	case mupdf.WidgetChoice:
 		a.pickFormChoice(page, w)
 	}
 	return true
-}
-
-func (a *App) submitFormField(value string) {
-	target := a.formField
-	a.formField = nil
-	if target != nil {
-		a.editPage(target.page, func() error { return a.doc.SetWidgetValue(target.page, target.index, value) })
-	}
 }
 
 func (a *App) pickFormChoice(page int, w mupdf.Widget) {

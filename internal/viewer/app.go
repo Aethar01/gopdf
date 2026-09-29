@@ -28,7 +28,7 @@ const (
 	modeGotoPage
 	modeSearch
 	modePassword
-	modeFormField
+	modePrompt // a one-off question answered through a.promptState
 )
 
 // pageMetrics holds a page's geometry. bounds is what layout and rendering
@@ -190,7 +190,7 @@ type inputState struct {
 	histories      map[string]*promptHistory
 	unsaved        bool        // the document has edits not yet written
 	highlightColor int         // palette index last used for highlights
-	formField      *formTarget // the text field being edited in modeFormField
+	promptState    promptState // the question asked in modePrompt
 	preview        *linkPreview
 	discardWarned  bool // the user was told that unsaved edits would be lost
 	editPos        int  // see markEdited
@@ -810,8 +810,8 @@ func (a *App) commitInputMode() {
 	}
 	currentMode := a.mode
 	input := strings.TrimSpace(a.input.Value)
-	// Passwords and field values are taken as typed, blank included.
-	verbatim := currentMode == modePassword || currentMode == modeFormField
+	// Passwords and prompt answers are taken as typed, blank included.
+	verbatim := currentMode == modePassword || currentMode == modePrompt
 	if verbatim {
 		input = a.input.Value
 	}
@@ -831,8 +831,8 @@ func (a *App) commitInputMode() {
 		a.startSearch(input, a.searchInput)
 	case modePassword:
 		a.submitDocumentPassword(input)
-	case modeFormField:
-		a.submitFormField(input)
+	case modePrompt:
+		a.answerPrompt(input)
 	}
 }
 

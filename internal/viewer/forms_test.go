@@ -25,7 +25,7 @@ func TestClickingFormFieldsEditsThem(t *testing.T) {
 		return w.Value
 	}
 
-	if !click(150, 80) || app.mode != modeFormField || app.input.Value != "Ada" {
+	if !click(150, 80) || app.mode != modePrompt || app.input.Value != "Ada" {
 		t.Fatalf("text field: mode=%v input=%q", app.mode, app.input.Value)
 	}
 	app.input.Set("")
