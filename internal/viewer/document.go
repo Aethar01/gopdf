@@ -142,6 +142,7 @@ func (a *App) openDocumentWithPassword(path string, opts openDocumentOptions, pa
 	if hadDocument && a.runtime != nil {
 		a.emitPluginEvent("document_close_pre", oldDocumentPayload)
 	}
+	a.closeViewMode()
 	a.saveDocumentSession()
 	a.closeDocumentResources()
 	if hadDocument && a.runtime != nil {
@@ -217,8 +218,6 @@ func (a *App) resetForNewDocument(password string) {
 	a.hints = nil
 	a.preview = nil
 	a.unsaved, a.discardWarned, a.editPos, a.savedPos = false, false, 0, 0
-	a.overview = nil
-	a.presentation = nil
 }
 
 func (a *App) promptDocumentPassword(path string, opts openDocumentOptions) {
@@ -313,7 +312,9 @@ func (a *App) reloadUpdatedDocument(change documentChange) error {
 		a.closeOverview(a.overview.selected)
 	}
 	path := a.docPath
-	state := a.captureViewState()
+	// Presentation mode stays on, so reload the view it shows rather than
+	// the one it returns to.
+	state := a.currentViewState()
 	if err := a.softReloadDocument(path, state); err != nil {
 		return err
 	}

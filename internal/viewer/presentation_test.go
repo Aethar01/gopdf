@@ -49,3 +49,19 @@ func TestSettingsChangedWhilePresentingCarryOver(t *testing.T) {
 		t.Fatalf("presentation's own settings not restored: dual=%v status=%v", app.dualPage, app.statusBarShown)
 	}
 }
+
+func TestOverviewFromPresentationEndsPresentation(t *testing.T) {
+	app := testLayoutApp(5)
+	app.winW, app.winH = 1000, 800
+	app.renderMode, app.fitMode, app.statusBarShown = "continuous", "width", true
+	app.recomputeLayout(app.viewportSize())
+	app.togglePresentation()
+	app.runAction("overview")
+	if app.presentation != nil || app.overview == nil {
+		t.Fatalf("presentation=%v overview=%v, want only the overview", app.presentation != nil, app.overview != nil)
+	}
+	app.runAction("overview")
+	if app.overview != nil || app.renderMode != "continuous" || app.fitMode != "width" || !app.statusBarShown || app.fullscreen {
+		t.Fatalf("after the overview: mode=%q fit=%q status=%v fullscreen=%v", app.renderMode, app.fitMode, app.statusBarShown, app.fullscreen)
+	}
+}

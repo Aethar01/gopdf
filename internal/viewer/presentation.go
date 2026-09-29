@@ -19,9 +19,7 @@ func (a *App) togglePresentation() {
 		a.closePresentation()
 		return
 	}
-	if a.overview != nil {
-		a.closeOverview(a.overview.selected)
-	}
+	a.closeViewMode()
 	a.closeAllUI()
 	a.presentation = &presentationState{saved: a.captureViewState(), fullscreen: a.fullscreen}
 	a.relayoutWithViewportAnchor(func() {

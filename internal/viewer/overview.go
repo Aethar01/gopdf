@@ -31,6 +31,7 @@ func (a *App) toggleOverview() {
 		a.closeOverview(a.overview.saved.page)
 		return
 	}
+	a.closeViewMode()
 	a.closeAllUI()
 	a.overview = &overviewState{selected: a.spreadStart(a.page), saved: a.captureViewState()}
 	a.renderMode = "continuous"

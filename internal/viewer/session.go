@@ -105,6 +105,18 @@ type viewState struct {
 	altColors       bool
 }
 
+// closeViewMode leaves the overview or presentation mode, whichever is on,
+// returning to the view from before it. Entering either mode calls it first,
+// so at most one is ever on.
+func (a *App) closeViewMode() {
+	switch {
+	case a.overview != nil:
+		a.closeOverview(a.overview.selected)
+	case a.presentation != nil:
+		a.closePresentation()
+	}
+}
+
 // captureViewState reports the view to persist; in the overview or
 // presentation mode, that is the view they will return to.
 func (a *App) captureViewState() viewState {
@@ -114,6 +126,12 @@ func (a *App) captureViewState() viewState {
 	if a.presentation != nil {
 		return a.presentationReturnState()
 	}
+	return a.currentViewState()
+}
+
+// currentViewState reports the view as shown, even in a mode that will
+// return to another.
+func (a *App) currentViewState() viewState {
 	return viewState{
 		page:            a.page,
 		scrollX:         a.scrollX,
