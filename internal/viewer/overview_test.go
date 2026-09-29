@@ -224,3 +224,20 @@ func TestOverviewGroupsSpreadsInDualMode(t *testing.T) {
 		t.Fatalf("last spread starts at %d, want 7", app.overview.selected)
 	}
 }
+
+func TestSettingsChangedInOverviewCarryOver(t *testing.T) {
+	app := testOverviewApp()
+	app.toggleOverview()
+	app.runAction("toggle_dual_page")
+	app.runAction("toggle_alt_colors")
+	if state := app.captureViewState(); !state.dualPage || state.renderMode != "single" {
+		t.Fatalf("session state %+v, want dual on with the pre-overview render mode", state)
+	}
+	app.runAction("close")
+	if !app.dualPage || !app.altColors {
+		t.Fatalf("after the overview: dual=%v alt=%v, want both kept", app.dualPage, app.altColors)
+	}
+	if app.renderMode != "single" || app.fitMode != "page" {
+		t.Fatalf("overview's own settings not restored: mode=%q fit=%q", app.renderMode, app.fitMode)
+	}
+}

@@ -31,8 +31,17 @@ func (a *App) togglePresentation() {
 	a.settleRenderScale()
 }
 
+// presentationReturnState is the view to return to: the one from before
+// presenting, keeping the settings changed meanwhile that presentation
+// mode does not set itself.
+func (a *App) presentationReturnState() viewState {
+	s := a.presentation.saved
+	s.firstPageOffset, s.rotation, s.altColors = a.firstPageOffset, a.rotation, a.altColors
+	return s
+}
+
 func (a *App) closePresentation() {
-	saved, fullscreen := a.presentation.saved, a.presentation.fullscreen
+	saved, fullscreen := a.presentationReturnState(), a.presentation.fullscreen
 	a.presentation = nil
 	page := a.page
 	a.restoreViewState(saved)

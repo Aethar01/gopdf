@@ -105,14 +105,14 @@ type viewState struct {
 	altColors       bool
 }
 
-// captureViewState reports the view to persist; in the overview, that is
-// the view it will return to.
+// captureViewState reports the view to persist; in the overview or
+// presentation mode, that is the view they will return to.
 func (a *App) captureViewState() viewState {
 	if a.overview != nil {
-		return a.overview.saved
+		return a.overviewReturnState()
 	}
 	if a.presentation != nil {
-		return a.presentation.saved
+		return a.presentationReturnState()
 	}
 	return viewState{
 		page:            a.page,

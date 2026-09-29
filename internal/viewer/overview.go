@@ -38,9 +38,19 @@ func (a *App) toggleOverview() {
 	a.relayoutOverview()
 }
 
-// closeOverview restores the view from before the overview, at page.
+// overviewReturnState is the view to return to: the one from before the
+// overview, keeping settings changed in it that the overview does not
+// override itself, such as dual-page mode.
+func (a *App) overviewReturnState() viewState {
+	s := a.overview.saved
+	s.dualPage, s.firstPageOffset, s.rotation = a.dualPage, a.firstPageOffset, a.rotation
+	s.statusBarShown, s.altColors = a.statusBarShown, a.altColors
+	return s
+}
+
+// closeOverview returns to the view from before the overview, at page.
 func (a *App) closeOverview(page int) {
-	saved := a.overview.saved
+	saved := a.overviewReturnState()
 	a.overview = nil
 	a.restoreViewState(saved)
 	if page != saved.page {

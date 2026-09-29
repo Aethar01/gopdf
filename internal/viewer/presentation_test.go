@@ -33,3 +33,19 @@ func TestPresentationStepsPagesAndRestoresView(t *testing.T) {
 		t.Fatalf("page = %d, want to stay on the presented page", app.page)
 	}
 }
+
+func TestSettingsChangedWhilePresentingCarryOver(t *testing.T) {
+	app := testLayoutApp(5)
+	app.winW, app.winH = 1000, 800
+	app.dualPage, app.statusBarShown = true, true
+	app.recomputeLayout(app.viewportSize())
+	app.togglePresentation()
+	app.runAction("rotate_cw")
+	app.runAction("close")
+	if app.rotation != 90 {
+		t.Fatalf("rotation = %v after presenting, want 90 kept", app.rotation)
+	}
+	if !app.dualPage || !app.statusBarShown {
+		t.Fatalf("presentation's own settings not restored: dual=%v status=%v", app.dualPage, app.statusBarShown)
+	}
+}
