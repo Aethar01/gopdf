@@ -23,9 +23,38 @@ import (
 	"golang.org/x/image/math/fixed"
 )
 
+// fileBackedFontFace reads its font from an open file as needed, so it
+// caches the per-rune metrics that measuring text looks up, which would
+// otherwise read the file for every rune measured.
 type fileBackedFontFace struct {
 	font.Face
-	file *os.File
+	file     *os.File
+	advances map[rune]glyphAdvance
+	kerns    map[[2]rune]fixed.Int26_6
+}
+
+type glyphAdvance struct {
+	advance fixed.Int26_6
+	ok      bool
+}
+
+func (f *fileBackedFontFace) GlyphAdvance(r rune) (fixed.Int26_6, bool) {
+	if a, ok := f.advances[r]; ok {
+		return a.advance, a.ok
+	}
+	advance, ok := f.Face.GlyphAdvance(r)
+	f.advances[r] = glyphAdvance{advance, ok}
+	return advance, ok
+}
+
+func (f *fileBackedFontFace) Kern(r0, r1 rune) fixed.Int26_6 {
+	pair := [2]rune{r0, r1}
+	if k, ok := f.kerns[pair]; ok {
+		return k
+	}
+	k := f.Face.Kern(r0, r1)
+	f.kerns[pair] = k
+	return k
 }
 
 func (f *fileBackedFontFace) Close() error {
@@ -165,7 +194,7 @@ func loadFontFileAt(path string, size, collectionIndex int) (font.Face, error) {
 		_ = file.Close()
 		return nil, err
 	}
-	return &fileBackedFontFace{Face: face, file: file}, nil
+	return &fileBackedFontFace{Face: face, file: file, advances: map[rune]glyphAdvance{}, kerns: map[[2]rune]fixed.Int26_6{}}, nil
 }
 
 func openTypeFontReaderAt(file *os.File, collectionIndex int) (io.ReaderAt, error) {

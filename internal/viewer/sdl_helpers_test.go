@@ -55,3 +55,22 @@ func TestLoadFontFileSupportsLargeTTC(t *testing.T) {
 		t.Fatalf("font size did not scale: 12px height=%v 36px height=%v", small.Metrics().Height, large.Metrics().Height)
 	}
 }
+
+func TestFileFontMeasuresLikeItsUncachedFace(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "regular.ttf")
+	if err := os.WriteFile(path, goregular.TTF, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	face, err := loadFontFile(path, 14)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer closeFontFace(face)
+	const s = "AVAWaY To, kerned text"
+	want := measureText(face.(*fileBackedFontFace).Face, s)
+	for range 2 { // the second pass reads the cache
+		if got := measureText(face, s); got != want {
+			t.Fatalf("measured %d, want %d", got, want)
+		}
+	}
+}
