@@ -164,7 +164,7 @@ func (a *App) relayoutOverview() {
 
 // runOverviewAction handles actions while the overview is shown, reporting
 // false for those that should run as usual. The overview scrolls by whole
-// rows with its selection, so pan pages down like the space key once did.
+// rows with its selection; pan and autoscroll scroll it freely.
 func (a *App) runOverviewAction(action string) bool {
 	columns := a.overviewColumns()
 	switch action {
@@ -176,7 +176,7 @@ func (a *App) runOverviewAction(action string) bool {
 		a.moveOverviewSelection(1)
 	case "scroll_left", "prev_spread":
 		a.moveOverviewSelection(-1)
-	case "next_page", "pan":
+	case "next_page":
 		a.moveOverviewSelection(a.overviewVisibleRows() * columns)
 	case "prev_page":
 		a.moveOverviewSelection(-a.overviewVisibleRows() * columns)
@@ -260,6 +260,23 @@ func (a *App) clickOverview(e *sdl.MouseButtonEvent) {
 	if page, _, ok := a.pagePointAtScreen(float64(e.X), float64(e.Y)); ok {
 		a.closeOverview(page)
 	}
+}
+
+// hoverOverview selects the spread under the pointer, as menus do, without
+// scrolling so the grid stays put under the mouse. It reports whether the
+// selection changed.
+func (a *App) hoverOverview(x, y float64) bool {
+	page, _, ok := a.pagePointAtScreen(x, y)
+	if !ok {
+		return false
+	}
+	selected := a.spreadStart(page)
+	if selected == a.overview.selected {
+		return false
+	}
+	a.overview.selected = selected
+	a.page = selected
+	return true
 }
 
 func (a *App) drawOverviewSelection(renderer *sdl.Renderer) {

@@ -305,7 +305,7 @@ func (a *App) advanceSmoothScrollBy(elapsed time.Duration) bool {
 	a.scrollY = nextY
 	a.clampScroll()
 	if a.renderMode != renderSingle && (a.scrollX != oldX || a.scrollY != oldY) {
-		a.updateCurrentPageFromScroll()
+		a.followScroll()
 	}
 	state.appliedX = a.scrollX
 	state.appliedY = a.scrollY

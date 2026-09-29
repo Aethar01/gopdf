@@ -247,6 +247,10 @@ func (a *App) clampScroll() {
 }
 
 func (a *App) updateCurrentPageFromScroll() {
+	if a.overview != nil {
+		a.page = a.overview.selected // the selection, not the scroll, picks it
+		return
+	}
 	if len(a.rows) == 0 {
 		return
 	}

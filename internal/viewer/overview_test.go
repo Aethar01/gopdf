@@ -5,6 +5,7 @@ import (
 	"math"
 	"slices"
 	"testing"
+	"time"
 
 	"gopdf/internal/config"
 	"gopdf/internal/mupdf"
@@ -222,6 +223,75 @@ func TestOverviewGroupsSpreadsInDualMode(t *testing.T) {
 	app.runAction("last_page")
 	if app.overview.selected != 7 {
 		t.Fatalf("last spread starts at %d, want 7", app.overview.selected)
+	}
+}
+
+func TestOverviewSelectionFollowsHover(t *testing.T) {
+	app := testLayoutApp(9)
+	app.winW, app.winH = 1000, 800
+	app.dualPage, app.firstPageOffset = true, true
+	app.recomputeLayout(app.viewportSize())
+	app.toggleOverview()
+	row := app.rows[app.pageToRow[4]]
+	i := slices.Index(row.pages, 4)
+	x, y := app.rowPageScreenOrigin(row, i)
+	scrollY := app.scrollY
+	if !app.handleSDLMouseMotion(&sdl.MouseMotionEvent{X: float32(x + row.pageW[i]/2), Y: float32(y + row.pageH[i]/2)}) {
+		t.Fatal("hovering another spread reported no change")
+	}
+	if app.overview.selected != 3 || app.scrollY != scrollY {
+		t.Fatalf("selected = %d, scrollY %.1f -> %.1f; want spread 3 and no scroll", app.overview.selected, scrollY, app.scrollY)
+	}
+	if app.handleSDLMouseMotion(&sdl.MouseMotionEvent{X: float32(x + 1), Y: float32(y + 1)}) {
+		t.Fatal("moving within the selected spread reported a change")
+	}
+}
+
+func TestOverviewAutoscrollsAndSelectionFollowsPointer(t *testing.T) {
+	app := testLayoutApp(200)
+	app.winW, app.winH = 1000, 800
+	app.config.AutoscrollSpeedFactor, app.config.AutoscrollMaxSpeed = 1, 20000
+	app.mouseBindings = map[string]string{"middle_down": "autoscroll"}
+	app.recomputeLayout(app.viewportSize())
+	app.toggleOverview()
+	row := app.rows[0]
+	x, y := app.rowPageScreenOrigin(row, 1)
+	px, py := float32(x+row.pageW[1]/2), float32(y+row.pageH[1]/2)
+	app.handleSDLMouseMotion(&sdl.MouseMotionEvent{X: px, Y: py})
+	app.handleSDLMouseButton(&sdl.MouseButtonEvent{Type: sdl.EventMouseButtonDown, Button: uint8(sdl.ButtonMiddle), X: px, Y: py})
+	if app.autoscroll == nil {
+		t.Fatal("middle click did not start autoscroll in the overview")
+	}
+	app.pointer.Y += autoscrollDeadZone + 100
+	app.advanceAutoscrollBy(time.Second)
+	if app.scrollY == 0 {
+		t.Fatal("autoscroll did not scroll the overview")
+	}
+	page, _, ok := app.pagePointAtScreen(float64(app.pointer.X), float64(app.pointer.Y))
+	if !ok || app.overview.selected != page || app.page != page {
+		t.Fatalf("selected %d, page %d; want the page under the pointer %d", app.overview.selected, app.page, page)
+	}
+}
+
+func TestOverviewPansWithTheMouse(t *testing.T) {
+	app := testLayoutApp(200)
+	app.winW, app.winH = 1000, 800
+	app.recomputeLayout(app.viewportSize())
+	app.toggleOverview()
+	app.actionKeycode = sdl.KeycodeSpace
+	app.runAction("pan")
+	app.actionKeycode = 0
+	if !app.panning {
+		t.Fatal("pan did not start in the overview")
+	}
+	selected := app.overview.selected
+	app.handleSDLMouseMotion(&sdl.MouseMotionEvent{X: 500, Y: 400, Yrel: -300})
+	if app.scrollY != 300 || app.overview.selected != selected {
+		t.Fatalf("scrollY = %.1f, selected %d -> %d; want 300 and the same selection", app.scrollY, selected, app.overview.selected)
+	}
+	app.handleSDLKeyUp(&sdl.KeyboardEvent{Key: sdl.KeycodeSpace})
+	if app.panning {
+		t.Fatal("releasing the key did not end the pan")
 	}
 }
 

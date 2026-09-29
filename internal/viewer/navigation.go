@@ -108,6 +108,16 @@ func (a *App) scrollBy(dx, dy float64) {
 	if a.renderMode == renderSingle || (a.scrollX == oldX && a.scrollY == oldY) {
 		return
 	}
+	a.followScroll()
+}
+
+// followScroll updates the current page after the view scrolled freely. In
+// the overview the selection follows the pointer instead, as on hover.
+func (a *App) followScroll() {
+	if a.overview != nil {
+		a.hoverOverview(float64(a.pointer.X), float64(a.pointer.Y))
+		return
+	}
 	a.updateCurrentPageFromScroll()
 }
 

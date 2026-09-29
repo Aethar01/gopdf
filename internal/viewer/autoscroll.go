@@ -74,10 +74,10 @@ func (a *App) stopAutoscroll() {
 	a.updateCursor()
 }
 
-// autoscrollAllowed reports whether the document view is showing, the
-// only place autoscroll applies.
+// autoscrollAllowed reports whether the document view or the overview is
+// showing, the only places autoscroll applies.
 func (a *App) autoscrollAllowed() bool {
-	return a.doc != nil && a.mode == modeNormal && a.overview == nil && a.presentation == nil && a.activeModalUIView() == nil
+	return a.doc != nil && a.mode == modeNormal && a.presentation == nil && a.activeModalUIView() == nil
 }
 
 // releaseAutoscroll handles the release of the key or button holding

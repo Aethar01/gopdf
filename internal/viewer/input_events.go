@@ -212,10 +212,6 @@ func (a *App) handleSDLMouseButton(e *sdl.MouseButtonEvent) {
 		}
 		return
 	}
-	if a.overview != nil {
-		a.clickOverview(e)
-		return
-	}
 	if a.presentation != nil {
 		a.clickPresentation(e)
 		return
@@ -233,6 +229,10 @@ func (a *App) handleSDLMouseButton(e *sdl.MouseButtonEvent) {
 		}
 	}
 	if a.panning {
+		return
+	}
+	if a.overview != nil {
+		a.clickOverview(e)
 		return
 	}
 	if e.Button == uint8(sdl.ButtonLeft) && e.Type == sdl.EventMouseButtonDown && a.clickFormField(float64(e.X), float64(e.Y)) {
@@ -319,6 +319,9 @@ func (a *App) handleSDLMouseMotion(e *sdl.MouseMotionEvent) bool {
 		return a.scrollX != oldX || a.scrollY != oldY
 	}
 	a.stopPan()
+	if a.overview != nil {
+		return a.hoverOverview(float64(e.X), float64(e.Y))
+	}
 
 	link, overLink := a.linkAt(float64(e.X), float64(e.Y))
 	hoverChanged := a.setHoveredLink(link, overLink)
