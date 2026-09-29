@@ -373,16 +373,6 @@ func (a *App) SetFullscreen(fullscreen bool) error {
 	return renderBool(sdl.SetWindowFullscreen(a.window, false), "set fullscreen")
 }
 
-func (a *App) StatusBarVisible() bool { return a.statusBarShown }
-
-func (a *App) SetStatusBarVisible(visible bool) error {
-	if a.statusBarShown == visible {
-		return nil
-	}
-	a.relayoutWithViewportAnchor(func() { a.statusBarShown = visible })
-	return nil
-}
-
 func (a *App) CacheEntries() int { return len(a.cache.entries) }
 
 func (a *App) CachePending() int { return len(a.renderPending) }

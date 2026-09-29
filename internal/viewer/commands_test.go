@@ -208,7 +208,7 @@ func TestConfigChangesKeepActionSettingsUnlessAssigned(t *testing.T) {
 
 	app.runAction("toggle_dual_page")
 	app.runCommand(":set scroll_step=80")
-	app.runCommand(":lua gopdf.status_bar.right = '{page}'")
+	app.runCommand(":lua gopdf.o.status_bar_right = '{page}'")
 	if !app.dualPage {
 		t.Fatal("unrelated config changes undid dual-page mode set by an action")
 	}

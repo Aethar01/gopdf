@@ -171,8 +171,6 @@ type Host interface {
 	SetRotation(rotation float64) error
 	Fullscreen() bool
 	SetFullscreen(fullscreen bool) error
-	StatusBarVisible() bool
-	SetStatusBarVisible(visible bool) error
 	CacheEntries() int
 	CachePending() int
 	CacheLimit() int

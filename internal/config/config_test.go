@@ -31,7 +31,6 @@ type stubHost struct {
 	zoom             float64
 	rotation         float64
 	fullscreen       bool
-	statusBarVisible bool
 	cacheEntries     int
 	cachePending     int
 	cacheLimit       int
@@ -181,13 +180,6 @@ func (h *stubHost) Fullscreen() bool { return h.fullscreen }
 
 func (h *stubHost) SetFullscreen(fullscreen bool) error {
 	h.fullscreen = fullscreen
-	return nil
-}
-
-func (h *stubHost) StatusBarVisible() bool { return h.statusBarVisible }
-
-func (h *stubHost) SetStatusBarVisible(visible bool) error {
-	h.statusBarVisible = visible
 	return nil
 }
 
@@ -729,8 +721,6 @@ bind("X", function()
   local zoom = gopdf.zoom(1.75)
   local rotation = gopdf.rotation(180)
   local fullscreen = gopdf.fullscreen(false)
-  gopdf.status_bar.visible = false
-  local status_bar_visible = gopdf.status_bar.visible
   gopdf.search("needle", true)
   local keys = gopdf.pending_keys()
   local cache_limit = gopdf.cache.limit(48)
@@ -741,7 +731,6 @@ bind("X", function()
      zoom ~= gopdf.zoom() or
      rotation ~= gopdf.rotation() or
      fullscreen ~= gopdf.fullscreen() or
-     status_bar_visible ~= false or
      cache_limit ~= gopdf.cache.limit() then
     error("setter did not return the current value")
   end
@@ -753,7 +742,6 @@ bind("X", function()
     tostring(zoom) .. ":" ..
     tostring(rotation) .. ":" ..
     tostring(fullscreen) .. ":" ..
-    tostring(status_bar_visible) .. ":" ..
     tostring(cache_limit) .. ":" ..
     tostring(gopdf.search_match_index()) .. "/" .. tostring(gopdf.search_match_count()) .. ":" ..
     gopdf.current_count() .. ":" ..
@@ -784,7 +772,6 @@ end)
 		zoom:             1.25,
 		rotation:         90,
 		fullscreen:       true,
-		statusBarVisible: true,
 		cacheEntries:     7,
 		cachePending:     3,
 		cacheLimit:       24,
@@ -797,7 +784,7 @@ end)
 	if host.page != 9 || host.fitMode != "width" || host.renderMode != "single" {
 		t.Fatalf("expected navigation/view setters to run, host=%+v", host)
 	}
-	if host.zoom != 1.75 || host.rotation != 180 || host.fullscreen || host.statusBarVisible {
+	if host.zoom != 1.75 || host.rotation != 180 || host.fullscreen {
 		t.Fatalf("expected zoom/rotation/fullscreen/status updates, host=%+v", host)
 	}
 	if host.searchQuery != "needle" || !host.searchBackward {
@@ -806,7 +793,7 @@ end)
 	if host.cacheLimit != 48 || !host.cacheCleared {
 		t.Fatalf("expected cache controls to run, host=%+v", host)
 	}
-	if got := host.message; got != "9:normal:width:single:1.75:180:false:false:48:2/5:12:g" {
+	if got := host.message; got != "9:normal:width:single:1.75:180:false:48:2/5:12:g" {
 		t.Fatalf("unexpected message %q", got)
 	}
 	if len(host.pendingKeys) != 0 || host.currentCount != "" {
@@ -1080,7 +1067,7 @@ options.background = { -5, 128, 999 }
 func TestLoadReturnsConfigFromExplicitPath(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "config.lua")
-	if err := os.WriteFile(path, []byte(`gopdf.status_bar.visible = false`), 0o644); err != nil {
+	if err := os.WriteFile(path, []byte(`gopdf.options.status_bar_visible = false`), 0o644); err != nil {
 		t.Fatal(err)
 	}
 

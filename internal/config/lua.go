@@ -111,9 +111,6 @@ func newLuaModule(L *lua.LState, rt *Runtime, cfg *Config) *lua.LTable {
 		name := action
 		L.SetField(mod, name, newLuaActionValue(L, rt, name))
 	}
-	statusBar := newLuaStatusBarTable(L, rt, cfg)
-	L.SetField(mod, "status_bar", statusBar)
-	L.SetField(mod, "sb", statusBar)
 	return mod
 }
 
@@ -340,53 +337,6 @@ func luaTableUIRows(value lua.LValue) []UIListRow {
 		})
 	}
 	return rows
-}
-
-func newLuaStatusBarTable(L *lua.LState, rt *Runtime, cfg *Config) *lua.LTable {
-	tbl := L.NewTable()
-	mt := L.NewTable()
-	L.SetField(mt, "__newindex", L.NewFunction(func(L *lua.LState) int {
-		name := strings.ToLower(strings.TrimSpace(L.CheckString(2)))
-		value := L.CheckAny(3)
-		switch name {
-		case "left":
-			cfg.StatusBarLeft = lua.LVAsString(value)
-			rt.dirty = true
-		case "right":
-			cfg.StatusBarRight = lua.LVAsString(value)
-			rt.dirty = true
-		case "visible":
-			cfg.StatusBarVisible = lua.LVAsBool(value)
-			if rt.host != nil {
-				if err := rt.host.SetStatusBarVisible(cfg.StatusBarVisible); err != nil {
-					L.RaiseError("status_bar.visible: %v", err)
-				}
-			}
-		default:
-			L.RaiseError("status_bar.%s: unknown option", name)
-		}
-		return 0
-	}))
-	L.SetField(mt, "__index", L.NewFunction(func(L *lua.LState) int {
-		name := strings.ToLower(strings.TrimSpace(L.CheckString(2)))
-		switch name {
-		case "left":
-			L.Push(lua.LString(cfg.StatusBarLeft))
-		case "right":
-			L.Push(lua.LString(cfg.StatusBarRight))
-		case "visible":
-			if rt.host != nil {
-				L.Push(lua.LBool(rt.host.StatusBarVisible()))
-			} else {
-				L.Push(lua.LBool(cfg.StatusBarVisible))
-			}
-		default:
-			L.RaiseError("status_bar.%s: unknown option", name)
-		}
-		return 1
-	}))
-	L.SetMetatable(tbl, mt)
-	return tbl
 }
 
 func luaStringsTable(L *lua.LState, values []string) *lua.LTable {
