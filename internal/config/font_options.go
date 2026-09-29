@@ -12,19 +12,19 @@ import (
 const uiFontSelectorScheme = "gopdf-font"
 
 func init() {
-	configOptions["ui_font"] = stringOption("Installed UI font family; empty uses the built-in font.", func(c *Config) string { return c.UIFont }, func(c *Config, v string) {
+	registerOption("ui_font", stringOption("Installed UI font family; empty uses the built-in font.", func(c *Config) string { return c.UIFont }, func(c *Config, v string) {
 		c.UIFont = strings.TrimSpace(v)
 		syncUIFontPath(c)
-	})
-	configOptions["ui_font_style"] = stringOption("UI font style: normal, italic, or oblique.", func(c *Config) string { return c.UIFontStyle }, func(c *Config, v string) {
+	}))
+	registerOption("ui_font_style", stringOption("UI font style: normal, italic, or oblique.", func(c *Config) string { return c.UIFontStyle }, func(c *Config, v string) {
 		c.UIFontStyle = normalizeUIFontStyle(v)
 		syncUIFontPath(c)
-	})
-	configOptions["ui_font_weight"] = uiFontWeightOption()
-	configOptions["ui_font_path"] = stringOption("Explicit UI font file path; overrides ui_font, ui_font_style, and ui_font_weight.", func(c *Config) string { return c.UIFontPathOverride }, func(c *Config, v string) {
+	}))
+	registerOption("ui_font_weight", uiFontWeightOption())
+	registerOption("ui_font_path", stringOption("Explicit UI font file path; overrides ui_font, ui_font_style, and ui_font_weight.", func(c *Config) string { return c.UIFontPathOverride }, func(c *Config, v string) {
 		c.UIFontPathOverride = strings.TrimSpace(v)
 		syncUIFontPath(c)
-	})
+	}))
 }
 
 func uiFontWeightOption() optionDesc {

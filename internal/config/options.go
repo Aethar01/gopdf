@@ -361,6 +361,15 @@ func parseColorOption(raw string) ([3]uint8, error) {
 	return color, nil
 }
 
+// registerOption adds an option defined outside the configOptions literal,
+// refusing names that are already taken.
+func registerOption(name string, desc optionDesc) {
+	if _, ok := configOptions[name]; ok {
+		panic("config: option " + name + " registered twice")
+	}
+	configOptions[name] = desc
+}
+
 var configOptions = map[string]optionDesc{
 	"mouse_text_select":      boolOption("Enable text selection with the left mouse button.", func(c *Config) bool { return c.MouseTextSelect }, func(c *Config, v bool) { c.MouseTextSelect = v }),
 	"smooth_scroll":          smoothInputSourcesOption("Animate scrolling for selected inputs; assignments update only specified mouse, trackpad, and keyboard fields.", func(c *Config) SmoothInputSources { return c.SmoothScrollSources }, func(c *Config, v SmoothInputSources) { c.SmoothScrollSources = v }),
@@ -433,7 +442,6 @@ var configOptions = map[string]optionDesc{
 	"hint_chars":           stringOption("Characters used for link hint labels, in order of preference.", func(c *Config) string { return c.HintChars }, func(c *Config, v string) { c.HintChars = v }),
 	"fit_mode":             stringOption("Initial fit mode: page, width, height, or manual.", func(c *Config) string { return c.FitMode }, func(c *Config, v string) { c.FitMode = NormalizeFitMode(v) }),
 	"anchor_position":      stringOption("Viewport anchor: center, top, or bottom.", func(c *Config) string { return c.AnchorPosition }, func(c *Config, v string) { c.AnchorPosition = NormalizeAnchorPosition(v) }),
-	"ui_font_path":         stringOption("Path to a UI font; empty uses the built-in default.", func(c *Config) string { return c.UIFontPath }, func(c *Config, v string) { c.UIFontPath = v }),
 	"status_bar_left":      stringOption("Left status bar template.", func(c *Config) string { return c.StatusBarLeft }, func(c *Config, v string) { c.StatusBarLeft = v }),
 	"status_bar_right":     stringOption("Right status bar template.", func(c *Config) string { return c.StatusBarRight }, func(c *Config, v string) { c.StatusBarRight = v }),
 	"background":           colorOption("Viewer background color.", func(c *Config) [3]uint8 { return c.Background }, func(c *Config, v [3]uint8) { c.Background = v }),
