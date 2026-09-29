@@ -220,3 +220,26 @@ func TestConfigChangesKeepActionSettingsUnlessAssigned(t *testing.T) {
 		t.Fatal("assigning dual_page its current config value did not apply it")
 	}
 }
+
+func TestSetStatusBarVisibleAppliesAfterToggle(t *testing.T) {
+	rt, err := config.Open(filepath.Join(t.TempDir(), "missing.lua"), "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rt.Close()
+	app := testLayoutApp(4)
+	app.winW, app.winH = 800, 600
+	app.runtime = rt
+	rt.AttachHost(app)
+	app.applyConfigState(rt.Config())
+
+	app.runAction("toggle_status_bar") // hidden, while the config still says shown
+	app.runCommand(":set status_bar_visible=true")
+	if !app.statusBarShown {
+		t.Fatal(":set status_bar_visible=true did not show the status bar")
+	}
+	app.runCommand(":set status_bar_visible=false")
+	if app.statusBarShown {
+		t.Fatal(":set status_bar_visible=false did not hide the status bar")
+	}
+}

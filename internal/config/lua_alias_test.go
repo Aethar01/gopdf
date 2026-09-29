@@ -47,3 +47,21 @@ gopdf.sb.right = "{page}"
 		t.Fatalf("expected gopdf.sb to set the status bar, visible=%v right=%q", cfg.StatusBarVisible, cfg.StatusBarRight)
 	}
 }
+
+func TestStatusBarVisibleOptionAndTableShareTheSetting(t *testing.T) {
+	dir := t.TempDir()
+	rt, err := Open(filepath.Join(dir, "missing.lua"), filepath.Join(dir, "doc.pdf"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rt.Close()
+
+	if _, err := rt.Eval(`
+gopdf.o.status_bar_visible = false
+assert(gopdf.sb.visible == false)
+gopdf.sb.visible = true
+assert(gopdf.o.status_bar_visible == true)
+`); err != nil {
+		t.Fatal(err)
+	}
+}

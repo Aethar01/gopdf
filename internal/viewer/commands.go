@@ -233,7 +233,7 @@ func (a *App) applyConfig(cfg config.Config, assigned map[string]bool) {
 		apply(prev.RenderMode != cfg.RenderMode, "render_mode", func() { a.renderMode = sanitizeRenderMode(cfg.RenderMode) })
 		apply(prev.DualPage != cfg.DualPage, "dual_page", func() { a.dualPage = cfg.DualPage })
 		apply(prev.FirstPageOffset != cfg.FirstPageOffset, "first_page_offset", func() { a.firstPageOffset = cfg.FirstPageOffset })
-		apply(prev.StatusBarVisible != cfg.StatusBarVisible, "", func() { a.statusBarShown = cfg.StatusBarVisible })
+		apply(prev.StatusBarVisible != cfg.StatusBarVisible, "status_bar_visible", func() { a.statusBarShown = cfg.StatusBarVisible })
 		if changed {
 			a.cancelSmoothZoom()
 			a.cancelSmoothScroll()
