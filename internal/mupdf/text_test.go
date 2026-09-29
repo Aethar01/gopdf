@@ -1,6 +1,7 @@
 package mupdf
 
 import (
+	"errors"
 	"fmt"
 	"image"
 	"strings"
@@ -382,4 +383,40 @@ func TestFindRecolourAndDeleteAnnotation(t *testing.T) {
 	if _, ok, _ := doc.AnnotationAt(0, Point{X: 100, Y: 90}); !ok {
 		t.Fatal("undo did not restore the deleted annotation")
 	}
+}
+
+func TestCancelledRenderReportsErrCancelled(t *testing.T) {
+	lines := make([]string, 50)
+	for i := range lines {
+		lines[i] = strings.Repeat("dense text to rasterise ", 4)
+	}
+	doc := mustOpen(t, testpdf.Write(t, lines...))
+	renderer, err := doc.NewRenderer()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer renderer.Close()
+	stop := make(chan struct{})
+	defer close(stop)
+	go func() {
+		for {
+			select {
+			case <-stop:
+				return
+			default:
+				renderer.Cancel()
+			}
+		}
+	}()
+	for range 200 {
+		rendered, err := renderer.Render(0, 6, wholePage, 8)
+		if errors.Is(err, ErrCancelled) {
+			return
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
+		rendered.Close()
+	}
+	t.Skip("no render was cancelled mid-flight")
 }

@@ -759,12 +759,13 @@ void gopdf_cancel_renderer(gopdf_renderer *renderer) {
 
 /* Rasterises the part of a display list inside clip, in device pixels at
  * scale, into a malloc'd RGBA buffer. Consumes the caller's reference to
- * list. */
+ * list. Returns 2, with no buffer, when the render was cancelled. */
 int gopdf_render_display_list(gopdf_renderer *renderer, fz_display_list *list, float scale, gopdf_irect clip, int aa_level, unsigned char **samples, int *width, int *height, int *stride, int *x, int *y, char **err) {
 	fz_context *ctx = renderer->ctx;
 	fz_pixmap *pix = NULL;
 	fz_device *dev = NULL;
 	fz_matrix ctm = fz_scale(scale, scale);
+	int cancelled = 0;
 	fz_irect clip_rect = fz_make_irect(clip.x0, clip.y0, clip.x1, clip.y1);
 	fz_irect bbox = fz_empty_irect;
 	*err = NULL;
@@ -805,6 +806,7 @@ int gopdf_render_display_list(gopdf_renderer *renderer, fz_display_list *list, f
 			memset(&renderer->cookie, 0, sizeof(renderer->cookie));
 			fz_run_display_list(ctx, list, dev, ctm, fz_rect_from_irect(bbox), &renderer->cookie);
 			fz_close_device(ctx, dev);
+			cancelled = renderer->cookie.abort;
 		}
 	} fz_always(ctx) {
 		fz_drop_device(ctx, dev);
@@ -815,6 +817,11 @@ int gopdf_render_display_list(gopdf_renderer *renderer, fz_display_list *list, f
 		*samples = NULL;
 		*err = gopdf_dup_string(fz_caught_message(ctx));
 		return 0;
+	}
+	if (cancelled) {
+		free(*samples);
+		*samples = NULL;
+		return 2;
 	}
 	return 1;
 }

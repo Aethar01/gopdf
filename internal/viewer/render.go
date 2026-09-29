@@ -1,11 +1,13 @@
 package viewer
 
 import (
+	"errors"
 	"image"
 	"math"
 	"time"
 
 	"gopdf/internal/config"
+	"gopdf/internal/mupdf"
 )
 
 type renderService struct {
@@ -50,6 +52,9 @@ func (a *App) acceptRenderUpdate(update renderUpdate) {
 		return
 	}
 	delete(a.renderPending, req.key)
+	if errors.Is(update.err, mupdf.ErrCancelled) {
+		return // requested again if still wanted
+	}
 	if update.err != nil {
 		a.logf("render update failed err=%v", update.err)
 		a.message = update.err.Error()

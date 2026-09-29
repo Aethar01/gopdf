@@ -7,12 +7,17 @@ package mupdf
 import "C"
 
 import (
+	"errors"
 	"fmt"
 	"image"
 	"math"
 	"sync"
 	"unsafe"
 )
+
+// ErrCancelled reports a render stopped by Cancel; its partial output is
+// discarded.
+var ErrCancelled = errors.New("render cancelled")
 
 // Renderer rasterises pages on a private MuPDF context. The document lock is
 // held only while fetching a page's display list, so renderers run
@@ -73,8 +78,11 @@ func (r *Renderer) Render(page int, scale float64, clip image.Rectangle, aaLevel
 	var samples *C.uchar
 	var width, height, stride, x, y C.int
 	var cerr *C.char
-	if ok := C.gopdf_render_display_list(r.handle, list, C.float(scale), irect(clip), C.int(aaLevel), &samples, &width, &height, &stride, &x, &y, &cerr); ok == 0 {
+	switch C.gopdf_render_display_list(r.handle, list, C.float(scale), irect(clip), C.int(aaLevel), &samples, &width, &height, &stride, &x, &y, &cerr) {
+	case 0:
 		return nil, consumeError("render page", cerr)
+	case 2:
+		return nil, ErrCancelled
 	}
 	if samples == nil {
 		return &RenderedPage{Image: image.NewRGBA(image.Rect(0, 0, 0, 0)), X: int(x), Y: int(y)}, nil
