@@ -317,6 +317,14 @@ func (a *App) applyRenderBaseScaleTarget(target float64) bool {
 	return false
 }
 
+// settleRenderScale applies the render scale for the current view at once,
+// skipping the delay that lets a gradual zoom settle first; for jumps in
+// scale such as entering or leaving the overview.
+func (a *App) settleRenderScale() {
+	a.renderScaleTarget, a.renderScaleReadyAt = 0, time.Time{}
+	a.applyRenderBaseScaleTarget(a.currentRenderTarget())
+}
+
 func (a *App) adjustRenderBaseScaleForExtremeZoom(layoutScale float64) {
 	a.scheduleRenderScaleTarget(layoutScale)
 	if a.applyScheduledRenderScaleTarget() {

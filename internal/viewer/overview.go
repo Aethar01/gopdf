@@ -30,6 +30,7 @@ func (a *App) toggleOverview() {
 	a.renderMode = "continuous"
 	a.fitMode = "width"
 	a.relayoutOverview()
+	a.settleRenderScale()
 }
 
 // closeOverview restores the view from before the overview, at page.
@@ -40,6 +41,7 @@ func (a *App) closeOverview(page int) {
 	if page != saved.page {
 		a.alignPageToAnchor(page)
 	}
+	a.settleRenderScale()
 }
 
 func (a *App) overviewColumns() int {

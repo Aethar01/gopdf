@@ -119,3 +119,20 @@ func TestPromptOverOverviewReceivesEnter(t *testing.T) {
 		t.Fatal("command not run")
 	}
 }
+
+func TestLeavingOverviewRestoresRenderScaleAtOnce(t *testing.T) {
+	app := testOverviewApp()
+	app.fitMode = "width" // scale 10, well above the overview's thumbnails
+	app.recomputeLayout(app.viewportSize())
+	app.config.RenderOversample = 1
+	app.ensureRenderBaseScale()
+	before := app.renderBaseScale
+	app.toggleOverview()
+	if app.renderBaseScale >= before {
+		t.Fatalf("overview kept render scale %.3f (was %.3f)", app.renderBaseScale, before)
+	}
+	app.runAction("confirm")
+	if app.renderBaseScale < app.scale*renderUpgradeTolerance {
+		t.Fatalf("render scale %.3f after leaving the overview, view scale %.3f", app.renderBaseScale, app.scale)
+	}
+}

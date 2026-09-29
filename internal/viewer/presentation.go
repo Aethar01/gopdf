@@ -28,6 +28,7 @@ func (a *App) togglePresentation() {
 		a.renderMode, a.fitMode, a.dualPage, a.statusBarShown = "single", "page", false, false
 	})
 	a.SetFullscreen(true)
+	a.settleRenderScale()
 }
 
 func (a *App) closePresentation() {
@@ -37,6 +38,7 @@ func (a *App) closePresentation() {
 	a.restoreViewState(saved)
 	a.SetFullscreen(fullscreen)
 	a.alignPageToAnchor(page)
+	a.settleRenderScale()
 }
 
 // runPresentationAction turns movement into page steps, reporting false for
