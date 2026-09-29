@@ -55,7 +55,7 @@ func (a *App) drawSinglePage(renderer *sdl.Renderer) {
 func (a *App) drawPage(renderer *sdl.Renderer, page int, x, y, width, height float64) {
 	_ = a.drawPageBackground(renderer, x, y, page)
 	viewportW, viewportH := a.viewportSize()
-	tiles := a.cache.pageTiles(page, a.renderScaleFor(a.scale), a.tileVersion(page))
+	tiles := a.cache.pageTiles(page, a.tileVersion(page))
 	for _, tile := range tiles {
 		a.drawTile(renderer, tile, x, y, viewportW, viewportH)
 	}

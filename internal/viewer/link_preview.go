@@ -108,7 +108,7 @@ func (a *App) drawLinkPreview(renderer *sdl.Renderer) {
 	sdl.SetRenderClipRect(renderer, &clip)
 	viewportW, viewportH := a.viewportSize()
 	page := a.preview.link.Page
-	for _, tile := range a.cache.pageTiles(page, a.renderScaleFor(a.scale), a.tileVersion(page)) {
+	for _, tile := range a.cache.pageTiles(page, a.tileVersion(page)) {
 		a.drawTile(renderer, tile, x, y, viewportW, viewportH)
 	}
 	sdl.SetRenderClipRect(renderer, nil)

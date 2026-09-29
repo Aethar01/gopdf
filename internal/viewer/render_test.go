@@ -63,7 +63,7 @@ func TestTileCacheReplacesAndRemovesByKey(t *testing.T) {
 	}
 }
 
-func TestPageTilesDrawSharpestCurrentTilesLast(t *testing.T) {
+func TestPageTilesDrawSharpestTilesLast(t *testing.T) {
 	var c tileCache
 	current := testTile(0, 2, 0, 0, 8)
 	sharper := testTile(0, 4, 0, 0, 8)
@@ -74,9 +74,9 @@ func TestPageTilesDrawSharpestCurrentTilesLast(t *testing.T) {
 	for _, tile := range []*renderedTile{current, stale, sharper, thumb, blurrier, testTile(1, 2, 0, 0, 8)} {
 		c.add(tile)
 	}
-	got := c.pageTiles(0, 2, tileVersion{})
-	if want := []*renderedTile{thumb, stale, blurrier, sharper, current}; !slices.Equal(got, want) {
-		t.Fatalf("draw order = %v, want thumbnail, stale generation, other scales ascending, then current", got)
+	got := c.pageTiles(0, tileVersion{})
+	if want := []*renderedTile{thumb, stale, blurrier, current, sharper}; !slices.Equal(got, want) {
+		t.Fatalf("draw order = %v, want thumbnail, stale version, then by resolution", got)
 	}
 }
 

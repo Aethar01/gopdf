@@ -146,10 +146,11 @@ func (c *tileCache) retainPages(count int) {
 }
 
 // pageTiles returns a page's tiles in drawing order: the thumbnail, tiles
-// of older versions, current tiles at other scales, then current
-// tiles at scale, each group from lowest to highest resolution, so the
-// sharpest current content ends up on top.
-func (c *tileCache) pageTiles(page int, scale float64, version tileVersion) []*renderedTile {
+// of older versions, then tiles of the current version, each group from
+// lowest to highest resolution. A tile at a scale other than the current one
+// shows the same content, so the sharpest available ends up on top, for
+// example while the render scale catches up after zooming in.
+func (c *tileCache) pageTiles(page int, version tileVersion) []*renderedTile {
 	tiles := make([]*renderedTile, 0, len(c.byPage[page]))
 	for _, tile := range c.byPage[page] {
 		tiles = append(tiles, tile)
@@ -160,10 +161,8 @@ func (c *tileCache) pageTiles(page int, scale float64, version tileVersion) []*r
 			return 0
 		case t.key.version != version:
 			return 1
-		case t.key.scale != scale:
-			return 2
 		default:
-			return 3
+			return 2
 		}
 	}
 	slices.SortFunc(tiles, func(a, b *renderedTile) int {
