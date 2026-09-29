@@ -557,7 +557,7 @@ func (a *App) runCommand(input string) {
 	name, args, _ := strings.Cut(command, " ")
 	args = strings.TrimSpace(args)
 	fields := strings.Fields(args)
-	if name == "" {
+	if name == "" || a.runActionCommand(name, args) {
 		return
 	}
 	switch name {
