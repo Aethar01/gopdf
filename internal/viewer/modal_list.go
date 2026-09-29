@@ -1,6 +1,11 @@
 package viewer
 
-import "github.com/jupiterrider/purego-sdl3/sdl"
+import (
+	"sort"
+
+	"github.com/jupiterrider/purego-sdl3/sdl"
+	"golang.org/x/image/font"
+)
 
 const modalScrollbarWidth = 8
 
@@ -204,13 +209,20 @@ func (a *App) drawModalListScrollbar(renderer *sdl.Renderer, rect sdl.FRect, row
 	return fillRect(renderer, thumb, thumbColor)
 }
 
+// truncateModalListText shortens s with an ellipsis to fit maxWidth. The
+// cut is found by binary search, as rows are truncated on every frame.
 func (a *App) truncateModalListText(s string, maxWidth int) string {
-	if maxWidth <= 0 || measureText(a.fontFace, s) <= maxWidth {
+	return truncateText(a.fontFace, s, maxWidth)
+}
+
+func truncateText(face font.Face, s string, maxWidth int) string {
+	if maxWidth <= 0 || measureText(face, s) <= maxWidth {
 		return s
 	}
 	runes := []rune(s)
-	for len(runes) > 1 && measureText(a.fontFace, string(runes)+"...") > maxWidth {
-		runes = runes[:len(runes)-1]
-	}
-	return string(runes) + "..."
+	// The longest prefix, of at least one rune, that fits with the ellipsis.
+	keep := sort.Search(len(runes), func(n int) bool {
+		return measureText(face, string(runes[:n+1])+"...") > maxWidth
+	})
+	return string(runes[:max(1, keep)]) + "..."
 }

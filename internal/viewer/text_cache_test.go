@@ -3,7 +3,10 @@ package viewer
 import (
 	"fmt"
 	"image/color"
+	"strings"
 	"testing"
+
+	"golang.org/x/image/font/basicfont"
 )
 
 func TestTextTextureKeyIncludesTextAndColor(t *testing.T) {
@@ -23,5 +26,25 @@ func TestStoreTextTextureSurvivesAFullCache(t *testing.T) {
 	}
 	if len(s.textCache) != 1 {
 		t.Fatalf("entries after overflowing = %d, want 1", len(s.textCache))
+	}
+}
+
+func TestTruncateTextFitsWidth(t *testing.T) {
+	face := basicfont.Face7x13 // 7px per rune
+	if got := truncateText(face, "short", 100); got != "short" {
+		t.Fatalf("fitting text changed to %q", got)
+	}
+	if got := truncateText(face, "abcdefghijklmnop", 70); got != "abcdefg..." {
+		t.Fatalf("truncated to %q, want 7 runes plus ellipsis in 70px", got)
+	}
+	if got := truncateText(face, "abcdef", 10); got != "a..." {
+		t.Fatalf("narrow truncation = %q, want at least one rune", got)
+	}
+}
+
+func BenchmarkTruncateLongRow(b *testing.B) {
+	row := strings.Repeat("a long line of matched context text ", 8)
+	for b.Loop() {
+		truncateText(basicfont.Face7x13, row, 400)
 	}
 }
