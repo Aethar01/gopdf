@@ -69,6 +69,7 @@ func (a *App) Run() error {
 				return err
 			}
 		}
+		a.refreshStaleSelection()
 		a.advanceSmoothScroll()
 		a.advanceSmoothZoom()
 		if a.runtime != nil {
@@ -175,6 +176,9 @@ func (a *App) handleSDLEvent(event *sdl.Event) error {
 	}
 	a.convertPointerEventToRenderCoordinates(event)
 	defer a.syncTextInput()
+	if event.Type() != sdl.EventMouseMotion {
+		a.refreshStaleSelection() // what follows may read the selection
+	}
 
 	redraw := true
 	switch event.Type() {

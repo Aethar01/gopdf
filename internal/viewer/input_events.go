@@ -313,12 +313,12 @@ func (a *App) handleSDLMouseMotion(e *sdl.MouseMotionEvent) bool {
 		return hoverChanged
 	}
 	page, point, ok := a.pagePointAtScreen(float64(e.X), float64(e.Y))
-	if ok {
-		a.selection.focusPage, a.selection.focus = page, point
-		a.refreshSelection()
-		return true
+	if !ok || page == a.selection.focusPage && point == a.selection.focus {
+		return false
 	}
-	return false
+	a.selection.focusPage, a.selection.focus = page, point
+	a.selection.stale = true
+	return true
 }
 
 // setHoveredLink shows the hovered link's target in the status bar and

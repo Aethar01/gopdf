@@ -41,6 +41,7 @@ func TestFinishedSelectionStaysHighlightedUntilCleared(t *testing.T) {
 	}
 	drag := func(px float64) {
 		app.handleSDLMouseMotion(&sdl.MouseMotionEvent{State: sdl.ButtonLMask, X: screenX(px), Y: lineY})
+		app.refreshStaleSelection() // as the event loop does each frame
 	}
 
 	button(sdl.EventMouseButtonDown, 70)
@@ -109,6 +110,7 @@ func TestSelectionSpansPages(t *testing.T) {
 	app.handleSDLMouseButton(&sdl.MouseButtonEvent{Type: sdl.EventMouseButtonDown, Button: uint8(sdl.ButtonLeft), Clicks: 1, X: x, Y: y})
 	x, y = at(2, 100) // in "gamma"
 	app.handleSDLMouseMotion(&sdl.MouseMotionEvent{State: sdl.ButtonLMask, X: x, Y: y})
+	app.refreshStaleSelection()
 
 	var pages []int
 	for _, part := range app.selection.parts {
@@ -131,6 +133,7 @@ func TestSelectionSpansPages(t *testing.T) {
 
 	x, y = at(1, 80) // back into "beta", making page 1 an end again
 	app.handleSDLMouseMotion(&sdl.MouseMotionEvent{State: sdl.ButtonLMask, X: x, Y: y})
+	app.refreshStaleSelection()
 	if strings.Contains(app.selection.text, "two") || strings.Contains(app.selection.text, "gam") {
 		t.Errorf("selection %q still uses the whole of its new end page", app.selection.text)
 	}
@@ -156,5 +159,20 @@ func TestCrossPageSelectionFollowsReadingOrder(t *testing.T) {
 	}
 	if strings.Contains(app.selection.text, "2") || strings.Contains(app.selection.text, "alpha") {
 		t.Fatalf("selection %q picked up text outside the reading-order span", app.selection.text)
+	}
+}
+
+func TestDragExtractsSelectionOncePerFrame(t *testing.T) {
+	app, screenX, lineY := testSelectionApp(t, "select this text")
+	app.handleSDLMouseButton(&sdl.MouseButtonEvent{Type: sdl.EventMouseButtonDown, Button: uint8(sdl.ButtonLeft), Clicks: 1, X: screenX(70), Y: lineY})
+	for _, px := range []float64{120, 160, 200} {
+		app.handleSDLMouseMotion(&sdl.MouseMotionEvent{State: sdl.ButtonLMask, X: screenX(px), Y: lineY})
+	}
+	if app.selection.text != "" {
+		t.Fatalf("motion extracted the selection %q before the frame", app.selection.text)
+	}
+	app.refreshStaleSelection()
+	if !strings.Contains(app.selection.text, "select") || app.selection.stale {
+		t.Fatalf("after the frame: text=%q stale=%v", app.selection.text, app.selection.stale)
 	}
 }

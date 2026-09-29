@@ -47,6 +47,9 @@ type textSelection struct {
 	parts      []selectionPart // highlighted quads, one entry per page in order
 	text       string
 	wholePages map[int]*mupdf.Selection // pages between the ends, see selectionOnPage
+	// stale is set while the focus has moved since parts and text were
+	// extracted; see refreshStaleSelection.
+	stale bool
 }
 
 type selectionPart struct {

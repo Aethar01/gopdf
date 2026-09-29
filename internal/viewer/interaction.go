@@ -201,6 +201,15 @@ func (a *App) pageGeometryAtScreen(sx, sy float64) (int, float64, float64, bool)
 	return 0, 0, 0, false
 }
 
+// refreshStaleSelection extracts the selection once its focus has moved. A
+// drag moves the focus on every pointer motion, often many times a frame, so
+// the event loop calls this once per frame and before any other event.
+func (a *App) refreshStaleSelection() {
+	if a.selection.stale {
+		a.refreshSelection()
+	}
+}
+
 // refreshSelection extracts the selected text and quads. The first page is
 // selected from its end point to where its text ends, pages in between
 // entirely, and the last page from where its text starts to its end point,
@@ -212,6 +221,7 @@ func (a *App) refreshSelection() {
 	if last < first {
 		first, firstPoint, last, lastPoint = last, lastPoint, first, firstPoint
 	}
+	sel.stale = false
 	sel.parts = sel.parts[:0]
 	var text []string
 	for page := first; page <= last; page++ {
