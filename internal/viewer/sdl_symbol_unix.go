@@ -9,26 +9,27 @@ import (
 	"github.com/ebitengine/purego"
 )
 
-func loadSDLSetClipboardTextSymbol(dst *func(string) bool) error {
+// sdlSymbol looks up a function in the SDL library, for the few the SDL
+// bindings leave out.
+func sdlSymbol(symbol string) (uintptr, error) {
 	var lastErr error
 	for _, name := range sdlLibraryNames() {
-		handle, err := purego.Dlopen(name, 1)
+		handle, err := purego.Dlopen(name, purego.RTLD_LAZY)
 		if err != nil {
 			lastErr = err
 			continue
 		}
-		sym, err := purego.Dlsym(handle, "SDL_SetClipboardText")
+		sym, err := purego.Dlsym(handle, symbol)
 		if err != nil {
 			lastErr = err
 			continue
 		}
-		purego.RegisterFunc(dst, sym)
-		return nil
+		return sym, nil
 	}
 	if lastErr != nil {
-		return lastErr
+		return 0, lastErr
 	}
-	return fmt.Errorf("symbol not found")
+	return 0, fmt.Errorf("symbol not found")
 }
 
 func sdlLibraryNames() []string {
