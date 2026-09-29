@@ -200,6 +200,7 @@ type inputState struct {
 	editPos        int  // see markEdited
 	savedPos       int
 	pointer        sdl.FPoint // last pointer position, for actions on what is under it
+	inputScroll    int        // pixels the status-bar prompt is scrolled left
 	passwordPrompt pendingPasswordPrompt
 	mouseBindings  map[string]string
 	searchInput    searchMode

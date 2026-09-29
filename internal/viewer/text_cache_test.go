@@ -62,3 +62,34 @@ func TestFitStatusTextNeverOverlaps(t *testing.T) {
 		t.Errorf("prompt: %q, %q; want the prompt whole and the right side hidden", l, r)
 	}
 }
+
+func TestPromptScrollsToKeepCursorOnScreen(t *testing.T) {
+	app := testLayoutApp(1)
+	app.fontFace = basicfont.Face7x13
+	app.winW = 300
+	app.config.StatusBarPadding = 8
+	app.config.StatusBarLeft = "{modified}{message}"
+	app.mode = modeCommand
+	cursorX := func() int {
+		_, left := app.inputDisplay()
+		return app.promptOrigin() + measureText(app.fontFace, app.inputPrefix()+left)
+	}
+
+	app.input.Set("short")
+	if app.promptOrigin() != 8 {
+		t.Fatalf("short input scrolled: origin %d", app.promptOrigin())
+	}
+	app.input.Set(strings.Repeat("long input ", 10))
+	if x := cursorX(); x > app.winW-8 || x < 8 {
+		t.Fatalf("cursor at x=%d is off a %dpx bar", x, app.winW)
+	}
+	app.input.Move(-1000) // to the start
+	if app.promptOrigin() != 8 {
+		t.Fatalf("moving to the start left the prompt scrolled: origin %d", app.promptOrigin())
+	}
+	app.input.Set("x")
+	app.unsaved = true // the template now draws "[+] " before the prompt
+	if got, want := app.promptOrigin(), 8+measureText(app.fontFace, "[+] "); got != want {
+		t.Fatalf("origin with [+] = %d, want %d", got, want)
+	}
+}

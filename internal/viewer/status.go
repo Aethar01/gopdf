@@ -18,13 +18,17 @@ func (a *App) drawStatusBar(renderer *sdl.Renderer) error {
 	pad := a.config.StatusBarPadding
 	left, right := fitStatusText(a.fontFace, a.formatStatusBar(a.config.StatusBarLeft), a.formatStatusBar(a.config.StatusBarRight), a.winW-2*pad, 2*pad, a.mode != modeNormal)
 	vertOffset := (h + a.fontFace.Metrics().Ascent.Ceil() - a.fontFace.Metrics().Descent.Ceil()) / 2
-	if err := a.drawInputSelection(renderer, y, pad, vertOffset); err != nil {
+	textX := pad
+	if a.mode != modeNormal {
+		textX = a.promptOrigin() - a.promptStart()
+	}
+	if err := a.drawInputSelection(renderer, y, vertOffset); err != nil {
 		return err
 	}
-	if err := a.drawText(renderer, left, pad, y+vertOffset, a.foregroundColor()); err != nil {
+	if err := a.drawText(renderer, left, textX, y+vertOffset, a.foregroundColor()); err != nil {
 		return err
 	}
-	if err := a.drawInputCursor(renderer, y, pad, vertOffset); err != nil {
+	if err := a.drawInputCursor(renderer, y, vertOffset); err != nil {
 		return err
 	}
 	rw := measureText(a.fontFace, right)
@@ -32,6 +36,83 @@ func (a *App) drawStatusBar(renderer *sdl.Renderer) error {
 		return err
 	}
 	return nil
+}
+
+// promptStart is how far into the left status text the prompt begins: the
+// width of whatever the template shows before {message}.
+func (a *App) promptStart() int {
+	before, _, found := strings.Cut(a.config.StatusBarLeft, "{message}")
+	if !found {
+		return 0
+	}
+	return measureText(a.fontFace, a.formatStatusBar(before))
+}
+
+// inputDisplay returns the input as shown, masked for passwords, and the
+// part of it before the cursor.
+func (a *App) inputDisplay() (display, left string) {
+	display, left = a.input.Value, a.input.Left()
+	if a.mode == modePassword {
+		display = strings.Repeat("*", utf8.RuneCountInString(display))
+		left = strings.Repeat("*", utf8.RuneCountInString(left))
+	}
+	return display, left
+}
+
+// promptOrigin is the x at which the prompt starts. Long input scrolls left,
+// keeping its start hidden, so the cursor stays on screen.
+func (a *App) promptOrigin() int {
+	pad := a.config.StatusBarPadding
+	start := pad + a.promptStart()
+	display, left := a.inputDisplay()
+	prefix := a.inputPrefix()
+	prefixWidth := measureText(a.fontFace, prefix)
+	cursor := start + measureText(a.fontFace, prefix+left)
+	limit := a.winW - pad - measureText(a.fontFace, "  ") // leave room past the cursor
+	end := start + measureText(a.fontFace, prefix+display)
+	switch {
+	case cursor-a.inputScroll > limit:
+		a.inputScroll = cursor - limit
+	case cursor-a.inputScroll < start+prefixWidth: // keep a prefix's width of context
+		a.inputScroll = cursor - start - prefixWidth
+	}
+	a.inputScroll = clampInt(a.inputScroll, 0, max(0, end-limit))
+	return start - a.inputScroll
+}
+
+func (a *App) drawInputSelection(renderer *sdl.Renderer, barY, vertOffset int) error {
+	if a.mode == modeNormal {
+		return nil
+	}
+	start, end, ok := a.input.SelectionRange()
+	if !ok {
+		return nil
+	}
+	display, _ := a.inputDisplay()
+	left, rest := splitAtRune(display, start)
+	selected, _ := splitAtRune(rest, end-start)
+	x := a.promptOrigin() + measureText(a.fontFace, a.inputPrefix()+left)
+	w := max(1, measureText(a.fontFace, selected))
+	mt := a.fontFace.Metrics()
+	top := barY + vertOffset - mt.Ascent.Ceil()
+	bottom := barY + vertOffset + mt.Descent.Ceil()
+	return fillRect(renderer, sdl.FRect{X: float32(x), Y: float32(top), W: float32(w), H: float32(max(1, bottom-top))}, a.highlightBackgroundColor())
+}
+
+func (a *App) drawInputCursor(renderer *sdl.Renderer, barY, vertOffset int) error {
+	if a.mode == modeNormal {
+		return nil
+	}
+	_, left := a.inputDisplay()
+	x := a.promptOrigin() + measureText(a.fontFace, a.inputPrefix()+left)
+	fg := a.foregroundColor()
+	if !sdl.SetRenderDrawColor(renderer, fg.R, fg.G, fg.B, fg.A) {
+		return sdlError("set draw color")
+	}
+	mt := a.fontFace.Metrics()
+	cursorTop := barY + vertOffset - mt.Ascent.Ceil()
+	cursorBot := barY + vertOffset + mt.Descent.Ceil()
+	return renderBool(sdl.RenderLine(renderer, float32(x), float32(cursorTop), float32(x), float32(cursorBot)), "draw line")
 }
 
 // fitStatusText keeps the two sides of the status bar from overlapping in
@@ -120,52 +201,6 @@ func (a *App) pageLabel(page int) string {
 		return a.pageMetrics[page].label
 	}
 	return fmt.Sprintf("%d", page+1)
-}
-
-func (a *App) drawInputSelection(renderer *sdl.Renderer, barY, pad, vertOffset int) error {
-	if a.mode == modeNormal {
-		return nil
-	}
-	start, end, ok := a.input.SelectionRange()
-	if !ok {
-		return nil
-	}
-	display := a.input.Value
-	if a.mode == modePassword {
-		display = strings.Repeat("*", utf8.RuneCountInString(display))
-	}
-	left, rest := splitAtRune(display, start)
-	selected, _ := splitAtRune(rest, end-start)
-	prefix := a.inputPrefix()
-	x := pad + measureText(a.fontFace, prefix+left)
-	w := measureText(a.fontFace, selected)
-	if w < 1 {
-		w = 1
-	}
-	mt := a.fontFace.Metrics()
-	top := barY + vertOffset - mt.Ascent.Ceil()
-	bottom := barY + vertOffset + mt.Descent.Ceil()
-	return fillRect(renderer, sdl.FRect{X: float32(x), Y: float32(top), W: float32(w), H: float32(max(1, bottom-top))}, a.highlightBackgroundColor())
-}
-
-func (a *App) drawInputCursor(renderer *sdl.Renderer, barY, pad, vertOffset int) error {
-	if a.mode == modeNormal {
-		return nil
-	}
-	prefix := a.inputPrefix()
-	left := a.input.Left()
-	if a.mode == modePassword {
-		left = strings.Repeat("*", len([]rune(left)))
-	}
-	x := pad + measureText(a.fontFace, prefix+left)
-	fg := a.foregroundColor()
-	if !sdl.SetRenderDrawColor(renderer, fg.R, fg.G, fg.B, fg.A) {
-		return sdlError("set draw color")
-	}
-	mt := a.fontFace.Metrics()
-	cursorTop := barY + vertOffset - mt.Ascent.Ceil()
-	cursorBot := barY + vertOffset + mt.Descent.Ceil()
-	return renderBool(sdl.RenderLine(renderer, float32(x), float32(cursorTop), float32(x), float32(cursorBot)), "draw line")
 }
 
 func (a *App) inputPrefix() string {

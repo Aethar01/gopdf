@@ -1,9 +1,6 @@
 package viewer
 
 import (
-	"strings"
-	"unicode/utf8"
-
 	"github.com/jupiterrider/purego-sdl3/sdl"
 )
 
@@ -51,13 +48,8 @@ func (a *App) inputPositionAt(x, y float64, dragging bool) (int, bool) {
 	if !dragging && (y < float64(barY) || y > float64(a.winH)) {
 		return 0, false
 	}
-	pad := a.config.StatusBarPadding
-	prefix := a.inputPrefix()
-	startX := float64(pad + measureText(a.fontFace, prefix))
-	display := a.input.Value
-	if a.mode == modePassword {
-		display = strings.Repeat("*", utf8.RuneCountInString(display))
-	}
+	startX := float64(a.promptOrigin() + measureText(a.fontFace, a.inputPrefix()))
+	display, _ := a.inputDisplay()
 	endX := startX + float64(measureText(a.fontFace, display))
 	if !dragging && (x < startX-3 || x > inputMaxFloat64(endX+5, startX+8)) {
 		return 0, false
