@@ -22,16 +22,17 @@ type renderRequest struct {
 	priority   int
 	links      bool // report the page's links, which the viewer lacks
 
-	// Colors the render is remapped to when altColors is set, leaving
-	// raster images alone when keepImages is.
+	// Colors the render is remapped to when altColors is set, leaving the
+	// page's raster images alone, which pageImages asks to be reported.
 	altBackground, altForeground [3]uint8
-	keepImages                   bool
+	pageImages                   bool
 }
 
 type renderUpdate struct {
 	request  renderRequest
 	rendered *mupdf.RenderedPage
 	links    []mupdf.Link // when request.links
+	images   []mupdf.Rect // the page's raster images, when request.pageImages
 	err      error
 }
 
@@ -247,15 +248,19 @@ func (w *renderWorker) run(slot *renderSlot) {
 		slot.renderer.Arm()
 		slot.rendering.Store(&req.key)
 		rendered, err := slot.renderer.Render(req.key.page, req.scale, req.rect, req.aaLevel)
+		var images []mupdf.Rect
+		if err == nil && req.pageImages {
+			images, _ = w.doc.ImageBounds(req.key.page)
+		}
 		if err == nil && req.altColors {
-			remapPageColors(rendered.Image, req.altBackground, req.altForeground, w.keptImageRects(req, rendered))
+			remapPageColors(rendered.Image, req.altBackground, req.altForeground, tileImageRects(images, req.scale, image.Pt(rendered.X, rendered.Y)))
 		}
 		slot.rendering.Store(nil)
 		var links []mupdf.Link
 		if err == nil && req.links {
 			links, _ = w.doc.Links(req.key.page) // a page without links is as good as one whose links fail to load
 		}
-		if !sendWorkerUpdate(&w.workerLifecycle, w.updates, renderUpdate{request: req, rendered: rendered, links: links, err: err}) {
+		if !sendWorkerUpdate(&w.workerLifecycle, w.updates, renderUpdate{request: req, rendered: rendered, links: links, images: images, err: err}) {
 			rendered.Close()
 		}
 	}
@@ -284,20 +289,12 @@ func (w *renderWorker) next() (renderRequest, bool) {
 	}
 }
 
-// keptImageRects returns the image areas a recolour should skip, in the
-// rendered tile's pixel coordinates.
-func (w *renderWorker) keptImageRects(req renderRequest, rendered *mupdf.RenderedPage) []image.Rectangle {
-	if !req.keepImages || w.doc == nil {
-		return nil
-	}
-	images, err := w.doc.ImageBounds(req.key.page)
-	if err != nil {
-		return nil
-	}
-	origin := image.Pt(rendered.X, rendered.Y)
+// tileImageRects returns the image areas of a page, in the pixels of a tile
+// rendered at scale whose top-left is origin.
+func tileImageRects(images []mupdf.Rect, scale float64, origin image.Point) []image.Rectangle {
 	rects := make([]image.Rectangle, len(images))
 	for i, bounds := range images {
-		rects[i] = mupdf.DeviceRect(bounds, req.scale).Sub(origin)
+		rects[i] = mupdf.DeviceRect(bounds, scale).Sub(origin)
 	}
 	return rects
 }

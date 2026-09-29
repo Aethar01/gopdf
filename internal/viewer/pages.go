@@ -72,15 +72,42 @@ func (a *App) drawPage(renderer *sdl.Renderer, page int, x, y, width, height flo
 	a.drawSearchHighlightsForPage(renderer, page, x, y)
 }
 
-// drawTile draws a tile of the page whose screen origin is (x, y). The
-// tile is rotated about its own centre, placed where that centre falls on
-// the rotated page.
+// drawTile draws a tile of the page whose screen origin is (x, y), in the
+// alternate colours through the shader when it is in use, redrawing the
+// page's images over that when they keep their colours.
 func (a *App) drawTile(renderer *sdl.Renderer, tile *renderedTile, x, y float64, viewportW, viewportH int) {
+	whole := sdl.FRect{W: float32(tile.rect.Dx()), H: float32(tile.rect.Dy())}
+	if !a.altColors || a.altColorsShader == nil {
+		a.drawTilePart(renderer, tile, whole, x, y, viewportW, viewportH)
+		return
+	}
+	a.altColorsShader.begin(renderer, a.config.AltBackground, a.config.AltForeground)
+	a.drawTilePart(renderer, tile, whole, x, y, viewportW, viewportH)
+	a.altColorsShader.end(renderer)
+	images := tileImageRects(a.pageImages[tile.key.page], tile.scale, tile.rect.Min)
+	if !a.config.AltColorsKeepImages || len(images) == 0 {
+		return
+	}
+	// Sample only the images' own pixels, as the CPU remap keeps them.
+	sdl.SetTextureScaleMode(tile.texture, sdl.ScaleModeNearest)
+	defer sdl.SetTextureScaleMode(tile.texture, sdl.ScaleModeLinear)
+	for _, r := range images {
+		if r = r.Intersect(image.Rectangle{Max: tile.rect.Size()}); !r.Empty() {
+			part := sdl.FRect{X: float32(r.Min.X), Y: float32(r.Min.Y), W: float32(r.Dx()), H: float32(r.Dy())}
+			a.drawTilePart(renderer, tile, part, x, y, viewportW, viewportH)
+		}
+	}
+}
+
+// drawTilePart draws part of a tile, in the tile's pixels, of the page whose
+// screen origin is (x, y). The part is rotated about its own centre, placed
+// where that centre falls on the rotated page.
+func (a *App) drawTilePart(renderer *sdl.Renderer, tile *renderedTile, part sdl.FRect, x, y float64, viewportW, viewportH int) {
 	drawScale := a.scale / tile.scale
-	drawW := float64(tile.rect.Dx()) * drawScale
-	drawH := float64(tile.rect.Dy()) * drawScale
-	pageX := (float64(tile.rect.Min.X) + float64(tile.rect.Dx())/2) / tile.scale
-	pageY := (float64(tile.rect.Min.Y) + float64(tile.rect.Dy())/2) / tile.scale
+	drawW := float64(part.W) * drawScale
+	drawH := float64(part.H) * drawScale
+	pageX := (float64(tile.rect.Min.X) + float64(part.X+part.W/2)) / tile.scale
+	pageY := (float64(tile.rect.Min.Y) + float64(part.Y+part.H/2)) / tile.scale
 	dx, dy := a.pageTransform(tile.key.page).toScreen(pageX, pageY)
 	centerX, centerY := x+dx, y+dy
 	if radius := math.Max(drawW, drawH) / 2; centerX+radius < 0 || centerY+radius < 0 || centerX-radius > float64(viewportW) || centerY-radius > float64(viewportH) {
@@ -93,10 +120,10 @@ func (a *App) drawTile(renderer *sdl.Renderer, tile *renderedTile, x, y float64,
 		H: float32(drawH),
 	}
 	if normalizeRotation(a.rotation) == 0 {
-		sdl.RenderTexture(renderer, tile.texture, nil, &dst)
+		sdl.RenderTexture(renderer, tile.texture, &part, &dst)
 		return
 	}
-	sdl.RenderTextureRotated(renderer, tile.texture, nil, &dst, a.rotation, nil, sdl.FlipNone)
+	sdl.RenderTextureRotated(renderer, tile.texture, &part, &dst, a.rotation, nil, sdl.FlipNone)
 }
 
 func (a *App) drawPageBackground(renderer *sdl.Renderer, x, y float64, page int) error {

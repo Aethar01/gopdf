@@ -276,11 +276,19 @@ func (a *App) loadUIFont() {
 }
 
 // tilesRenderedDifferently reports whether tiles rendered under one config
-// would come out differently under the other; the alternate colours only
-// matter while they are shown.
+// would come out differently under the other. Without the shader, the
+// alternate colours matter only while they are shown; the shader recolours
+// untouched tiles, but only knows the images of pages rendered while
+// alt_colors_keep_images was on.
 func (a *App) tilesRenderedDifferently(prev, cfg config.Config) bool {
-	return prev.AntiAliasing != cfg.AntiAliasing || a.altColors && (prev.AltBackground != cfg.AltBackground ||
-		prev.AltForeground != cfg.AltForeground || prev.AltColorsKeepImages != cfg.AltColorsKeepImages)
+	if prev.AntiAliasing != cfg.AntiAliasing {
+		return true
+	}
+	keepImages := prev.AltColorsKeepImages != cfg.AltColorsKeepImages
+	if a.altColorsShader != nil {
+		return keepImages
+	}
+	return a.altColors && (keepImages || prev.AltBackground != cfg.AltBackground || prev.AltForeground != cfg.AltForeground)
 }
 
 func (a *App) Mode() string {

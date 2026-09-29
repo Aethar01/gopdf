@@ -487,3 +487,29 @@ func TestRenderWorkerDeliversPageLinksWithTile(t *testing.T) {
 		t.Fatal("links asked for again once loaded")
 	}
 }
+
+func TestAltColorsShaderKeepsTilesUntouched(t *testing.T) {
+	app := &App{
+		documentWorkers: documentWorkers{renderWorker: &renderWorker{requests: make(chan renderRequest, 8)}},
+		renderService:   renderService{renderPending: map[tileKey]renderRequest{}},
+		config:          config.Config{AltColorsKeepImages: true},
+	}
+	app.altColorsShader = &altColorsShader{}
+	app.cache.add(testTile(0, 1, 0, 0, 16))
+	app.setAltColors(true)
+	if len(app.cache.entries) != 1 {
+		t.Fatal("switching colours with the shader dropped the tiles")
+	}
+
+	key := tileKey{page: 0, scale: 1, x: 1}
+	app.queueRender(renderRequest{key: key, scale: 1}, 0)
+	if req := app.renderPending[key]; req.altColors || !req.pageImages {
+		t.Fatalf("request altColors=%v pageImages=%v, want an unremapped tile reporting the page's images", req.altColors, req.pageImages)
+	}
+	app.acceptRenderUpdate(renderUpdate{request: app.renderPending[key], rendered: &mupdf.RenderedPage{Image: image.NewRGBA(image.Rectangle{})}})
+	next := tileKey{page: 0, scale: 1, x: 2}
+	app.queueRender(renderRequest{key: next, scale: 1}, 0)
+	if app.renderPending[next].pageImages {
+		t.Fatal("images requested again for a page whose images are known")
+	}
+}

@@ -109,6 +109,7 @@ type documentState struct {
 	page       int
 	generation int
 	pageLinks  map[int][]mupdf.Link
+	pageImages map[int][]mupdf.Rect // raster image bounds, for pages drawn so far
 	outline    []mupdf.OutlineItem
 
 	initialDocPath   string
@@ -156,6 +157,9 @@ type sdlState struct {
 	// axes in autoscrollMarkerKey.
 	autoscrollMarker    *sdl.Texture
 	autoscrollMarkerKey autoscrollMarkerKey
+	// altColorsShader draws the alternate colours; nil when the renderer
+	// cannot, and tiles are remapped as they render instead.
+	altColorsShader *altColorsShader
 }
 
 // linkInputState tracks the link under the pointer.
