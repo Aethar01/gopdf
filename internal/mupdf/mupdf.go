@@ -326,6 +326,23 @@ func (d *Document) ExtractSelection(page int, a, b Point, mode SelectMode) (*Sel
 	return result, nil
 }
 
+// TextEnds returns the points where a page's horizontal text starts and
+// ends in reading order, for selections that continue onto another page.
+func (d *Document) TextEnds(page int) (start, end Point, ok bool, err error) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if err := d.validatePageLocked(page); err != nil {
+		return Point{}, Point{}, false, err
+	}
+	var s, e C.gopdf_point
+	var found C.int
+	var cerr *C.char
+	if C.gopdf_page_text_ends(d.handle, C.int(page), &s, &e, &found, &cerr) == 0 {
+		return Point{}, Point{}, false, consumeError("page text ends", cerr)
+	}
+	return Point{X: float64(s.x), Y: float64(s.y)}, Point{X: float64(e.x), Y: float64(e.y)}, found != 0, nil
+}
+
 func (d *Document) SearchPage(page int, needle string) ([]SearchHit, error) {
 	d.mu.Lock()
 	defer d.mu.Unlock()

@@ -202,8 +202,9 @@ func (a *App) pageGeometryAtScreen(sx, sy float64) (int, float64, float64, bool)
 }
 
 // refreshSelection extracts the selected text and quads. The first page is
-// selected from its end point to the page end, pages in between entirely,
-// and the last page from its start to its end point.
+// selected from its end point to where its text ends, pages in between
+// entirely, and the last page from where its text starts to its end point,
+// so a sentence running across pages selects as it reads.
 func (a *App) refreshSelection() {
 	sel := &a.selection
 	first, firstPoint := sel.anchorPage, sel.anchor
@@ -214,13 +215,18 @@ func (a *App) refreshSelection() {
 	sel.parts = sel.parts[:0]
 	var text []string
 	for page := first; page <= last; page++ {
-		bounds := a.pageMetrics[page].bounds
-		start, end := mupdf.Point{X: float64(bounds.X0), Y: float64(bounds.Y0)}, mupdf.Point{X: float64(bounds.X1), Y: float64(bounds.Y1)}
-		if page == first {
-			start = firstPoint
-		}
-		if page == last {
-			end = lastPoint
+		start, end := firstPoint, lastPoint
+		if first != last {
+			textStart, textEnd, ok, err := a.doc.TextEnds(page)
+			if err != nil || !ok {
+				continue // no text to select on this page
+			}
+			if page != first {
+				start = textStart
+			}
+			if page != last {
+				end = textEnd
+			}
 		}
 		extracted, err := a.doc.ExtractSelection(page, start, end, sel.mode)
 		if err != nil {

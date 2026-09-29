@@ -151,6 +151,7 @@ void gopdf_cancel_renderer(gopdf_renderer *renderer);
 int gopdf_render_display_list(gopdf_renderer *renderer, fz_display_list *list, float scale, gopdf_irect clip, int aa_level, unsigned char **samples, int *width, int *height, int *stride, int *x, int *y, char **err);
 void gopdf_free_rendered_page(unsigned char *samples);
 int gopdf_extract_selection(gopdf_doc *handle, int page_number, float ax, float ay, float bx, float by, int mode, gopdf_selection *out, char **err);
+int gopdf_page_text_ends(gopdf_doc *handle, int page_number, gopdf_point *start, gopdf_point *end, int *found, char **err);
 void gopdf_free_selection(gopdf_doc *handle, gopdf_selection *sel);
 int gopdf_search_page(gopdf_doc *handle, int page_number, const char *needle, gopdf_search_result *out, char **err);
 void gopdf_free_search_result(gopdf_search_result *result);

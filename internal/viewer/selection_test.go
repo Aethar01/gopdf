@@ -126,3 +126,26 @@ func TestSelectionSpansPages(t *testing.T) {
 		t.Errorf("selection %q runs past its end points", app.selection.text)
 	}
 }
+
+func TestCrossPageSelectionFollowsReadingOrder(t *testing.T) {
+	doc, err := mupdf.Open(testpdf.WritePages(t, []string{"alpha", "the sentence starts"}, []string{"2", "continues here", "more"}), mupdf.OpenOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer doc.Close()
+	app := testLayoutApp(2)
+	app.doc = doc
+	for page := range 2 {
+		info, _ := doc.PageInfo(page)
+		app.pageMetrics[page] = newPageMetrics(info)
+	}
+	// Second-line text on each page sits around y=102 (baseline 686pt up).
+	app.selection = textSelection{anchorPage: 0, anchor: mupdf.Point{X: 100, Y: 102}, focusPage: 1, focus: mupdf.Point{X: 120, Y: 102}}
+	app.refreshSelection()
+	if !strings.Contains(app.selection.text, "starts\ncontinue") {
+		t.Fatalf("selection = %q, want it to run from the anchor to the page end and on past the page number", app.selection.text)
+	}
+	if strings.Contains(app.selection.text, "2") || strings.Contains(app.selection.text, "alpha") {
+		t.Fatalf("selection %q picked up text outside the reading-order span", app.selection.text)
+	}
+}

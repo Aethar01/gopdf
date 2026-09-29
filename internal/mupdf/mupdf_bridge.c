@@ -1240,6 +1240,50 @@ int gopdf_extract_selection(gopdf_doc *handle, int page_number, float ax, float 
 	return 1;
 }
 
+/* Lines that are only digits, such as page numbers. */
+static int gopdf_line_is_number(fz_stext_line *line) {
+	for (fz_stext_char *ch = line->first_char; ch != NULL; ch = ch->next) {
+		if (ch->c != ' ' && (ch->c < '0' || ch->c > '9')) {
+			return 0;
+		}
+	}
+	return 1;
+}
+
+/* Finds where a page's text starts and ends in reading order: the left edge
+ * of its first character and the right edge of its last, skipping rotated
+ * lines such as margin stamps and page numbers. found is 0 for a page
+ * without such text. */
+int gopdf_page_text_ends(gopdf_doc *handle, int page_number, gopdf_point *start, gopdf_point *end, int *found, char **err) {
+	*found = 0;
+	*err = NULL;
+	fz_try(handle->ctx) {
+		fz_stext_page *text = gopdf_entry_text(handle->ctx, gopdf_page_entry_for(handle, page_number));
+		for (fz_stext_block *block = text->first_block; block != NULL; block = block->next) {
+			if (block->type != FZ_STEXT_BLOCK_TEXT) {
+				continue;
+			}
+			for (fz_stext_line *line = block->u.t.first_line; line != NULL; line = line->next) {
+				if (line->first_char == NULL || fabsf(line->dir.y) > 0.1f || gopdf_line_is_number(line)) {
+					continue;
+				}
+				fz_quad first = line->first_char->quad, last = line->last_char->quad;
+				if (!*found) {
+					start->x = (first.ul.x + first.ll.x) / 2;
+					start->y = (first.ul.y + first.ll.y) / 2;
+					*found = 1;
+				}
+				end->x = (last.ur.x + last.lr.x) / 2;
+				end->y = (last.ur.y + last.lr.y) / 2;
+			}
+		}
+	} fz_catch(handle->ctx) {
+		*err = gopdf_dup_string(fz_caught_message(handle->ctx));
+		return 0;
+	}
+	return 1;
+}
+
 void gopdf_free_selection(gopdf_doc *handle, gopdf_selection *sel) {
 	if (sel == NULL) {
 		return;
