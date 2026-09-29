@@ -470,6 +470,7 @@ func TestToggleTrimMarginsLaysPagesOutByContent(t *testing.T) {
 	app.doc = doc
 	info, _ := doc.PageInfo(0)
 	app.pageMetrics[0] = newPageMetrics(info)
+	app.config.TrimPadding = 8
 	app.recomputeLayout(1000, 1000)
 
 	app.toggleTrimMargins()
@@ -477,11 +478,18 @@ func TestToggleTrimMarginsLaysPagesOutByContent(t *testing.T) {
 		app.pollMetricUpdates()
 		time.Sleep(time.Millisecond)
 	}
-	want := mupdf.Rect{X0: 100 - trimPadding, Y0: 100 - trimPadding, X1: 200 + trimPadding, Y1: 200 + trimPadding}
+	want := mupdf.Rect{X0: 100 - 8, Y0: 100 - 8, X1: 200 + 8, Y1: 200 + 8}
 	if got := app.pageMetrics[0].bounds; got != want {
 		t.Fatalf("trimmed bounds = %v, want %v", got, want)
 	}
 	assertClose(t, app.pageMetrics[0].width, 116)
+
+	cfg := app.config
+	cfg.TrimPadding = 0
+	app.applyConfig(cfg, nil)
+	if got := app.pageMetrics[0].bounds; got != (mupdf.Rect{X0: 100, Y0: 100, X1: 200, Y1: 200}) {
+		t.Fatalf("bounds after trim_padding=0 = %v, want the content box", got)
+	}
 
 	app.toggleTrimMargins()
 	if got := app.pageMetrics[0].bounds; got != info.Bounds {

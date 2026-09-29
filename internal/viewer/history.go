@@ -10,8 +10,6 @@ import (
 // Prompt history lets Up and Down in the : and / prompts step through
 // earlier entries that start with what was typed, like a shell.
 
-const promptHistoryLimit = 100
-
 type promptHistory struct {
 	loaded  bool
 	entries []string // newest first
@@ -48,7 +46,7 @@ func (a *App) promptHistoryFor(m mode) *promptHistory {
 	if !h.loaded {
 		h.loaded = true
 		if a.config.SessionDatabase {
-			h.entries = config.PromptHistory(kind, promptHistoryLimit)
+			h.entries = config.PromptHistory(kind, a.config.PromptHistoryMax)
 		}
 	}
 	return h
@@ -62,12 +60,10 @@ func (a *App) recordPromptHistory(m mode, entry string) {
 	}
 	h.entries = slices.DeleteFunc(h.entries, func(e string) bool { return e == entry })
 	h.entries = slices.Insert(h.entries, 0, entry)
-	if len(h.entries) > promptHistoryLimit {
-		h.entries = h.entries[:promptHistoryLimit]
-	}
+	h.entries = h.entries[:min(len(h.entries), a.config.PromptHistoryMax)]
 	h.index = -1
 	if a.config.SessionDatabase {
-		if err := config.AddPromptHistory(historyKind(m), entry, promptHistoryLimit); err != nil {
+		if err := config.AddPromptHistory(historyKind(m), entry, a.config.PromptHistoryMax); err != nil {
 			a.logf("save prompt history err=%v", err)
 		}
 	}

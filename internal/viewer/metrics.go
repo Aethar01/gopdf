@@ -17,14 +17,12 @@ func newPageMetrics(info mupdf.PageInfo) pageMetrics {
 	return pageMetrics{bounds: info.Bounds, full: info.Bounds, width: w, height: h, label: info.Label, loaded: true}
 }
 
-// trimPadding is the margin, in points, kept around trimmed content.
-const trimPadding = 8
-
 // setPageBounds picks a page's layout bounds, its padded content box while
 // trimming margins or else the full page, and sizes it for the rotation.
 func (a *App) setPageBounds(m *pageMetrics) {
 	m.bounds = m.full
 	if a.trimMargins && m.hasContent && !m.content.Empty() {
+		trimPadding := float32(a.config.TrimPadding)
 		m.bounds = mupdf.Rect{
 			X0: max(m.full.X0, m.content.X0-trimPadding),
 			Y0: max(m.full.Y0, m.content.Y0-trimPadding),

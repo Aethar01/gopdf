@@ -4,6 +4,7 @@ import "testing"
 
 func TestPromptHistoryStepsThroughMatchingEntries(t *testing.T) {
 	app := testLayoutApp(1) // session database off: history stays in memory
+	app.config.PromptHistoryMax = 100
 	for _, entry := range []string{"fit width", "open a.pdf", "fit page"} {
 		app.recordPromptHistory(modeCommand, entry)
 	}
@@ -39,5 +40,16 @@ func TestPromptHistoryStepsThroughMatchingEntries(t *testing.T) {
 	app.stepPromptHistory(1)
 	if app.input.Value != "fit width" {
 		t.Fatalf("resubmitted entry not newest: %q", app.input.Value)
+	}
+}
+
+func TestPromptHistoryKeepsPromptHistoryMaxEntries(t *testing.T) {
+	app := testLayoutApp(1)
+	app.config.PromptHistoryMax = 2
+	for _, entry := range []string{"one", "two", "three"} {
+		app.recordPromptHistory(modeCommand, entry)
+	}
+	if got := app.promptHistoryFor(modeCommand).entries; len(got) != 2 || got[0] != "three" || got[1] != "two" {
+		t.Fatalf("history = %v, want the newest 2", got)
 	}
 }

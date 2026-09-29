@@ -12,8 +12,6 @@ import (
 // Resting the pointer on an internal link previews its destination in a
 // popup, drawn from the target page's tiles at the current zoom.
 
-const linkPreviewDelay = 400 * time.Millisecond
-
 type linkPreview struct {
 	link   mupdf.Link
 	since  time.Time
@@ -29,8 +27,12 @@ func (a *App) hoverLinkPreview(link mupdf.Link, over bool, x, y float32) {
 		a.preview = nil
 	case a.preview == nil || a.preview.link != link:
 		a.preview = &linkPreview{link: link, since: time.Now(), anchor: sdl.FPoint{X: x, Y: y}}
-		a.wakeAfter(linkPreviewDelay)
+		a.wakeAfter(a.linkPreviewDelay())
 	}
+}
+
+func (a *App) linkPreviewDelay() time.Duration {
+	return time.Duration(a.config.LinkPreviewDelayMS) * time.Millisecond
 }
 
 // revealLinkPreview asks for a frame once a pending preview is due.
@@ -41,7 +43,7 @@ func (a *App) revealLinkPreview() {
 }
 
 func (a *App) previewShown() bool {
-	return a.preview != nil && time.Since(a.preview.since) >= linkPreviewDelay
+	return a.preview != nil && time.Since(a.preview.since) >= a.linkPreviewDelay()
 }
 
 // previewDeadline is when a pending preview appears, or zero.
@@ -49,7 +51,7 @@ func (a *App) previewDeadline() time.Time {
 	if a.preview == nil || a.previewShown() {
 		return time.Time{}
 	}
-	return a.preview.since.Add(linkPreviewDelay)
+	return a.preview.since.Add(a.linkPreviewDelay())
 }
 
 // previewPlacement returns the popup rect and the screen origin at which to

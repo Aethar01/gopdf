@@ -78,5 +78,8 @@ func Default() Config {
 		RecentFilesMax:        20,
 		AutoReload:            true,
 		AutoReloadDelayMS:     200,
+		LinkPreviewDelayMS:    400,
+		PromptHistoryMax:      100,
+		TrimPadding:           8,
 	}
 }

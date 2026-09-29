@@ -18,6 +18,12 @@ func (a *App) updatePageMetricSizes() {
 
 // toggleTrimMargins switches between laying pages out by their full size and
 // by their content, loading content boxes the first time.
+// retrimPages lays pages out again after how they are trimmed changed.
+func (a *App) retrimPages() {
+	a.relayoutWithViewportAnchor(a.updatePageMetricSizes)
+	a.clearCache() // tile grids follow the page bounds
+}
+
 func (a *App) toggleTrimMargins() {
 	a.setTrimMargins(!a.trimMargins)
 	a.message = boolWord(a.trimMargins, "trim margins on", "trim margins off")
@@ -27,11 +33,8 @@ func (a *App) setTrimMargins(enabled bool) {
 	if a.trimMargins == enabled {
 		return
 	}
-	a.relayoutWithViewportAnchor(func() {
-		a.trimMargins = enabled
-		a.updatePageMetricSizes()
-	})
-	a.clearCache() // tile grids follow the page bounds
+	a.trimMargins = enabled
+	a.retrimPages()
 	if a.trimMargins && a.doc != nil && !a.contentBoxesLoaded() {
 		if a.metricLoader != nil {
 			a.metricLoader.Close()

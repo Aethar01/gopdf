@@ -217,6 +217,8 @@ func (a *App) applyConfig(cfg config.Config, assigned map[string]bool) {
 	}
 	if prev.TrimMargins != cfg.TrimMargins || assigned["trim_margins"] {
 		a.setTrimMargins(cfg.TrimMargins)
+	} else if prev.TrimPadding != cfg.TrimPadding && a.trimMargins {
+		a.retrimPages()
 	}
 	if a.tilesRenderedDifferently(prev, cfg) {
 		a.restyleTiles()

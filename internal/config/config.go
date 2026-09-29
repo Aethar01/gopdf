@@ -73,6 +73,9 @@ type Config struct {
 	RecentFilesMax        int
 	AutoReload            bool
 	AutoReloadDelayMS     int
+	LinkPreviewDelayMS    int
+	PromptHistoryMax      int
+	TrimPadding           int
 }
 
 type Runtime struct {
