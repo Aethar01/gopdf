@@ -351,8 +351,10 @@ func (a *App) drawUIListItems(renderer *sdl.Renderer, rect sdl.FRect, rows int, 
 		}
 		text := strings.Repeat("  ", max(0, item.depth)) + item.marker + item.text
 		textWidth := int(rect.W) - 32
-		if item.secondary != "" {
-			secondaryWidth := measureText(a.fontFace, item.secondary)
+		// The right-hand column gets at most 45% of a narrow row.
+		secondary := a.truncateModalListText(item.secondary, int(rect.W*0.45))
+		secondaryWidth := measureText(a.fontFace, secondary)
+		if secondary != "" {
 			textWidth = int(rect.W) - 36 - secondaryWidth
 		}
 		if item.disabled {
@@ -368,9 +370,8 @@ func (a *App) drawUIListItems(renderer *sdl.Renderer, rect sdl.FRect, rows int, 
 		if err := a.drawText(renderer, a.truncateModalListText(text, textWidth), textX, y+baselineOffset, clr); err != nil {
 			return err
 		}
-		if item.secondary != "" {
-			secondaryWidth := measureText(a.fontFace, item.secondary)
-			if err := a.drawText(renderer, item.secondary, int(rect.X+rect.W)-16-secondaryWidth, y+baselineOffset, clr); err != nil {
+		if secondary != "" {
+			if err := a.drawText(renderer, secondary, int(rect.X+rect.W)-16-secondaryWidth, y+baselineOffset, clr); err != nil {
 				return err
 			}
 		}

@@ -6,6 +6,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/jupiterrider/purego-sdl3/sdl"
+	"golang.org/x/image/font"
 )
 
 func (a *App) drawStatusBar(renderer *sdl.Renderer) error {
@@ -14,9 +15,8 @@ func (a *App) drawStatusBar(renderer *sdl.Renderer) error {
 	if err := fillRect(renderer, sdl.FRect{X: 0, Y: float32(y), W: float32(a.winW), H: float32(h)}, a.statusBarColor()); err != nil {
 		return err
 	}
-	left := a.formatStatusBar(a.config.StatusBarLeft)
-	right := a.formatStatusBar(a.config.StatusBarRight)
 	pad := a.config.StatusBarPadding
+	left, right := fitStatusText(a.fontFace, a.formatStatusBar(a.config.StatusBarLeft), a.formatStatusBar(a.config.StatusBarRight), a.winW-2*pad, 2*pad, a.mode != modeNormal)
 	vertOffset := (h + a.fontFace.Metrics().Ascent.Ceil() - a.fontFace.Metrics().Descent.Ceil()) / 2
 	if err := a.drawInputSelection(renderer, y, pad, vertOffset); err != nil {
 		return err
@@ -32,6 +32,26 @@ func (a *App) drawStatusBar(renderer *sdl.Renderer) error {
 		return err
 	}
 	return nil
+}
+
+// fitStatusText keeps the two sides of the status bar from overlapping in
+// width. Each side is truncated towards a fair share of the space; while an
+// input prompt is on the left it stays whole, and the right side is hidden
+// if the two would collide.
+func fitStatusText(face font.Face, left, right string, width, gap int, keepLeft bool) (string, string) {
+	lw, rw := measureText(face, left), measureText(face, right)
+	if right == "" || lw+gap+rw <= width {
+		return left, right
+	}
+	if keepLeft {
+		return left, ""
+	}
+	right = truncateText(face, right, max(width/2, width-gap-lw))
+	left = truncateText(face, left, width-gap-measureText(face, right))
+	if measureText(face, left)+gap+measureText(face, right) > width {
+		return truncateText(face, left, width), "" // too narrow for both
+	}
+	return left, right
 }
 
 func (a *App) statusBarHeight() int {

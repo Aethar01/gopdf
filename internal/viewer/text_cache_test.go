@@ -48,3 +48,17 @@ func BenchmarkTruncateLongRow(b *testing.B) {
 		truncateText(basicfont.Face7x13, row, 400)
 	}
 }
+
+func TestFitStatusTextNeverOverlaps(t *testing.T) {
+	face := basicfont.Face7x13
+	left, right := "a fairly long status message", "12/100 continuous fit=page"
+	for _, width := range []int{400, 200, 120, 60} {
+		l, r := fitStatusText(face, left, right, width, 16, false)
+		if w := measureText(face, l) + 16 + measureText(face, r); r != "" && w > width {
+			t.Errorf("width %d: %q + %q is %dpx", width, l, r, w)
+		}
+	}
+	if l, r := fitStatusText(face, ":open some/long/path.pdf", right, 200, 16, true); l != ":open some/long/path.pdf" || r != "" {
+		t.Errorf("prompt: %q, %q; want the prompt whole and the right side hidden", l, r)
+	}
+}
