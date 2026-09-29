@@ -74,3 +74,30 @@ func TestFileFontMeasuresLikeItsUncachedFace(t *testing.T) {
 		}
 	}
 }
+
+func TestRuneIndexAtMatchesPrefixMeasurement(t *testing.T) {
+	fnt, err := opentype.Parse(goregular.TTF)
+	if err != nil {
+		t.Fatal(err)
+	}
+	face, err := opentype.NewFace(fnt, &opentype.FaceOptions{Size: 14, DPI: 72})
+	if err != nil {
+		t.Fatal(err)
+	}
+	const s = "AVAWaY To, kerned é text"
+	runes := []rune(s)
+	want := func(x float64) int {
+		for i := range runes {
+			left, right := measureText(face, string(runes[:i])), measureText(face, string(runes[:i+1]))
+			if x < float64(left+right)/2 {
+				return i
+			}
+		}
+		return len(runes)
+	}
+	for x := -2.0; x < float64(measureText(face, s))+4; x += 0.5 {
+		if got, want := runeIndexAt(face, s, x), want(x); got != want {
+			t.Fatalf("runeIndexAt(%v) = %d, want %d", x, got, want)
+		}
+	}
+}

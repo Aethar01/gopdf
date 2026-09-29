@@ -2,6 +2,8 @@ package viewer
 
 import (
 	"github.com/jupiterrider/purego-sdl3/sdl"
+	"golang.org/x/image/font"
+	"golang.org/x/image/math/fixed"
 )
 
 func (a *App) handleInputMouseButton(e *sdl.MouseButtonEvent) bool {
@@ -57,15 +59,28 @@ func (a *App) inputPositionAt(x, y float64, dragging bool) (int, bool) {
 	if x <= startX {
 		return 0, true
 	}
-	runes := []rune(display)
-	for i := range runes {
-		left := float64(measureText(a.fontFace, string(runes[:i])))
-		right := float64(measureText(a.fontFace, string(runes[:i+1])))
-		if x-startX < (left+right)/2 {
-			return i, true
+	return runeIndexAt(a.fontFace, display, x-startX), true
+}
+
+// runeIndexAt returns the index of the rune boundary in s nearest x pixels
+// from its start, measuring each prefix as measureText would in one pass.
+func runeIndexAt(face font.Face, s string, x float64) int {
+	var width fixed.Int26_6
+	prev, i := rune(-1), 0
+	for _, r := range s {
+		left := width.Ceil()
+		if prev >= 0 {
+			width += face.Kern(prev, r)
 		}
+		advance, _ := face.GlyphAdvance(r)
+		width += advance
+		if x < float64(left+width.Ceil())/2 {
+			return i
+		}
+		prev = r
+		i++
 	}
-	return len(runes), true
+	return i
 }
 
 func inputMaxFloat64(a, b float64) float64 {
