@@ -68,9 +68,23 @@ func (a *App) newOutlineView() *uiView {
 		return "No PDF outline found"
 	}
 	view.geometry = func(a *App) (sdl.FRect, int) { return a.outlineMenuGeometry() }
-	view.onKey = func(a *App, e *sdl.KeyboardEvent) bool { return a.handleOutlineViewKey(view, e) }
-	view.onMouseButton = func(a *App, e *sdl.MouseButtonEvent) bool { return a.handleOutlineViewMouseButton(view, e) }
+	view.onKey = func(a *App, e *sdl.KeyboardEvent) bool { return a.handleGenericUIViewKey(view, e) }
+	view.onMouseButton = func(a *App, e *sdl.MouseButtonEvent) bool { return a.handleGenericUIViewMouseButton(view, e) }
 	view.onMouseMotion = func(a *App, e *sdl.MouseMotionEvent) bool { return a.handleGenericUIViewMouseMotion(view, e) }
+	view.onSelect = func(a *App, _ uiRow) { a.activateSelectedOutline() }
+	view.onAction = func(a *App, view *uiView, action string) bool {
+		switch action {
+		case "scroll_left":
+			a.collapseSelectedOutline()
+		case "scroll_right":
+			a.expandSelectedOutline()
+		case "outline": // its own toggle closes it, as close does
+			a.runUIViewAction(view, "close")
+		default:
+			return false
+		}
+		return true
+	}
 	view.onQueryChanged = func(a *App, _ *uiView) {
 		a.invalidateVisibleOutlineIndices()
 		a.refreshOutlineView()
@@ -176,32 +190,6 @@ func clampOutlineSelection(selected int, visible []int) int {
 	return visible[0]
 }
 
-func (a *App) updateOutlineSearchQuery(query string) {
-	if a.outlineMenu.view == nil {
-		return
-	}
-	a.outlineMenu.view.query = query
-	a.invalidateVisibleOutlineIndices()
-	a.refreshOutlineView()
-}
-
-func (a *App) closeOutlineSearch() bool {
-	if a.outlineMenu.view == nil || (!a.outlineMenu.view.searching && a.outlineMenu.view.query == "") {
-		return false
-	}
-	a.outlineMenu.view.searching = false
-	a.updateOutlineSearchQuery("")
-	return true
-}
-
-func (a *App) ensureOutlineSelectionVisible() {
-	a.refreshOutlineView()
-}
-
-func (a *App) moveOutlineSelection(delta int) {
-	a.moveUIViewSelection(a.outlineMenu.view, delta)
-}
-
 func (a *App) activateSelectedOutline() {
 	view := a.outlineMenu.view
 	if view == nil || view.selected < 0 || view.selected >= len(a.outline) {
@@ -235,7 +223,7 @@ func (a *App) collapseSelectedOutline() {
 	}
 	if parent := a.outline[selected].Parent; parent >= 0 {
 		view.selected = parent
-		a.ensureOutlineSelectionVisible()
+		a.refreshOutlineView()
 	}
 }
 
@@ -247,87 +235,6 @@ func (a *App) expandSelectedOutline() {
 	a.outlineMenu.expanded[view.selected] = true
 	a.invalidateVisibleOutlineIndices()
 	a.refreshOutlineView()
-}
-
-func (a *App) handleOutlineViewKey(view *uiView, e *sdl.KeyboardEvent) bool {
-	if a.handleUIViewSearchKey(view, e) {
-		return true
-	}
-	if e.Type != sdl.EventKeyDown || e.Repeat {
-		return true
-	}
-	if e.Key == sdl.KeycodeDown {
-		a.moveOutlineSelection(1)
-		return true
-	}
-	if e.Key == sdl.KeycodeUp {
-		a.moveOutlineSelection(-1)
-		return true
-	}
-	if token, ok := keyToken(e.Key, e.Mod); ok {
-		if action, ok := a.sequenceLookup[normalizeBinding(token)]; ok {
-			wasSearching := view.searching
-			a.runOutlineViewAction(action)
-			if !wasSearching && view.searching && len([]rune(token)) == 1 {
-				a.ignoreText = token
-			}
-		}
-	}
-	return true
-}
-
-func (a *App) runOutlineViewAction(action string) {
-	if delta, ok := a.listPageDelta(a.outlineMenu.view, action); ok {
-		a.moveOutlineSelection(delta)
-		return
-	}
-	switch action {
-	case "scroll_down":
-		a.moveOutlineSelection(1)
-	case "scroll_up":
-		a.moveOutlineSelection(-1)
-	case "scroll_left":
-		a.collapseSelectedOutline()
-	case "scroll_right":
-		a.expandSelectedOutline()
-	case "confirm":
-		a.activateSelectedOutline()
-	case "search_prompt", "search_prompt_backward":
-		if a.outlineMenu.view != nil && a.outlineMenu.view.searchable {
-			a.outlineMenu.view.searching = true
-			a.updateOutlineSearchQuery("")
-		}
-	case "close", "outline":
-		if a.closeOutlineSearch() {
-			return
-		}
-		a.closeActiveUI()
-	default:
-		a.runAction(action)
-	}
-}
-
-func (a *App) handleOutlineViewMouseButton(view *uiView, e *sdl.MouseButtonEvent) bool {
-	if e.Type == sdl.EventMouseButtonUp && e.Button == uint8(sdl.ButtonLeft) {
-		view.draggingScrollbar = false
-		return true
-	}
-	if e.Type != sdl.EventMouseButtonDown || e.Button != uint8(sdl.ButtonLeft) {
-		return true
-	}
-	if a.uiViewStartScrollbarDrag(view, int(e.X), int(e.Y)) {
-		return true
-	}
-	if item, ok := a.uiViewIndexAt(view, int(e.X), int(e.Y)); ok {
-		view.selected = item.index
-		a.activateSelectedOutline()
-		return true
-	}
-	rect, _ := view.frameGeometry(a)
-	if !pointInRect(int(e.X), int(e.Y), rect) {
-		a.closeUIView(view, true)
-	}
-	return true
 }
 
 func (a *App) outlineMenuGeometry() (sdl.FRect, int) {

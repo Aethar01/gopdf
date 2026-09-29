@@ -180,13 +180,7 @@ func (a *App) confirmKeybindMenuSelection() {
 	if len(a.keybindMenu.rows) == 0 {
 		return
 	}
-	row := a.keybindMenu.rows[a.keybindMenu.view.selected]
-	if a.keybindMenu.selectingAction {
-		a.keybindMenu.captureAction = row.action
-		a.keybindMenu.capturing = true
-		return
-	}
-	a.keybindMenu.captureAction = row.action
+	a.keybindMenu.captureAction = a.keybindMenu.rows[a.keybindMenu.view.selected].action
 	a.keybindMenu.capturing = true
 }
 

@@ -45,13 +45,16 @@ type uiView struct {
 	header               func(*App, *uiView, int) string
 	empty                func(*App, *uiView) string
 	onSelect             func(*App, uiRow)
-	onClose              func(*App)
-	onQueryChanged       func(*App, *uiView)
-	onKey                func(*App, *sdl.KeyboardEvent) bool
-	onMouseButton        func(*App, *sdl.MouseButtonEvent) bool
-	onMouseMotion        func(*App, *sdl.MouseMotionEvent) bool
-	draw                 func(*App, *sdl.Renderer) error
-	filtered             uiRowFilter // visibleRows' last result
+	// onAction runs an action in the view's own way, reporting false for
+	// actions it leaves to the generic list.
+	onAction       func(*App, *uiView, string) bool
+	onClose        func(*App)
+	onQueryChanged func(*App, *uiView)
+	onKey          func(*App, *sdl.KeyboardEvent) bool
+	onMouseButton  func(*App, *sdl.MouseButtonEvent) bool
+	onMouseMotion  func(*App, *sdl.MouseMotionEvent) bool
+	draw           func(*App, *sdl.Renderer) error
+	filtered       uiRowFilter // visibleRows' last result
 }
 
 type uiRowFilter struct {

@@ -156,7 +156,7 @@ func (a *App) handleUIViewSearchKey(view *uiView, e *sdl.KeyboardEvent) bool {
 }
 
 func (a *App) runUIViewAction(view *uiView, action string) {
-	if view == nil {
+	if view == nil || view.onAction != nil && view.onAction(a, view, action) {
 		return
 	}
 	if delta, ok := a.listPageDelta(view, action); ok {

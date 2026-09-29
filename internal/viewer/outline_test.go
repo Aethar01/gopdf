@@ -73,7 +73,7 @@ func TestOutlineSelectionMovementAndExpandCollapse(t *testing.T) {
 	app.outlineMenu.view = app.newOutlineView()
 	app.refreshOutlineView()
 
-	app.moveOutlineSelection(1)
+	app.moveUIViewSelection(app.outlineMenu.view, 1)
 	if app.outlineMenu.view.selected != 2 {
 		t.Fatalf("expected collapsed outline to move to next visible top-level item, got %d", app.outlineMenu.view.selected)
 	}
@@ -84,7 +84,7 @@ func TestOutlineSelectionMovementAndExpandCollapse(t *testing.T) {
 		t.Fatal("expected expanding selected parent to reveal children")
 	}
 
-	app.moveOutlineSelection(1)
+	app.moveUIViewSelection(app.outlineMenu.view, 1)
 	if app.outlineMenu.view.selected != 1 {
 		t.Fatalf("expected expanded outline to move into child item, got %d", app.outlineMenu.view.selected)
 	}
@@ -97,5 +97,35 @@ func TestOutlineSelectionMovementAndExpandCollapse(t *testing.T) {
 	app.collapseSelectedOutline()
 	if app.outlineMenu.expanded[0] {
 		t.Fatal("expected collapsing expanded parent to hide children")
+	}
+}
+
+func TestOutlineRunsItsOwnActionsThroughTheGenericList(t *testing.T) {
+	app := &App{
+		layoutState: layoutState{winW: 800, winH: 600},
+		sdlState:    sdlState{fontFace: basicfont.Face7x13},
+		config:      config.Default(),
+		documentState: documentState{outline: []mupdf.OutlineItem{
+			{Title: "Chapter 1", Page: 0, Parent: -1, HasChildren: true},
+			{Title: "Section 1.1", Page: 1, Parent: 0},
+		}},
+		uiState: uiState{outlineMenu: outlineMenuState{expanded: map[int]bool{}}},
+	}
+	view := app.newOutlineView()
+	app.outlineMenu.view = view
+	app.showUIView(view)
+	app.refreshOutlineView()
+
+	app.runUIViewAction(view, "scroll_right")
+	if !app.outlineMenu.expanded[0] {
+		t.Fatal("scroll_right did not expand the selected entry")
+	}
+	app.runUIViewAction(view, "scroll_left")
+	if app.outlineMenu.expanded[0] {
+		t.Fatal("scroll_left did not collapse the selected entry")
+	}
+	app.runUIViewAction(view, "outline")
+	if view.visible {
+		t.Fatal("the outline toggle did not close the outline")
 	}
 }
