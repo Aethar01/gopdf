@@ -65,10 +65,14 @@ func (a *App) runOverviewAction(action string) bool {
 		a.moveOverviewSelection(columns)
 	case "scroll_up":
 		a.moveOverviewSelection(-columns)
-	case "scroll_right", "next_page", "next_spread":
+	case "scroll_right", "next_spread":
 		a.moveOverviewSelection(1)
-	case "scroll_left", "prev_page", "prev_spread":
+	case "scroll_left", "prev_spread":
 		a.moveOverviewSelection(-1)
+	case "next_page":
+		a.moveOverviewSelection(a.overviewVisibleRows() * columns)
+	case "prev_page":
+		a.moveOverviewSelection(-a.overviewVisibleRows() * columns)
 	case "first_page":
 		a.moveOverviewSelection(-a.overview.selected)
 	case "last_page":
@@ -98,17 +102,31 @@ func (a *App) moveOverviewSelection(delta int) {
 	a.scrollOverviewSelectionIntoView()
 }
 
+// overviewVisibleRows is how many whole rows of thumbnails fit on screen.
+func (a *App) overviewVisibleRows() int {
+	if len(a.rows) == 0 {
+		return 1
+	}
+	_, viewportH := a.viewportSize()
+	return max(1, int(float64(viewportH)/(a.rows[0].height+overviewGap)))
+}
+
+// scrollOverviewSelectionIntoView scrolls so the selected row shows with
+// scroll_off rows of context above and below where the screen allows.
 func (a *App) scrollOverviewSelectionIntoView() {
 	if a.overview.selected >= len(a.pageToRow) {
 		return
 	}
-	row := a.rows[a.pageToRow[a.overview.selected]]
+	rowIndex := a.pageToRow[a.overview.selected]
+	context := min(a.config.ScrollOff, (a.overviewVisibleRows()-1)/2)
+	top := a.rows[max(0, rowIndex-context)]
+	bottom := a.rows[min(len(a.rows)-1, rowIndex+context)]
 	_, viewportH := a.viewportSize()
 	switch {
-	case row.y-overviewGap < a.scrollY:
-		a.scrollY = row.y - overviewGap
-	case row.y+row.height+overviewGap > a.scrollY+float64(viewportH):
-		a.scrollY = row.y + row.height + overviewGap - float64(viewportH)
+	case top.y-overviewGap < a.scrollY:
+		a.scrollY = top.y - overviewGap
+	case bottom.y+bottom.height+overviewGap > a.scrollY+float64(viewportH):
+		a.scrollY = bottom.y + bottom.height + overviewGap - float64(viewportH)
 	}
 	a.clampScroll()
 }

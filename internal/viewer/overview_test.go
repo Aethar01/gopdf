@@ -53,3 +53,29 @@ func TestOverviewCloseReturnsToOriginalPage(t *testing.T) {
 		t.Fatalf("after close: overview=%v page=%d, want page 5", app.overview, app.page)
 	}
 }
+
+func TestOverviewPagesByScreenAndKeepsScrollOff(t *testing.T) {
+	app := testLayoutApp(200)
+	app.winW, app.winH = 1000, 2400 // several rows of the tall test pages
+	app.config.ScrollOff = 1
+	app.recomputeLayout(app.viewportSize())
+	app.toggleOverview()
+	columns, rows := app.overviewColumns(), app.overviewVisibleRows()
+	if rows < 2 {
+		t.Fatalf("visible rows = %d", rows)
+	}
+	app.runAction("next_page")
+	if app.overview.selected != app.overview.saved.page+rows*columns {
+		t.Fatalf("PgDn moved to %d, want %d", app.overview.selected, app.overview.saved.page+rows*columns)
+	}
+	// The row after the selection stays on screen.
+	next := app.rows[app.pageToRow[app.overview.selected]+1]
+	_, viewportH := app.viewportSize()
+	if next.y+next.height > app.scrollY+float64(viewportH) {
+		t.Fatalf("scroll_off row below the selection is off screen")
+	}
+	app.runAction("prev_page")
+	if app.overview.selected != app.overview.saved.page {
+		t.Fatalf("PgUp moved to %d", app.overview.selected)
+	}
+}
