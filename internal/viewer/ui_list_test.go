@@ -98,3 +98,22 @@ func TestModalListRowAtUsesRowsBelowHeaderOnly(t *testing.T) {
 		t.Fatal("expected click outside modal bounds to miss")
 	}
 }
+
+func TestVisibleRowsFollowQueryAndRows(t *testing.T) {
+	view := &uiView{rows: []uiRow{{text: "alpha"}, {text: "beta"}, {text: "alphabet"}}}
+	if got := len(view.visibleRows()); got != 3 {
+		t.Fatalf("unfiltered rows = %d, want 3", got)
+	}
+	view.query = "ALPHA"
+	if got := len(view.visibleRows()); got != 2 {
+		t.Fatalf("rows matching alpha = %d, want 2", got)
+	}
+	view.rows = []uiRow{{text: "alpha"}}
+	if got := len(view.visibleRows()); got != 1 {
+		t.Fatalf("rows matching alpha after replacing rows = %d, want 1", got)
+	}
+	view.query = "beta"
+	if got := len(view.visibleRows()); got != 0 {
+		t.Fatalf("rows matching beta = %d, want 0", got)
+	}
+}

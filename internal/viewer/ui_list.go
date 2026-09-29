@@ -51,6 +51,13 @@ type uiView struct {
 	onMouseButton        func(*App, *sdl.MouseButtonEvent) bool
 	onMouseMotion        func(*App, *sdl.MouseMotionEvent) bool
 	draw                 func(*App, *sdl.Renderer) error
+	filtered             uiRowFilter // visibleRows' last result
+}
+
+type uiRowFilter struct {
+	query  string
+	source []uiRow
+	rows   []uiRow
 }
 
 type uiManager struct {
@@ -94,10 +101,16 @@ func (m *uiManager) closeAll() {
 	m.active = nil
 }
 
+// visibleRows returns the rows matching the view's query, which callers must
+// not modify. It runs per frame and per pointer motion, so the filtered rows
+// are kept until the query changes or rows is assigned a new slice.
 func (v *uiView) visibleRows() []uiRow {
 	query := strings.ToLower(strings.TrimSpace(v.query))
 	if query == "" {
-		return append([]uiRow(nil), v.rows...)
+		return v.rows
+	}
+	if f := v.filtered; f.query == query && len(f.source) == len(v.rows) && (len(v.rows) == 0 || &f.source[0] == &v.rows[0]) {
+		return f.rows
 	}
 	rows := make([]uiRow, 0, len(v.rows))
 	for _, row := range v.rows {
@@ -105,6 +118,7 @@ func (v *uiView) visibleRows() []uiRow {
 			rows = append(rows, row)
 		}
 	}
+	v.filtered = uiRowFilter{query: query, source: v.rows, rows: rows}
 	return rows
 }
 
