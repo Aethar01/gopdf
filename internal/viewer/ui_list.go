@@ -455,14 +455,22 @@ func (a *App) createCoreListView(id, title string, rows []uiRow, widthPercent, h
 }
 
 func (a *App) showCoreList(id, title string, rows []string, onSelect func(string)) {
-	view := a.createCoreListView(id, title, uiRowsFromStrings(rows), 70, 70)
-	view.onKey = func(a *App, e *sdl.KeyboardEvent) bool { return a.handleGenericUIViewKey(view, e) }
-	view.onMouseButton = func(a *App, e *sdl.MouseButtonEvent) bool { return a.handleGenericUIViewMouseButton(view, e) }
-	view.onMouseMotion = func(a *App, e *sdl.MouseMotionEvent) bool { return a.handleGenericUIViewMouseMotion(view, e) }
+	view := a.showRowList(id, title, uiRowsFromStrings(rows), 70, 70)
 	if onSelect != nil {
 		view.onSelect = func(_ *App, row uiRow) { onSelect(row.value) }
 	}
+}
+
+// showRowList replaces any open UI with a modal list of rows that uses the
+// standard key and mouse handling; callers set onSelect.
+func (a *App) showRowList(id, title string, rows []uiRow, widthPercent, heightPercent int) *uiView {
+	a.closeAllUI()
+	view := a.createCoreListView(id, title, rows, widthPercent, heightPercent)
+	view.onKey = func(a *App, e *sdl.KeyboardEvent) bool { return a.handleGenericUIViewKey(view, e) }
+	view.onMouseButton = func(a *App, e *sdl.MouseButtonEvent) bool { return a.handleGenericUIViewMouseButton(view, e) }
+	view.onMouseMotion = func(a *App, e *sdl.MouseMotionEvent) bool { return a.handleGenericUIViewMouseMotion(view, e) }
 	a.showUIView(view)
+	return view
 }
 
 func (a *App) createLuaListView(spec config.UIOverlay) *uiView {

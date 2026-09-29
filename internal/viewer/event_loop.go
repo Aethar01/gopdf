@@ -87,6 +87,7 @@ func (a *App) Run() error {
 		a.expireSequence()
 		a.finishKeybindCapture(time.Now())
 		a.revealLinkPreview()
+		a.pollPrintResult()
 		a.prefetchVisiblePages()
 		a.adjustRenderBaseScaleForExtremeZoom(a.scale)
 		a.emitViewStateEvents()

@@ -191,6 +191,10 @@ type inputState struct {
 	unsaved        bool        // the document has edits not yet written
 	highlightColor int         // palette index last used for highlights
 	promptState    promptState // the question asked in modePrompt
+	printSettings  printSettings
+	printResult    chan string // delivers the outcome of a print in progress
+	printers       printerList
+	printersFound  chan printerList // delivers a printer lookup in progress
 	preview        *linkPreview
 	discardWarned  bool // the user was told that unsaved edits would be lost
 	editPos        int  // see markEdited
