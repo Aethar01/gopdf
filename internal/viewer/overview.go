@@ -14,11 +14,6 @@ import (
 // normal continuous layout with several pages per row, so rendering and
 // scrolling work as usual; only navigation and the selection outline differ.
 
-const (
-	overviewThumbWidth = 220 // target on-screen page width for auto columns
-	overviewGap        = 16
-	overviewMaxColumns = 12
-)
 
 type overviewState struct {
 	selected int       // the first page of the selected spread
@@ -134,12 +129,12 @@ func (a *App) overviewColumns() int {
 	if a.overview.columns > 0 {
 		return min(a.overview.columns, max(1, cells))
 	}
-	cellWidth := overviewThumbWidth
+	cellWidth := max(1, a.config.OverviewThumbWidth)
 	if a.dualPage {
 		cellWidth *= 2 // a spread takes two thumbnails' width
 	}
 	viewportW, _ := a.viewportSize()
-	return clampInt(viewportW/(cellWidth+overviewGap), 2, max(2, min(cells, overviewMaxColumns)))
+	return clampInt(viewportW/(cellWidth+a.config.OverviewGap), 2, max(2, min(cells, a.config.OverviewMaxColumns)))
 }
 
 func (a *App) relayoutOverview() {
@@ -173,7 +168,7 @@ func (a *App) runOverviewAction(action string) bool {
 		a.overview.columns = max(1, columns-1)
 		a.relayoutOverview()
 	case "zoom_out":
-		a.overview.columns = min(overviewMaxColumns, columns+1)
+		a.overview.columns = min(max(1, a.config.OverviewMaxColumns), columns+1)
 		a.relayoutOverview()
 	case "reset_zoom":
 		a.overview.columns = 0
@@ -222,7 +217,7 @@ func (a *App) overviewVisibleRows() int {
 		return 1
 	}
 	_, viewportH := a.viewportSize()
-	return max(1, int(float64(viewportH)/(a.rows[0].height+overviewGap)))
+	return max(1, int(float64(viewportH)/(a.rows[0].height+float64(a.config.OverviewGap))))
 }
 
 // scrollOverviewSelectionIntoView scrolls by whole rows so the selected row
@@ -231,9 +226,9 @@ func (a *App) scrollOverviewSelectionIntoView() {
 	if a.overview.selected >= len(a.pageToRow) {
 		return
 	}
-	first := a.rowIndexAtContentY(a.scrollY + overviewGap)
+	first := a.rowIndexAtContentY(a.scrollY + float64(a.config.OverviewGap))
 	first = modalListScrollForSelection(first, a.pageToRow[a.overview.selected], a.overviewVisibleRows(), len(a.rows), a.config.ScrollOff)
-	a.scrollY = a.rows[first].y - overviewGap
+	a.scrollY = a.rows[first].y - float64(a.config.OverviewGap)
 	a.clampScroll()
 }
 

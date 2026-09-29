@@ -346,8 +346,11 @@ func testLayoutApp(pageCount int) *App {
 	return &App{
 		documentState:   documentState{pageCount: pageCount},
 		viewStateFields: viewStateFields{zoom: 1, fitMode: fitManual, renderMode: renderContinuous, firstPageOffset: true},
-		config:          config.Config{PageGap: -1, PageGapHorizontal: -1, PageGapVertical: -1, SpreadGap: -1, SmoothScrollSources: config.SmoothInputAll},
-		metricsService:  metricsService{pageMetrics: metrics},
+		config: config.Config{
+			PageGap: -1, PageGapHorizontal: -1, PageGapVertical: -1, SpreadGap: -1, SmoothScrollSources: config.SmoothInputAll,
+			OverviewThumbWidth: 220, OverviewMaxColumns: 12, OverviewGap: 16,
+		},
+		metricsService: metricsService{pageMetrics: metrics},
 	}
 }
 

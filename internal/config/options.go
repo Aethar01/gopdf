@@ -399,6 +399,9 @@ var configOptions = map[string]optionDesc{
 	"link_preview_delay_ms":  intOption("Milliseconds to hover an internal link before its preview appears.", func(c *Config) int { return c.LinkPreviewDelayMS }, func(c *Config, v int) { c.LinkPreviewDelayMS = max(0, v) }),
 	"prompt_history_max":     intOption("Maximum entries kept in each of the command and search prompt histories; 0 keeps none.", func(c *Config) int { return c.PromptHistoryMax }, func(c *Config, v int) { c.PromptHistoryMax = max(0, v) }),
 	"trim_padding":           intOption("Margin in points kept around a page's content when trimming margins.", func(c *Config) int { return c.TrimPadding }, func(c *Config, v int) { c.TrimPadding = max(0, v) }),
+	"overview_thumb_width":   intOption("Width in pixels the page overview aims to show each page at, which sets how many columns fit.", func(c *Config) int { return c.OverviewThumbWidth }, func(c *Config, v int) { c.OverviewThumbWidth = max(1, v) }),
+	"overview_max_columns":   intOption("Most columns the page overview shows, whether fitted to the window or set with zoom_out.", func(c *Config) int { return c.OverviewMaxColumns }, func(c *Config, v int) { c.OverviewMaxColumns = max(1, v) }),
+	"overview_gap":           intOption("Gap in pixels between the page overview's cells.", func(c *Config) int { return c.OverviewGap }, func(c *Config, v int) { c.OverviewGap = max(0, v) }),
 	"recent_files_max":       intOption("Maximum recent files retained and displayed.", func(c *Config) int { return c.RecentFilesMax }, func(c *Config, v int) { c.RecentFilesMax = max(0, v) }),
 	"scroll_step":            intOption("Keyboard and mouse scroll distance in pixels.", func(c *Config) int { return c.ScrollStep }, func(c *Config, v int) { c.ScrollStep = v }),
 	"page_gap": intOption("Vertical gap between pages; aliases page_gap_vertical.", func(c *Config) int { return c.PageGap }, func(c *Config, v int) {

@@ -25,7 +25,7 @@ func TestOverviewGridNavigationAndConfirm(t *testing.T) {
 	app := testOverviewApp()
 	app.toggleOverview()
 	columns := app.overviewColumns()
-	if columns != 1000/(overviewThumbWidth+overviewGap) {
+	if columns != 1000/(app.config.OverviewThumbWidth+app.config.OverviewGap) {
 		t.Fatalf("columns = %d", columns)
 	}
 	if len(app.rows[0].pages) != columns || app.renderMode != renderContinuous {
@@ -103,7 +103,7 @@ func TestOverviewLargeScrollOffCentresSelection(t *testing.T) {
 	for range 10 {
 		app.runAction("scroll_down")
 	}
-	first := app.rowIndexAtContentY(app.scrollY + overviewGap)
+	first := app.rowIndexAtContentY(app.scrollY + float64(app.config.OverviewGap))
 	if got, want := app.pageToRow[app.overview.selected]-first, (rows-1)/2; got != want {
 		t.Fatalf("selected row is %d rows below the top, want %d (centred)", got, want)
 	}
@@ -176,7 +176,7 @@ func TestOverviewGridFitsWidthAndAlignsLastRow(t *testing.T) {
 	viewportW, _ := app.viewportSize()
 	for i, row := range app.rows {
 		last := len(row.pages) - 1
-		if right := row.pageX[last] + row.pageW[last] + overviewGap; right > float64(viewportW)+0.5 {
+		if right := row.pageX[last] + row.pageW[last] + float64(app.config.OverviewGap); right > float64(viewportW)+0.5 {
 			t.Fatalf("row %d ends at %.1f, past the %dpx viewport", i, right, viewportW)
 		}
 	}
@@ -202,7 +202,7 @@ func TestOverviewGroupsSpreadsInDualMode(t *testing.T) {
 		t.Fatalf("spread 3-4 is not edge to edge: %v at %v", row.pages, row.pageX)
 	}
 	cover := app.rows[0]
-	if cover.pageX[1]-(cover.pageX[0]+cover.pageW[0]) != overviewGap {
+	if cover.pageX[1]-(cover.pageX[0]+cover.pageW[0]) != float64(app.config.OverviewGap) {
 		t.Fatal("no gap between the cover and the next spread")
 	}
 	// Two spreads per row: columns line up, the cover on its slot's right.
@@ -239,5 +239,18 @@ func TestSettingsChangedInOverviewCarryOver(t *testing.T) {
 	}
 	if app.renderMode != renderSingle || app.fitMode != fitPage {
 		t.Fatalf("overview's own settings not restored: mode=%q fit=%q", app.renderMode, app.fitMode)
+	}
+}
+
+func TestOverviewColumnsFollowTheOverviewOptions(t *testing.T) {
+	app := testOverviewApp()
+	app.config.OverviewThumbWidth = 480
+	app.toggleOverview()
+	if got := app.overviewColumns(); got != 1000/(480+16) {
+		t.Fatalf("columns = %d with overview_thumb_width 480", got)
+	}
+	app.config.OverviewThumbWidth, app.config.OverviewMaxColumns = 10, 3
+	if got := app.overviewColumns(); got != 3 {
+		t.Fatalf("columns = %d, want overview_max_columns 3", got)
 	}
 }

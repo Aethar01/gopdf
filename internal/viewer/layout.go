@@ -89,7 +89,7 @@ func (a *App) baseRows() []rowLayout {
 		columns := a.overviewColumns()
 		rows := make([]rowLayout, 0, len(spreads)/columns+1)
 		for i := 0; i < len(spreads); i += columns {
-			rows = append(rows, a.baseRow(arena, spreads[i:min(len(spreads), i+columns)], overviewGap, 0, slot))
+			rows = append(rows, a.baseRow(arena, spreads[i:min(len(spreads), i+columns)], float64(a.config.OverviewGap), 0, slot))
 		}
 		return rows
 	}
@@ -325,7 +325,7 @@ func (a *App) forEachContinuousPage(minY, maxY float64, visit func(page int, x, 
 
 func (a *App) verticalGap() int {
 	if a.overview != nil {
-		return overviewGap
+		return a.config.OverviewGap
 	}
 	if a.config.PageGapVertical >= 0 {
 		return a.config.PageGapVertical
@@ -338,7 +338,7 @@ func (a *App) verticalGap() int {
 
 func (a *App) horizontalGap() int {
 	if a.overview != nil {
-		return overviewGap
+		return a.config.OverviewGap
 	}
 	if a.config.PageGapHorizontal >= 0 {
 		return a.config.PageGapHorizontal

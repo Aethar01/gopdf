@@ -38,6 +38,9 @@ type Config struct {
 	SearchHighlightColor   [3]uint8
 	SearchCurrentColor     [3]uint8
 	PresentationBackground [3]uint8
+	OverviewThumbWidth     int
+	OverviewMaxColumns     int
+	OverviewGap            int
 	AltColors              bool
 	PageGap                int
 	SpreadGap              int
