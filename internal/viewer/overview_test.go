@@ -1,6 +1,8 @@
 package viewer
 
 import (
+	"image"
+	"math"
 	"testing"
 
 	"gopdf/internal/config"
@@ -121,20 +123,42 @@ func TestPromptOverOverviewReceivesEnter(t *testing.T) {
 	}
 }
 
-func TestLeavingOverviewRestoresRenderScaleAtOnce(t *testing.T) {
+func TestOverviewRendersThumbnailsOnly(t *testing.T) {
 	app := testOverviewApp()
-	app.fitMode = "width" // scale 10, well above the overview's thumbnails
+	app.fitMode = "width" // the reading view renders at scale 10
 	app.recomputeLayout(app.viewportSize())
 	app.config.RenderOversample = 1
 	app.ensureRenderBaseScale()
-	before := app.renderBaseScale
+	app.renderPending = map[tileKey]renderRequest{}
+	app.renderWorker = &renderWorker{requests: make(chan renderRequest, 128)}
+	base := app.renderBaseScale
+
 	app.toggleOverview()
-	if app.renderBaseScale >= before {
-		t.Fatalf("overview kept render scale %.3f (was %.3f)", app.renderBaseScale, before)
+	app.adjustRenderBaseScaleForExtremeZoom(app.scale)
+	app.prefetchVisiblePages()
+	if app.renderBaseScale != base {
+		t.Fatalf("overview changed the render scale %.3f -> %.3f", base, app.renderBaseScale)
+	}
+	if len(app.renderPending) == 0 {
+		t.Fatal("no thumbnails requested")
+	}
+	for key, req := range app.renderPending {
+		if !key.thumb || math.Abs(req.scale-app.scale) > 1e-9 {
+			t.Fatalf("overview requested %+v at scale %.3f, want thumbnails at the grid scale %.3f", key, req.scale, app.scale)
+		}
+	}
+
+	// A current thumbnail at the grid's scale needs no new render.
+	page := app.overview.selected
+	app.renderPending = map[tileKey]renderRequest{}
+	app.cache.add(&renderedTile{key: thumbnailKey(page), rect: image.Rect(0, 0, 10, 10), scale: app.scale, version: app.tileVersion(page)})
+	app.prefetchVisiblePages()
+	if _, ok := app.renderPending[thumbnailKey(page)]; ok {
+		t.Fatal("re-requested a thumbnail that is already sharp enough")
 	}
 	app.runAction("confirm")
-	if app.renderBaseScale < app.scale*renderUpgradeTolerance {
-		t.Fatalf("render scale %.3f after leaving the overview, view scale %.3f", app.renderBaseScale, app.scale)
+	if app.renderBaseScale != base {
+		t.Fatalf("render scale %.3f after the overview, want %.3f", app.renderBaseScale, base)
 	}
 }
 

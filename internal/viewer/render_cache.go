@@ -46,6 +46,8 @@ type renderedTile struct {
 	rect    image.Rectangle
 	scale   float64
 	lru     *list.Element
+	// version is, for a thumbnail, the content of its last whole-page render.
+	version tileVersion
 }
 
 func (t *renderedTile) bytes() int64 {
@@ -247,11 +249,25 @@ func (a *App) updateThumbnail(tile *renderedTile) {
 		}
 		if current {
 			a.drawIntoThumbnail(next, thumb)
+			next.version = thumb.version
 		}
 		a.cache.add(next)
 		thumb = next
 	}
 	a.drawIntoThumbnail(thumb, tile)
+}
+
+// replaceThumbnail makes a whole-page render the page's thumbnail.
+func (a *App) replaceThumbnail(render *renderedTile, version tileVersion) {
+	defer destroyTexture(render.texture)
+	thumb := a.newThumbnail(render.key.page, render.rect, render.scale)
+	if thumb == nil {
+		return
+	}
+	a.drawIntoThumbnail(thumb, render)
+	thumb.version = version
+	a.cache.add(thumb)
+	a.cache.evict()
 }
 
 func (a *App) newThumbnail(page int, rect image.Rectangle, scale float64) *renderedTile {

@@ -229,7 +229,7 @@ func TestRenderWorkerPoolRendersEveryRequest(t *testing.T) {
 		t.Fatalf("slots = %d, want 3", len(w.slots))
 	}
 	for page := range pages {
-		if !w.Enqueue(renderRequest{key: tileKey{page: page, scale: 0.5}, rect: image.Rect(0, 0, renderTileSize, renderTileSize)}) {
+		if !w.Enqueue(renderRequest{key: tileKey{page: page, scale: 0.5}, scale: 0.5, rect: image.Rect(0, 0, renderTileSize, renderTileSize)}) {
 			t.Fatalf("enqueue page %d failed", page)
 		}
 	}

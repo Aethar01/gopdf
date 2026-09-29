@@ -56,6 +56,12 @@ func (a *App) drawPage(renderer *sdl.Renderer, page int, x, y, width, height flo
 	_ = a.drawPageBackground(renderer, x, y, page)
 	viewportW, viewportH := a.viewportSize()
 	tiles := a.cache.pageTiles(page, a.tileVersion(page))
+	if a.overview != nil && len(tiles) > 0 {
+		tiles = tiles[:1] // the overview shows thumbnails only, which sort first
+		if !tiles[0].key.thumb {
+			tiles = nil
+		}
+	}
 	for _, tile := range tiles {
 		a.drawTile(renderer, tile, x, y, viewportW, viewportH)
 	}
@@ -135,6 +141,10 @@ type tileCandidate struct {
 // which tiles are still wanted.
 func (a *App) prefetchVisiblePages() {
 	if len(a.rows) == 0 {
+		return
+	}
+	if a.overview != nil {
+		a.prefetchOverviewThumbnails()
 		return
 	}
 	viewportW, viewportH := a.viewportSize()

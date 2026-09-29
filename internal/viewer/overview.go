@@ -1,6 +1,12 @@
 package viewer
 
 import (
+	"cmp"
+	"math"
+	"slices"
+
+	"gopdf/internal/mupdf"
+
 	"github.com/jupiterrider/purego-sdl3/sdl"
 )
 
@@ -30,7 +36,6 @@ func (a *App) toggleOverview() {
 	a.renderMode = "continuous"
 	a.fitMode = "width"
 	a.relayoutOverview()
-	a.settleRenderScale()
 }
 
 // closeOverview restores the view from before the overview, at page.
@@ -41,7 +46,76 @@ func (a *App) closeOverview(page int) {
 	if page != saved.page {
 		a.alignPageToAnchor(page)
 	}
-	a.settleRenderScale()
+}
+
+// overviewThumbLongSide caps the size of thumbnails rendered for the overview.
+const overviewThumbLongSide = 1024
+
+// prefetchOverviewThumbnails requests thumbnails for the pages shown and
+// just beyond, rendered at the grid's scale where a page lacks one that is
+// sharp enough or current. The reading view's tiles are left alone.
+func (a *App) prefetchOverviewThumbnails() {
+	_, viewportH := a.viewportSize()
+	margin := float64(viewportH)
+	type candidate struct {
+		req      renderRequest
+		distance float64
+	}
+	var visible, nearby []candidate
+	a.forEachDisplayedPage(margin, func(page int, x, y float64) {
+		m := a.pageMetrics[page]
+		scale := math.Min(a.scale, overviewThumbLongSide/math.Max(1, math.Max(float64(m.bounds.X1-m.bounds.X0), float64(m.bounds.Y1-m.bounds.Y0))))
+		version := a.tileVersion(page)
+		if thumb, ok := a.cache.get(thumbnailKey(page)); ok && thumb.scale >= scale*renderUpgradeTolerance && thumb.version == version {
+			return
+		}
+		c := candidate{req: renderRequest{key: thumbnailKey(page), scale: scale, rect: mupdf.DeviceRect(m.bounds, scale), version: version}}
+		switch {
+		case y+m.height*a.scale < 0:
+			c.distance = -y
+			nearby = append(nearby, c)
+		case y > float64(viewportH):
+			c.distance = y - float64(viewportH)
+			nearby = append(nearby, c)
+		default:
+			visible = append(visible, c)
+		}
+	})
+
+	wanted := map[tileKey]bool{}
+	onScreen := map[tileKey]bool{}
+	protected := map[tileKey]bool{}
+	a.forEachDisplayedPage(0, func(page int, _, _ float64) { protected[thumbnailKey(page)] = true })
+	for _, c := range visible {
+		wanted[c.req.key], onScreen[c.req.key] = true, true
+	}
+	for _, c := range nearby {
+		wanted[c.req.key] = true
+	}
+	a.cache.protected = protected
+	if a.renderWorker != nil {
+		a.renderWorker.SetWanted(wanted)
+		a.renderWorker.SetVisible(onScreen)
+		a.renderWorker.DrainUnwanted(a.renderGeneration)
+	}
+	for key := range a.renderPending {
+		if !wanted[key] {
+			delete(a.renderPending, key)
+		}
+	}
+	for _, c := range visible {
+		a.queueRender(c.req, 0)
+	}
+	slices.SortFunc(nearby, func(x, y candidate) int { return cmp.Compare(x.distance, y.distance) })
+	remaining := maxPendingPrefetchRenders - a.pendingBackgroundRenderCount()
+	for i, c := range nearby {
+		if remaining <= 0 {
+			break
+		}
+		if a.queueRender(c.req, renderPrefetchPriority+i) {
+			remaining--
+		}
+	}
 }
 
 func (a *App) overviewColumns() int {

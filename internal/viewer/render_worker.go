@@ -14,7 +14,9 @@ import (
 type renderRequest struct {
 	generation int
 	key        tileKey
-	rect       image.Rectangle // device pixels of key's tile
+	scale      float64         // render scale; a tile's key.scale, or a thumbnail's
+	rect       image.Rectangle // device pixels to render at scale
+	version    tileVersion     // the content a thumbnail render shows
 	altColors  bool
 	aaLevel    int
 	priority   int
@@ -227,7 +229,7 @@ func (w *renderWorker) run(slot *renderSlot) {
 			return
 		}
 		slot.rendering.Store(&req.key)
-		rendered, err := slot.renderer.Render(req.key.page, req.key.scale, req.rect, req.aaLevel)
+		rendered, err := slot.renderer.Render(req.key.page, req.scale, req.rect, req.aaLevel)
 		if err == nil && req.altColors {
 			remapPageColors(rendered.Image, req.altBackground, req.altForeground, w.keptImageRects(req, rendered))
 		}
@@ -272,7 +274,7 @@ func (w *renderWorker) keptImageRects(req renderRequest, rendered *mupdf.Rendere
 	origin := image.Pt(rendered.X, rendered.Y)
 	rects := make([]image.Rectangle, len(images))
 	for i, bounds := range images {
-		rects[i] = mupdf.DeviceRect(bounds, req.key.scale).Sub(origin)
+		rects[i] = mupdf.DeviceRect(bounds, req.scale).Sub(origin)
 	}
 	return rects
 }

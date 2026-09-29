@@ -71,7 +71,12 @@ func (a *App) acceptRenderUpdate(update renderUpdate) {
 		return
 	}
 	origin := image.Pt(update.rendered.X, update.rendered.Y)
-	tile := &renderedTile{key: req.key, texture: tex, rect: img.Bounds().Add(origin), scale: req.key.scale}
+	tile := &renderedTile{key: req.key, texture: tex, rect: img.Bounds().Add(origin), scale: req.scale}
+	if req.key.thumb {
+		a.replaceThumbnail(tile, req.version)
+		a.pendingRedraw = true
+		return
+	}
 	a.cache.add(tile)
 	a.updateThumbnail(tile)
 	if !a.pagePending(req.key.page) {
@@ -86,36 +91,38 @@ func (a *App) acceptRenderUpdate(update renderUpdate) {
 // already queued, in which case a more urgent priority is kept. It reports
 // whether a new render was queued.
 func (a *App) requestTile(key tileKey, rect image.Rectangle, priority int) bool {
-	if a.renderWorker == nil {
-		return false
-	}
 	if _, ok := a.cache.get(key); ok {
 		return false
 	}
-	if req, ok := a.renderPending[key]; ok {
-		if priority < req.priority {
-			req.priority = priority
-			a.renderPending[key] = req
+	return a.queueRender(renderRequest{key: key, scale: key.scale, rect: rect}, priority)
+}
+
+// queueRender queues req unless the same key is pending, in which case a
+// more urgent priority is kept.
+func (a *App) queueRender(req renderRequest, priority int) bool {
+	if a.renderWorker == nil {
+		return false
+	}
+	if pending, ok := a.renderPending[req.key]; ok {
+		if priority < pending.priority {
+			pending.priority = priority
+			a.renderPending[req.key] = pending
 		}
 		return false
 	}
-	req := renderRequest{
-		generation: a.renderGeneration,
-		key:        key,
-		rect:       rect,
-		altColors:  a.altColors,
-		aaLevel:    a.config.AntiAliasing,
-		priority:   priority,
-	}
+	req.generation = a.renderGeneration
+	req.priority = priority
+	req.altColors = a.altColors
+	req.aaLevel = a.config.AntiAliasing
 	if req.altColors {
 		req.altBackground, req.altForeground = a.config.AltBackground, a.config.AltForeground
 		req.keepImages = a.config.AltColorsKeepImages
 	}
 	if !a.renderWorker.Enqueue(req) {
-		a.logf("render enqueue skipped page=%d tile=%d,%d", key.page+1, key.x, key.y)
+		a.logf("render enqueue skipped page=%d tile=%d,%d", req.key.page+1, req.key.x, req.key.y)
 		return false
 	}
-	a.renderPending[key] = req
+	a.renderPending[req.key] = req
 	return true
 }
 
@@ -327,6 +334,9 @@ func (a *App) settleRenderScale() {
 }
 
 func (a *App) adjustRenderBaseScaleForExtremeZoom(layoutScale float64) {
+	if a.overview != nil {
+		return // the overview draws thumbnails, so the reading view's scale stays
+	}
 	a.scheduleRenderScaleTarget(layoutScale)
 	if a.applyScheduledRenderScaleTarget() {
 		return
