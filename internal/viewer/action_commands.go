@@ -2,6 +2,7 @@ package viewer
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 )
 
@@ -13,6 +14,9 @@ var actionCommands = map[string]string{
 	"present":  "presentation",
 	"overview": "overview",
 	"outline":  "outline",
+	"noh":      "clear_search",
+	"back":     "jump_backward",
+	"forward":  "jump_forward",
 }
 
 // toggleCommand switches a setting: on, off, or with no argument to the
@@ -31,9 +35,17 @@ var toggleCommands = map[string]toggleCommand{
 	"statusbar":  {action: "toggle_status_bar", on: func(a *App) bool { return a.statusBarShown }},
 }
 
-// runActionCommand runs name if it is an action or toggle command,
+// runActionCommand runs name if it is an action, toggle or view command,
 // reporting whether it was one.
 func (a *App) runActionCommand(name, args string) bool {
+	switch name {
+	case "rotate":
+		a.runRotateCommand(args)
+		return true
+	case "zoom":
+		a.runZoomCommand(args)
+		return true
+	}
 	if action, ok := actionCommands[name]; ok {
 		a.runAction(action)
 		return true
@@ -64,4 +76,42 @@ func parseToggle(arg string, current bool) (bool, error) {
 		return false, nil
 	}
 	return false, fmt.Errorf("expects on or off, not %q", arg)
+}
+
+// runRotateCommand rotates clockwise by default, or by ccw, or to an
+// absolute multiple of 90 degrees.
+func (a *App) runRotateCommand(arg string) {
+	switch arg = strings.ToLower(strings.TrimSpace(arg)); arg {
+	case "", "cw":
+		a.runAction("rotate_cw")
+	case "ccw":
+		a.runAction("rotate_ccw")
+	default:
+		degrees, err := strconv.Atoi(arg)
+		if err != nil || degrees%90 != 0 {
+			a.message = "usage: :rotate [cw|ccw|0|90|180|270]"
+			return
+		}
+		a.SetRotation(float64(degrees))
+	}
+}
+
+// runZoomCommand zooms in or out a step, resets, or sets a percentage such
+// as 150 or 150%.
+func (a *App) runZoomCommand(arg string) {
+	switch arg = strings.ToLower(strings.TrimSpace(arg)); arg {
+	case "in":
+		a.runAction("zoom_in")
+	case "out":
+		a.runAction("zoom_out")
+	case "reset":
+		a.runAction("reset_zoom")
+	default:
+		percent, err := strconv.ParseFloat(strings.TrimSuffix(arg, "%"), 64)
+		if err != nil || percent <= 0 {
+			a.message = "usage: :zoom in|out|reset|PERCENT"
+			return
+		}
+		a.SetZoom(percent / 100)
+	}
 }

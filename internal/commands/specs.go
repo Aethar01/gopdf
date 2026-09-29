@@ -14,10 +14,12 @@ type CommandReferenceEntry struct {
 }
 
 var specs = []Spec{
+	{Name: "back", Help: ":back - Jump back to the previous position"},
 	{Name: "colors", ArgCompletions: []string{"alt", "normal"}, Help: ":colors normal|alt - Set color mode"},
 	{Name: "cover", ArgCompletions: []string{"on", "off"}, Help: ":cover [on|off] - Show the first page alone in dual-page mode"},
 	{Name: "dual", ArgCompletions: []string{"on", "off"}, Help: ":dual [on|off] - Toggle or set dual-page mode"},
 	{Name: "fit", ArgCompletions: []string{"height", "manual", "page", "width"}, Help: ":fit width|height|page|manual - Set fit mode"},
+	{Name: "forward", Help: ":forward - Jump forward again after :back"},
 	{Name: "fullscreen", ArgCompletions: []string{"on", "off"}, Help: ":fullscreen [on|off] - Toggle or set fullscreen"},
 	{Name: "help", Help: ":help - Show commands, key bindings, search flags and options"},
 	{Name: "highlight", Help: ":highlight - Highlight the selection in the last colour used"},
@@ -25,6 +27,7 @@ var specs = []Spec{
 	{Name: "lua", Help: ":lua <code> - Execute Lua code inline"},
 	{Name: "matches", Help: ":matches - List every match of the current search"},
 	{Name: "mode", ArgCompletions: []string{"continuous", "single"}, Help: ":mode continuous|single - Set render mode"},
+	{Name: "noh", Help: ":noh - Clear the search highlights"},
 	{Name: "open", Help: ":open <filename> - Open another PDF relative to the current document"},
 	{Name: "open_file_picker", Help: ":open_file_picker - Open the PDF file picker"},
 	{Name: "outline", Help: ":outline - Open the document outline"},
@@ -36,12 +39,14 @@ var specs = []Spec{
 	{Name: "recent", Help: ":recent - Open the recent-files menu"},
 	{Name: "redo", Help: ":redo - Reapply the last undone edit"},
 	{Name: "reload-config", Help: ":reload-config - Reload the config file"},
+	{Name: "rotate", ArgCompletions: []string{"cw", "ccw", "0", "90", "180", "270"}, Help: ":rotate [cw|ccw|DEGREES] - Rotate by a quarter turn, or to 0, 90, 180 or 270"},
 	{Name: "search", Help: ":search [-r] [-i] [-w] [-p] <text> - Search document text"},
 	{Name: "set", Help: ":set [option[?]|option!|option=value] - Inspect or change options"},
 	{Name: "statusbar", ArgCompletions: []string{"on", "off"}, Help: ":statusbar [on|off] - Show or hide the status bar"},
 	{Name: "trim", ArgCompletions: []string{"on", "off"}, Help: ":trim [on|off] - Lay pages out by their content, trimming margins"},
 	{Name: "undo", Help: ":undo - Undo the last edit"},
 	{Name: "write", Help: ":write [path], :w - Save edits, or a copy to path; :wq saves and exits"},
+	{Name: "zoom", ArgCompletions: []string{"in", "out", "reset"}, Help: ":zoom in|out|reset|PERCENT - Zoom a step, reset, or set e.g. :zoom 150"},
 }
 
 func All() []Spec {

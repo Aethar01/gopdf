@@ -1,6 +1,7 @@
 package viewer
 
 import (
+	"math"
 	"slices"
 	"testing"
 
@@ -76,5 +77,49 @@ func TestLayoutToggleCommands(t *testing.T) {
 	app.runCommand(":dual")
 	if app.dualPage {
 		t.Fatal(":dual did not toggle off")
+	}
+}
+
+func TestViewCommands(t *testing.T) {
+	app := testLayoutApp(5)
+	app.config.MinZoom, app.config.MaxZoom = 0.5, 8
+	app.winW, app.winH = 1000, 800
+	app.recomputeLayout(app.viewportSize())
+
+	app.runCommand(":rotate")
+	app.runCommand(":rotate cw")
+	if app.rotation != 180 {
+		t.Fatalf("rotation = %v after two :rotate", app.rotation)
+	}
+	app.runCommand(":rotate 270")
+	app.runCommand(":rotate 45")
+	if app.rotation != 270 || app.message != "usage: :rotate [cw|ccw|0|90|180|270]" {
+		t.Fatalf("rotation = %v, message %q", app.rotation, app.message)
+	}
+
+	app.runCommand(":zoom 150%")
+	if app.fitMode != "manual" || math.Abs(app.zoom-1.5) > 1e-9 {
+		t.Fatalf(":zoom 150%%: fit=%q zoom=%v", app.fitMode, app.zoom)
+	}
+	app.runCommand(":zoom 200")
+	if math.Abs(app.zoom-2) > 1e-9 {
+		t.Fatalf(":zoom 200: zoom=%v", app.zoom)
+	}
+
+	before := app.page
+	app.alignPageToAnchor(4)
+	app.runCommand(":back")
+	if app.page != before {
+		t.Fatalf(":back left page %d, want %d", app.page, before)
+	}
+	app.runCommand(":forward")
+	if app.page != 4 {
+		t.Fatalf(":forward left page %d", app.page)
+	}
+
+	app.search = searchState{query: "x", order: []searchHitRef{{}}}
+	app.runCommand(":noh")
+	if app.search.query != "" {
+		t.Fatal(":noh kept the search")
 	}
 }
