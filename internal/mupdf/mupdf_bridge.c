@@ -761,6 +761,12 @@ void gopdf_drop_renderer(gopdf_renderer *renderer) {
 	free(renderer);
 }
 
+void gopdf_arm_renderer(gopdf_renderer *renderer) {
+	if (renderer != NULL) {
+		memset(&renderer->cookie, 0, sizeof(renderer->cookie));
+	}
+}
+
 void gopdf_cancel_renderer(gopdf_renderer *renderer) {
 	if (renderer != NULL) {
 		renderer->cookie.abort = 1;
@@ -769,7 +775,8 @@ void gopdf_cancel_renderer(gopdf_renderer *renderer) {
 
 /* Rasterises the part of a display list inside clip, in device pixels at
  * scale, into a malloc'd RGBA buffer. Consumes the caller's reference to
- * list. Returns 2, with no buffer, when the render was cancelled. */
+ * list. Returns 2, with no buffer, when the render was cancelled since the
+ * renderer was last armed. */
 int gopdf_render_display_list(gopdf_renderer *renderer, fz_display_list *list, float scale, gopdf_irect clip, int aa_level, unsigned char **samples, int *width, int *height, int *stride, int *x, int *y, char **err) {
 	fz_context *ctx = renderer->ctx;
 	fz_pixmap *pix = NULL;
@@ -785,6 +792,10 @@ int gopdf_render_display_list(gopdf_renderer *renderer, fz_display_list *list, f
 	*stride = 0;
 	*x = 0;
 	*y = 0;
+	if (renderer->cookie.abort) {
+		fz_drop_display_list(ctx, list);
+		return 2;
+	}
 	fz_var(pix);
 	fz_var(dev);
 	fz_try(ctx) {
@@ -813,7 +824,6 @@ int gopdf_render_display_list(gopdf_renderer *renderer, fz_display_list *list, f
 			pix = fz_new_pixmap_with_bbox_and_data(ctx, fz_device_rgb(ctx), bbox, NULL, 1, *samples);
 			fz_clear_pixmap_with_value(ctx, pix, 0xff);
 			dev = fz_new_draw_device(ctx, fz_identity, pix);
-			memset(&renderer->cookie, 0, sizeof(renderer->cookie));
 			fz_run_display_list(ctx, list, dev, ctm, fz_rect_from_irect(bbox), &renderer->cookie);
 			fz_close_device(ctx, dev);
 			cancelled = renderer->cookie.abort;

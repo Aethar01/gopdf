@@ -420,3 +420,23 @@ func TestCancelledRenderReportsErrCancelled(t *testing.T) {
 	}
 	t.Skip("no render was cancelled mid-flight")
 }
+
+func TestCancelBeforeRenderStartsIsKeptUntilArmed(t *testing.T) {
+	doc := mustOpen(t, testpdf.Write(t, "page"))
+	renderer, err := doc.NewRenderer()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer renderer.Close()
+	renderer.Arm()
+	renderer.Cancel()
+	if _, err := renderer.Render(0, 1, wholePage, 8); !errors.Is(err, ErrCancelled) {
+		t.Fatalf("render after Cancel: err = %v, want ErrCancelled", err)
+	}
+	renderer.Arm()
+	rendered, err := renderer.Render(0, 1, wholePage, 8)
+	if err != nil {
+		t.Fatalf("render after Arm: %v", err)
+	}
+	rendered.Close()
+}

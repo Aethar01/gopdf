@@ -23,8 +23,8 @@ var ErrCancelled = errors.New("render cancelled")
 // held only while fetching a page's display list, so renderers run
 // concurrently with each other and with other document calls.
 //
-// Render and Close must be called from one goroutine at a time; Cancel may be
-// called from any goroutine.
+// Arm, Render and Close must be called from one goroutine at a time; Cancel
+// may be called from any goroutine.
 type Renderer struct {
 	doc    *Document
 	mu     sync.Mutex // guards handle against Cancel racing Close
@@ -52,7 +52,16 @@ func (r *Renderer) Close() {
 	r.handle = nil
 }
 
-// Cancel aborts the render in progress, if any.
+// Arm clears a previous Cancel, so that the next Render runs unless
+// cancelled after this. Call it before making that render cancellable.
+func (r *Renderer) Arm() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	C.gopdf_arm_renderer(r.handle)
+}
+
+// Cancel aborts the render in progress, or the next one if the renderer is
+// armed and has not started it yet.
 func (r *Renderer) Cancel() {
 	r.mu.Lock()
 	defer r.mu.Unlock()

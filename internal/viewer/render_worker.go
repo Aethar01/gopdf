@@ -242,6 +242,7 @@ func (w *renderWorker) run(slot *renderSlot) {
 		if !ok {
 			return
 		}
+		slot.renderer.Arm()
 		slot.rendering.Store(&req.key)
 		rendered, err := slot.renderer.Render(req.key.page, req.scale, req.rect, req.aaLevel)
 		if err == nil && req.altColors {
