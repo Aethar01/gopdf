@@ -207,7 +207,7 @@ func pollRuntimeUntil(t *testing.T, rt *Runtime, ready func() bool) {
 		}
 		time.Sleep(time.Millisecond)
 	}
-	t.Fatalf("timed out waiting for plugin operation (operations=%d jobs=%d)", len(rt.operations), len(rt.jobs))
+	t.Fatalf("timed out waiting for plugin operation (operations=%d)", len(rt.operations))
 }
 
 func evalBool(rt *Runtime, expression string) bool {

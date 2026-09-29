@@ -211,14 +211,14 @@ func TestFailedReloadPreservesRunningPluginJobs(t *testing.T) {
 	}
 	defer rt.Close()
 	ctx, cancel := context.WithCancel(context.Background())
-	rt.jobs[1] = pluginJob{id: 1, generation: rt.pluginGeneration, cancel: cancel}
+	rt.operations[1] = &pluginOperation{id: 1, generation: rt.pluginGeneration, kind: "job", cancel: cancel}
 	if err := os.WriteFile(configPath, []byte(`this is not lua`), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	if err := rt.Reload(); err == nil {
 		t.Fatal("expected reload failure")
 	}
-	if _, ok := rt.jobs[1]; !ok {
+	if _, ok := rt.operations[1]; !ok {
 		t.Fatal("expected failed reload to preserve the old job")
 	}
 	select {

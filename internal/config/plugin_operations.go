@@ -132,6 +132,7 @@ func (r *Runtime) pollPluginOperations() bool {
 				if values == nil {
 					values = map[string]any{}
 				}
+				values["id"] = op.id
 				if _, ok := values["success"]; !ok {
 					values["success"] = false
 				}
@@ -160,7 +161,7 @@ func (r *Runtime) pollPluginOperations() bool {
 }
 
 func (r *Runtime) pluginOperationsActive() bool {
-	return r != nil && (len(r.operations) > 0 || len(r.jobs) > 0)
+	return r != nil && len(r.operations) > 0
 }
 
 func (r *Runtime) schedule(callback *lua.LFunction) (int, error) {
@@ -170,11 +171,7 @@ func (r *Runtime) schedule(callback *lua.LFunction) (int, error) {
 	return r.startPluginTimer(r.owningPluginID(), 0, false, callback), nil
 }
 
-func (r *Runtime) PollPluginOperations() bool {
-	operations := r.pollPluginOperations()
-	jobs := r.pollPluginJobs()
-	return operations || jobs
-}
+func (r *Runtime) PollPluginOperations() bool { return r.pollPluginOperations() }
 
 func (r *Runtime) PluginOperationsActive() bool { return r.pluginOperationsActive() }
 

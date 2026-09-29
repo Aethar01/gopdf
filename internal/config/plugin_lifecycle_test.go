@@ -357,9 +357,9 @@ end
 	}
 }
 
-// PollPluginOperations must drain operations and jobs in the same call. A
-// short-circuit would leave job callbacks waiting behind unrelated work.
-func TestPollDrainsOperationsAndJobsTogether(t *testing.T) {
+// PollPluginOperations must run every ready callback in one call, so a job's
+// callback does not wait behind unrelated work.
+func TestPollRunsEveryReadyOperation(t *testing.T) {
 	rt := openPluginRuntime(t, fmt.Sprintf(`
 local M = gopdf.plugin.register("sample")
 M.timer_fired = false
@@ -372,12 +372,12 @@ return M
 	// Wait for both to be ready, then poll exactly once.
 	deadline := time.Now().Add(5 * time.Second)
 	for time.Now().Before(deadline) {
-		if len(rt.operationResults) > 0 && len(rt.jobResults) > 0 {
+		if len(rt.operationResults) == 2 {
 			break
 		}
 		time.Sleep(time.Millisecond)
 	}
-	if len(rt.operationResults) == 0 || len(rt.jobResults) == 0 {
+	if len(rt.operationResults) != 2 {
 		t.Skip("could not get an operation and a job ready at the same time")
 	}
 	rt.PollPluginOperations()

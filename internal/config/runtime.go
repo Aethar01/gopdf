@@ -52,8 +52,6 @@ func OpenWithOptions(explicitPath, docPath string, options OpenOptions) (*Runtim
 		docName:          docName,
 		docMeta:          loadDocumentMeta(docPath),
 		verbose:          options.Verbose,
-		jobs:             map[int]pluginJob{},
-		jobResults:       make(chan pluginJobResult, 32),
 		operations:       map[int]*pluginOperation{},
 		operationResults: make(chan pluginOperationResult, 64),
 	}
@@ -93,7 +91,6 @@ func unique(paths []string) []string {
 
 func (r *Runtime) Close() {
 	r.cancelPluginOperations()
-	r.cancelPluginJobs()
 	r.closeLuaState()
 }
 
@@ -147,7 +144,6 @@ func (r *Runtime) Reload() error {
 	oldCallbackSeq := r.callbackSeq
 	oldPlugins := r.plugins
 	oldPluginCatalog := r.pluginCatalog
-	oldJobs := r.jobs
 	oldOperations := r.operations
 	oldPluginGeneration := r.pluginGeneration
 	oldDirty := r.dirty
@@ -162,12 +158,10 @@ func (r *Runtime) Reload() error {
 	r.callbacks = map[string]*lua.LFunction{}
 	r.callbackSeq = 0
 	r.dirty = false
-	r.jobs = make(map[int]pluginJob)
 	r.operations = make(map[int]*pluginOperation)
 	defer func() {
 		if committed {
 			cancelPluginOperationMap(oldOperations)
-			cancelPluginJobMap(oldJobs)
 			if oldState != nil {
 				oldState.Close()
 			}
@@ -180,7 +174,6 @@ func (r *Runtime) Reload() error {
 		r.callbackSeq = oldCallbackSeq
 		r.plugins = oldPlugins
 		r.pluginCatalog = oldPluginCatalog
-		r.jobs = oldJobs
 		r.operations = oldOperations
 		r.pluginGeneration = oldPluginGeneration
 		r.dirty = oldDirty

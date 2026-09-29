@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -83,25 +84,6 @@ type pluginSubscription struct {
 	plugin string
 	event  string
 	fn     *lua.LFunction
-}
-
-type pluginJob struct {
-	id         int
-	plugin     string
-	generation int
-	cancel     context.CancelFunc
-	callback   *lua.LFunction
-}
-
-type pluginJobResult struct {
-	id         int
-	plugin     string
-	generation int
-	code       int
-	stdout     string
-	stderr     string
-	err        string
-	timedOut   bool
 }
 
 type limitedBuffer struct {
@@ -360,12 +342,6 @@ func (r *Runtime) rollbackPluginLoad(id string) {
 				r.plugins.activationOrder = append(r.plugins.activationOrder[:i], r.plugins.activationOrder[i+1:]...)
 				break
 			}
-		}
-	}
-	for jobID, job := range r.jobs {
-		if job.plugin == id && job.generation == r.pluginGeneration {
-			job.cancel()
-			delete(r.jobs, jobID)
 		}
 	}
 	r.cancelPluginOperationsFor(id)
@@ -756,18 +732,7 @@ func (instance *pluginInstance) startJob(L *lua.LState) int {
 	if err != nil {
 		L.RaiseError("plugin %s.job: %v", instance.manifest.ID, err)
 	}
-	handle := L.NewTable()
-	L.SetField(handle, "id", lua.LNumber(id))
-	L.SetField(handle, "cancel", L.NewFunction(func(L *lua.LState) int {
-		instance.runtime.cancelPluginJob(id)
-		return 0
-	}))
-	L.SetField(handle, "active", L.NewFunction(func(L *lua.LState) int {
-		job, ok := instance.runtime.jobs[id]
-		L.Push(lua.LBool(ok && job.generation == instance.runtime.pluginGeneration))
-		return 1
-	}))
-	L.Push(handle)
+	L.Push(newPluginOperationHandle(L, instance.runtime, id))
 	return 1
 }
 
@@ -1181,25 +1146,18 @@ func (r *Runtime) startPluginJob(pluginID string, spec *lua.LTable, callback *lu
 		}
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
-	if timeoutMS > 0 {
-		var timeoutCancel context.CancelFunc
-		ctx, timeoutCancel = context.WithTimeout(ctx, time.Duration(timeoutMS)*time.Millisecond)
-		baseCancel := cancel
-		cancel = func() {
-			timeoutCancel()
-			baseCancel()
-		}
-	}
-	r.nextJobID++
-	id := r.nextJobID
-	job := pluginJob{id: id, plugin: pluginID, generation: r.pluginGeneration, cancel: cancel, callback: callback}
-	r.jobs[id] = job
-	go runPluginJob(ctx, r.jobResults, job, command, args, cwd, env, stdin)
-	return id, nil
+	timeout := time.Duration(timeoutMS) * time.Millisecond
+	return r.startPluginOperation(pluginID, "job", callback, func(ctx context.Context) map[string]any {
+		return runPluginJob(ctx, timeout, command, args, cwd, env, stdin)
+	}), nil
 }
 
-func runPluginJob(ctx context.Context, results chan<- pluginJobResult, job pluginJob, command string, args []string, cwd string, env map[string]string, stdin string) {
+func runPluginJob(ctx context.Context, timeout time.Duration, command string, args []string, cwd string, env map[string]string, stdin string) map[string]any {
+	if timeout > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, timeout)
+		defer cancel()
+	}
 	cmd := exec.CommandContext(ctx, command, args...)
 	cmd.Dir = cwd
 	if len(env) > 0 {
@@ -1220,75 +1178,19 @@ func runPluginJob(ctx context.Context, results chan<- pluginJobResult, job plugi
 	if cmd.ProcessState != nil {
 		code = cmd.ProcessState.ExitCode()
 	}
-	timedOut := ctx.Err() == context.DeadlineExceeded
+	timedOut := errors.Is(ctx.Err(), context.DeadlineExceeded)
 	errText := ""
 	if err != nil && !timedOut {
 		errText = err.Error()
 	}
-	select {
-	case results <- pluginJobResult{id: job.id, plugin: job.plugin, generation: job.generation, code: code, stdout: stdout.String(), stderr: stderr.String(), err: errText, timedOut: timedOut}:
-	case <-ctx.Done():
-		if timedOut {
-			results <- pluginJobResult{id: job.id, plugin: job.plugin, generation: job.generation, code: code, stdout: stdout.String(), stderr: stderr.String(), err: errText, timedOut: true}
-		}
+	return map[string]any{
+		"code":      code,
+		"stdout":    stdout.String(),
+		"stderr":    stderr.String(),
+		"error":     errText,
+		"timed_out": timedOut,
+		"success":   errText == "" && !timedOut && code == 0,
 	}
-}
-
-func (r *Runtime) cancelPluginJob(id int) {
-	if job, ok := r.jobs[id]; ok {
-		job.cancel()
-		delete(r.jobs, id)
-	}
-}
-
-func (r *Runtime) cancelPluginJobs() {
-	cancelPluginJobMap(r.jobs)
-}
-
-func cancelPluginJobMap(jobs map[int]pluginJob) {
-	for id, job := range jobs {
-		job.cancel()
-		delete(jobs, id)
-	}
-}
-
-func (r *Runtime) pollPluginJobs() bool {
-	if r == nil {
-		return false
-	}
-	changed := false
-	for {
-		select {
-		case result := <-r.jobResults:
-			job, ok := r.jobs[result.id]
-			if !ok {
-				continue
-			}
-			delete(r.jobs, result.id)
-			if result.generation != r.pluginGeneration || result.plugin != job.plugin || r.state == nil {
-				continue
-			}
-			resultTable := r.state.NewTable()
-			r.state.SetField(resultTable, "id", lua.LNumber(result.id))
-			r.state.SetField(resultTable, "code", lua.LNumber(result.code))
-			r.state.SetField(resultTable, "stdout", lua.LString(result.stdout))
-			r.state.SetField(resultTable, "stderr", lua.LString(result.stderr))
-			r.state.SetField(resultTable, "error", lua.LString(result.err))
-			r.state.SetField(resultTable, "timed_out", lua.LBool(result.timedOut))
-			r.state.SetField(resultTable, "cancelled", lua.LFalse)
-			r.state.SetField(resultTable, "success", lua.LBool(result.err == "" && !result.timedOut && result.code == 0))
-			if err := r.callPluginLua(job.plugin, lua.P{Fn: job.callback, NRet: 0, Protect: true}, resultTable); err != nil {
-				r.logf("plugin %s job %d: %v", result.plugin, result.id, err)
-			}
-			changed = true
-		default:
-			return changed
-		}
-	}
-}
-
-func (r *Runtime) pluginJobsActive() bool {
-	return r != nil && len(r.jobs) > 0
 }
 
 func normalizePluginID(id string) string {
@@ -1353,7 +1255,3 @@ func (r *Runtime) RunPluginCommand(name, args string) (bool, error) {
 func (r *Runtime) EmitPluginEvent(event string, payload map[string]any) bool {
 	return r.emitPluginEvent(event, payload)
 }
-
-func (r *Runtime) PollPluginJobs() bool { return r.pollPluginJobs() }
-
-func (r *Runtime) PluginJobsActive() bool { return r.pluginJobsActive() }

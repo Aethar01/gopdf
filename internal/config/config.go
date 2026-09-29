@@ -92,9 +92,6 @@ type Runtime struct {
 	disabledPlugins  []string
 	noConfig         bool
 	plugins          *pluginState
-	jobs             map[int]pluginJob
-	jobResults       chan pluginJobResult
-	nextJobID        int
 	operations       map[int]*pluginOperation
 	operationResults chan pluginOperationResult
 	nextOperationID  int
