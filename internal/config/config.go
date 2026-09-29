@@ -11,6 +11,7 @@ type Config struct {
 	MinZoom               float64
 	MaxZoom               float64
 	PinchSensitivity      float64
+	ZoomStep              float64
 	PageCacheMemoryMB     int
 	LinkSchemes           []string
 	RenderThreads         int

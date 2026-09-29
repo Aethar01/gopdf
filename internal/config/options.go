@@ -434,6 +434,11 @@ var configOptions = map[string]optionDesc{
 			c.MaxZoom = v
 		}
 	}),
+	"zoom_step": floatOption("Factor zoom_in multiplies the zoom by, and zoom_out divides it by; above 1.", func(c *Config) float64 { return c.ZoomStep }, func(c *Config, v float64) {
+		if v > 1 {
+			c.ZoomStep = v
+		}
+	}),
 	"pinch_sensitivity": floatOption("Trackpad pinch zoom sensitivity; 1 preserves the gesture scale.", func(c *Config) float64 { return c.PinchSensitivity }, func(c *Config, v float64) {
 		if v > 0 {
 			c.PinchSensitivity = v

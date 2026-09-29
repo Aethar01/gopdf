@@ -63,6 +63,7 @@ gopdf.options.ui_font_path = "" -- Explicit UI font file path; overrides ui_font
 gopdf.options.ui_font_size = 14 -- UI font size in pixels.
 gopdf.options.ui_font_style = "normal" -- UI font style: normal, italic, or oblique.
 gopdf.options.ui_font_weight = 400 -- UI font weight as CSS number 100-900 or alias such as normal, medium, semibold, bold, or black.
+gopdf.options.zoom_step = 1.15 -- Factor zoom_in multiplies the zoom by, and zoom_out divides it by; above 1.
 
 -- Default key bindings.
 

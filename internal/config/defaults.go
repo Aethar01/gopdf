@@ -10,6 +10,7 @@ func Default() Config {
 		MinZoom:             0.5,
 		MaxZoom:             8,
 		PinchSensitivity:    1,
+		ZoomStep:            1.15,
 		PageCacheMemoryMB:   512,
 		LinkSchemes:         []string{"http", "https", "mailto"},
 		MuPDFStoreMB:        256,

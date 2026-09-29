@@ -3,6 +3,8 @@ package viewer
 import (
 	"math"
 	"time"
+
+	"gopdf/internal/config"
 )
 
 const smoothZoomSnap = 0.0001
@@ -75,6 +77,14 @@ func (a *App) endPinch() {
 	if a.smoothZoom.targetLog == a.smoothZoom.appliedLog {
 		a.cancelSmoothZoom()
 	}
+}
+
+// zoomStep is the factor a zoom_in multiplies the zoom by.
+func (a *App) zoomStep() float64 {
+	if a.config.ZoomStep > 1 {
+		return a.config.ZoomStep
+	}
+	return config.Default().ZoomStep
 }
 
 func (a *App) setManualZoom(delta float64) {

@@ -261,3 +261,16 @@ func TestJumpAlignmentUsesConfiguredViewportAnchor(t *testing.T) {
 		})
 	}
 }
+
+func TestZoomActionsStepByZoomStep(t *testing.T) {
+	app := testLayoutApp(1)
+	app.winW, app.winH = 1000, 800
+	app.fitMode, app.zoom = fitManual, 1
+	app.config.MinZoom, app.config.MaxZoom, app.config.ZoomStep = 0.1, 10, 2
+	app.recomputeLayout(app.viewportSize())
+	app.runAction("zoom_in")
+	assertClose(t, app.zoom, 2)
+	app.runAction("zoom_out")
+	app.runAction("zoom_out")
+	assertClose(t, app.zoom, 0.5)
+}
