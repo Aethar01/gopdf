@@ -65,9 +65,9 @@ type searchWorker struct {
 	updates  chan searchUpdate
 }
 
-func newSearchWorker(doc *mupdf.Document) *searchWorker {
+func newSearchWorker(doc *mupdf.Document, wake func()) *searchWorker {
 	w := &searchWorker{
-		workerLifecycle: newWorkerLifecycle(),
+		workerLifecycle: newWorkerLifecycle(wake),
 		requests:        make(chan searchRequest, 1),
 		updates:         make(chan searchUpdate, 64),
 	}
@@ -300,7 +300,7 @@ func (a *App) startSearch(query string, mode searchMode) {
 	}
 	if a.searchWorker == nil && a.doc != nil {
 		a.logf("start search worker path=%q", a.docPath)
-		a.searchWorker = newSearchWorker(a.doc)
+		a.searchWorker = newSearchWorker(a.doc, a.wakeLoop)
 	}
 	if a.searchWorker == nil {
 		a.message = "no document open"

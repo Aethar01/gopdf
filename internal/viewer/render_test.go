@@ -223,7 +223,7 @@ func TestRenderWorkerPoolRendersEveryRequest(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer doc.Close()
-	w := newRenderWorker(doc, 3)
+	w := newRenderWorker(doc, 3, nil)
 	defer w.Close()
 	if len(w.slots) != 3 {
 		t.Fatalf("slots = %d, want 3", len(w.slots))

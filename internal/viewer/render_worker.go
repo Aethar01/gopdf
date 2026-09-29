@@ -66,9 +66,9 @@ func (s *renderSlot) cancel() {
 	}
 }
 
-func newRenderWorker(doc *mupdf.Document, threads int) *renderWorker {
+func newRenderWorker(doc *mupdf.Document, threads int, wake func()) *renderWorker {
 	w := &renderWorker{
-		workerLifecycle: newWorkerLifecycle(),
+		workerLifecycle: newWorkerLifecycle(wake),
 		doc:             doc,
 		requests:        make(chan renderRequest, 128),
 		updates:         make(chan renderUpdate, maxPendingPrefetchRenders),

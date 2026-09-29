@@ -11,10 +11,11 @@ type workerLifecycle struct {
 	closing   chan struct{}
 	done      chan struct{}
 	closeOnce sync.Once
+	wake      func() // wakes the event loop to collect an update; may be nil
 }
 
-func newWorkerLifecycle() workerLifecycle {
-	return workerLifecycle{closing: make(chan struct{}), done: make(chan struct{})}
+func newWorkerLifecycle(wake func()) workerLifecycle {
+	return workerLifecycle{closing: make(chan struct{}), done: make(chan struct{}), wake: wake}
 }
 
 func (w *workerLifecycle) Close() {
@@ -32,6 +33,9 @@ func sendWorkerUpdate[T any](w *workerLifecycle, updates chan<- T, update T) boo
 	case <-w.closing:
 		return false
 	case updates <- update:
+		if w.wake != nil {
+			w.wake()
+		}
 		return true
 	}
 }

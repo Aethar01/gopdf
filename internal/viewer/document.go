@@ -50,7 +50,7 @@ func (a *App) resolveOpenPath(path string) string {
 func (a *App) initMetricLoader(pages []int) {
 	a.logf("start metric loader pages=%d trim=%t", len(pages), a.trimMargins)
 	l := &metricLoader{
-		workerLifecycle: newWorkerLifecycle(),
+		workerLifecycle: newWorkerLifecycle(a.wakeLoop),
 		updates:         make(chan pageMetricUpdate, 128),
 	}
 	a.metricLoader = l

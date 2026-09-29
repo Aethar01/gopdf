@@ -25,7 +25,7 @@ type renderService struct {
 func (a *App) initRenderWorker() {
 	a.logf("start render worker path=%q", a.docPath)
 	a.renderPending = map[tileKey]renderRequest{}
-	a.renderWorker = newRenderWorker(a.doc, renderThreadCount(a.config))
+	a.renderWorker = newRenderWorker(a.doc, renderThreadCount(a.config), a.wakeLoop)
 	a.renderWorker.SetGeneration(a.renderGeneration)
 }
 

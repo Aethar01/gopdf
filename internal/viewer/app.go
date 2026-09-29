@@ -159,6 +159,7 @@ type layoutState struct {
 }
 
 type sdlState struct {
+	waker        *loopWaker
 	window       *sdl.Window
 	renderer     *sdl.Renderer
 	cursorHand   *sdl.Cursor

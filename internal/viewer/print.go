@@ -71,6 +71,7 @@ func (a *App) findPrinters() {
 	go func() {
 		names := listPrinters()
 		found <- printerList{names: names, defaultName: defaultPrinter(names)}
+		a.wakeLoop()
 	}()
 }
 
@@ -186,6 +187,7 @@ func (a *App) runPrint(args []string) {
 			msg = "sent " + a.docName + " to the printer"
 		}
 		results <- msg + note
+		a.wakeLoop()
 	}()
 }
 

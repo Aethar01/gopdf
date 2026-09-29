@@ -31,6 +31,7 @@ func (a *App) Run() error {
 	a.logf("created SDL window 1400x900")
 	a.window = window
 	a.renderer = renderer
+	a.waker = newLoopWaker()
 	if rw := sdl.IOFromConstMem(a.iconBytes); rw != nil {
 		if icon := sdl.LoadBMPIO(rw, true); icon != nil {
 			sdl.SetWindowIcon(window, icon)
@@ -168,6 +169,9 @@ func (a *App) convertPointerEventToRenderCoordinates(event *sdl.Event) {
 }
 
 func (a *App) handleSDLEvent(event *sdl.Event) error {
+	if a.isWakeEvent(event) {
+		return nil // the loop polls the workers' channels after events
+	}
 	a.convertPointerEventToRenderCoordinates(event)
 	defer a.syncTextInput()
 
