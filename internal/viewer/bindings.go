@@ -46,43 +46,49 @@ var namedKeycodes = func() map[sdl.Keycode]string {
 	return named
 }()
 
-// shiftedSymbols maps the US-layout keys whose shifted symbol default
-// bindings and marks use to that symbol, since SDL reports the unshifted
-// keycode.
-var shiftedSymbols = map[rune]rune{'/': '?', ';': ':', '=': '+', '\'': '"'}
-
-// keyToken returns the key a keydown or keyup names. Printable keys pressed
-// without Ctrl or Cmd become the character typed, so Shift+j is "J"; Shift
-// on digits and other symbols is ignored. Keys without a name, such as the
-// modifiers themselves, return false.
-func keyToken(key sdl.Keycode, mod sdl.Keymod) (keys.Key, bool) {
+// keyToken returns the key a keydown or keyup names, or false for keys
+// that have no name, such as the modifiers themselves, and for keys pressed
+// with Alt, which bindings cannot express.
+//
+// A printable key pressed without Ctrl or Cmd is the character it types.
+// Letters come from the event's keycode, which SDL gives as the QWERTY
+// letter on layouts without Latin letters, upper case with Shift or Caps
+// Lock. Other characters come from the layout with Shift and AltGr applied,
+// because the event's keycode is always the unshifted one.
+func keyToken(e *sdl.KeyboardEvent) (keys.Key, bool) {
+	if e.Mod&sdl.KeymodAlt != 0 {
+		return keys.Key{}, false
+	}
 	var m keys.Mod
-	if mod&sdl.KeymodCtrl != 0 {
+	if e.Mod&sdl.KeymodCtrl != 0 {
 		m |= keys.Ctrl
 	}
-	if mod&sdl.KeymodGui != 0 {
+	if e.Mod&sdl.KeymodGui != 0 {
 		m |= keys.Cmd
 	}
-	if mod&sdl.KeymodShift != 0 {
+	if e.Mod&sdl.KeymodShift != 0 {
 		m |= keys.Shift
 	}
-	if name, ok := namedKeycodes[key]; ok {
+	if name, ok := namedKeycodes[e.Key]; ok {
 		return keys.Key{Mod: m, Name: name}, true
 	}
 	// Keycodes of printable keys are the character; the others carry
 	// sdl.KeycodeScancodeMask, which puts them out of the rune range.
-	r := rune(key)
+	r := rune(e.Key)
 	if !unicode.IsPrint(r) {
 		return keys.Key{}, false
 	}
 	switch {
 	case m&(keys.Ctrl|keys.Cmd) != 0:
 		r = unicode.ToLower(r)
-	case m == keys.Shift:
-		if shifted, ok := shiftedSymbols[r]; ok {
-			r = shifted
-		} else {
+	case unicode.IsLetter(r):
+		if (e.Mod&sdl.KeymodShift != 0) != (e.Mod&sdl.KeymodCaps != 0) {
 			r = unicode.ToUpper(r)
+		}
+		m = 0
+	default:
+		if typed := rune(sdl.GetKeyFromScancode(e.Scancode, e.Mod&(sdl.KeymodShift|sdl.KeymodMode), false)); unicode.IsPrint(typed) {
+			r = typed
 		}
 		m = 0
 	}

@@ -15,7 +15,7 @@ import (
 
 func (a *App) handleSDLKeyDown(e *sdl.KeyboardEvent) {
 	if runtime.GOOS == "darwin" && e.Repeat && e.Key == a.lastKeyUpCode && time.Since(a.lastKeyUpAt) < 100*time.Millisecond {
-		if key, ok := keyToken(e.Key, e.Mod); ok && a.ignoreText == "" {
+		if key, ok := keyToken(e); ok && a.ignoreText == "" {
 			a.ignoreKeyText(key)
 		}
 		return
@@ -61,12 +61,12 @@ func (a *App) handleSDLKeyDown(e *sdl.KeyboardEvent) {
 				return
 			}
 		}
-		if key, ok := keyToken(e.Key, e.Mod); ok && a.handleInputModeBinding(key) {
+		if key, ok := keyToken(e); ok && a.handleInputModeBinding(key) {
 			return
 		}
 	}
 	if a.mode == modeNormal {
-		if key, ok := keyToken(e.Key, e.Mod); ok {
+		if key, ok := keyToken(e); ok {
 			token := key.String()
 			prevMode := a.mode
 			a.actionKeycode = e.Key

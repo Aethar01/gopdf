@@ -131,6 +131,8 @@ func TestNormalizeMouseEvent(t *testing.T) {
 		{"<C-wheel-up>", "<C-wheel_up>"},
 		{"CTRL_wheel_up", "<C-wheel_up>"},
 		{"ctrl-wheel-down", "<C-wheel_down>"},
+		{"<middle_down>", "middle_down"},
+		{"<Left-Up>", "left_up"},
 	}
 	for _, tt := range tests {
 		got, err := NormalizeMouseEvent(tt.in)
@@ -138,7 +140,7 @@ func TestNormalizeMouseEvent(t *testing.T) {
 			t.Errorf("NormalizeMouseEvent(%q) = %q, %v; want %q", tt.in, got, err, tt.want)
 		}
 	}
-	for _, in := range []string{"", "left_dwn", "wheel", "<C-left_down>", "ctrl_wheel_left"} {
+	for _, in := range []string{"", "left_dwn", "wheel", "<C-left_down>", "ctrl_wheel_left", "<middle_down", "<S-wheel_up>"} {
 		if got, err := NormalizeMouseEvent(in); err == nil {
 			t.Errorf("NormalizeMouseEvent(%q) = %q, want an error", in, got)
 		}

@@ -398,12 +398,29 @@ func (r *Runtime) registerCallback(fn *lua.LFunction) string {
 // setKeyBinding stores a binding under the key's canonical name, so every
 // spelling of a key replaces, and unbindKey removes, the same entry.
 func (r *Runtime) setKeyBinding(key, action string) error {
-	key, err := keys.Normalize(key)
+	seq, err := keys.ParseSequence(key)
 	if err != nil {
 		return err
 	}
-	r.cfg.KeyBindings[key] = action
+	if err := checkFirstKey(seq[0]); err != nil {
+		return err
+	}
+	r.cfg.KeyBindings[keys.Format(seq)] = action
 	r.dirty = true
+	return nil
+}
+
+// checkFirstKey refuses the keys the viewer reads before any binding: digits
+// 1 to 9 start a count, and ' and " jump to and set marks. A sequence that
+// began with one could never run.
+func checkFirstKey(key keys.Key) error {
+	text, _ := key.Text()
+	switch {
+	case len(text) == 1 && text >= "1" && text <= "9":
+		return fmt.Errorf("digits 1 to 9 start a count, so a binding cannot begin with one")
+	case text == "'" || text == "\"":
+		return fmt.Errorf("%s is used for marks, so a binding cannot begin with it", text)
+	}
 	return nil
 }
 

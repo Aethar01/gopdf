@@ -137,8 +137,8 @@ func renderBindingNames(b *strings.Builder) {
 	b.WriteString("`gopdf.bind` and `gopdf.unbind` take a key sequence; `gopdf.bind_mouse` and `gopdf.unbind_mouse` take a mouse event. An unknown name is an error. To find the name of a key, bind it in `:keybinds`, which records the keys you press.\n\n")
 
 	b.WriteString("### Keys\n\n")
-	b.WriteString("A sequence is one or more keys written one after another, such as `gg`, `g?` or `<C-w>j`. Each key must follow the one before within `sequence_timeout_ms`. Digits 1 to 9 always start a count, as in `5j` or `12g`, so a sequence cannot begin with one.\n\n")
-	b.WriteString("Printable keys are written as the character they type. Letters are case-sensitive: `J` is Shift+j. `?`, `:`, `+` and `\"` are Shift with `/`, `;`, `=` and `'`; on other digit and symbol keys Shift is ignored. Write `<` as `<lt>`.\n\n")
+	b.WriteString("A sequence is one or more keys written one after another, such as `gg`, `g?` or `<C-w>j`. Each key must follow the one before within `sequence_timeout_ms`. Digits 1 to 9 start a count, as in `5j` or `12g`, and `'` and `\"` jump to and set marks, so binding a sequence that begins with any of them is an error.\n\n")
+	b.WriteString("Printable keys are written as the character they type with the current keyboard layout, so on a US keyboard Shift+1 is `!`. Letters are case-sensitive: `J` is Shift+j, or j with Caps Lock on. On layouts without Latin letters, letter keys are read as their QWERTY letters. Write `<` as `<lt>`.\n\n")
 	b.WriteString("Other keys are written by name in angle brackets. Names are case-insensitive.\n\n")
 	b.WriteString("| Name | Key |\n|---|---|\n")
 	var names, aliases []string
@@ -165,7 +165,7 @@ func renderBindingNames(b *strings.Builder) {
 	b.WriteString("| `C-` | Ctrl. |\n")
 	b.WriteString("| `D-` | Cmd on macOS; the Super or Windows key elsewhere. |\n")
 	b.WriteString("| `S-` | Shift. |\n\n")
-	b.WriteString("Ctrl and Cmd combine with any key: letters, digits, symbols and the names above, as in `<C-a>`, `<C-=>`, `<C-Space>` or `<D-Up>`. With them, a letter's case is ignored, so Shift is written out: `<C-S-r>` is Ctrl+Shift+r and `<C-R>` is Ctrl+r. Write `>` as `<gt>` after a modifier, as in `<C-gt>`. Without Ctrl or Cmd, Shift applies to named keys, as in `<S-Tab>` or `<S-F5>`, and `<S-j>` means `J`; for other printable keys, write the shifted character. Alt is not a modifier, so Alt+j is read as `j`.\n\n")
+	b.WriteString("Ctrl and Cmd combine with any key: letters, digits, symbols and the names above, as in `<C-a>`, `<C-=>`, `<C-Space>` or `<D-Up>`. With them, a key is named by its unshifted character and Shift is written out: `<C-S-r>` is Ctrl+Shift+r, `<C-S-1>` is Ctrl+Shift+1, and `<C-R>` is Ctrl+r. Write `>` as `<gt>` after a modifier, as in `<C-gt>`. Without Ctrl or Cmd, Shift applies to named keys, as in `<S-Tab>` or `<S-F5>`, and `<S-j>` means `J`; for other printable keys, write the shifted character. Alt is not a modifier: a key pressed with Alt runs no binding.\n\n")
 	b.WriteString("Modifiers may be written in any order, so `<C-S-Tab>`, `<s-c-tab>` and `<S-C-TAB>` are the same key. Bindings are stored and shown in the first form.\n\n")
 
 	b.WriteString("### Mouse events\n\n")
@@ -180,7 +180,7 @@ func renderBindingNames(b *strings.Builder) {
 		fmt.Fprintf(b, "| %s | %s |\n", strings.Join(names, ", "), event.Description)
 		names = nil
 	}
-	b.WriteString("\nButton events take no modifiers, and the horizontal wheel does nothing while Ctrl is held. Event names are case-insensitive, `-` may be written for `_`, and `ctrl_wheel_up` is the same as `<C-wheel_up>`.\n\n")
+	b.WriteString("\nButton events take no modifiers, and the horizontal wheel does nothing while Ctrl is held. Event names are case-insensitive and may be written in angle brackets like keys: `<middle_down>` is `middle_down`. `-` may be written for `_`, and `ctrl_wheel_up` is the same as `<C-wheel_up>`.\n\n")
 	b.WriteString("A bound button event replaces that button's built-in behaviour, such as text selection and following links on the left button. Wheel directions scroll smoothly only while they are bound to their default scroll actions.\n")
 }
 

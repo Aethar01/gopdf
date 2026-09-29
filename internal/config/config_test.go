@@ -1030,6 +1030,9 @@ func TestLuaBindingsRejectUnknownNames(t *testing.T) {
 		lua, want string
 	}{
 		{`bind("<C-Sapce>", gopdf.quit)`, `unknown key name "Sapce"`},
+		{`bind("5x", gopdf.quit)`, `digits 1 to 9 start a count`},
+		{`bind("'a", gopdf.quit)`, `' is used for marks`},
+		{`bind('"', gopdf.quit)`, `" is used for marks`},
 		{`unbind("<A-j>")`, `unknown modifier "A-"`},
 		{`bind_mouse("left_dwn", gopdf.quit)`, `unknown mouse event "left_dwn"`},
 		{`unbind_mouse("<C-left_down>")`, `unknown mouse event "<C-left_down>"`},
@@ -1077,11 +1080,16 @@ gopdf.bind("<c-enter>", gopdf.quit)
 	}
 }
 
-func TestDefaultBindingsAreCanonical(t *testing.T) {
+func TestDefaultBindingsAreValid(t *testing.T) {
 	cfg := Default()
 	for key := range cfg.KeyBindings {
-		if got, err := keys.Normalize(key); err != nil || got != key {
-			t.Errorf("default key %q normalizes to %q, %v", key, got, err)
+		seq, err := keys.ParseSequence(key)
+		if err != nil || keys.Format(seq) != key {
+			t.Errorf("default key %q parses to %v, %v", key, seq, err)
+			continue
+		}
+		if err := checkFirstKey(seq[0]); err != nil {
+			t.Errorf("default key %q can never run: %v", key, err)
 		}
 	}
 	for event := range cfg.MouseBindings {

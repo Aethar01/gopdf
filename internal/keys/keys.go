@@ -263,12 +263,13 @@ var mouseEvents = []MouseEvent{
 }
 
 // NormalizeMouseEvent returns the canonical name of a mouse event. Names are
-// case-insensitive, accept - for _, and accept ctrl_ for <C-...>.
+// case-insensitive, may be written in angle brackets like keys, accept - for
+// _, and accept ctrl_ for <C-...>.
 func NormalizeMouseEvent(s string) (string, error) {
 	name := strings.ToLower(strings.TrimSpace(s))
 	ctrl := false
-	if inner, ok := strings.CutPrefix(name, "<c-"); ok && strings.HasSuffix(inner, ">") {
-		name, ctrl = strings.TrimSuffix(inner, ">"), true
+	if inner, ok := strings.CutPrefix(name, "<"); ok && strings.HasSuffix(inner, ">") {
+		name, ctrl = strings.CutPrefix(strings.TrimSuffix(inner, ">"), "c-")
 	}
 	name = strings.ReplaceAll(name, "-", "_")
 	if inner, ok := strings.CutPrefix(name, "ctrl_"); ok {

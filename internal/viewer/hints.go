@@ -94,18 +94,23 @@ func (a *App) handleHintToken(token string) bool {
 		}
 		return true
 	}
+	// Labels match in either case, so Shift and Caps Lock don't get in the
+	// way; typed keeps the label's own spelling for drawing.
 	typed := a.hints.typed + token
-	matched := false
+	prefix := ""
 	for _, hint := range a.hints.hints {
-		if hint.label == typed {
+		if len(hint.label) < len(typed) || !strings.EqualFold(hint.label[:len(typed)], typed) {
+			continue
+		}
+		if len(hint.label) == len(typed) {
 			a.cancelLinkHints()
 			a.activateLink(hint.link)
 			return true
 		}
-		matched = matched || strings.HasPrefix(hint.label, typed)
+		prefix = hint.label[:len(typed)]
 	}
-	if matched {
-		a.hints.typed = typed
+	if prefix != "" {
+		a.hints.typed = prefix
 	}
 	return true
 }

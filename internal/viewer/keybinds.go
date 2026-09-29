@@ -87,7 +87,7 @@ func (a *App) handleKeybindMenuKey(e *sdl.KeyboardEvent) bool {
 		a.deleteSelectedKeybind()
 		return true
 	}
-	if key, ok := keyToken(e.Key, e.Mod); ok {
+	if key, ok := keyToken(e); ok {
 		token := key.String()
 		if a.keybindMenu.capturing {
 			if token == "<Esc>" {

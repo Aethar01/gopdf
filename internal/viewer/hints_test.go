@@ -37,11 +37,11 @@ func TestLinkHintsFollowTypedLabel(t *testing.T) {
 	app.handleHintToken("z") // not a hint character: ignored
 	app.handleHintToken("a")
 	app.handleHintToken("<BS>")
-	app.handleHintToken("a")
+	app.handleHintToken("A") // labels match in either case
 	if app.hints == nil || app.hints.typed != "a" {
 		t.Fatalf("typed = %+v", app.hints)
 	}
-	app.handleHintToken("b") // "ab" is the second link, to page 2
+	app.handleHintToken("B") // "ab" is the second link, to page 2
 	if app.hints != nil {
 		t.Fatal("hints still shown after a full label")
 	}

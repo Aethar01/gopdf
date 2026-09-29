@@ -10,33 +10,39 @@ import (
 
 func TestKeyToken(t *testing.T) {
 	tests := []struct {
-		name string
-		key  sdl.Keycode
-		mod  sdl.Keymod
-		want string
+		name     string
+		key      sdl.Keycode
+		scancode sdl.Scancode
+		mod      sdl.Keymod
+		want     string
 	}{
-		{name: "letter", key: sdl.KeycodeJ, want: "j"},
-		{name: "shift letter", key: sdl.KeycodeJ, mod: sdl.KeymodShift, want: "J"},
-		{name: "shift slash", key: sdl.KeycodeSlash, mod: sdl.KeymodShift, want: "?"},
-		{name: "shift apostrophe", key: sdl.KeycodeApostrophe, mod: sdl.KeymodShift, want: "\""},
-		{name: "shift digit", key: sdl.Keycode1, mod: sdl.KeymodShift, want: "1"},
-		{name: "less than", key: sdl.KeycodeLess, want: "<lt>"},
-		{name: "space", key: sdl.KeycodeSpace, want: "<Space>"},
-		{name: "ctrl letter", key: sdl.KeycodeJ, mod: sdl.KeymodCtrl, want: "<C-j>"},
-		{name: "ctrl shift letter", key: sdl.KeycodeR, mod: sdl.KeymodCtrl | sdl.KeymodShift, want: "<C-S-r>"},
-		{name: "cmd letter", key: sdl.KeycodeC, mod: sdl.KeymodGui, want: "<D-c>"},
-		{name: "ctrl symbol", key: sdl.KeycodeMinus, mod: sdl.KeymodCtrl, want: "<C-->"},
-		{name: "ctrl shift special", key: sdl.KeycodeTab, mod: sdl.KeymodCtrl | sdl.KeymodShift, want: "<C-S-Tab>"},
-		{name: "shift return", key: sdl.KeycodeReturn, mod: sdl.KeymodShift, want: "<S-CR>"},
-		{name: "keypad enter", key: sdl.KeycodeKpEnter, want: "<CR>"},
-		{name: "ctrl delete", key: sdl.KeycodeDelete, mod: sdl.KeymodCtrl, want: "<C-Del>"},
-		{name: "function key", key: sdl.KeycodeF13, mod: sdl.KeymodShift, want: "<S-F13>"},
-		{name: "keypad digit", key: sdl.KeycodeKp7, want: "<k7>"},
-		{name: "alt ignored", key: sdl.KeycodeJ, mod: sdl.KeymodAlt, want: "j"},
+		{name: "letter", key: sdl.KeycodeJ, scancode: sdl.ScancodeJ, want: "j"},
+		{name: "shift letter", key: sdl.KeycodeJ, scancode: sdl.ScancodeJ, mod: sdl.KeymodShift, want: "J"},
+		{name: "caps lock letter", key: sdl.KeycodeJ, scancode: sdl.ScancodeJ, mod: sdl.KeymodCaps, want: "J"},
+		{name: "caps lock shift letter", key: sdl.KeycodeJ, scancode: sdl.ScancodeJ, mod: sdl.KeymodCaps | sdl.KeymodShift, want: "j"},
+		{name: "shift slash", key: sdl.KeycodeSlash, scancode: sdl.ScancodeSlash, mod: sdl.KeymodShift, want: "?"},
+		{name: "shift apostrophe", key: sdl.KeycodeApostrophe, scancode: sdl.ScancodeApostrophe, mod: sdl.KeymodShift, want: "\""},
+		{name: "shift digit", key: sdl.Keycode1, scancode: sdl.Scancode1, mod: sdl.KeymodShift, want: "!"},
+		{name: "shift comma", key: sdl.KeycodeComma, scancode: sdl.ScancodeComma, mod: sdl.KeymodShift, want: "<lt>"},
+		{name: "caps lock digit", key: sdl.Keycode5, scancode: sdl.Scancode5, mod: sdl.KeymodCaps, want: "5"},
+		{name: "no scancode", key: sdl.KeycodeMinus, mod: sdl.KeymodShift, want: "-"},
+		{name: "space", key: sdl.KeycodeSpace, scancode: sdl.ScancodeSpace, want: "<Space>"},
+		{name: "ctrl letter", key: sdl.KeycodeJ, scancode: sdl.ScancodeJ, mod: sdl.KeymodCtrl, want: "<C-j>"},
+		{name: "ctrl caps lock letter", key: sdl.KeycodeJ, scancode: sdl.ScancodeJ, mod: sdl.KeymodCtrl | sdl.KeymodCaps, want: "<C-j>"},
+		{name: "ctrl shift letter", key: sdl.KeycodeR, scancode: sdl.ScancodeR, mod: sdl.KeymodCtrl | sdl.KeymodShift, want: "<C-S-r>"},
+		{name: "ctrl shift digit", key: sdl.Keycode1, scancode: sdl.Scancode1, mod: sdl.KeymodCtrl | sdl.KeymodShift, want: "<C-S-1>"},
+		{name: "cmd letter", key: sdl.KeycodeC, scancode: sdl.ScancodeC, mod: sdl.KeymodGui, want: "<D-c>"},
+		{name: "ctrl symbol", key: sdl.KeycodeMinus, scancode: sdl.ScancodeMinus, mod: sdl.KeymodCtrl, want: "<C-->"},
+		{name: "ctrl shift special", key: sdl.KeycodeTab, scancode: sdl.ScancodeTab, mod: sdl.KeymodCtrl | sdl.KeymodShift, want: "<C-S-Tab>"},
+		{name: "shift return", key: sdl.KeycodeReturn, scancode: sdl.ScancodeReturn, mod: sdl.KeymodShift, want: "<S-CR>"},
+		{name: "keypad enter", key: sdl.KeycodeKpEnter, scancode: sdl.ScancodeKpEnter, want: "<CR>"},
+		{name: "ctrl delete", key: sdl.KeycodeDelete, scancode: sdl.ScancodeDelete, mod: sdl.KeymodCtrl, want: "<C-Del>"},
+		{name: "function key", key: sdl.KeycodeF13, scancode: sdl.ScancodeF13, mod: sdl.KeymodShift, want: "<S-F13>"},
+		{name: "keypad digit", key: sdl.KeycodeKp7, scancode: sdl.ScancodeKp7, want: "<k7>"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, ok := keyToken(tt.key, tt.mod)
+			got, ok := keyToken(&sdl.KeyboardEvent{Key: tt.key, Scancode: tt.scancode, Mod: tt.mod})
 			if !ok || got.String() != tt.want {
 				t.Fatalf("keyToken(%v, %v) = %q, %v; want %q, true", tt.key, tt.mod, got, ok, tt.want)
 			}
@@ -44,10 +50,15 @@ func TestKeyToken(t *testing.T) {
 	}
 }
 
-func TestKeyTokenIgnoresUnnamedKeys(t *testing.T) {
+func TestKeyTokenIgnoresUnnamedKeysAndAlt(t *testing.T) {
 	for _, key := range []sdl.Keycode{sdl.KeycodeLCtrl, sdl.KeycodeRCtrl, sdl.KeycodeLShift, sdl.KeycodeRShift, sdl.KeycodeLAlt, sdl.KeycodeRAlt, sdl.KeycodeLGui, sdl.KeycodeRGui, sdl.KeycodeCapsLock, sdl.KeycodeUnknown} {
-		if got, ok := keyToken(key, sdl.KeymodCtrl); ok {
+		if got, ok := keyToken(&sdl.KeyboardEvent{Key: key, Mod: sdl.KeymodCtrl}); ok {
 			t.Fatalf("expected key %v to be ignored, got %q", key, got)
+		}
+	}
+	for _, mod := range []sdl.Keymod{sdl.KeymodLAlt, sdl.KeymodRAlt, sdl.KeymodCtrl | sdl.KeymodRAlt} {
+		if got, ok := keyToken(&sdl.KeyboardEvent{Key: sdl.KeycodeJ, Scancode: sdl.ScancodeJ, Mod: mod}); ok {
+			t.Fatalf("expected j with modifiers %v to be ignored, got %q", mod, got)
 		}
 	}
 }

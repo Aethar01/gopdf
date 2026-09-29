@@ -112,7 +112,7 @@ func (a *App) handleGenericUIViewKey(view *uiView, e *sdl.KeyboardEvent) bool {
 		a.moveUIViewSelection(view, -1)
 		return true
 	}
-	if key, ok := keyToken(e.Key, e.Mod); ok {
+	if key, ok := keyToken(e); ok {
 		if action, ok := a.sequenceLookup[key.String()]; ok {
 			wasSearching := view.searching
 			a.runUIViewAction(view, action)
@@ -147,7 +147,7 @@ func (a *App) handleUIViewSearchKey(view *uiView, e *sdl.KeyboardEvent) bool {
 		view.searching = false
 		return true
 	}
-	if key, ok := keyToken(e.Key, e.Mod); ok {
+	if key, ok := keyToken(e); ok {
 		if _, ok := key.Text(); ok {
 			return true
 		}

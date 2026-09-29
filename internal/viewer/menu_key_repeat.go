@@ -18,7 +18,7 @@ func (a *App) repeatableMenuAction(e *sdl.KeyboardEvent) (string, bool) {
 	if a.keybindMenu.view == view && a.keybindMenu.capturing {
 		return "", false
 	}
-	key, ok := keyToken(e.Key, e.Mod)
+	key, ok := keyToken(e)
 	if !ok {
 		return "", false
 	}
