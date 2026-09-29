@@ -14,7 +14,9 @@ import (
 //
 // # Parameters
 //
-//   - key: A printable key, special key name, modified key, or multi-key sequence.
+//   - key: A printable key, special key name, modified key, or multi-key
+//     sequence, such as `j`, `<PgDn>`, `<C-p>`, or `gg`. See
+//     [Key and mouse names](#key-and-mouse-names).
 //   - action: A bindable action such as gopdf.next_page, or a Lua callback.
 //
 // # Returns
@@ -38,7 +40,9 @@ func luaBind(rt *Runtime) lua.LGFunction {
 		if err != nil {
 			L.RaiseError("bind %q: %v", key, err)
 		}
-		rt.setKeyBinding(key, actionName)
+		if err := rt.setKeyBinding(key, actionName); err != nil {
+			raiseKeyError(rt, L, "bind", key, err)
+		}
 		return 0
 	}
 }
@@ -53,21 +57,40 @@ func luaBind(rt *Runtime) lua.LGFunction {
 //
 // Nothing. Removing an unbound key is harmless.
 //
+// # Errors
+//
+// Raises an error when the key is invalid.
+//
 // # Example
 //
 //	gopdf.unbind("<C-p>")
 func luaUnbind(rt *Runtime) lua.LGFunction {
 	return func(L *lua.LState) int {
-		rt.unbindKey(L.CheckString(1))
+		key := L.CheckString(1)
+		if err := rt.unbindKey(key); err != nil {
+			raiseKeyError(rt, L, "unbind", key, err)
+		}
 		return 0
 	}
+}
+
+// raiseKeyError raises an invalid key as a Lua error, except while loading
+// autogen.lua: there the entry is dropped, so a name an older version wrote
+// cannot stop gopdf from starting, and the next rewrite leaves it out.
+func raiseKeyError(rt *Runtime, L *lua.LState, fn, key string, err error) {
+	if rt.loadingAutogen {
+		log.Printf("autogen.lua: ignoring %s %q: %v", fn, key, err)
+		return
+	}
+	L.RaiseError("%s %q: %v", fn, key, err)
 }
 
 // luaBindMouse binds a mouse event to an action or Lua callback.
 //
 // # Parameters
 //
-//   - event: A mouse event such as wheel_down, left_down, or <C-wheel-up>.
+//   - event: A mouse event such as `wheel_down`, `left_down`, or
+//     `<C-wheel_up>`. See [Key and mouse names](#key-and-mouse-names).
 //   - action: A bindable action or a Lua callback.
 //
 // # Returns
@@ -80,15 +103,17 @@ func luaUnbind(rt *Runtime) lua.LGFunction {
 //
 // # Example
 //
-//	gopdf.bind_mouse("<C-wheel-up>", gopdf.zoom_in)
+//	gopdf.bind_mouse("<C-wheel_up>", gopdf.zoom_in)
 func luaBindMouse(rt *Runtime) lua.LGFunction {
 	return func(L *lua.LState) int {
-		event := normalizeMouseEvent(L.CheckString(1))
+		event := L.CheckString(1)
 		actionName, err := luaActionName(rt, L.CheckAny(2))
 		if err != nil {
 			L.RaiseError("bind_mouse %q: %v", event, err)
 		}
-		rt.setMouseBinding(event, actionName)
+		if err := rt.setMouseBinding(event, actionName); err != nil {
+			L.RaiseError("bind_mouse %q: %v", event, err)
+		}
 		return 0
 	}
 }
@@ -103,12 +128,19 @@ func luaBindMouse(rt *Runtime) lua.LGFunction {
 //
 // Nothing. Removing an unbound event is harmless.
 //
+// # Errors
+//
+// Raises an error when the event is invalid.
+//
 // # Example
 //
 //	gopdf.unbind_mouse("middle_down")
 func luaUnbindMouse(rt *Runtime) lua.LGFunction {
 	return func(L *lua.LState) int {
-		rt.unbindMouse(normalizeMouseEvent(L.CheckString(1)))
+		event := L.CheckString(1)
+		if err := rt.unbindMouse(event); err != nil {
+			L.RaiseError("unbind_mouse %q: %v", event, err)
+		}
 		return 0
 	}
 }

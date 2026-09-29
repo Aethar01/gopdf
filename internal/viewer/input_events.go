@@ -5,9 +5,9 @@ import (
 	"strconv"
 	"strings"
 	"time"
-	"unicode/utf8"
 
 	"gopdf/internal/actions"
+	"gopdf/internal/keys"
 	"gopdf/internal/mupdf"
 
 	"github.com/jupiterrider/purego-sdl3/sdl"
@@ -15,10 +15,8 @@ import (
 
 func (a *App) handleSDLKeyDown(e *sdl.KeyboardEvent) {
 	if runtime.GOOS == "darwin" && e.Repeat && e.Key == a.lastKeyUpCode && time.Since(a.lastKeyUpAt) < 100*time.Millisecond {
-		if a.ignoreText == "" {
-			if token, ok := keyToken(e.Key, e.Mod); ok && utf8.RuneCountInString(token) == 1 {
-				a.ignoreText = token
-			}
+		if key, ok := keyToken(e.Key, e.Mod); ok && a.ignoreText == "" {
+			a.ignoreKeyText(key)
 		}
 		return
 	}
@@ -63,13 +61,16 @@ func (a *App) handleSDLKeyDown(e *sdl.KeyboardEvent) {
 				return
 			}
 		}
-		if token, ok := keyToken(e.Key, e.Mod); ok && a.handleInputModeBinding(token) {
+		if key, ok := keyToken(e.Key, e.Mod); ok && a.handleInputModeBinding(key) {
 			return
 		}
 	}
 	if a.mode == modeNormal {
-		if token, ok := keyToken(e.Key, e.Mod); ok {
+		if key, ok := keyToken(e.Key, e.Mod); ok {
+			token := key.String()
 			prevMode := a.mode
+			a.actionKeycode = e.Key
+			defer func() { a.actionKeycode = 0 }()
 			if a.handleHintToken(token) {
 				return
 			}
@@ -80,12 +81,10 @@ func (a *App) handleSDLKeyDown(e *sdl.KeyboardEvent) {
 				return
 			}
 			if !e.Repeat {
-				a.actionKey = token
 				a.pushToken(token)
-				a.actionKey = ""
 			}
-			if prevMode == modeNormal && a.mode != modeNormal && utf8.RuneCountInString(token) == 1 {
-				a.ignoreText = token
+			if prevMode == modeNormal && a.mode != modeNormal {
+				a.ignoreKeyText(key)
 			}
 		}
 		return
@@ -109,11 +108,21 @@ func (a *App) handleInputEditKey(e *sdl.KeyboardEvent) bool {
 	return false
 }
 
-func (a *App) handleInputModeBinding(token string) bool {
-	if !strings.HasPrefix(token, "<") {
+// ignoreKeyText drops the text a key types from the next text input event,
+// for a key that opened a prompt without being typed into it.
+func (a *App) ignoreKeyText(key keys.Key) {
+	if text, ok := key.Text(); ok {
+		a.ignoreText = text
+	}
+}
+
+// handleInputModeBinding runs the binding of a key that types no text while
+// a prompt is open.
+func (a *App) handleInputModeBinding(key keys.Key) bool {
+	if _, ok := key.Text(); ok {
 		return false
 	}
-	action, ok := a.sequenceLookup[normalizeBinding(token)]
+	action, ok := a.sequenceLookup[key.String()]
 	if !ok {
 		return false
 	}
@@ -131,14 +140,12 @@ func (a *App) handleInputModeBinding(token string) bool {
 func (a *App) handleSDLKeyUp(e *sdl.KeyboardEvent) {
 	a.lastKeyUpCode = e.Key
 	a.lastKeyUpAt = time.Now()
-	token, ok := keyToken(e.Key, e.Mod)
-	if !ok {
-		return
-	}
-	if a.panning && a.panKey != "" && token == a.panKey {
+	// A held action ends when its physical key is released, even if the
+	// modifiers changed while it was held.
+	if a.panning && a.panKeycode != 0 && e.Key == a.panKeycode {
 		a.stopPan()
 	}
-	if a.autoscroll != nil && a.autoscroll.key != "" && token == a.autoscroll.key {
+	if a.autoscroll != nil && a.autoscroll.keycode != 0 && e.Key == a.autoscroll.keycode {
 		a.releaseAutoscroll()
 	}
 }
@@ -188,10 +195,10 @@ func (a *App) handleSDLMouseWheel(e *sdl.MouseWheelEvent) {
 	wx, wy := normalizedWheelDeltas(e)
 	if sdl.GetModState()&sdl.KeymodCtrl != 0 {
 		if wy > 0 {
-			a.runMouseBinding("<c-wheel_up>")
+			a.runMouseBinding("<C-wheel_up>")
 		}
 		if wy < 0 {
-			a.runMouseBinding("<c-wheel_down>")
+			a.runMouseBinding("<C-wheel_down>")
 		}
 		return
 	}
@@ -364,7 +371,7 @@ func (a *App) linkTarget(link mupdf.Link) string {
 func (a *App) stopPan() {
 	a.panning = false
 	a.panButton = 0
-	a.panKey = ""
+	a.panKeycode = 0
 	a.updateCursor()
 }
 
@@ -399,7 +406,7 @@ func (a *App) runCountAction(token string) bool {
 	if err != nil || count <= 0 {
 		return false
 	}
-	action, ok := a.sequenceLookup[normalizeBinding(token)]
+	action, ok := a.sequenceLookup[token]
 	if !ok || !a.isCountableAction(action) {
 		return false
 	}

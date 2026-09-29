@@ -155,11 +155,11 @@ func TestAutoscrollKeyPressStops(t *testing.T) {
 func TestAutoscrollCanBeHeldByKey(t *testing.T) {
 	app := testAutoscrollApp()
 	app.pointer = sdl.FPoint{X: 500, Y: 50}
-	app.actionKey = "a"
+	app.actionKeycode = sdl.KeycodeA
 	if err := app.runBuiltinAction("autoscroll"); err != nil {
 		t.Fatal(err)
 	}
-	app.actionKey = ""
+	app.actionKeycode = 0
 
 	app.pointer = sdl.FPoint{X: 500, Y: 90}
 	app.handleSDLKeyUp(&sdl.KeyboardEvent{Key: sdl.KeycodeA})
@@ -182,11 +182,11 @@ func TestPanAndAutoscrollExcludeEachOther(t *testing.T) {
 	app := testAutoscrollApp()
 	startTestAutoscroll(t, app, 500, 50)
 
-	app.actionKey = " "
+	app.actionKeycode = sdl.KeycodeSpace
 	if err := app.runBuiltinAction("pan"); err != nil {
 		t.Fatal(err)
 	}
-	app.actionKey = ""
+	app.actionKeycode = 0
 	if !app.panning || app.autoscroll != nil {
 		t.Fatalf("expected pan to replace autoscroll, panning=%v autoscroll=%v", app.panning, app.autoscroll != nil)
 	}

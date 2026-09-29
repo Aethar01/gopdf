@@ -14,7 +14,9 @@ func (r *Runtime) SetKeyBinding(key, action string) error {
 	if !r.actionExists(action) {
 		return fmt.Errorf("cannot persist unknown action %q", action)
 	}
-	r.setKeyBinding(key, action)
+	if err := r.setKeyBinding(key, action); err != nil {
+		return err
+	}
 	return r.WriteAutogen()
 }
 
@@ -22,15 +24,19 @@ func (r *Runtime) RebindKey(oldKey, newKey, action string) error {
 	if !r.actionExists(action) {
 		return fmt.Errorf("cannot persist unknown action %q", action)
 	}
-	if oldKey != "" && oldKey != newKey {
-		r.unbindKey(oldKey)
+	if err := r.unbindKey(oldKey); err != nil {
+		return err
 	}
-	r.setKeyBinding(newKey, action)
+	if err := r.setKeyBinding(newKey, action); err != nil {
+		return err
+	}
 	return r.WriteAutogen()
 }
 
 func (r *Runtime) UnbindKey(key string) error {
-	r.unbindKey(key)
+	if err := r.unbindKey(key); err != nil {
+		return err
+	}
 	return r.WriteAutogen()
 }
 

@@ -14,9 +14,9 @@ func TestRepeatableMenuActionAllowsHeldNavigation(t *testing.T) {
 	app := testLayoutApp(5)
 	view := &uiView{visible: true, modal: true}
 	app.views.active = view
-	app.sequenceLookup = map[string]string{
-		normalizeBinding("<Down>"): "scroll_down",
-	}
+	app.setKeyBindings(map[string]string{
+		"<Down>": "scroll_down",
+	})
 
 	action, ok := app.repeatableMenuAction(&sdl.KeyboardEvent{Key: sdl.KeycodeDown, Repeat: true})
 	if !ok || action != "scroll_down" {
@@ -26,9 +26,9 @@ func TestRepeatableMenuActionAllowsHeldNavigation(t *testing.T) {
 
 func TestRepeatableMenuActionRequiresActiveMenu(t *testing.T) {
 	app := testLayoutApp(5)
-	app.sequenceLookup = map[string]string{
-		normalizeBinding("<Down>"): "scroll_down",
-	}
+	app.setKeyBindings(map[string]string{
+		"<Down>": "scroll_down",
+	})
 
 	if action, ok := app.repeatableMenuAction(&sdl.KeyboardEvent{Key: sdl.KeycodeDown, Repeat: true}); ok {
 		t.Fatalf("expected document repeat handling to remain unchanged, got %q", action)
@@ -39,10 +39,10 @@ func TestRepeatableMenuActionRejectsMultiKeyPrefix(t *testing.T) {
 	app := testLayoutApp(5)
 	view := &uiView{visible: true, modal: true}
 	app.views.active = view
-	app.sequenceLookup = map[string]string{
-		normalizeBinding("j"):   "scroll_down",
-		normalizeBinding("j j"): "first_page",
-	}
+	app.setKeyBindings(map[string]string{
+		"j":  "scroll_down",
+		"jj": "first_page",
+	})
 
 	if action, ok := app.repeatableMenuAction(&sdl.KeyboardEvent{Key: sdl.KeycodeJ, Repeat: true}); ok {
 		t.Fatalf("expected repeated prefix to remain ignored, got %q", action)
@@ -53,9 +53,9 @@ func TestRepeatableMenuActionRejectsNonCountableAction(t *testing.T) {
 	app := testLayoutApp(5)
 	view := &uiView{visible: true, modal: true}
 	app.views.active = view
-	app.sequenceLookup = map[string]string{
-		normalizeBinding("<CR>"): "confirm",
-	}
+	app.setKeyBindings(map[string]string{
+		"<CR>": "confirm",
+	})
 
 	if action, ok := app.repeatableMenuAction(&sdl.KeyboardEvent{Key: sdl.KeycodeReturn, Repeat: true}); ok {
 		t.Fatalf("expected confirm not to repeat, got %q", action)
@@ -68,9 +68,9 @@ func TestRepeatableMenuActionIgnoredWhileCapturingKeybind(t *testing.T) {
 	app.views.active = view
 	app.keybindMenu.view = view
 	app.keybindMenu.capturing = true
-	app.sequenceLookup = map[string]string{
-		normalizeBinding("<Down>"): "scroll_down",
-	}
+	app.setKeyBindings(map[string]string{
+		"<Down>": "scroll_down",
+	})
 
 	if action, ok := app.repeatableMenuAction(&sdl.KeyboardEvent{Key: sdl.KeycodeDown, Repeat: true}); ok {
 		t.Fatalf("expected key capture repeat to remain ignored, got %q", action)

@@ -41,8 +41,8 @@ func (a *App) pickColor(title string, palette [][3]uint8, apply func(int)) {
 		view.searchable = false
 		view.selected = clampInt(a.highlightColor, 0, len(rows)-1)
 		view.onKey = func(a *App, e *sdl.KeyboardEvent) bool {
-			if token, ok := keyToken(e.Key, e.Mod); ok && e.Type == sdl.EventKeyDown {
-				if n, err := strconv.Atoi(token); err == nil && n >= 1 && n <= len(palette) {
+			if key, ok := keyToken(e.Key, e.Mod); ok && e.Type == sdl.EventKeyDown {
+				if n, err := strconv.Atoi(key.String()); err == nil && n >= 1 && n <= len(palette) {
 					a.closeUIView(view, false)
 					apply(n - 1)
 					return true

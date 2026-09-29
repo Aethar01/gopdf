@@ -2,178 +2,91 @@ package viewer
 
 import (
 	"fmt"
-	"strings"
+	"unicode"
+
+	"gopdf/internal/keys"
 
 	"github.com/jupiterrider/purego-sdl3/sdl"
 )
 
-func normalizeBinding(binding string) string {
-	return strings.Join(tokenizeBinding(binding), " ")
-}
+// namedKeycodes gives each named key in keys.NamedKeys its keycode.
+var namedKeycodes = func() map[sdl.Keycode]string {
+	named := map[sdl.Keycode]string{
+		sdl.KeycodeReturn:     "CR",
+		sdl.KeycodeKpEnter:    "CR",
+		sdl.KeycodeEscape:     "Esc",
+		sdl.KeycodeTab:        "Tab",
+		sdl.KeycodeBackspace:  "BS",
+		sdl.KeycodeDelete:     "Del",
+		sdl.KeycodeInsert:     "Ins",
+		sdl.KeycodeSpace:      "Space",
+		sdl.KeycodeUp:         "Up",
+		sdl.KeycodeDown:       "Down",
+		sdl.KeycodeLeft:       "Left",
+		sdl.KeycodeRight:      "Right",
+		sdl.KeycodePageUp:     "PgUp",
+		sdl.KeycodePageDown:   "PgDn",
+		sdl.KeycodeHome:       "Home",
+		sdl.KeycodeEnd:        "End",
+		sdl.KeycodeKp0:        "k0",
+		sdl.KeycodeKpPlus:     "kPlus",
+		sdl.KeycodeKpMinus:    "kMinus",
+		sdl.KeycodeKpMultiply: "kMultiply",
+		sdl.KeycodeKpDivide:   "kDivide",
+		sdl.KeycodeKpPeriod:   "kPoint",
+	}
+	// SDL numbers F1-F12, F13-F24 and keypad 1-9 consecutively.
+	for i := range sdl.Keycode(12) {
+		named[sdl.KeycodeF1+i] = fmt.Sprintf("F%d", i+1)
+		named[sdl.KeycodeF13+i] = fmt.Sprintf("F%d", i+13)
+	}
+	for i := range sdl.Keycode(9) {
+		named[sdl.KeycodeKp1+i] = fmt.Sprintf("k%d", i+1)
+	}
+	return named
+}()
 
-func tokenizeBinding(binding string) []string {
-	tokens := make([]string, 0, len(binding))
-	for i := 0; i < len(binding); {
-		if binding[i] == '<' {
-			if end := strings.IndexByte(binding[i:], '>'); end > 0 {
-				tokens = append(tokens, normalizeAngleToken(binding[i:i+end+1]))
-				i += end + 1
-				continue
-			}
-		}
-		tokens = append(tokens, string(binding[i]))
-		i++
-	}
-	return tokens
-}
+// shiftedSymbols maps the US-layout keys whose shifted symbol default
+// bindings and marks use to that symbol, since SDL reports the unshifted
+// keycode.
+var shiftedSymbols = map[rune]rune{'/': '?', ';': ':', '=': '+', '\'': '"'}
 
-func normalizeAngleToken(token string) string {
-	inner := strings.TrimSuffix(strings.TrimPrefix(token, "<"), ">")
-	parts := strings.Split(inner, "-")
-	for i, part := range parts {
-		parts[i] = strings.ToLower(strings.TrimSpace(part))
+// keyToken returns the key a keydown or keyup names. Printable keys pressed
+// without Ctrl or Cmd become the character typed, so Shift+j is "J"; Shift
+// on digits and other symbols is ignored. Keys without a name, such as the
+// modifiers themselves, return false.
+func keyToken(key sdl.Keycode, mod sdl.Keymod) (keys.Key, bool) {
+	var m keys.Mod
+	if mod&sdl.KeymodCtrl != 0 {
+		m |= keys.Ctrl
 	}
-	if len(parts) == 1 && parts[0] == "space" {
-		return " "
+	if mod&sdl.KeymodGui != 0 {
+		m |= keys.Cmd
 	}
-	if len(parts) == 1 && (parts[0] == "enter" || parts[0] == "return") {
-		return "<cr>"
+	if mod&sdl.KeymodShift != 0 {
+		m |= keys.Shift
 	}
-	return "<" + strings.Join(parts, "-") + ">"
-}
-
-func keyToken(key sdl.Keycode, mod sdl.Keymod) (string, bool) {
-	if isModifierKey(key) {
-		return "", false
+	if name, ok := namedKeycodes[key]; ok {
+		return keys.Key{Mod: m, Name: name}, true
 	}
-	ctrl := mod&sdl.KeymodCtrl != 0
-	gui := mod&sdl.KeymodGui != 0
-	shift := mod&sdl.KeymodShift != 0
-	if ctrl || gui {
-		if base, ok := baseKeyName(key); ok {
-			modifiers := make([]string, 0, 3)
-			if ctrl {
-				modifiers = append(modifiers, "c")
-			}
-			if gui {
-				modifiers = append(modifiers, "d")
-			}
-			if shift {
-				modifiers = append(modifiers, "s")
-			}
-			return "<" + strings.Join(append(modifiers, base), "-") + ">", true
+	// Keycodes of printable keys are the character; the others carry
+	// sdl.KeycodeScancodeMask, which puts them out of the rune range.
+	r := rune(key)
+	if !unicode.IsPrint(r) {
+		return keys.Key{}, false
+	}
+	switch {
+	case m&(keys.Ctrl|keys.Cmd) != 0:
+		r = unicode.ToLower(r)
+	case m == keys.Shift:
+		if shifted, ok := shiftedSymbols[r]; ok {
+			r = shifted
+		} else {
+			r = unicode.ToUpper(r)
 		}
+		m = 0
 	}
-	if token, ok := specialKeyToken(key); ok {
-		if shift {
-			inner := strings.TrimSuffix(strings.TrimPrefix(token, "<"), ">")
-			return normalizeAngleToken("<s-" + inner + ">"), true
-		}
-		return normalizeAngleToken(token), true
-	}
-	if token, ok := printableKeyToken(key, shift); ok {
-		return token, true
-	}
-	return "", false
-}
-
-func isModifierKey(key sdl.Keycode) bool {
-	switch key {
-	case sdl.KeycodeLCtrl, sdl.KeycodeRCtrl, sdl.KeycodeLShift, sdl.KeycodeRShift, sdl.KeycodeLAlt, sdl.KeycodeRAlt, sdl.KeycodeLGui, sdl.KeycodeRGui, sdl.KeycodeMode, sdl.KeycodeLevel5Shift:
-		return true
-	default:
-		return false
-	}
-}
-
-func printableKeyToken(key sdl.Keycode, shift bool) (string, bool) {
-	if key >= sdl.KeycodeA && key <= sdl.KeycodeZ {
-		r := rune('a' + (key - sdl.KeycodeA))
-		if shift {
-			r -= 'a' - 'A'
-		}
-		return string(r), true
-	}
-	if key >= sdl.Keycode0 && key <= sdl.Keycode9 {
-		return string(rune('0' + (key - sdl.Keycode0))), true
-	}
-	switch key {
-	case sdl.KeycodeSpace:
-		return " ", true
-	case sdl.KeycodeSlash:
-		if shift {
-			return "?", true
-		}
-		return "/", true
-	case sdl.KeycodeSemicolon:
-		if shift {
-			return ":", true
-		}
-		return ";", true
-	case sdl.KeycodeEquals:
-		if shift {
-			return "+", true
-		}
-		return "=", true
-	case sdl.KeycodeMinus:
-		return "-", true
-	case sdl.KeycodeApostrophe:
-		if shift {
-			return "\"", true
-		}
-		return "'", true
-	case sdl.KeycodeDblApostrophe, sdl.KeycodeComma, sdl.KeycodePeriod, sdl.KeycodeBackslash, sdl.KeycodeLeftBracket, sdl.KeycodeRightBracket, sdl.KeycodeGrave, sdl.KeycodeExclaim, sdl.KeycodeHash, sdl.KeycodeDollar, sdl.KeycodePercent, sdl.KeycodeAmpersand, sdl.KeycodeLeftParen, sdl.KeycodeRightParen, sdl.KeycodeAsterisk, sdl.KeycodePlus, sdl.KeycodeColon, sdl.KeycodeLess, sdl.KeycodeGreater, sdl.KeycodeQuestion, sdl.KeycodeAt, sdl.KeycodeCaret, sdl.KeycodeUnderscore, sdl.KeycodePipe, sdl.KeycodeTilde:
-		return string(rune(key)), true
-	default:
-		return "", false
-	}
-}
-
-func specialKeyToken(key sdl.Keycode) (string, bool) {
-	switch key {
-	case sdl.KeycodeUp:
-		return "<Up>", true
-	case sdl.KeycodeDown:
-		return "<Down>", true
-	case sdl.KeycodeLeft:
-		return "<Left>", true
-	case sdl.KeycodeRight:
-		return "<Right>", true
-	case sdl.KeycodeReturn, sdl.KeycodeKpEnter:
-		return "<CR>", true
-	case sdl.KeycodeEscape:
-		return "<Esc>", true
-	case sdl.KeycodeBackspace:
-		return "<BS>", true
-	case sdl.KeycodePageDown:
-		return "<PgDn>", true
-	case sdl.KeycodePageUp:
-		return "<PgUp>", true
-	case sdl.KeycodeTab:
-		return "<Tab>", true
-	case sdl.KeycodeDelete:
-		return "<Del>", true
-	case sdl.KeycodeInsert:
-		return "<Ins>", true
-	case sdl.KeycodeHome:
-		return "<Home>", true
-	case sdl.KeycodeEnd:
-		return "<End>", true
-	default:
-		return fallbackSpecialKeyToken(key)
-	}
-}
-
-func fallbackSpecialKeyToken(key sdl.Keycode) (string, bool) {
-	if key < 0x80 {
-		return "", false
-	}
-	name := strings.TrimSpace(sdl.GetKeyName(key))
-	if name == "" {
-		return "", false
-	}
-	name = strings.ReplaceAll(name, " ", "-")
-	return "<" + name + ">", true
+	return keys.Key{Mod: m, Name: string(r)}, true
 }
 
 func mouseButtonEvent(button uint8, eventType sdl.EventType) (string, bool) {
@@ -222,35 +135,5 @@ func buttonMask(button uint8) uint32 {
 		return uint32(sdl.ButtonX2Mask)
 	default:
 		return 0
-	}
-}
-
-func baseKeyName(key sdl.Keycode) (string, bool) {
-	if key >= sdl.KeycodeA && key <= sdl.KeycodeZ {
-		return string(rune('a' + (key - sdl.KeycodeA))), true
-	}
-	if key >= sdl.Keycode0 && key <= sdl.Keycode9 {
-		return string(rune('0' + (key - sdl.Keycode0))), true
-	}
-	switch key {
-	case sdl.KeycodeSpace:
-		return "space", true
-	case sdl.KeycodeTab:
-		return "tab", true
-	case sdl.KeycodeReturn, sdl.KeycodeKpEnter:
-		return "enter", true
-	case sdl.KeycodeEscape:
-		return "esc", true
-	case sdl.KeycodeBackspace:
-		return "bs", true
-	case sdl.KeycodePageDown:
-		return "pgdn", true
-	case sdl.KeycodePageUp:
-		return "pgup", true
-	default:
-		if token, ok := fallbackSpecialKeyToken(key); ok {
-			return strings.TrimSuffix(strings.TrimPrefix(normalizeAngleToken(token), "<"), ">"), true
-		}
-		return fmt.Sprintf("keycode-%d", key), true
 	}
 }

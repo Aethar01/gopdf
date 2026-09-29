@@ -87,9 +87,10 @@ func (a *App) handleKeybindMenuKey(e *sdl.KeyboardEvent) bool {
 		a.deleteSelectedKeybind()
 		return true
 	}
-	if token, ok := keyToken(e.Key, e.Mod); ok {
+	if key, ok := keyToken(e.Key, e.Mod); ok {
+		token := key.String()
 		if a.keybindMenu.capturing {
-			if normalizeBinding(token) == normalizeBinding("<Esc>") {
+			if token == "<Esc>" {
 				a.keybindMenu.capturing = false
 				a.keybindMenu.captured = nil
 				return true
@@ -99,11 +100,11 @@ func (a *App) handleKeybindMenuKey(e *sdl.KeyboardEvent) bool {
 			a.wakeAfter(time.Duration(a.config.SequenceTimeoutMS) * time.Millisecond)
 			return true
 		}
-		if action, ok := a.sequenceLookup[normalizeBinding(token)]; ok {
+		if action, ok := a.sequenceLookup[token]; ok {
 			prevMode := a.mode
 			a.runKeybindMenuAction(action)
-			if prevMode == modeNormal && a.mode != modeNormal && len([]rune(token)) == 1 {
-				a.ignoreText = token
+			if prevMode == modeNormal && a.mode != modeNormal {
+				a.ignoreKeyText(key)
 			}
 		}
 	}

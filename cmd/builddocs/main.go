@@ -14,6 +14,7 @@ import (
 	"gopdf/internal/actions"
 	"gopdf/internal/commands"
 	"gopdf/internal/config"
+	"gopdf/internal/keys"
 )
 
 func main() {
@@ -96,13 +97,14 @@ func renderReference(luaRefs []config.LuaReferenceEntry, luaDocs map[string]stri
 	b.WriteString("Create views with `local view = gopdf.ui.create(spec)`, then call `view:show()`. The specification supports `id`, `title`, `rows`, `selected`, `scroll`, `query`, `searchable`, `on_select`, and `on_close`. A row may be a string or a table with `text`, `value`, `id`, `secondary`, `depth`, and `disabled`.\n\n")
 	b.WriteString("View methods are `show()`, `close()`, `visible()`, `set_rows(rows)`, `set_selected(index)`, `set_scroll(scroll)`, `set_query(query)`, `selected()`, `scroll()`, and `query()`. Selection indices are 1-based, with 0 meaning no selection. `on_select` receives `(index, value, text, id)`, preserving the original row index and ID when the list is filtered. `on_close` runs for user, programmatic, replacement, and document-close paths.\n")
 	renderPortablePluginReference(&b)
+	renderBindingNames(&b)
 	b.WriteString("\n## Bindable actions\n\n")
 	b.WriteString("Every action is available as `gopdf.<action>`, can be passed to `gopdf.bind`, and can be called from a runtime Lua callback.\n\n")
 	b.WriteString("| Action | Default keys | Countable |\n|---|---|---|\n")
 	for _, action := range actions.All() {
 		keys := make([]string, len(action.Keys))
 		for i, key := range action.Keys {
-			keys[i] = markdownCode(displayKey(key))
+			keys[i] = markdownCode(key)
 		}
 		fmt.Fprintf(&b, "| %s | %s | %t |\n", markdownCode(action.Name), strings.Join(keys, ", "), action.Countable)
 	}
@@ -126,6 +128,77 @@ func renderReference(luaRefs []config.LuaReferenceEntry, luaDocs map[string]stri
 	b.WriteString("| `{input}` / `{prompt}` | Active input text and search prompt (`/` or `?`). |\n")
 	b.WriteString("| `$$` | A literal dollar sign. |\n")
 	return b.String()
+}
+
+// renderBindingNames describes the key and mouse names that bindings accept.
+// The tables come from the keys package, which parses those names.
+func renderBindingNames(b *strings.Builder) {
+	b.WriteString("\n## Key and mouse names\n\n")
+	b.WriteString("`gopdf.bind` and `gopdf.unbind` take a key sequence; `gopdf.bind_mouse` and `gopdf.unbind_mouse` take a mouse event. An unknown name is an error. To find the name of a key, bind it in `:keybinds`, which records the keys you press.\n\n")
+
+	b.WriteString("### Keys\n\n")
+	b.WriteString("A sequence is one or more keys written one after another, such as `gg`, `g?` or `<C-w>j`. Each key must follow the one before within `sequence_timeout_ms`. Digits 1 to 9 always start a count, as in `5j` or `12g`, so a sequence cannot begin with one.\n\n")
+	b.WriteString("Printable keys are written as the character they type. Letters are case-sensitive: `J` is Shift+j. `?`, `:`, `+` and `\"` are Shift with `/`, `;`, `=` and `'`; on other digit and symbol keys Shift is ignored. Write `<` as `<lt>`.\n\n")
+	b.WriteString("Other keys are written by name in angle brackets. Names are case-insensitive.\n\n")
+	b.WriteString("| Name | Key |\n|---|---|\n")
+	var names, aliases []string
+	named := keys.NamedKeys()
+	for i, key := range named {
+		names = append(names, "`<"+key.Name+">`")
+		for _, alias := range key.Aliases {
+			aliases = append(aliases, "`<"+alias+">`")
+		}
+		if i+1 < len(named) && named[i+1].Description == key.Description {
+			continue
+		}
+		description := key.Description
+		if len(aliases) > 0 {
+			description = strings.TrimSuffix(description, ".") + "; also " + joinWords(aliases, "and") + "."
+		}
+		fmt.Fprintf(b, "| %s | %s |\n", nameRange(names), description)
+		names, aliases = nil, nil
+	}
+
+	b.WriteString("\n### Modifiers\n\n")
+	b.WriteString("Modifiers go inside the brackets before the key name, as in `<C-p>`, `<C-S-Tab>` or `<D-c>`.\n\n")
+	b.WriteString("| Prefix | Modifier |\n|---|---|\n")
+	b.WriteString("| `C-` | Ctrl. |\n")
+	b.WriteString("| `D-` | Cmd on macOS; the Super or Windows key elsewhere. |\n")
+	b.WriteString("| `S-` | Shift. |\n\n")
+	b.WriteString("Ctrl and Cmd combine with any key: letters, digits, symbols and the names above, as in `<C-a>`, `<C-=>`, `<C-Space>` or `<D-Up>`. With them, a letter's case is ignored, so Shift is written out: `<C-S-r>` is Ctrl+Shift+r and `<C-R>` is Ctrl+r. Write `>` as `<gt>` after a modifier, as in `<C-gt>`. Without Ctrl or Cmd, Shift applies to named keys, as in `<S-Tab>` or `<S-F5>`, and `<S-j>` means `J`; for other printable keys, write the shifted character. Alt is not a modifier, so Alt+j is read as `j`.\n\n")
+	b.WriteString("Modifiers may be written in any order, so `<C-S-Tab>`, `<s-c-tab>` and `<S-C-TAB>` are the same key. Bindings are stored and shown in the first form.\n\n")
+
+	b.WriteString("### Mouse events\n\n")
+	b.WriteString("| Event | Fires on |\n|---|---|\n")
+	events := keys.MouseEvents()
+	names = nil
+	for i, event := range events {
+		names = append(names, "`"+event.Name+"`")
+		if i+1 < len(events) && events[i+1].Description == event.Description {
+			continue
+		}
+		fmt.Fprintf(b, "| %s | %s |\n", strings.Join(names, ", "), event.Description)
+		names = nil
+	}
+	b.WriteString("\nButton events take no modifiers, and the horizontal wheel does nothing while Ctrl is held. Event names are case-insensitive, `-` may be written for `_`, and `ctrl_wheel_up` is the same as `<C-wheel_up>`.\n\n")
+	b.WriteString("A bound button event replaces that button's built-in behaviour, such as text selection and following links on the left button. Wheel directions scroll smoothly only while they are bound to their default scroll actions.\n")
+}
+
+// nameRange lists names, shortening a numbered run such as F1 to F24 to
+// its first and last.
+func nameRange(names []string) string {
+	if len(names) > 5 {
+		return names[0] + " to " + names[len(names)-1]
+	}
+	return strings.Join(names, ", ")
+}
+
+// joinWords joins items as prose, as in "a, b and c".
+func joinWords(items []string, conjunction string) string {
+	if len(items) == 1 {
+		return items[0]
+	}
+	return strings.Join(items[:len(items)-1], ", ") + " " + conjunction + " " + items[len(items)-1]
 }
 
 func renderLuaFunction(b *strings.Builder, ref config.LuaReferenceEntry, doc string) {
@@ -156,13 +229,6 @@ func renderExampleConfig() string {
 		fmt.Fprintf(&b, "gopdf.bind_mouse(%q, gopdf.%s)\n", event, cfg.MouseBindings[event])
 	}
 	return b.String()
-}
-
-func displayKey(key string) string {
-	if key == " " {
-		return "Space"
-	}
-	return key
 }
 
 func markdownCode(value string) string {

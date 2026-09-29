@@ -14,13 +14,13 @@ func TestGuiClipboardShortcutsUseDModifierBindings(t *testing.T) {
 		key  sdl.Keycode
 		want string
 	}{
-		{key: sdl.KeycodeC, want: "<d-c>"},
-		{key: sdl.KeycodeX, want: "<d-x>"},
-		{key: sdl.KeycodeV, want: "<d-v>"},
+		{key: sdl.KeycodeC, want: "<D-c>"},
+		{key: sdl.KeycodeX, want: "<D-x>"},
+		{key: sdl.KeycodeV, want: "<D-v>"},
 	}
 	for _, tt := range tests {
 		got, ok := keyToken(tt.key, sdl.KeymodGui)
-		if !ok || got != tt.want {
+		if !ok || got.String() != tt.want {
 			t.Fatalf("keyToken(%v, Command) = %q, %v; want %s, true", tt.key, got, ok, tt.want)
 		}
 	}

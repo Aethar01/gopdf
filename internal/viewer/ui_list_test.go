@@ -53,7 +53,7 @@ func TestUIViewSkipsDisabledRows(t *testing.T) {
 func TestUIViewSearchBindingIgnoresTriggerText(t *testing.T) {
 	app := testLayoutApp(1)
 	view := &uiView{visible: true, modal: true, searchable: true}
-	app.sequenceLookup = map[string]string{normalizeBinding("/"): "search_prompt"}
+	app.setKeyBindings(map[string]string{"/": "search_prompt"})
 	e := sdl.KeyboardEvent{CommonEvent: sdl.CommonEvent{Type: sdl.EventKeyDown}, Key: sdl.KeycodeSlash}
 	app.handleGenericUIViewKey(view, &e)
 	if !view.searching || app.ignoreText != "/" {

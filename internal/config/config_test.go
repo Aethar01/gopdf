@@ -7,6 +7,8 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+
+	"gopdf/internal/keys"
 )
 
 type stubHost struct {
@@ -986,8 +988,106 @@ unbind_mouse("ctrl_wheel_down")
 	if _, ok := cfg.MouseBindings["middle_down"]; ok {
 		t.Fatalf("expected middle_down mouse binding to be removed, got %q", cfg.MouseBindings["middle_down"])
 	}
-	if _, ok := cfg.MouseBindings["<c-wheel_down>"]; ok {
-		t.Fatalf("expected ctrl_wheel_down alias to remove <c-wheel_down>, got %q", cfg.MouseBindings["<c-wheel_down>"])
+	if _, ok := cfg.MouseBindings["<C-wheel_down>"]; ok {
+		t.Fatalf("expected ctrl_wheel_down alias to remove <C-wheel_down>, got %q", cfg.MouseBindings["<C-wheel_down>"])
+	}
+}
+
+func TestLuaBindingsUseCanonicalNames(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.lua")
+	if err := os.WriteFile(path, []byte(`
+unbind("<s-c-R>")
+bind("<S-C-tab>", gopdf.quit)
+bind("<Space>", gopdf.quit)
+bind_mouse("<C-wheel-up>", gopdf.quit)
+`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	rt, err := Open(path, filepath.Join(dir, "doc.pdf"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rt.Close()
+
+	cfg := rt.Config()
+	if action, ok := cfg.KeyBindings["<C-S-r>"]; ok {
+		t.Fatalf("expected <s-c-R> to remove <C-S-r>, got %q", action)
+	}
+	for _, key := range []string{"<C-S-Tab>", "<Space>"} {
+		if got := cfg.KeyBindings[key]; got != "quit" {
+			t.Fatalf("expected %s bound to quit, got %q", key, got)
+		}
+	}
+	if got := cfg.MouseBindings["<C-wheel_up>"]; got != "quit" {
+		t.Fatalf("expected <C-wheel_up> bound to quit, got %q", got)
+	}
+}
+
+func TestLuaBindingsRejectUnknownNames(t *testing.T) {
+	tests := []struct {
+		lua, want string
+	}{
+		{`bind("<C-Sapce>", gopdf.quit)`, `unknown key name "Sapce"`},
+		{`unbind("<A-j>")`, `unknown modifier "A-"`},
+		{`bind_mouse("left_dwn", gopdf.quit)`, `unknown mouse event "left_dwn"`},
+		{`unbind_mouse("<C-left_down>")`, `unknown mouse event "<C-left_down>"`},
+	}
+	for _, tt := range tests {
+		dir := t.TempDir()
+		path := filepath.Join(dir, "config.lua")
+		if err := os.WriteFile(path, []byte(tt.lua), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		rt, err := Open(path, filepath.Join(dir, "doc.pdf"))
+		if err == nil {
+			rt.Close()
+			t.Fatalf("expected %s to fail", tt.lua)
+		}
+		if !strings.Contains(err.Error(), tt.want) {
+			t.Fatalf("expected %s to fail with %q, got %v", tt.lua, tt.want, err)
+		}
+	}
+}
+
+func TestAutogenSkipsKeysThatNoLongerParse(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.lua")
+	if err := os.WriteFile(path, nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	autogen := `
+gopdf.bind("<keypad-1>", gopdf.quit)
+gopdf.unbind("<c-keycode-45>")
+gopdf.bind("<c-enter>", gopdf.quit)
+`
+	if err := os.WriteFile(filepath.Join(dir, "autogen.lua"), []byte(autogen), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	rt, err := Open(path, filepath.Join(dir, "doc.pdf"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rt.Close()
+
+	if got := rt.Config().KeyBindings["<C-CR>"]; got != "quit" {
+		t.Fatalf("expected the valid autogen binding to load, got %q", got)
+	}
+}
+
+func TestDefaultBindingsAreCanonical(t *testing.T) {
+	cfg := Default()
+	for key := range cfg.KeyBindings {
+		if got, err := keys.Normalize(key); err != nil || got != key {
+			t.Errorf("default key %q normalizes to %q, %v", key, got, err)
+		}
+	}
+	for event := range cfg.MouseBindings {
+		if got, err := keys.NormalizeMouseEvent(event); err != nil || got != event {
+			t.Errorf("default mouse event %q normalizes to %q, %v", event, got, err)
+		}
 	}
 }
 
@@ -1080,24 +1180,6 @@ func TestLoadReturnsConfigFromExplicitPath(t *testing.T) {
 	}
 	if cfg.ConfigPath != path {
 		t.Fatalf("expected config path %q, got %q", path, cfg.ConfigPath)
-	}
-}
-
-func TestNormalizeMouseEventAliases(t *testing.T) {
-	tests := []struct {
-		input string
-		want  string
-	}{
-		{input: " wheel_down ", want: "wheel_down"},
-		{input: "CTRL_wheel_up", want: "<c-wheel_up>"},
-		{input: "<c-wheel_down>", want: "<c-wheel_down>"},
-		{input: "Middle_Down", want: "middle_down"},
-	}
-
-	for _, tt := range tests {
-		if got := normalizeMouseEvent(tt.input); got != tt.want {
-			t.Fatalf("normalizeMouseEvent(%q) = %q, want %q", tt.input, got, tt.want)
-		}
 	}
 }
 

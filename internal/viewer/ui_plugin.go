@@ -1,8 +1,6 @@
 package viewer
 
 import (
-	"strings"
-
 	"gopdf/internal/config"
 
 	"github.com/jupiterrider/purego-sdl3/sdl"
@@ -114,12 +112,12 @@ func (a *App) handleGenericUIViewKey(view *uiView, e *sdl.KeyboardEvent) bool {
 		a.moveUIViewSelection(view, -1)
 		return true
 	}
-	if token, ok := keyToken(e.Key, e.Mod); ok {
-		if action, ok := a.sequenceLookup[normalizeBinding(token)]; ok {
+	if key, ok := keyToken(e.Key, e.Mod); ok {
+		if action, ok := a.sequenceLookup[key.String()]; ok {
 			wasSearching := view.searching
 			a.runUIViewAction(view, action)
-			if !wasSearching && view.searching && len([]rune(token)) == 1 {
-				a.ignoreText = token
+			if !wasSearching && view.searching {
+				a.ignoreKeyText(key)
 			}
 		}
 	}
@@ -149,8 +147,10 @@ func (a *App) handleUIViewSearchKey(view *uiView, e *sdl.KeyboardEvent) bool {
 		view.searching = false
 		return true
 	}
-	if token, ok := keyToken(e.Key, e.Mod); ok && !strings.HasPrefix(token, "<") && len([]rune(token)) == 1 {
-		return true
+	if key, ok := keyToken(e.Key, e.Mod); ok {
+		if _, ok := key.Text(); ok {
+			return true
+		}
 	}
 	return false
 }

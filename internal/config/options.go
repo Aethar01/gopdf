@@ -521,14 +521,3 @@ func NormalizeAnchorPosition(s string) string {
 	}
 	return "center"
 }
-
-func normalizeMouseEvent(s string) string {
-	s = strings.ToLower(strings.TrimSpace(s))
-	if strings.HasPrefix(s, "<c-") && strings.HasSuffix(s, ">") {
-		return s
-	}
-	if after, ok := strings.CutPrefix(s, "ctrl_"); ok {
-		return "<c-" + after + ">"
-	}
-	return s
-}

@@ -257,7 +257,7 @@ func (a *App) recordRecentFile(path string) {
 
 func (a *App) handleMarkToken(token string) bool {
 	if a.pendingMark != "" {
-		if normalizeBinding(token) == normalizeBinding("<Esc>") {
+		if token == "<Esc>" {
 			a.pendingMark = ""
 			a.message = ""
 			return true
@@ -282,11 +282,8 @@ func (a *App) handleMarkToken(token string) bool {
 		// both the initial keydown and repeats without changing sequence parsing;
 		// pending numeric counts still flow through handleCountToken below.
 		if a.pendingCount == "" {
-			binding := normalizeBinding(token)
-			if action, ok := a.sequenceLookup[binding]; ok && a.isCountableAction(action) && !a.hasPrefix(binding) {
-				a.actionKey = token
+			if action, ok := a.sequenceLookup[token]; ok && a.isCountableAction(action) && !a.hasPrefix(token) {
 				a.runAction(action)
-				a.actionKey = ""
 				return true
 			}
 		}

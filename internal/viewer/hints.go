@@ -84,11 +84,11 @@ func (a *App) handleHintToken(token string) bool {
 	if a.hints == nil {
 		return false
 	}
-	switch normalizeBinding(token) {
-	case normalizeBinding("<Esc>"):
+	switch token {
+	case "<Esc>":
 		a.cancelLinkHints()
 		return true
-	case normalizeBinding("<BS>"):
+	case "<BS>":
 		if _, size := utf8.DecodeLastRuneInString(a.hints.typed); size > 0 {
 			a.hints.typed = a.hints.typed[:len(a.hints.typed)-size]
 		}

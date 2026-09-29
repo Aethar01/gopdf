@@ -63,7 +63,7 @@ var registry = []Action{
 	{Name: "show_recent_files", Keys: []string{"gr"}},
 	{Name: "help", Keys: []string{"<F1>", "g?"}},
 	{Name: "keybinds"},
-	{Name: "pan", Keys: []string{" "}},
+	{Name: "pan", Keys: []string{"<Space>"}},
 	{Name: "autoscroll"},
 	{Name: "quit", Keys: []string{"q"}},
 }

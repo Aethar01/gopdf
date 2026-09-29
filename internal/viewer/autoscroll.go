@@ -27,9 +27,9 @@ const (
 // continuously toward the pointer, faster the further it is from the
 // anchor where autoscroll started.
 type autoscrollState struct {
-	anchor sdl.FPoint
-	button uint8  // mouse button holding autoscroll, or 0
-	key    string // key holding autoscroll, or ""
+	anchor  sdl.FPoint
+	button  uint8       // mouse button holding autoscroll, or 0
+	keycode sdl.Keycode // key holding autoscroll, or 0
 	// sticky autoscroll outlives the button or key that started it and
 	// runs until the next click, key press or wheel.
 	sticky bool
@@ -53,8 +53,8 @@ func (a *App) startAutoscroll() {
 	a.cancelSmoothScroll()
 	s := &autoscrollState{anchor: a.pointer}
 	switch {
-	case a.actionKey != "":
-		s.key = a.actionKey
+	case a.actionKeycode != 0:
+		s.keycode = a.actionKeycode
 	case a.mouseButton != 0:
 		s.button = a.mouseButton
 	default:
@@ -89,7 +89,7 @@ func (a *App) releaseAutoscroll() {
 		a.stopAutoscroll()
 		return
 	}
-	s.sticky, s.button, s.key = true, 0, ""
+	s.sticky, s.button, s.keycode = true, 0, 0
 }
 
 // noteAutoscrollPointer records whether the pointer has left the dead zone.

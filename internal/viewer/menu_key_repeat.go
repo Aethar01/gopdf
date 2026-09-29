@@ -18,11 +18,11 @@ func (a *App) repeatableMenuAction(e *sdl.KeyboardEvent) (string, bool) {
 	if a.keybindMenu.view == view && a.keybindMenu.capturing {
 		return "", false
 	}
-	token, ok := keyToken(e.Key, e.Mod)
+	key, ok := keyToken(e.Key, e.Mod)
 	if !ok {
 		return "", false
 	}
-	binding := normalizeBinding(token)
+	binding := key.String()
 	action, ok := a.sequenceLookup[binding]
 	if !ok || !a.isCountableAction(action) || a.hasPrefix(binding) {
 		return "", false

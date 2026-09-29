@@ -260,18 +260,32 @@ func TestDisabledSmoothScrollUsesDiscreteWheelPath(t *testing.T) {
 
 func TestPanCanBeHeldByKey(t *testing.T) {
 	app := testLayoutApp(5)
-	app.actionKey = " "
+	app.actionKeycode = sdl.KeycodeSpace
 
 	if err := app.runBuiltinAction("pan"); err != nil {
 		t.Fatal(err)
 	}
 
-	if !app.panning || app.panKey != " " || app.panButton != 0 {
-		t.Fatalf("expected key pan state, panning=%v panKey=%q panButton=%d", app.panning, app.panKey, app.panButton)
+	if !app.panning || app.panKeycode != sdl.KeycodeSpace || app.panButton != 0 {
+		t.Fatalf("expected key pan state, panning=%v panKeycode=%v panButton=%d", app.panning, app.panKeycode, app.panButton)
 	}
 	app.handleSDLKeyUp(&sdl.KeyboardEvent{Key: sdl.KeycodeSpace})
 	if app.panning {
 		t.Fatal("expected key release to stop panning")
+	}
+}
+
+func TestPanEndsWhenKeyIsReleasedWithOtherModifiers(t *testing.T) {
+	app := testLayoutApp(5)
+	app.setKeyBindings(map[string]string{"<Space>": "pan"})
+
+	app.handleSDLKeyDown(&sdl.KeyboardEvent{Key: sdl.KeycodeSpace})
+	if !app.panning || app.actionKeycode != 0 {
+		t.Fatalf("expected Space to start panning and clear the action key, panning=%v actionKeycode=%v", app.panning, app.actionKeycode)
+	}
+	app.handleSDLKeyUp(&sdl.KeyboardEvent{Key: sdl.KeycodeSpace, Mod: sdl.KeymodShift})
+	if app.panning {
+		t.Fatal("expected releasing Space with Shift held to stop panning")
 	}
 }
 

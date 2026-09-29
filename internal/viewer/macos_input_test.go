@@ -14,9 +14,9 @@ func TestRepeatedArrowKeyRunsCountableBinding(t *testing.T) {
 	app := testLayoutApp(5)
 	app.config.SmoothScrollSources = 0
 	app.pageStep = 64
-	app.sequenceLookup = map[string]string{
-		normalizeBinding("<Up>"): "scroll_up",
-	}
+	app.setKeyBindings(map[string]string{
+		"<Up>": "scroll_up",
+	})
 	app.recomputeLayout(1000, 100)
 	app.scrollY = 192
 
@@ -28,9 +28,9 @@ func TestRepeatedArrowKeyRunsCountableBinding(t *testing.T) {
 
 func TestRepeatedKeyDoesNotExpandMultiKeySequence(t *testing.T) {
 	app := testLayoutApp(5)
-	app.sequenceLookup = map[string]string{
-		normalizeBinding("g g"): "first_page",
-	}
+	app.setKeyBindings(map[string]string{
+		"gg": "first_page",
+	})
 
 	app.handleSDLKeyDown(&sdl.KeyboardEvent{Key: sdl.KeycodeG})
 	app.handleSDLKeyDown(&sdl.KeyboardEvent{Key: sdl.KeycodeG, Repeat: true})

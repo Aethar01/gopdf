@@ -140,13 +140,13 @@ gopdf.bind("<C-S-o>", gopdf.open_file_picker)
 gopdf.bind("gr", gopdf.show_recent_files)
 gopdf.bind("<F1>", gopdf.help)
 gopdf.bind("g?", gopdf.help)
-gopdf.bind(" ", gopdf.pan)
+gopdf.bind("<Space>", gopdf.pan)
 gopdf.bind("q", gopdf.quit)
 
 -- Default mouse bindings.
 
-gopdf.bind_mouse("<c-wheel_down>", gopdf.zoom_out)
-gopdf.bind_mouse("<c-wheel_up>", gopdf.zoom_in)
+gopdf.bind_mouse("<C-wheel_down>", gopdf.zoom_out)
+gopdf.bind_mouse("<C-wheel_up>", gopdf.zoom_in)
 gopdf.bind_mouse("middle_down", gopdf.autoscroll)
 gopdf.bind_mouse("wheel_down", gopdf.scroll_down)
 gopdf.bind_mouse("wheel_left", gopdf.scroll_left)

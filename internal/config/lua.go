@@ -6,6 +6,7 @@ import (
 	"sync"
 
 	"gopdf/internal/actions"
+	"gopdf/internal/keys"
 
 	lua "github.com/yuin/gopher-lua"
 )
@@ -394,24 +395,46 @@ func (r *Runtime) registerCallback(fn *lua.LFunction) string {
 	return id
 }
 
-func (r *Runtime) setKeyBinding(key, action string) {
+// setKeyBinding stores a binding under the key's canonical name, so every
+// spelling of a key replaces, and unbindKey removes, the same entry.
+func (r *Runtime) setKeyBinding(key, action string) error {
+	key, err := keys.Normalize(key)
+	if err != nil {
+		return err
+	}
 	r.cfg.KeyBindings[key] = action
 	r.dirty = true
+	return nil
 }
 
-func (r *Runtime) unbindKey(key string) {
+func (r *Runtime) unbindKey(key string) error {
+	key, err := keys.Normalize(key)
+	if err != nil {
+		return err
+	}
 	delete(r.cfg.KeyBindings, key)
 	r.dirty = true
+	return nil
 }
 
-func (r *Runtime) setMouseBinding(event, action string) {
+func (r *Runtime) setMouseBinding(event, action string) error {
+	event, err := keys.NormalizeMouseEvent(event)
+	if err != nil {
+		return err
+	}
 	r.cfg.MouseBindings[event] = action
 	r.dirty = true
+	return nil
 }
 
-func (r *Runtime) unbindMouse(event string) {
+func (r *Runtime) unbindMouse(event string) error {
+	event, err := keys.NormalizeMouseEvent(event)
+	if err != nil {
+		return err
+	}
 	delete(r.cfg.MouseBindings, event)
 	r.dirty = true
+	return nil
 }
 
 func (r *Runtime) setOption(name string, value lua.LValue) error {

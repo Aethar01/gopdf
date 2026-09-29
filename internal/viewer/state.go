@@ -197,11 +197,13 @@ type inputState struct {
 	sequence       []string
 	sequenceAt     time.Time
 	sequenceLookup map[string]string
-	pendingCount   string
-	pendingMark    string
-	inputSource    smoothInputSource
-	smoothZoom     *smoothZoomState
-	smoothScroll   *smoothScrollState
+	// sequencePrefixes holds every proper prefix of a bound sequence.
+	sequencePrefixes map[string]struct{}
+	pendingCount     string
+	pendingMark      string
+	inputSource      smoothInputSource
+	smoothZoom       *smoothZoomState
+	smoothScroll     *smoothScrollState
 }
 
 type pendingPasswordPrompt struct {
@@ -213,15 +215,17 @@ type interactionState struct {
 	selection  textSelection
 	panning    bool
 	panButton  uint8
-	panKey     string
+	panKeycode sdl.Keycode
 	autoscroll *autoscrollState
 	// swallowButtonUp is a mouse button whose press ended autoscroll, so
 	// its release is ignored too.
 	swallowButtonUp uint8
 	mouseButton     uint8
-	actionKey       string
-	lastKeyUpCode   sdl.Keycode
-	lastKeyUpAt     time.Time
+	// actionKeycode is the key whose press is running the current action,
+	// or 0.
+	actionKeycode sdl.Keycode
+	lastKeyUpCode sdl.Keycode
+	lastKeyUpAt   time.Time
 }
 
 type uiState struct {

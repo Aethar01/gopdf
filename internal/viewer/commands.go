@@ -9,6 +9,7 @@ import (
 
 	"gopdf/internal/config"
 	"gopdf/internal/filepicker"
+	"gopdf/internal/keys"
 
 	"github.com/jupiterrider/purego-sdl3/sdl"
 )
@@ -18,7 +19,7 @@ func (a *App) pushToken(token string) {
 	a.sequenceAt = time.Now()
 	a.wakeAfter(time.Duration(a.config.SequenceTimeoutMS) * time.Millisecond)
 	for len(a.sequence) > 0 {
-		joined := strings.Join(a.sequence, " ")
+		joined := strings.Join(a.sequence, "")
 		cmd, exact := a.sequenceLookup[joined]
 		prefix := a.hasPrefix(joined)
 		if exact && !prefix {
@@ -47,7 +48,7 @@ func (a *App) expireSequence() {
 	if time.Since(a.sequenceAt) < time.Duration(a.config.SequenceTimeoutMS)*time.Millisecond {
 		return
 	}
-	joined := strings.Join(a.sequence, " ")
+	joined := strings.Join(a.sequence, "")
 	if cmd, ok := a.sequenceLookup[joined]; ok {
 		a.sequence = nil
 		a.runAction(cmd)
@@ -56,13 +57,24 @@ func (a *App) expireSequence() {
 	a.sequence = nil
 }
 
-func (a *App) hasPrefix(joined string) bool {
-	for key := range a.sequenceLookup {
-		if key != joined && strings.HasPrefix(key, joined+" ") {
-			return true
+// setKeyBindings indexes key bindings, keyed by canonical sequence, for
+// dispatch.
+func (a *App) setKeyBindings(bindings map[string]string) {
+	a.sequenceLookup = maps.Clone(bindings)
+	a.sequencePrefixes = map[string]struct{}{}
+	for binding := range bindings {
+		// The configuration stores only sequences that parse.
+		seq, _ := keys.ParseSequence(binding)
+		for n := 1; n < len(seq); n++ {
+			a.sequencePrefixes[keys.Format(seq[:n])] = struct{}{}
 		}
 	}
-	return false
+}
+
+// hasPrefix reports whether a longer bound sequence starts with joined.
+func (a *App) hasPrefix(joined string) bool {
+	_, ok := a.sequencePrefixes[joined]
+	return ok
 }
 
 func (a *App) runAction(action string) {
@@ -250,12 +262,8 @@ func (a *App) applyConfigSettings() {
 	a.zoom = a.clampZoom(a.zoom)
 	a.cache.byteLimit = pageCacheByteLimit(cfg)
 	a.cache.evict()
-	a.sequenceLookup = map[string]string{}
-	a.mouseBindings = map[string]string{}
-	for k, v := range cfg.KeyBindings {
-		a.sequenceLookup[normalizeBinding(k)] = v
-	}
-	maps.Copy(a.mouseBindings, cfg.MouseBindings)
+	a.setKeyBindings(cfg.KeyBindings)
+	a.mouseBindings = maps.Clone(cfg.MouseBindings)
 	a.pageStep = float64(cfg.ScrollStep)
 	a.document.setDelay(time.Duration(cfg.AutoReloadDelayMS) * time.Millisecond)
 }

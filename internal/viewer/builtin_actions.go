@@ -122,14 +122,14 @@ func (a *App) runBuiltinAction(action string) error {
 // is released.
 func (a *App) startPan() {
 	switch {
-	case a.actionKey != "":
+	case a.actionKeycode != 0:
 		a.panning = true
-		a.panKey = a.actionKey
+		a.panKeycode = a.actionKeycode
 		a.panButton = 0
 	case a.mouseButton != 0:
 		a.panning = true
 		a.panButton = a.mouseButton
-		a.panKey = ""
+		a.panKeycode = 0
 	}
 	if a.panning {
 		a.stopAutoscroll()
