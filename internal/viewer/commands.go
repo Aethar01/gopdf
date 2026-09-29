@@ -415,114 +415,112 @@ func (a *App) resolvePageInput(input string) (int, bool) {
 	return clampInt(n-1, 0, a.pageCount-1), true
 }
 
+// commandHandlers run the built-in : commands, given their arguments; a
+// test keeps them in step with the command specs. It is filled in init
+// because handlers run commands and actions themselves.
+var commandHandlers map[string]func(a *App, args string)
+
+// commandAliases are short names of commands.
+var commandAliases = map[string]string{"q": "quit", "q!": "quit!", "p": "page", "w": "write"}
+
+func init() {
+	commandHandlers = map[string]func(*App, string){
+		"quit":      func(a *App, _ string) { a.quit = a.confirmDiscard(":q") },
+		"quit!":     func(a *App, _ string) { a.quit = true },
+		"write":     (*App).writeDocument,
+		"wq":        func(a *App, args string) { a.writeDocument(args); a.quit = !a.unsaved },
+		"print":     (*App).printDocument,
+		"undo":      func(a *App, _ string) { a.undoEdit(false) },
+		"redo":      func(a *App, _ string) { a.undoEdit(true) },
+		"highlight": func(a *App, _ string) { a.highlightSelection(a.highlightColor) },
+		"page":      withArgument("usage: :page <n>", (*App).gotoPageInput),
+		"set":       (*App).runSet,
+		"mode":      withArgument("usage: :mode continuous|single", func(a *App, mode string) { a.SetRenderMode(mode) }),
+		"colors": withArgument("usage: :colors normal|alt", func(a *App, colors string) {
+			a.setAltColors(strings.EqualFold(colors, "alt"))
+		}),
+		"fit":           withArgument("usage: :fit width|height|page|manual", func(a *App, mode string) { a.SetFitMode(mode) }),
+		"rotate":        (*App).runRotateCommand,
+		"zoom":          (*App).runZoomCommand,
+		"reload-config": func(a *App, _ string) { a.reloadConfig() },
+		"keybinds":      func(a *App, _ string) { a.toggleKeybindMenu() },
+		"matches":       func(a *App, _ string) { a.showSearchMatches() },
+		"search":        func(a *App, query string) { a.startSearch(query, searchModeForward) },
+		"open": func(a *App, path string) {
+			if path == "" {
+				a.message = "usage: :open <filename>"
+			} else if err := a.Open(unescapeCommandArg(path)); err != nil {
+				a.message = err.Error()
+			}
+		},
+		"open_file_picker": func(a *App, _ string) { a.runAction("open_file_picker") },
+		"recent":           func(a *App, _ string) { a.showRecentFiles() },
+		"lua":              (*App).runLuaCommand,
+		"help":             func(a *App, _ string) { a.toggleHelp() },
+	}
+	for name, action := range actionCommands {
+		commandHandlers[name] = func(a *App, _ string) { a.runAction(action) }
+	}
+	for name, toggle := range toggleCommands {
+		commandHandlers[name] = func(a *App, args string) { a.runToggleCommand(name, toggle, args) }
+	}
+}
+
+// withArgument adapts a command taking one argument, its first word,
+// showing usage when there is none.
+func withArgument(usage string, run func(a *App, arg string)) func(*App, string) {
+	return func(a *App, args string) {
+		arg, _, _ := strings.Cut(args, " ")
+		if arg == "" {
+			a.message = usage
+			return
+		}
+		run(a, arg)
+	}
+}
+
 func (a *App) runCommand(input string) {
-	command := strings.TrimPrefix(strings.TrimSpace(input), ":")
-	command = strings.TrimSpace(command)
+	command := strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(input), ":"))
 	if _, err := strconv.Atoi(command); err == nil {
 		a.gotoPageInput(command)
 		return
 	}
 	name, args, _ := strings.Cut(command, " ")
-	args = strings.TrimSpace(args)
-	fields := strings.Fields(args)
-	if name == "" || a.runActionCommand(name, args) {
+	if name == "" {
 		return
 	}
-	switch name {
-	case "q", "quit":
-		a.quit = a.confirmDiscard(":q")
-	case "q!", "quit!":
-		a.quit = true
-	case "print":
-		a.printDocument(args)
-	case "undo":
-		a.undoEdit(false)
-	case "redo":
-		a.undoEdit(true)
-	case "highlight":
-		a.highlightSelection(a.highlightColor)
-	case "w", "write":
-		a.writeDocument(args)
-	case "wq":
-		a.writeDocument(args)
-		a.quit = !a.unsaved
-	case "page", "p":
-		if len(fields) < 1 {
-			a.message = "usage: :page <n>"
-			return
-		}
-		a.gotoPageInput(fields[0])
-	case "set":
-		a.runSet(args)
-	case "mode":
-		if len(fields) < 1 {
-			a.message = "usage: :mode continuous|single"
-			return
-		}
-		if err := a.SetRenderMode(fields[0]); err != nil {
-			a.message = err.Error()
-		}
-	case "colors":
-		if len(fields) < 1 {
-			a.message = "usage: :colors normal|alt"
-			return
-		}
-		a.setAltColors(strings.EqualFold(fields[0], "alt"))
-	case "fit":
-		if len(fields) < 1 {
-			return
-		}
-		if err := a.SetFitMode(fields[0]); err != nil {
-			a.message = err.Error()
-		}
-	case "reload-config":
-		a.reloadConfig()
-	case "keybinds":
-		a.toggleKeybindMenu()
-	case "matches":
-		a.showSearchMatches()
-	case "search":
-		a.startSearch(args, searchModeForward)
-	case "open":
-		if args == "" {
-			a.message = "usage: :open <filename>"
-			return
-		}
-		if err := a.Open(unescapeCommandArg(args)); err != nil {
-			a.message = err.Error()
-		}
-	case "open_file_picker":
-		if err := a.runBuiltinAction("open_file_picker"); err != nil {
-			a.message = err.Error()
-		}
-	case "recent":
-		a.showRecentFiles()
-	case "lua":
-		if a.runtime == nil {
-			a.message = "no Lua runtime"
-			return
-		}
-		dirty, err := a.runtime.Eval(args)
-		if err != nil {
-			a.message = err.Error()
-			return
-		}
-		if dirty {
-			a.applyRuntimeChanges("command")
-		}
-	case "help":
-		a.toggleHelp()
-	default:
-		if a.runtime != nil {
-			if handled, err := a.runtime.RunPluginCommand(name, args); handled {
-				if err != nil {
-					a.message = err.Error()
-				}
-				a.applyRuntimeChanges("command")
-				return
+	args = strings.TrimSpace(args)
+	if alias, ok := commandAliases[name]; ok {
+		name = alias
+	}
+	if run, ok := commandHandlers[name]; ok {
+		run(a, args)
+		return
+	}
+	if a.runtime != nil {
+		if handled, err := a.runtime.RunPluginCommand(name, args); handled {
+			if err != nil {
+				a.message = err.Error()
 			}
+			a.applyRuntimeChanges("command")
+			return
 		}
-		a.message = "unknown command: " + name
+	}
+	a.message = "unknown command: " + name
+}
+
+func (a *App) runLuaCommand(code string) {
+	if a.runtime == nil {
+		a.message = "no Lua runtime"
+		return
+	}
+	dirty, err := a.runtime.Eval(code)
+	if err != nil {
+		a.message = err.Error()
+		return
+	}
+	if dirty {
+		a.applyRuntimeChanges("command")
 	}
 }
 
@@ -641,4 +639,3 @@ func (a *App) runMouseBinding(event string) bool {
 	}
 	return false
 }
-

@@ -2,23 +2,30 @@ package viewer
 
 import (
 	"math"
-	"slices"
 	"testing"
 
 	commandmeta "gopdf/internal/commands"
 	"gopdf/internal/mupdf"
 )
 
-func TestActionAndToggleCommandsAreDocumented(t *testing.T) {
-	names := commandmeta.Names()
-	for name := range actionCommands {
-		if !slices.Contains(names, name) {
+func TestEveryCommandHasAHandler(t *testing.T) {
+	// :quit! and :wq are documented with :quit and :write.
+	unlisted := map[string]bool{"quit!": true, "wq": true}
+	specs := map[string]bool{}
+	for _, name := range commandmeta.Names() {
+		specs[name] = true
+		if commandHandlers[name] == nil {
+			t.Errorf(":%s has no handler", name)
+		}
+	}
+	for name := range commandHandlers {
+		if !specs[name] && !unlisted[name] {
 			t.Errorf(":%s has no command spec", name)
 		}
 	}
-	for name := range toggleCommands {
-		if !slices.Contains(names, name) {
-			t.Errorf(":%s has no command spec", name)
+	for alias, name := range commandAliases {
+		if commandHandlers[name] == nil {
+			t.Errorf("alias :%s names :%s, which has no handler", alias, name)
 		}
 	}
 }

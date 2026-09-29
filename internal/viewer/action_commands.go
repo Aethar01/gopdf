@@ -39,34 +39,16 @@ var toggleCommands = map[string]toggleCommand{
 	"statusbar":  {action: "toggle_status_bar", on: func(a *App) bool { return a.statusBarShown }},
 }
 
-// runActionCommand runs name if it is an action, toggle or view command,
-// reporting whether it was one.
-func (a *App) runActionCommand(name, args string) bool {
-	switch name {
-	case "rotate":
-		a.runRotateCommand(args)
-		return true
-	case "zoom":
-		a.runZoomCommand(args)
-		return true
-	}
-	if action, ok := actionCommands[name]; ok {
-		a.runAction(action)
-		return true
-	}
-	toggle, ok := toggleCommands[name]
-	if !ok {
-		return false
-	}
+// runToggleCommand sets toggle as its command's argument asks.
+func (a *App) runToggleCommand(name string, toggle toggleCommand, args string) {
 	want, err := parseToggle(args, toggle.on(a))
 	if err != nil {
 		a.message = fmt.Sprintf(":%s %v", name, err)
-		return true
+		return
 	}
 	if want != toggle.on(a) {
 		a.runAction(toggle.action)
 	}
-	return true
 }
 
 // parseToggle reads an on/off argument; none flips current.
