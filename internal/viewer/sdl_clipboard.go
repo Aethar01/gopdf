@@ -3,6 +3,7 @@ package viewer
 import (
 	"fmt"
 
+	"github.com/ebitengine/purego"
 	"github.com/jupiterrider/purego-sdl3/sdl"
 )
 
@@ -30,8 +31,10 @@ func setSDLClipboardText(text string) error {
 }
 
 func loadSDLSetClipboardText() error {
-	if err := loadSDLSetClipboardTextSymbol(&sdlSetClipboardText); err != nil {
+	sym, err := sdlSymbol("SDL_SetClipboardText")
+	if err != nil {
 		return fmt.Errorf("SDL_SetClipboardText unavailable: %w", err)
 	}
+	purego.RegisterFunc(&sdlSetClipboardText, sym)
 	return nil
 }
