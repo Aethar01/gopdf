@@ -425,3 +425,27 @@ func TestRenderWorkerSkipsUnwantedRequests(t *testing.T) {
 		t.Fatal("expected unwanted page to be skipped")
 	}
 }
+
+func TestAltColorsToggleKeepsTilesUntilReplaced(t *testing.T) {
+	app := testPrefetchApp(1, 1)
+	app.prefetchVisiblePages()
+	for key, req := range app.renderPending {
+		app.cache.add(&renderedTile{key: key, rect: req.rect, scale: key.scale})
+	}
+	shown := len(app.cache.pageTiles(0, app.tileVersion(0)))
+
+	app.setAltColors(true)
+	if got := len(app.cache.pageTiles(0, app.tileVersion(0))); got != shown || shown == 0 {
+		t.Fatalf("page draws %d tiles after the toggle, want the %d from before", got, shown)
+	}
+	app.renderWorker.requests = make(chan renderRequest, 128)
+	app.prefetchVisiblePages()
+	if len(app.renderPending) != shown {
+		t.Fatalf("%d renders queued, want %d to replace the old tiles", len(app.renderPending), shown)
+	}
+	for key, req := range app.renderPending {
+		if key.version != app.tileVersion(0) || !req.altColors {
+			t.Fatalf("queued %+v, want the new colours", req)
+		}
+	}
+}

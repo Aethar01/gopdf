@@ -218,8 +218,8 @@ func (a *App) applyConfig(cfg config.Config, assigned map[string]bool) {
 	if prev.TrimMargins != cfg.TrimMargins || assigned["trim_margins"] {
 		a.setTrimMargins(cfg.TrimMargins)
 	}
-	if renderedDifferently(prev, cfg) {
-		a.clearCache()
+	if a.tilesRenderedDifferently(prev, cfg) {
+		a.restyleTiles()
 	}
 	a.relayoutWithViewportAnchor(func() {
 		changed := false
@@ -264,11 +264,12 @@ func (a *App) loadUIFont() {
 	closeFontFace(oldFontFace)
 }
 
-// renderedDifferently reports whether tiles rendered under one config would
-// come out differently under the other.
-func renderedDifferently(a, b config.Config) bool {
-	return a.AntiAliasing != b.AntiAliasing || a.AltBackground != b.AltBackground ||
-		a.AltForeground != b.AltForeground || a.AltColorsKeepImages != b.AltColorsKeepImages
+// tilesRenderedDifferently reports whether tiles rendered under one config
+// would come out differently under the other; the alternate colours only
+// matter while they are shown.
+func (a *App) tilesRenderedDifferently(prev, cfg config.Config) bool {
+	return prev.AntiAliasing != cfg.AntiAliasing || a.altColors && (prev.AltBackground != cfg.AltBackground ||
+		prev.AltForeground != cfg.AltForeground || prev.AltColorsKeepImages != cfg.AltColorsKeepImages)
 }
 
 func (a *App) Mode() string {

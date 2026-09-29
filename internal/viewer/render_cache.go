@@ -33,8 +33,9 @@ type tileKey struct {
 }
 
 // tileVersion is the content a tile shows: the document generation, which
-// changes on reload, and the page's revision, which changes on each edit.
-type tileVersion struct{ gen, rev int }
+// changes on reload, the page's revision, which changes on each edit, and
+// the tile style, which changes with the settings rendered into tiles.
+type tileVersion struct{ gen, rev, style int }
 
 func thumbnailKey(page int) tileKey { return tileKey{page: page, thumb: true} }
 

@@ -325,5 +325,5 @@ func (a *App) setAltColors(enabled bool) {
 		return
 	}
 	a.altColors = enabled
-	a.clearCache()
+	a.restyleTiles()
 }

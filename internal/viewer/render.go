@@ -19,6 +19,7 @@ type renderService struct {
 	minRenderBaseScale float64
 	renderGeneration   int
 	pageRevisions      map[int]int // edits per page, so edited pages re-render
+	tileStyle          int         // changes of settings rendered into tiles, so tiles re-render
 	loaderVisible      bool        // a loading indicator was drawn this frame
 }
 
@@ -127,7 +128,16 @@ func (a *App) queueRender(req renderRequest, priority int) bool {
 }
 
 func (a *App) tileVersion(page int) tileVersion {
-	return tileVersion{gen: a.generation, rev: a.pageRevisions[page]}
+	return tileVersion{gen: a.generation, rev: a.pageRevisions[page], style: a.tileStyle}
+}
+
+// restyleTiles re-renders every tile after a setting rendered into them
+// changes, such as the alternate colours, keeping the current tiles on
+// screen until their replacements arrive.
+func (a *App) restyleTiles() {
+	a.tileStyle++
+	a.invalidateRenderRequests()
+	a.pendingRedraw = true
 }
 
 func (a *App) pagePending(page int) bool {
