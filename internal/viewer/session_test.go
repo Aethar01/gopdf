@@ -54,7 +54,7 @@ func testDocumentSession(t *testing.T) (*documentSession, string) {
 
 func TestDocumentSessionDetectsChanges(t *testing.T) {
 	s, path := testDocumentSession(t)
-	if err := os.WriteFile(path, []byte("two"), 0o644); err != nil {
+	if err := os.WriteFile(path, []byte("changed"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	s.commit(waitForDocumentChange(t, s))
@@ -65,7 +65,7 @@ func TestDocumentSessionDetectsChanges(t *testing.T) {
 
 func TestDocumentSessionRateLimitsRetries(t *testing.T) {
 	s, path := testDocumentSession(t)
-	if err := os.WriteFile(path, []byte("two"), 0o644); err != nil {
+	if err := os.WriteFile(path, []byte("changed"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	waitForDocumentChange(t, s)
@@ -133,7 +133,7 @@ func TestDocumentChangesWaitWhileAutoReloadIsOff(t *testing.T) {
 	app.document.setDelay(time.Millisecond)
 	app.document.record(path)
 	defer app.document.Close()
-	if err := os.WriteFile(path, []byte("two"), 0o644); err != nil {
+	if err := os.WriteFile(path, []byte("changed"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	time.Sleep(50 * time.Millisecond)
