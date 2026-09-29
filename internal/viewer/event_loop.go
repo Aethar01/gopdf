@@ -38,8 +38,6 @@ func (a *App) Run() error {
 			sdl.DestroySurface(icon)
 		}
 	}
-	a.cursorHand = sdl.CreateSystemCursor(sdl.SystemCursorPointer)
-	a.cursorArrow = sdl.CreateSystemCursor(sdl.SystemCursorDefault)
 	sdl.SetEventEnabled(sdl.EventDropFile, true)
 	a.setWindowTitle()
 	sdl.SetRenderDrawBlendMode(a.renderer, sdl.BlendModeBlend)
@@ -72,6 +70,7 @@ func (a *App) Run() error {
 		a.refreshStaleSelection()
 		a.advanceSmoothScroll()
 		a.advanceSmoothZoom()
+		a.advanceAutoscroll()
 		if a.runtime != nil {
 			if a.runtime.PollPluginOperations() {
 				a.applyRuntimeChanges("plugin operation")
@@ -134,7 +133,7 @@ func (a *App) openInitialDocument() error {
 }
 
 func (a *App) eventWaitTimeoutMS() int {
-	if a.smoothScrollActive() || a.smoothZoomAnimating() || a.loaderVisible {
+	if a.smoothScrollActive() || a.smoothZoomAnimating() || a.autoscrollMoving() || a.loaderVisible {
 		return max(1, int(a.animationFrameDuration()/time.Millisecond))
 	}
 	// Wake for the earliest pending deadline.
@@ -201,6 +200,7 @@ func (a *App) handleSDLEvent(event *sdl.Event) error {
 		redraw = false
 	case sdl.EventWindowFocusLost:
 		a.stopPan()
+		a.stopAutoscroll()
 		redraw = false
 	case sdl.EventKeyUp:
 		e := event.Key()
@@ -209,6 +209,9 @@ func (a *App) handleSDLEvent(event *sdl.Event) error {
 	case sdl.EventKeyDown:
 		a.preview = nil
 		e := event.Key()
+		if a.handleAutoscrollKey(&e) {
+			break
+		}
 		if _, ok := a.repeatableMenuAction(&e); ok {
 			e.Repeat = false
 		}
@@ -220,6 +223,10 @@ func (a *App) handleSDLEvent(event *sdl.Event) error {
 		a.handleSDLTextInput(&e)
 	case sdl.EventMouseWheel:
 		a.preview = nil
+		if a.autoscroll != nil {
+			a.stopAutoscroll()
+			break
+		}
 		e := event.Wheel()
 		a.handleAnimatedMouseWheel(&e)
 		redraw = false
@@ -257,6 +264,10 @@ func (a *App) handleSDLEvent(event *sdl.Event) error {
 }
 
 func (a *App) handleMouseButtonEvent(e *sdl.MouseButtonEvent) {
+	a.pointer = sdl.FPoint{X: e.X, Y: e.Y}
+	if a.handleAutoscrollButton(e) {
+		return
+	}
 	if a.runtime == nil {
 		if !a.handleInputMouseButton(e) {
 			a.handleSDLMouseButton(e)
@@ -375,6 +386,7 @@ func (a *App) drawFrame() error {
 	a.pendingRedraw = a.loaderVisible
 	a.drawLinkHints(a.renderer)
 	a.drawLinkPreview(a.renderer)
+	a.drawAutoscrollMarker(a.renderer)
 	if a.statusVisible() {
 		if err := a.drawStatusBar(a.renderer); err != nil {
 			return err

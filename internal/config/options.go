@@ -433,6 +433,12 @@ var configOptions = map[string]optionDesc{
 	"smooth_zoom_dampening": floatOption("Catch-up factor for smooth zooming per animation frame; higher values are more responsive and less damped; clamped to 0.01 through 1.", func(c *Config) float64 { return c.SmoothZoomDampening }, func(c *Config, v float64) {
 		c.SmoothZoomDampening = max(0.01, min(1, v))
 	}),
+	"autoscroll_speed_factor": floatOption("Multiplier for autoscroll speed at every pointer distance from the anchor, up to autoscroll_max_speed; clamped to at least 0.01.", func(c *Config) float64 { return c.AutoscrollSpeedFactor }, func(c *Config, v float64) {
+		c.AutoscrollSpeedFactor = max(0.01, v)
+	}),
+	"autoscroll_max_speed": floatOption("Fastest autoscroll speed in pixels per second, however far the pointer is from the anchor; 0 or less removes the limit.", func(c *Config) float64 { return c.AutoscrollMaxSpeed }, func(c *Config, v float64) {
+		c.AutoscrollMaxSpeed = max(0, v)
+	}),
 	"min_zoom": floatOption("Minimum manual zoom scale.", func(c *Config) float64 { return c.MinZoom }, func(c *Config, v float64) {
 		if v > 0 {
 			c.MinZoom = v

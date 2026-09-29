@@ -163,7 +163,8 @@ func (a *App) relayoutOverview() {
 }
 
 // runOverviewAction handles actions while the overview is shown, reporting
-// false for those that should run as usual.
+// false for those that should run as usual. The overview scrolls by whole
+// rows with its selection, so pan pages down like the space key once did.
 func (a *App) runOverviewAction(action string) bool {
 	columns := a.overviewColumns()
 	switch action {
@@ -175,7 +176,7 @@ func (a *App) runOverviewAction(action string) bool {
 		a.moveOverviewSelection(1)
 	case "scroll_left", "prev_spread":
 		a.moveOverviewSelection(-1)
-	case "next_page":
+	case "next_page", "pan":
 		a.moveOverviewSelection(a.overviewVisibleRows() * columns)
 	case "prev_page":
 		a.moveOverviewSelection(-a.overviewVisibleRows() * columns)

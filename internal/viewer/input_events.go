@@ -131,11 +131,15 @@ func (a *App) handleInputModeBinding(token string) bool {
 func (a *App) handleSDLKeyUp(e *sdl.KeyboardEvent) {
 	a.lastKeyUpCode = e.Key
 	a.lastKeyUpAt = time.Now()
-	if !a.panning || a.panKey == "" {
+	token, ok := keyToken(e.Key, e.Mod)
+	if !ok {
 		return
 	}
-	if token, ok := keyToken(e.Key, e.Mod); ok && token == a.panKey {
+	if a.panning && a.panKey != "" && token == a.panKey {
 		a.stopPan()
+	}
+	if a.autoscroll != nil && a.autoscroll.key != "" && token == a.autoscroll.key {
+		a.releaseAutoscroll()
 	}
 }
 
@@ -298,6 +302,10 @@ func (a *App) handleSDLMouseMotion(e *sdl.MouseMotionEvent) bool {
 		}
 		return a.uiViewHover(view, int(e.X), int(e.Y))
 	}
+	if a.autoscroll != nil {
+		a.noteAutoscrollPointer() // the frame loop does the scrolling
+		return false
+	}
 	if a.panning && (a.panButton == 0 || uint32(e.State)&buttonMask(a.panButton) != 0) {
 		oldX, oldY := a.scrollX, a.scrollY
 		a.scrollBy(-float64(e.Xrel), -float64(e.Yrel))
@@ -325,7 +333,8 @@ func (a *App) handleSDLMouseMotion(e *sdl.MouseMotionEvent) bool {
 // restores the previous message when the pointer leaves it. It reports
 // whether the message changed.
 func (a *App) setHoveredLink(link mupdf.Link, over bool) bool {
-	a.setLinkCursor(over)
+	a.links.overLink = over
+	a.updateCursor()
 	target := ""
 	if over {
 		target = a.linkTarget(link)
@@ -352,27 +361,11 @@ func (a *App) linkTarget(link mupdf.Link) string {
 	return "page " + a.pageLabel(link.Page)
 }
 
-func (a *App) setLinkCursor(hand bool) {
-	if hand == a.cursorIsHand {
-		return
-	}
-	if hand {
-		if a.cursorHand != nil {
-			sdl.SetCursor(a.cursorHand)
-			a.cursorIsHand = true
-		}
-		return
-	}
-	if a.cursorArrow != nil {
-		sdl.SetCursor(a.cursorArrow)
-		a.cursorIsHand = false
-	}
-}
-
 func (a *App) stopPan() {
 	a.panning = false
 	a.panButton = 0
 	a.panKey = ""
+	a.updateCursor()
 }
 
 func (a *App) handleCountToken(token string) bool {

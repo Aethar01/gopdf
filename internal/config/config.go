@@ -71,6 +71,8 @@ type Config struct {
 	InvertSmoothScroll     bool
 	SmoothScrollDampening  float64
 	SmoothZoomDampening    float64
+	AutoscrollSpeedFactor  float64
+	AutoscrollMaxSpeed     float64
 	SessionDatabase        bool
 	AntiAliasing           int
 	OutlineInitialDepth    int

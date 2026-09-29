@@ -144,15 +144,18 @@ type layoutState struct {
 }
 
 type sdlState struct {
-	waker        *loopWaker
-	window       *sdl.Window
-	renderer     *sdl.Renderer
-	cursorHand   *sdl.Cursor
-	cursorArrow  *sdl.Cursor
-	cursorIsHand bool
-	iconBytes    []byte
-	fontFace     font.Face
-	textCache    textTextureCache
+	waker     *loopWaker
+	window    *sdl.Window
+	renderer  *sdl.Renderer
+	cursors   map[cursorKind]*sdl.Cursor
+	cursor    cursorKind // the cursor currently shown
+	iconBytes []byte
+	fontFace  font.Face
+	textCache textTextureCache
+	// autoscrollMarker is the drawn autoscroll anchor, for the size and
+	// axes in autoscrollMarkerKey.
+	autoscrollMarker    *sdl.Texture
+	autoscrollMarkerKey autoscrollMarkerKey
 }
 
 // linkInputState tracks the link under the pointer.
@@ -162,6 +165,7 @@ type linkInputState struct {
 	// messageBeforeHover the status message it replaced.
 	hoverMessage       string
 	messageBeforeHover string
+	overLink           bool
 }
 
 type inputState struct {
@@ -206,14 +210,18 @@ type pendingPasswordPrompt struct {
 }
 
 type interactionState struct {
-	selection     textSelection
-	panning       bool
-	panButton     uint8
-	panKey        string
-	mouseButton   uint8
-	actionKey     string
-	lastKeyUpCode sdl.Keycode
-	lastKeyUpAt   time.Time
+	selection  textSelection
+	panning    bool
+	panButton  uint8
+	panKey     string
+	autoscroll *autoscrollState
+	// swallowButtonUp is a mouse button whose press ended autoscroll, so
+	// its release is ignored too.
+	swallowButtonUp uint8
+	mouseButton     uint8
+	actionKey       string
+	lastKeyUpCode   sdl.Keycode
+	lastKeyUpAt     time.Time
 }
 
 type uiState struct {

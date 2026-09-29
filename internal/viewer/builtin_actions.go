@@ -21,6 +21,7 @@ func init() {
 		"scroll_left":  do(func(a *App) { a.scrollByInput(-a.pageStep, 0) }),
 		"scroll_right": do(func(a *App) { a.scrollByInput(a.pageStep, 0) }),
 		"pan":          do((*App).startPan),
+		"autoscroll":   do((*App).startAutoscroll),
 		"next_spread":  do((*App).nextSpread),
 		"prev_spread":  do((*App).prevSpread),
 		"first_page":   do(func(a *App) { a.alignPageToAnchor(0) }),
@@ -130,6 +131,10 @@ func (a *App) startPan() {
 		a.panButton = a.mouseButton
 		a.panKey = ""
 	}
+	if a.panning {
+		a.stopAutoscroll()
+	}
+	a.updateCursor()
 }
 
 func (a *App) openInputMode(m mode) {

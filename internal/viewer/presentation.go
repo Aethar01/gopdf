@@ -45,10 +45,11 @@ func (a *App) closePresentation() {
 }
 
 // runPresentationAction turns movement into page steps, reporting false for
-// actions that should run as usual.
+// actions that should run as usual. A fitted slide has nothing to pan, so
+// pan advances, keeping space the usual next slide key.
 func (a *App) runPresentationAction(action string) bool {
 	switch action {
-	case "scroll_down", "scroll_right", "next_page", "next_spread":
+	case "scroll_down", "scroll_right", "next_page", "next_spread", "pan":
 		a.nextPage()
 	case "scroll_up", "scroll_left", "prev_page", "prev_spread":
 		a.prevPage()

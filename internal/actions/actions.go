@@ -7,7 +7,7 @@ type Action struct {
 }
 
 var registry = []Action{
-	{Name: "next_page", Countable: true, Keys: []string{"J", " ", "<PgDn>"}},
+	{Name: "next_page", Countable: true, Keys: []string{"J", "<PgDn>"}},
 	{Name: "prev_page", Countable: true, Keys: []string{"K", "<PgUp>"}},
 	{Name: "scroll_down", Countable: true, Keys: []string{"j", "<Down>"}},
 	{Name: "scroll_up", Countable: true, Keys: []string{"k", "<Up>"}},
@@ -63,7 +63,8 @@ var registry = []Action{
 	{Name: "show_recent_files", Keys: []string{"gr"}},
 	{Name: "help", Keys: []string{"<F1>", "g?"}},
 	{Name: "keybinds"},
-	{Name: "pan"},
+	{Name: "pan", Keys: []string{" "}},
+	{Name: "autoscroll"},
 	{Name: "quit", Keys: []string{"q"}},
 }
 

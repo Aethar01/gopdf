@@ -262,12 +262,20 @@ func closeFontFace(face font.Face) {
 }
 
 func textureFromRGBA(renderer *sdl.Renderer, rgba *image.RGBA) (*sdl.Texture, error) {
-	tex := sdl.CreateTexture(renderer, sdl.PixelFormatRGBA32, sdl.TextureAccessStatic, int32(rgba.Bounds().Dx()), int32(rgba.Bounds().Dy()))
+	return textureFromPixels(renderer, rgba.Bounds().Dx(), rgba.Bounds().Dy(), rgba.Pix, rgba.Stride)
+}
+
+func textureFromNRGBA(renderer *sdl.Renderer, img *image.NRGBA) (*sdl.Texture, error) {
+	return textureFromPixels(renderer, img.Bounds().Dx(), img.Bounds().Dy(), img.Pix, img.Stride)
+}
+
+func textureFromPixels(renderer *sdl.Renderer, w, h int, pix []byte, stride int) (*sdl.Texture, error) {
+	tex := sdl.CreateTexture(renderer, sdl.PixelFormatRGBA32, sdl.TextureAccessStatic, int32(w), int32(h))
 	if tex == nil {
 		return nil, sdlError("create texture")
 	}
-	if len(rgba.Pix) > 0 {
-		if !sdl.UpdateTexture(tex, nil, unsafe.Pointer(&rgba.Pix[0]), int32(rgba.Stride)) {
+	if len(pix) > 0 {
+		if !sdl.UpdateTexture(tex, nil, unsafe.Pointer(&pix[0]), int32(stride)) {
 			sdl.DestroyTexture(tex)
 			return nil, sdlError("update texture")
 		}
@@ -406,13 +414,10 @@ func (s *sdlState) Close() {
 	s.clearTextTextureCache()
 	closeFontFace(s.fontFace)
 	s.fontFace = nil
-	if s.cursorHand != nil {
-		sdl.DestroyCursor(s.cursorHand)
-		s.cursorHand = nil
-	}
-	if s.cursorArrow != nil {
-		sdl.DestroyCursor(s.cursorArrow)
-		s.cursorArrow = nil
+	s.destroyCursors()
+	if s.autoscrollMarker != nil {
+		sdl.DestroyTexture(s.autoscrollMarker)
+		s.autoscrollMarker = nil
 	}
 	if s.renderer != nil {
 		sdl.DestroyRenderer(s.renderer)

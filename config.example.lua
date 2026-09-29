@@ -13,6 +13,8 @@ gopdf.options.annotation_colors = {"#ffe066", "#8ce99a", "#74c0fc", "#ffa8a8"} -
 gopdf.options.anti_aliasing = 8 -- MuPDF antialiasing level from 0 through 8.
 gopdf.options.auto_reload = true -- Reload the document when its file changes on disk.
 gopdf.options.auto_reload_delay_ms = 200 -- Milliseconds a changed file must stay unwritten before it reloads, so a file being written reloads once.
+gopdf.options.autoscroll_max_speed = 20000 -- Fastest autoscroll speed in pixels per second, however far the pointer is from the anchor; 0 or less removes the limit.
+gopdf.options.autoscroll_speed_factor = 1 -- Multiplier for autoscroll speed at every pointer distance from the anchor, up to autoscroll_max_speed; clamped to at least 0.01.
 gopdf.options.background = {220, 220, 220} -- Viewer background color.
 gopdf.options.completion_max_items = 10 -- Maximum command-completion rows.
 gopdf.options.copy_on_select = true -- Copy selected text to the clipboard when the mouse selection is released.
@@ -80,7 +82,6 @@ gopdf.options.zoom_step = 1.15 -- Factor zoom_in multiplies the zoom by, and zoo
 -- Default key bindings.
 
 gopdf.bind("J", gopdf.next_page)
-gopdf.bind(" ", gopdf.next_page)
 gopdf.bind("<PgDn>", gopdf.next_page)
 gopdf.bind("K", gopdf.prev_page)
 gopdf.bind("<PgUp>", gopdf.prev_page)
@@ -139,13 +140,14 @@ gopdf.bind("<C-S-o>", gopdf.open_file_picker)
 gopdf.bind("gr", gopdf.show_recent_files)
 gopdf.bind("<F1>", gopdf.help)
 gopdf.bind("g?", gopdf.help)
+gopdf.bind(" ", gopdf.pan)
 gopdf.bind("q", gopdf.quit)
 
 -- Default mouse bindings.
 
 gopdf.bind_mouse("<c-wheel_down>", gopdf.zoom_out)
 gopdf.bind_mouse("<c-wheel_up>", gopdf.zoom_in)
-gopdf.bind_mouse("middle_down", gopdf.pan)
+gopdf.bind_mouse("middle_down", gopdf.autoscroll)
 gopdf.bind_mouse("wheel_down", gopdf.scroll_down)
 gopdf.bind_mouse("wheel_left", gopdf.scroll_left)
 gopdf.bind_mouse("wheel_right", gopdf.scroll_right)
