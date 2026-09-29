@@ -27,69 +27,49 @@ func TestDocumentSessionPollIsNonBlocking(t *testing.T) {
 	}
 }
 
-func TestDocumentSessionDetectsChanges(t *testing.T) {
-	dir := t.TempDir()
-	path := filepath.Join(dir, "doc.pdf")
+// waitForDocumentChange polls s, as the event loop does, until the watcher
+// reports a change once its debounce has passed.
+func waitForDocumentChange(t *testing.T, s *documentSession) documentChange {
+	t.Helper()
+	for deadline := time.Now().Add(5 * time.Second); time.Now().Before(deadline); time.Sleep(5 * time.Millisecond) {
+		if change, ok := s.poll(time.Now()); ok {
+			return change
+		}
+	}
+	t.Fatal("no change reported after the file was modified")
+	return documentChange{}
+}
+
+func testDocumentSession(t *testing.T) (*documentSession, string) {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "doc.pdf")
 	if err := os.WriteFile(path, []byte("one"), 0o644); err != nil {
 		t.Fatal(err)
 	}
+	s := &documentSession{}
+	s.record(path) // watches the directory before returning
+	t.Cleanup(s.Close)
+	return s, path
+}
 
-	var s documentSession
-	s.record(path)
-	defer s.Close()
-
-	// Give the goroutine time to start watching
-	time.Sleep(50 * time.Millisecond)
-
-	// Modify the file
+func TestDocumentSessionDetectsChanges(t *testing.T) {
+	s, path := testDocumentSession(t)
 	if err := os.WriteFile(path, []byte("two"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-
-	// Wait for debounce + poll timeout
-	time.Sleep(documentReloadDebounce + 200*time.Millisecond)
-
-	change, ok := s.poll(time.Now())
-	if !ok {
-		t.Fatal("expected a change after file modification")
-	}
-
-	// Committing should clear the pending state
-	s.commit(change)
-	time.Sleep(50 * time.Millisecond)
-
+	s.commit(waitForDocumentChange(t, s))
 	if _, ok := s.poll(time.Now()); ok {
 		t.Fatal("expected no change after commit")
 	}
 }
 
 func TestDocumentSessionRateLimitsRetries(t *testing.T) {
-	dir := t.TempDir()
-	path := filepath.Join(dir, "doc.pdf")
-	if err := os.WriteFile(path, []byte("one"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-
-	var s documentSession
-	s.record(path)
-	defer s.Close()
-
-	time.Sleep(50 * time.Millisecond)
-
-	// Modify and wait for debounce
+	s, path := testDocumentSession(t)
 	if err := os.WriteFile(path, []byte("two"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	time.Sleep(documentReloadDebounce + 200*time.Millisecond)
-
-	now := time.Now()
-	_, ok := s.poll(now)
-	if !ok {
-		t.Fatal("expected a change")
-	}
-
-	// Immediately polling again should be rate limited
-	if _, ok := s.poll(now); ok {
+	waitForDocumentChange(t, s)
+	if _, ok := s.poll(time.Now()); ok {
 		t.Fatal("expected rate limiting on consecutive polls")
 	}
 }
