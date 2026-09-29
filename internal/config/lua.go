@@ -111,7 +111,9 @@ func newLuaModule(L *lua.LState, rt *Runtime, cfg *Config) *lua.LTable {
 		name := action
 		L.SetField(mod, name, newLuaActionValue(L, rt, name))
 	}
-	L.SetField(mod, "status_bar", newLuaStatusBarTable(L, rt, cfg))
+	statusBar := newLuaStatusBarTable(L, rt, cfg)
+	L.SetField(mod, "status_bar", statusBar)
+	L.SetField(mod, "sb", statusBar)
 	return mod
 }
 

@@ -108,8 +108,8 @@ func renderReference(luaRefs []config.LuaReferenceEntry, luaDocs map[string]stri
 	}
 	b.WriteString("\n## Lua tables\n\n")
 	b.WriteString("- `gopdf.document`: `path`, `name`, `extension`, `exists`, `size_bytes`, and `page_count`.\n")
-	b.WriteString("- `gopdf.status_bar`: `left`, `right`, and `visible`.\n")
-	b.WriteString("- `gopdf.options`: all entries from the configuration-options table.\n")
+	b.WriteString("- `gopdf.status_bar` (alias `gopdf.sb`): `left`, `right`, and `visible`.\n")
+	b.WriteString("- `gopdf.options` (alias `gopdf.o`): all entries from the configuration-options table.\n")
 	b.WriteString("- `gopdf.cache`, `gopdf.ui`, and `gopdf.plugin`: functions are listed above.\n")
 	b.WriteString("\n### Status bar\n\n")
 	b.WriteString("Set `gopdf.status_bar.visible` to a boolean to show or hide the status bar. Configure horizontal spacing with `gopdf.options.status_bar_padding` and text size with `gopdf.options.ui_font_size`. The `status_bar_left` and `status_bar_right` options are templates with these substitutions:\n\n")
