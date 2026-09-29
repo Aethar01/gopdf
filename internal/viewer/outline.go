@@ -308,6 +308,10 @@ func (a *App) handleOutlineViewKey(view *uiView, e *sdl.KeyboardEvent) bool {
 }
 
 func (a *App) runOutlineViewAction(action string) {
+	if delta, ok := a.listPageDelta(a.outlineMenu.view, action); ok {
+		a.moveOutlineSelection(delta)
+		return
+	}
 	switch action {
 	case "scroll_down":
 		a.moveOutlineSelection(1)

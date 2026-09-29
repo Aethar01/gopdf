@@ -147,6 +147,10 @@ func (a *App) deleteSelectedKeybind() {
 }
 
 func (a *App) runKeybindMenuAction(action string) {
+	if delta, ok := a.listPageDelta(a.keybindMenu.view, action); ok {
+		a.moveKeybindSelection(delta)
+		return
+	}
 	switch action {
 	case "scroll_down":
 		a.moveKeybindSelection(1)

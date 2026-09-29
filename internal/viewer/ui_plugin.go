@@ -159,6 +159,10 @@ func (a *App) runUIViewAction(view *uiView, action string) {
 	if view == nil {
 		return
 	}
+	if delta, ok := a.listPageDelta(view, action); ok {
+		a.moveUIViewSelection(view, delta)
+		return
+	}
 	switch action {
 	case "scroll_down":
 		a.moveUIViewSelection(view, 1)

@@ -247,6 +247,24 @@ func (a *App) moveUIViewSelection(view *uiView, delta int) {
 	a.pendingRedraw = true
 }
 
+// listPageDelta turns the page movement actions into list movement: Page
+// Up and Down move a screen of rows, and first and last page jump to the
+// ends. ok is false for other actions.
+func (a *App) listPageDelta(view *uiView, action string) (delta int, ok bool) {
+	_, rows := view.contentGeometry(a)
+	switch action {
+	case "next_page":
+		return max(1, rows), true
+	case "prev_page":
+		return -max(1, rows), true
+	case "last_page":
+		return len(view.rows), true
+	case "first_page":
+		return -len(view.rows), true
+	}
+	return 0, false
+}
+
 func (a *App) ensureUIViewSelectionVisible(view *uiView) {
 	if view == nil {
 		return

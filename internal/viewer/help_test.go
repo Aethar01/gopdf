@@ -1,9 +1,12 @@
 package viewer
 
 import (
+	"fmt"
 	"testing"
 
 	commandmeta "gopdf/internal/commands"
+
+	"golang.org/x/image/font/basicfont"
 )
 
 func TestHelpRowsCoverEverySection(t *testing.T) {
@@ -54,5 +57,30 @@ func TestDocumentedSearchFlagsParse(t *testing.T) {
 		if _, options := parseSearchQuery("-" + flag.Flag + " x"); options == (searchOptions{}) {
 			t.Errorf("documented flag -%s is not parsed", flag.Flag)
 		}
+	}
+}
+
+func TestListsPageByScreen(t *testing.T) {
+	app := testLayoutApp(1)
+	app.winW, app.winH = 1000, 800
+	app.fontFace = basicfont.Face7x13
+	rows := make([]uiRow, 100)
+	for i := range rows {
+		rows[i] = uiRow{index: i, text: fmt.Sprint(i)}
+	}
+	view := app.showRowList("test", "Test", rows, 50, 50, func(*uiView) {})
+	_, visible := view.contentGeometry(app)
+	app.runUIViewAction(view, "next_page")
+	if view.selected != visible {
+		t.Fatalf("PgDn selected %d, want %d", view.selected, visible)
+	}
+	app.runUIViewAction(view, "last_page")
+	if view.selected != 99 {
+		t.Fatalf("G selected %d", view.selected)
+	}
+	app.runUIViewAction(view, "prev_page")
+	app.runUIViewAction(view, "first_page")
+	if view.selected != 0 || app.page != 0 {
+		t.Fatalf("gg selected %d (document page %d)", view.selected, app.page)
 	}
 }
