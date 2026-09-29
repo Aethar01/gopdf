@@ -431,3 +431,36 @@ return M
 		t.Fatalf("expected hyphenated command name to be rejected, err=%v", err)
 	}
 }
+
+func TestPluginMembersOfHyphenatedIDsResolve(t *testing.T) {
+	root := writeTestPlugin(t, "file-browser", `
+local M = gopdf.plugin.register("file-browser", {
+  options = { root = { type = "string", default = "/", description = "Root." } }
+})
+M:register_action("open", function() gopdf.message("action") end)
+M:register_command("open", { arg_completions = { "here", "there" } }, function(ctx) gopdf.message(ctx.name) end)
+return M
+`)
+	rt, err := OpenWithOptions(filepath.Join(t.TempDir(), "missing.lua"), "", OpenOptions{PluginPaths: []string{root}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rt.Close()
+	if _, err := rt.Eval(`require("file-browser")`); err != nil {
+		t.Fatal(err)
+	}
+	host := &stubHost{}
+	rt.AttachHost(host)
+	if handled, err := rt.RunPluginCommand("File-Browser-Open", ""); !handled || err != nil || host.message != "file-browser-open" {
+		t.Fatalf("command: handled=%v err=%v message=%q", handled, err, host.message)
+	}
+	if got := rt.commandCompletions("file-browser-open", "th"); len(got) != 1 || got[0] != "there" {
+		t.Fatalf("completions = %v", got)
+	}
+	if !rt.actionExists("file-browser.open") || rt.actionExists("file-browser.close") {
+		t.Fatal("action lookup")
+	}
+	if _, ok := rt.pluginOption("file-browser.root"); !ok {
+		t.Fatal("option lookup")
+	}
+}

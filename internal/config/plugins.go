@@ -737,60 +737,55 @@ func (instance *pluginInstance) startJob(L *lua.LState) int {
 }
 
 func (r *Runtime) actionExists(name string) bool {
-	if actions.IsBuiltin(name) {
-		return true
-	}
-	if r == nil || r.plugins == nil {
-		return false
-	}
-	parts := strings.SplitN(strings.ToLower(name), ".", 2)
-	if len(parts) != 2 {
-		return false
-	}
-	instance, ok := r.plugins.active[parts[0]]
-	if !ok {
-		return false
-	}
-	_, ok = instance.actions[parts[1]]
-	return ok
+	return actions.IsBuiltin(name) || r.pluginAction(name) != nil
 }
 
 func (r *Runtime) isCountableAction(name string) bool {
 	if actions.IsCountable(name) {
 		return true
 	}
+	action := r.pluginAction(name)
+	return action != nil && action.countable
+}
+
+// pluginMember finds the active plugin a member's full name belongs to, and
+// the member's own name. Full names join the two with sep, which neither
+// plugin IDs nor member names contain for actions and options ("."), and
+// command names do not contain for commands ("-").
+func (r *Runtime) pluginMember(name, sep string) (*pluginInstance, string) {
 	if r == nil || r.plugins == nil {
-		return false
+		return nil, ""
 	}
-	parts := strings.SplitN(strings.ToLower(name), ".", 2)
-	if len(parts) != 2 {
-		return false
+	name = strings.ToLower(strings.TrimSpace(name))
+	i := strings.LastIndex(name, sep)
+	if i < 0 {
+		return nil, ""
 	}
-	instance, ok := r.plugins.active[parts[0]]
-	if !ok {
-		return false
-	}
-	action, ok := instance.actions[parts[1]]
-	return ok && action.countable
+	return r.plugins.active[name[:i]], name[i+len(sep):]
 }
 
 func (r *Runtime) pluginAction(name string) *pluginAction {
-	if r == nil || r.plugins == nil {
+	instance, member := r.pluginMember(name, ".")
+	if instance == nil {
 		return nil
 	}
-	parts := strings.SplitN(strings.ToLower(name), ".", 2)
-	if len(parts) != 2 {
-		return nil
-	}
-	instance, ok := r.plugins.active[parts[0]]
-	if !ok {
-		return nil
-	}
-	action, ok := instance.actions[parts[1]]
+	action, ok := instance.actions[member]
 	if !ok {
 		return nil
 	}
 	return &action
+}
+
+func (r *Runtime) pluginCommand(name string) *pluginCommand {
+	instance, member := r.pluginMember(name, "-")
+	if instance == nil {
+		return nil
+	}
+	command, ok := instance.commands[member]
+	if !ok {
+		return nil
+	}
+	return &command
 }
 
 func (r *Runtime) actionNames() []string {
@@ -818,23 +813,12 @@ func (r *Runtime) executeAction(action string) error {
 }
 
 func (r *Runtime) runPluginCommand(name, args string) (bool, error) {
-	if r == nil || r.plugins == nil {
+	command := r.pluginCommand(name)
+	if command == nil {
 		return false, nil
 	}
-	name = strings.ToLower(strings.TrimSpace(name))
-	for _, instance := range r.plugins.active {
-		for _, command := range instance.commands {
-			if command.fullName != name {
-				continue
-			}
-			context := luaCommandContext(r.state, name, args)
-			if err := r.callPluginLua(command.plugin, lua.P{Fn: command.function, NRet: 0, Protect: true}, context); err != nil {
-				return true, err
-			}
-			return true, nil
-		}
-	}
-	return false, nil
+	context := luaCommandContext(r.state, command.fullName, args)
+	return true, r.callPluginLua(command.plugin, lua.P{Fn: command.function, NRet: 0, Protect: true}, context)
 }
 
 func luaCommandContext(L *lua.LState, name, raw string) *lua.LTable {
@@ -860,41 +844,23 @@ func (r *Runtime) commandNames() []string {
 }
 
 func (r *Runtime) commandCompletions(name, prefix string) []string {
-	if r == nil || r.plugins == nil {
+	command := r.pluginCommand(name)
+	if command == nil {
 		return nil
 	}
-	for _, instance := range r.plugins.active {
-		for _, command := range instance.commands {
-			if command.fullName != name {
-				continue
-			}
-			values := []string{}
-			for _, value := range command.argCompletions {
-				if strings.HasPrefix(value, prefix) {
-					values = append(values, value)
-				}
-			}
-			return values
+	values := []string{}
+	for _, value := range command.argCompletions {
+		if strings.HasPrefix(value, prefix) {
+			values = append(values, value)
 		}
 	}
-	return nil
+	return values
 }
 
 func (r *Runtime) commandHelpRows() []string {
 	rows := []string{}
-	if r == nil || r.plugins == nil {
-		return rows
-	}
-	names := r.commandNames()
-	for _, name := range names {
-		for _, instance := range r.plugins.active {
-			for _, command := range instance.commands {
-				if command.fullName == name {
-					rows = append(rows, command.description)
-					break
-				}
-			}
-		}
+	for _, name := range r.commandNames() {
+		rows = append(rows, r.pluginCommand(name).description)
 	}
 	return rows
 }
@@ -914,18 +880,11 @@ func (r *Runtime) optionNames() []string {
 }
 
 func (r *Runtime) pluginOption(name string) (*pluginOption, bool) {
-	if r == nil || r.plugins == nil {
+	instance, member := r.pluginMember(name, ".")
+	if instance == nil {
 		return nil, false
 	}
-	parts := strings.SplitN(strings.ToLower(name), ".", 2)
-	if len(parts) != 2 {
-		return nil, false
-	}
-	instance, ok := r.plugins.active[parts[0]]
-	if !ok {
-		return nil, false
-	}
-	option, ok := instance.options[parts[1]]
+	option, ok := instance.options[member]
 	return option, ok
 }
 
@@ -1217,21 +1176,7 @@ func validPluginMemberName(name string) bool {
 }
 
 func (r *Runtime) commandExists(name string) bool {
-	name = strings.ToLower(name)
-	if slices.Contains(commands.Names(), name) {
-		return true
-	}
-	if r == nil || r.plugins == nil {
-		return false
-	}
-	for _, instance := range r.plugins.active {
-		for _, command := range instance.commands {
-			if command.fullName == name {
-				return true
-			}
-		}
-	}
-	return false
+	return slices.Contains(commands.Names(), strings.ToLower(name)) || r.pluginCommand(name) != nil
 }
 
 func (r *Runtime) ActionNames() []string { return r.actionNames() }
