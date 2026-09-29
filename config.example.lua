@@ -27,6 +27,7 @@ gopdf.options.invert_smooth_scroll = false -- Invert horizontal and vertical smo
 gopdf.options.link_preview = true -- Preview the destination of an internal link after hovering it briefly.
 gopdf.options.link_preview_delay_ms = 400 -- Milliseconds to hover an internal link before its preview appears.
 gopdf.options.link_schemes = {"http", "https", "mailto"} -- URI schemes that document links may open externally; other links only show their target.
+gopdf.options.loading_indicator = true -- Animate a loading indicator on pages still rendering for the first time.
 gopdf.options.max_zoom = 8 -- Maximum manual zoom scale.
 gopdf.options.min_zoom = 0.5 -- Minimum manual zoom scale.
 gopdf.options.mouse_text_select = true -- Enable text selection with the left mouse button.

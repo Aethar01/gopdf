@@ -41,6 +41,7 @@ type Config struct {
 	OverviewThumbWidth     int
 	OverviewMaxColumns     int
 	OverviewGap            int
+	LoadingIndicator       bool
 	AltColors              bool
 	PageGap                int
 	SpreadGap              int

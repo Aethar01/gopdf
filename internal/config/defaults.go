@@ -38,6 +38,7 @@ func Default() Config {
 		OverviewThumbWidth:     220,
 		OverviewMaxColumns:     12,
 		OverviewGap:            16,
+		LoadingIndicator:       true,
 		AltColors:              false,
 		PageGap:                0,
 		SpreadGap:              0,

@@ -65,7 +65,7 @@ func (a *App) drawPage(renderer *sdl.Renderer, page int, x, y, width, height flo
 	for _, tile := range tiles {
 		a.drawTile(renderer, tile, x, y, viewportW, viewportH)
 	}
-	if len(tiles) == 0 && a.pagePending(page) {
+	if len(tiles) == 0 && a.config.LoadingIndicator && a.pagePending(page) {
 		a.drawInkLoader(renderer, x, y, width, height, time.Since(loaderEpoch))
 		a.loaderVisible = true
 	}
