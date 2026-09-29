@@ -394,6 +394,8 @@ var configOptions = map[string]optionDesc{
 	"outline_width_percent":  intOption("Outline overlay width as a percentage of the window.", func(c *Config) int { return c.OutlineWidthPercent }, func(c *Config, v int) { c.OutlineWidthPercent = v }),
 	"outline_height_percent": intOption("Outline overlay height as a percentage of the window.", func(c *Config) int { return c.OutlineHeightPercent }, func(c *Config, v int) { c.OutlineHeightPercent = v }),
 	"completion_max_items":   intOption("Maximum command-completion rows.", func(c *Config) int { return c.CompletionMaxItems }, func(c *Config, v int) { c.CompletionMaxItems = max(1, v) }),
+	"auto_reload":            boolOption("Reload the document when its file changes on disk.", func(c *Config) bool { return c.AutoReload }, func(c *Config, v bool) { c.AutoReload = v }),
+	"auto_reload_delay_ms":   intOption("Milliseconds a changed file must stay unwritten before it reloads, so a file being written reloads once.", func(c *Config) int { return c.AutoReloadDelayMS }, func(c *Config, v int) { c.AutoReloadDelayMS = max(0, v) }),
 	"recent_files_max":       intOption("Maximum recent files retained and displayed.", func(c *Config) int { return c.RecentFilesMax }, func(c *Config, v int) { c.RecentFilesMax = max(0, v) }),
 	"scroll_step":            intOption("Keyboard and mouse scroll distance in pixels.", func(c *Config) int { return c.ScrollStep }, func(c *Config, v int) { c.ScrollStep = v }),
 	"page_gap": intOption("Vertical gap between pages; aliases page_gap_vertical.", func(c *Config) int { return c.PageGap }, func(c *Config, v int) {

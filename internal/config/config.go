@@ -71,6 +71,8 @@ type Config struct {
 	OutlineHeightPercent  int
 	CompletionMaxItems    int
 	RecentFilesMax        int
+	AutoReload            bool
+	AutoReloadDelayMS     int
 }
 
 type Runtime struct {

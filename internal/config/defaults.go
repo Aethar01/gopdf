@@ -76,5 +76,7 @@ func Default() Config {
 		OutlineHeightPercent:  80,
 		CompletionMaxItems:    10,
 		RecentFilesMax:        20,
+		AutoReload:            true,
+		AutoReloadDelayMS:     200,
 	}
 }

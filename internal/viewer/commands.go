@@ -255,6 +255,7 @@ func (a *App) applyConfigSettings() {
 	}
 	maps.Copy(a.mouseBindings, cfg.MouseBindings)
 	a.pageStep = float64(cfg.ScrollStep)
+	a.document.setDelay(time.Duration(cfg.AutoReloadDelayMS) * time.Millisecond)
 }
 
 func (a *App) loadUIFont() {

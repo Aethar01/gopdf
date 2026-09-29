@@ -291,6 +291,9 @@ func (a *App) installDocument(doc *mupdf.Document, path string, pages, startPage
 }
 
 func (a *App) pollDocumentUpdate() {
+	if !a.config.AutoReload {
+		return // a change stays pending until auto_reload is turned on
+	}
 	change, ok := a.document.poll(time.Now())
 	if !ok {
 		return

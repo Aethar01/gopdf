@@ -8,13 +8,11 @@ import (
 	"gopdf/internal/mupdf"
 )
 
-const (
-	documentReloadDebounce = 200 * time.Millisecond
-	documentReloadRetry    = time.Second
-)
+const documentReloadRetry = time.Second
 
 type documentSession struct {
 	watcher *documentWatcher
+	delay   time.Duration // how long writes must settle before a change is reported
 	mod     time.Time
 	size    int64
 
@@ -34,7 +32,7 @@ func (s *documentSession) record(path string) {
 	}
 	s.pending = nil
 	s.lastAttempt = time.Time{}
-	watcher, err := newDocumentWatcher(path)
+	watcher, err := newDocumentWatcher(path, s.delay)
 	if err != nil {
 		// Fall back gracefully if watcher can't be created
 		return
@@ -75,6 +73,13 @@ func (s *documentSession) poll(now time.Time) (documentChange, bool) {
 	}
 	s.lastAttempt = now
 	return *s.pending, true
+}
+
+func (s *documentSession) setDelay(delay time.Duration) {
+	s.delay = delay
+	if s.watcher != nil {
+		s.watcher.delay.Store(int64(delay))
+	}
 }
 
 func (s *documentSession) commit(change documentChange) {

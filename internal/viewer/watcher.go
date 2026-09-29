@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/fsnotify/fsnotify"
@@ -15,6 +16,7 @@ type documentWatcher struct {
 	size    int64
 	changed chan struct{}
 	pending watcherChange
+	delay   atomic.Int64 // the time.Duration writes must settle for
 
 	watcher   *fsnotify.Watcher
 	done      chan struct{}
@@ -28,7 +30,7 @@ type watcherChange struct {
 	size int64
 }
 
-func newDocumentWatcher(path string) (*documentWatcher, error) {
+func newDocumentWatcher(path string, delay time.Duration) (*documentWatcher, error) {
 	w, err := fsnotify.NewWatcher()
 	if err != nil {
 		return nil, err
@@ -40,6 +42,7 @@ func newDocumentWatcher(path string) (*documentWatcher, error) {
 		done:    make(chan struct{}),
 		changed: make(chan struct{}, 1),
 	}
+	dw.delay.Store(int64(delay))
 
 	dir := filepath.Dir(path)
 	if dir == "" {
@@ -99,7 +102,7 @@ func (dw *documentWatcher) loop() {
 				default:
 				}
 			}
-			debounce.Reset(documentReloadDebounce)
+			debounce.Reset(time.Duration(dw.delay.Load()))
 		case <-dw.watcher.Errors:
 			// keep running
 		case <-debounce.C:

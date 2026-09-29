@@ -123,3 +123,23 @@ func TestEscCancelsPendingMark(t *testing.T) {
 		t.Fatalf("pendingMark=%q message=%q, want cancelled silently", app.pendingMark, app.message)
 	}
 }
+
+func TestDocumentChangesWaitWhileAutoReloadIsOff(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "doc.pdf")
+	if err := os.WriteFile(path, []byte("one"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	app := &App{}
+	app.document.setDelay(time.Millisecond)
+	app.document.record(path)
+	defer app.document.Close()
+	if err := os.WriteFile(path, []byte("two"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(50 * time.Millisecond)
+	app.pollDocumentUpdate() // auto_reload is off
+	if app.message != "" {
+		t.Fatalf("change handled with auto_reload off: %q", app.message)
+	}
+	waitForDocumentChange(t, &app.document) // still pending
+}
