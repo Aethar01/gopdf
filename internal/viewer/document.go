@@ -163,7 +163,7 @@ func (a *App) openDocumentWithPassword(path string, opts openDocumentOptions, pa
 		configErr = a.runtime.SetDocument(path, pages)
 		a.removeStaleLuaViews(a.runtime.Generation())
 	}
-	a.applyConfigState(a.runtime.Config(), false)
+	a.applyConfigState(a.runtime.Config())
 	a.message = a.config.NormalMessage
 
 	a.setWindowTitle()

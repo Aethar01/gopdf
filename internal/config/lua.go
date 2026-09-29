@@ -468,6 +468,7 @@ func (r *Runtime) setOption(name string, value lua.LValue) error {
 		if err := desc.apply(&r.cfg, value); err != nil {
 			return err
 		}
+		r.markAssigned(name)
 	} else {
 		if _, ok := r.pluginOption(name); !ok {
 			return fmt.Errorf("unknown setting")

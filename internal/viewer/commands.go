@@ -183,23 +183,71 @@ func (a *App) RunCommand(command string) error {
 	return nil
 }
 
-func (a *App) applyConfigState(cfg config.Config, preserveManualFit bool) {
-	currentFitMode := a.fitMode
+// applyConfigState applies cfg in full, view settings included, as at
+// startup and when a document opens.
+func (a *App) applyConfigState(cfg config.Config) {
 	a.config = cfg
 	a.cancelSmoothZoom()
 	a.cancelSmoothScroll()
 	a.fitMode = sanitizeFitMode(cfg.FitMode)
-	if preserveManualFit && currentFitMode == "manual" {
-		a.fitMode = currentFitMode
-	}
 	a.renderMode = sanitizeRenderMode(cfg.RenderMode)
-	a.zoom = a.clampZoom(a.zoom)
-	a.cache.byteLimit = pageCacheByteLimit(cfg)
 	a.altColors = cfg.AltColors
 	a.dualPage = cfg.DualPage
 	a.trimMargins = cfg.TrimMargins
 	a.firstPageOffset = cfg.FirstPageOffset
 	a.statusBarShown = cfg.StatusBarVisible
+	a.applyConfigSettings()
+	a.loadUIFont()
+}
+
+// applyConfig applies a changed config to the running viewer, only as far as
+// it changed. The view settings it holds, such as fit_mode and dual_page, are
+// initial values, so one changed since by an action stays unless the config
+// changes it or the option is assigned (named in assigned); the UI font and
+// rendered tiles are kept unless their own settings change.
+func (a *App) applyConfig(cfg config.Config, assigned map[string]bool) {
+	prev := a.config
+	a.config = cfg
+	a.applyConfigSettings()
+	if prev.UIFontPath != cfg.UIFontPath || prev.UIFontSize != cfg.UIFontSize {
+		a.loadUIFont()
+	}
+	if prev.AltColors != cfg.AltColors || assigned["alt_colors"] {
+		a.setAltColors(cfg.AltColors)
+	}
+	if prev.TrimMargins != cfg.TrimMargins || assigned["trim_margins"] {
+		a.setTrimMargins(cfg.TrimMargins)
+	}
+	if renderedDifferently(prev, cfg) {
+		a.clearCache()
+	}
+	a.relayoutWithViewportAnchor(func() {
+		changed := false
+		apply := func(differs bool, option string, set func()) {
+			if differs || assigned[option] {
+				set()
+				changed = true
+			}
+		}
+		apply(prev.FitMode != cfg.FitMode, "fit_mode", func() { a.fitMode = sanitizeFitMode(cfg.FitMode) })
+		apply(prev.RenderMode != cfg.RenderMode, "render_mode", func() { a.renderMode = sanitizeRenderMode(cfg.RenderMode) })
+		apply(prev.DualPage != cfg.DualPage, "dual_page", func() { a.dualPage = cfg.DualPage })
+		apply(prev.FirstPageOffset != cfg.FirstPageOffset, "first_page_offset", func() { a.firstPageOffset = cfg.FirstPageOffset })
+		apply(prev.StatusBarVisible != cfg.StatusBarVisible, "", func() { a.statusBarShown = cfg.StatusBarVisible })
+		if changed {
+			a.cancelSmoothZoom()
+			a.cancelSmoothScroll()
+		}
+	})
+}
+
+// applyConfigSettings applies the settings that are cheap to apply whether
+// or not they changed.
+func (a *App) applyConfigSettings() {
+	cfg := a.config
+	a.zoom = a.clampZoom(a.zoom)
+	a.cache.byteLimit = pageCacheByteLimit(cfg)
+	a.cache.evict()
 	a.sequenceLookup = map[string]string{}
 	a.mouseBindings = map[string]string{}
 	for k, v := range cfg.KeyBindings {
@@ -207,11 +255,20 @@ func (a *App) applyConfigState(cfg config.Config, preserveManualFit bool) {
 	}
 	maps.Copy(a.mouseBindings, cfg.MouseBindings)
 	a.pageStep = float64(cfg.ScrollStep)
+}
+
+func (a *App) loadUIFont() {
 	oldFontFace := a.fontFace
-	a.fontFace = loadFont(cfg.UIFontPath, cfg.UIFontSize)
+	a.fontFace = loadFont(a.config.UIFontPath, a.config.UIFontSize)
 	a.clearTextTextureCache()
-	a.cache.evict()
 	closeFontFace(oldFontFace)
+}
+
+// renderedDifferently reports whether tiles rendered under one config would
+// come out differently under the other.
+func renderedDifferently(a, b config.Config) bool {
+	return a.AntiAliasing != b.AntiAliasing || a.AltBackground != b.AltBackground ||
+		a.AltForeground != b.AltForeground || a.AltColorsKeepImages != b.AltColorsKeepImages
 }
 
 func (a *App) Mode() string {
@@ -507,7 +564,7 @@ func (a *App) reloadConfig() {
 		return
 	}
 	cfg := a.runtime.Config()
-	a.applyConfig(cfg)
+	a.applyConfig(cfg, nil)
 	a.emitPluginEvent("config_reloaded", a.documentEventPayload())
 	a.message = boolWord(cfg.ConfigPath != "", "config reloaded", "defaults reloaded")
 }
@@ -592,13 +649,6 @@ func (a *App) runMouseBinding(event string) bool {
 		return true
 	}
 	return false
-}
-
-func (a *App) applyConfig(cfg config.Config) {
-	a.relayoutWithViewportAnchor(func() {
-		a.applyConfigState(cfg, true)
-		a.clearCache()
-	})
 }
 
 func sanitizeFitMode(mode string) string { return config.NormalizeFitMode(mode) }

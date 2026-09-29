@@ -106,7 +106,7 @@ func TestSetCommandInspectsAndAssignsRegisteredOptions(t *testing.T) {
 	defer rt.Close()
 	app := testLayoutApp(3)
 	app.runtime = rt
-	app.applyConfigState(rt.Config(), false)
+	app.applyConfigState(rt.Config())
 
 	app.runCommand(":set scroll_step=80")
 	if app.config.ScrollStep != 80 || app.pageStep != 80 || app.message != "scroll_step=80" {
@@ -129,7 +129,7 @@ func TestSetCommandInspectsAndAssignsRegisteredOptions(t *testing.T) {
 	if view == nil || view.title != "Options" || len(view.rows) != len(config.OptionNames()) {
 		t.Fatalf("expected options inspector, view=%+v", view)
 	}
-	if rt.ConsumeDirty() {
+	if dirty, _ := rt.ConsumeDirty(); dirty {
 		t.Fatal("expected :set changes to consume runtime dirty state")
 	}
 }
@@ -190,5 +190,33 @@ func TestRecentFilesCommandReportsDisabledDatabase(t *testing.T) {
 	app.runCommand(":recent")
 	if app.message != "session database disabled" {
 		t.Fatalf("expected disabled database message, got %q", app.message)
+	}
+}
+
+func TestConfigChangesKeepActionSettingsUnlessAssigned(t *testing.T) {
+	rt, err := config.Open(filepath.Join(t.TempDir(), "missing.lua"), "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rt.Close()
+	app := testLayoutApp(4)
+	app.winW, app.winH = 800, 600
+	app.runtime = rt
+	rt.AttachHost(app)
+	app.applyConfigState(rt.Config())
+	app.cache.add(testTile(0, 1, 0, 0, 16))
+
+	app.runAction("toggle_dual_page")
+	app.runCommand(":set scroll_step=80")
+	app.runCommand(":lua gopdf.status_bar.right = '{page}'")
+	if !app.dualPage {
+		t.Fatal("unrelated config changes undid dual-page mode set by an action")
+	}
+	if len(app.cache.entries) != 1 {
+		t.Fatal("config changes that do not affect rendering dropped the tiles")
+	}
+	app.runCommand(":set dual_page=false")
+	if app.dualPage {
+		t.Fatal("assigning dual_page its current config value did not apply it")
 	}
 }

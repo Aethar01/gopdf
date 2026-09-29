@@ -140,10 +140,9 @@ func (a *App) deleteSelectedKeybind() {
 	if err := a.runtime.UnbindKey(row.key); err != nil {
 		a.message = err.Error()
 	} else {
-		a.config = a.runtime.Config()
 		a.message = fmt.Sprintf("unbound %s", row.key)
 	}
-	a.applyConfigState(a.config, true)
+	a.applyConfig(a.runtime.Config(), nil)
 	a.refreshKeybindRows()
 }
 
@@ -222,10 +221,9 @@ func (a *App) rebindSelectedKey(key string) {
 	if err != nil {
 		a.message = err.Error()
 	} else {
-		a.config = a.runtime.Config()
 		a.message = fmt.Sprintf("bound %s to %s", key, action)
 	}
-	a.applyConfigState(a.config, true)
+	a.applyConfig(a.runtime.Config(), nil)
 	a.keybindMenu.capturing = false
 	a.keybindMenu.captureAction = ""
 	a.keybindMenu.selectingAction = false

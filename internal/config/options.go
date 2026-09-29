@@ -271,6 +271,7 @@ func (r *Runtime) SetOption(name, value string) error {
 	if err := desc.applyText(&r.cfg, value); err != nil {
 		return fmt.Errorf("%s: %w", name, err)
 	}
+	r.markAssigned(name)
 	r.dirty = true
 	return nil
 }

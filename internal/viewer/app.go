@@ -65,7 +65,7 @@ func New(docPath string, runtime *config.Runtime, startPage int, iconBytes []byt
 	app.logf("create viewer doc=%q startPage=%d", docPath, startPage+1)
 	runtime.AttachHost(app)
 	runtime.SetWake(app.wakeLoop)
-	app.applyConfigState(cfg, false)
+	app.applyConfigState(cfg)
 	app.message = cfg.NormalMessage
 	if docPath != "" {
 		app.initialDocPath = docPath
@@ -126,16 +126,20 @@ func (a *App) emitPluginEvent(event string, payload map[string]any) bool {
 }
 
 func (a *App) applyRuntimeChanges(source string) {
-	if a.runtime == nil || !a.runtime.ConsumeDirty() {
+	if a.runtime == nil {
 		return
 	}
-	a.applyConfig(a.runtime.Config())
+	dirty, assigned := a.runtime.ConsumeDirty()
+	if !dirty {
+		return
+	}
+	a.applyConfig(a.runtime.Config(), assigned)
 	if source == "option_changed" {
 		return
 	}
 	a.runtime.EmitPluginEvent("option_changed", map[string]any{"source": source})
-	if a.runtime.ConsumeDirty() {
-		a.applyConfig(a.runtime.Config())
+	if dirty, assigned := a.runtime.ConsumeDirty(); dirty {
+		a.applyConfig(a.runtime.Config(), assigned)
 	}
 }
 

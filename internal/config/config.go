@@ -86,6 +86,7 @@ type Runtime struct {
 	luaCallDepth     int
 	deferredOpen     string
 	dirty            bool
+	assigned         map[string]bool // built-in options assigned since ConsumeDirty
 	verbose          bool
 	pluginCatalog    *pluginCatalog
 	pluginPaths      []string

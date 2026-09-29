@@ -111,7 +111,7 @@ func TestOverviewLargeScrollOffCentresSelection(t *testing.T) {
 
 func TestPromptOverOverviewReceivesEnter(t *testing.T) {
 	app := testOverviewApp()
-	app.applyConfigState(config.Default(), false) // default key bindings
+	app.applyConfigState(config.Default()) // default key bindings
 	app.toggleOverview()
 	app.runAction("command_mode")
 	app.input.Set("colors alt")

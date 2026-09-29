@@ -98,13 +98,23 @@ func (r *Runtime) Config() Config {
 	return r.cfg
 }
 
-func (r *Runtime) ConsumeDirty() bool {
+// ConsumeDirty reports whether the config changed since the last call, and
+// which built-in options were assigned meanwhile, including ones assigned
+// the value they already had.
+func (r *Runtime) ConsumeDirty() (bool, map[string]bool) {
 	if r == nil {
-		return false
+		return false, nil
 	}
-	dirty := r.dirty
-	r.dirty = false
-	return dirty
+	dirty, assigned := r.dirty, r.assigned
+	r.dirty, r.assigned = false, nil
+	return dirty, assigned
+}
+
+func (r *Runtime) markAssigned(name string) {
+	if r.assigned == nil {
+		r.assigned = map[string]bool{}
+	}
+	r.assigned[name] = true
 }
 
 func (r *Runtime) AttachHost(host Host) {
@@ -168,6 +178,7 @@ func (r *Runtime) Reload() error {
 	r.operations = make(map[int]*pluginOperation)
 	defer func() {
 		if committed {
+			r.assigned = nil // loading the config is not a change to it
 			cancelPluginOperationMap(oldOperations)
 			if oldState != nil {
 				oldState.Close()
