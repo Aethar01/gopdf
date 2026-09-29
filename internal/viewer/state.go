@@ -1,0 +1,236 @@
+package viewer
+
+import (
+	"sync"
+	"time"
+
+	"gopdf/internal/instance"
+	"gopdf/internal/mupdf"
+
+	"github.com/jupiterrider/purego-sdl3/sdl"
+	"golang.org/x/image/font"
+)
+
+type mode int
+
+const (
+	modeNormal mode = iota
+	modeCommand
+	modeGotoPage
+	modeSearch
+	modePassword
+	modePrompt // a one-off question answered through a.promptState
+)
+
+// pageMetrics holds a page's geometry. bounds is what layout and rendering
+// use: the full page, or its content box while margins are trimmed.
+type pageMetrics struct {
+	bounds     mupdf.Rect
+	full       mupdf.Rect
+	content    mupdf.Rect
+	hasContent bool
+	width      float64
+	height     float64
+	label      string
+	loaded     bool
+}
+
+// textSelection runs from anchor on anchorPage to focus on focusPage,
+// either of which may come first.
+type textSelection struct {
+	active     bool
+	mode       mupdf.SelectMode // words or lines after a double or triple click
+	anchorPage int
+	anchor     mupdf.Point
+	focusPage  int
+	focus      mupdf.Point
+	parts      []selectionPart // highlighted quads, one entry per page in order
+	text       string
+	wholePages map[int]*mupdf.Selection // pages between the ends, see selectionOnPage
+}
+
+type selectionPart struct {
+	page  int
+	quads []mupdf.Quad
+}
+
+func (s textSelection) empty() bool { return s.text == "" && len(s.parts) == 0 }
+
+type viewportAnchor struct {
+	page  int
+	point mupdf.Point
+	valid bool
+}
+
+// rowLayout is a row of pages. In the base rows that layout starts from,
+// width is the pages' total unscaled width and gaps the screen pixels
+// between them; once laid out, width is the row's full screen width.
+type rowLayout struct {
+	pages  []int
+	x      float64
+	y      float64
+	width  float64
+	gaps   float64
+	height float64
+	// Before each page in the row come gapBefore screen pixels and
+	// padBefore unscaled units of blank space.
+	gapBefore []float64
+	padBefore []float64
+	pageX     []float64
+	pageY     []float64
+	pageW     []float64
+	pageH     []float64
+}
+
+type documentWorkers struct {
+	renderWorker *renderWorker
+	metricLoader *metricLoader
+	searchWorker *searchWorker
+}
+
+type documentState struct {
+	documentAPIMu sync.Mutex
+	viewEvents    viewStateEvents
+	// instanceServer is nil unless single-instance handling is enabled.
+	singleInstance         bool
+	instanceServer         *instance.Server
+	instanceAddress        string
+	pendingInstanceJump    *instanceJump
+	pendingInstanceCommand string
+	docPath                string
+	docName                string
+	docPassword            string
+	doc                    *mupdf.Document
+
+	pageCount  int
+	page       int
+	generation int
+	pageLinks  map[int][]mupdf.Link
+	outline    []mupdf.OutlineItem
+
+	initialDocPath   string
+	initialStartPage int
+	initialPageSet   bool
+	document         documentSession
+}
+
+type viewStateFields struct {
+	rotation        float64
+	zoom            float64
+	fitMode         string
+	renderMode      string
+	scale           float64
+	dualPage        bool
+	firstPageOffset bool
+	statusBarShown  bool
+	fullscreen      bool
+	scrollX         float64
+	scrollY         float64
+	pageStep        float64
+	altColors       bool
+	trimMargins     bool
+}
+
+type layoutState struct {
+	rows      []rowLayout
+	pageToRow []int
+	contentW  float64
+	contentH  float64
+	winW      int
+	winH      int
+}
+
+type sdlState struct {
+	waker        *loopWaker
+	window       *sdl.Window
+	renderer     *sdl.Renderer
+	cursorHand   *sdl.Cursor
+	cursorArrow  *sdl.Cursor
+	cursorIsHand bool
+	iconBytes    []byte
+	fontFace     font.Face
+	textCache    textTextureCache
+}
+
+// linkInputState tracks the link under the pointer.
+type linkInputState struct {
+	pressed *mupdf.Link
+	// hoverMessage is the target shown while hovering a link, and
+	// messageBeforeHover the status message it replaced.
+	hoverMessage       string
+	messageBeforeHover string
+}
+
+type inputState struct {
+	mode           mode
+	input          textInput
+	ignoreText     string
+	message        string
+	links          linkInputState
+	hints          *hintState     // non-nil while link hints are shown
+	overview       *overviewState // non-nil while the page overview is shown
+	presentation   *presentationState
+	histories      map[string]*promptHistory
+	unsaved        bool        // the document has edits not yet written
+	highlightColor int         // palette index last used for highlights
+	promptState    promptState // the question asked in modePrompt
+	printSettings  printSettings
+	printResult    chan string // delivers the outcome of a print in progress
+	printers       printerList
+	printersFound  chan printerList // delivers a printer lookup in progress
+	preview        *linkPreview
+	discardWarned  bool // the user was told that unsaved edits would be lost
+	editPos        int  // see markEdited
+	savedPos       int
+	pointer        sdl.FPoint // last pointer position, for actions on what is under it
+	inputScroll    int        // pixels the status-bar prompt is scrolled left
+	passwordPrompt pendingPasswordPrompt
+	mouseBindings  map[string]string
+	searchInput    searchMode
+	sequence       []string
+	sequenceAt     time.Time
+	sequenceLookup map[string]string
+	pendingCount   string
+	pendingMark    string
+	inputSource    smoothInputSource
+	smoothZoom     *smoothZoomState
+	smoothScroll   *smoothScrollState
+}
+
+type pendingPasswordPrompt struct {
+	path string
+	opts openDocumentOptions
+}
+
+type interactionState struct {
+	selection     textSelection
+	panning       bool
+	panButton     uint8
+	panKey        string
+	mouseButton   uint8
+	actionKey     string
+	lastKeyUpCode sdl.Keycode
+	lastKeyUpAt   time.Time
+}
+
+type uiState struct {
+	pendingRedraw bool
+	search        searchState
+	views         uiManager
+	outlineMenu   outlineMenuState
+	keybindMenu   keybindMenuState
+	completion    completionState
+}
+
+type navigationState struct {
+	quit        bool
+	pendingOpen string
+	jumpBack    []jumpPosition
+	jumpAhead   []jumpPosition
+}
+
+type jumpPosition struct {
+	page    int
+	scrollX float64
+	scrollY float64
+}

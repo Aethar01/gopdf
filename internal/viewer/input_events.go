@@ -1,0 +1,462 @@
+package viewer
+
+import (
+	"runtime"
+	"strconv"
+	"strings"
+	"time"
+	"unicode/utf8"
+
+	"gopdf/internal/actions"
+	"gopdf/internal/mupdf"
+
+	"github.com/jupiterrider/purego-sdl3/sdl"
+)
+
+func (a *App) handleSDLKeyDown(e *sdl.KeyboardEvent) {
+	if runtime.GOOS == "darwin" && e.Repeat && e.Key == a.lastKeyUpCode && time.Since(a.lastKeyUpAt) < 100*time.Millisecond {
+		if a.ignoreText == "" {
+			if token, ok := keyToken(e.Key, e.Mod); ok && utf8.RuneCountInString(token) == 1 {
+				a.ignoreText = token
+			}
+		}
+		return
+	}
+	// A prompt is always opened after any menu still showing, so it takes
+	// the keys first.
+	if view := a.activeModalUIView(); view != nil && view.onKey != nil && a.mode == modeNormal {
+		view.onKey(a, e)
+		return
+	}
+	if a.mode != modeNormal {
+		if a.handleInputEditKey(e) {
+			return
+		}
+		switch e.Key {
+		case sdl.KeycodeLeft:
+			if e.Mod&sdl.KeymodCtrl != 0 {
+				a.editInput(func(input *textInput) { input.MoveWordLeft() })
+			} else {
+				a.editInput(func(input *textInput) { input.Move(-1) })
+			}
+			return
+		case sdl.KeycodeRight:
+			if e.Mod&sdl.KeymodCtrl != 0 {
+				a.editInput(func(input *textInput) { input.MoveWordRight() })
+			} else {
+				a.editInput(func(input *textInput) { input.Move(1) })
+			}
+			return
+		case sdl.KeycodeBackspace:
+			a.editInput(func(input *textInput) { input.Backspace() })
+			return
+		case sdl.KeycodeDelete:
+			a.editInput(func(input *textInput) { input.Delete() })
+			return
+		case sdl.KeycodeUp, sdl.KeycodeDown:
+			older := 1
+			if e.Key == sdl.KeycodeDown {
+				older = -1
+			}
+			completing := a.completion.view != nil && a.completion.view.visible
+			if !completing && a.stepPromptHistory(older) {
+				return
+			}
+		}
+		if token, ok := keyToken(e.Key, e.Mod); ok && a.handleInputModeBinding(token) {
+			return
+		}
+	}
+	if a.mode == modeNormal {
+		if token, ok := keyToken(e.Key, e.Mod); ok {
+			prevMode := a.mode
+			if a.handleHintToken(token) {
+				return
+			}
+			if a.handleMarkToken(token) {
+				return
+			}
+			if a.handleCountToken(token) {
+				return
+			}
+			if !e.Repeat {
+				a.actionKey = token
+				a.pushToken(token)
+				a.actionKey = ""
+			}
+			if prevMode == modeNormal && a.mode != modeNormal && utf8.RuneCountInString(token) == 1 {
+				a.ignoreText = token
+			}
+		}
+		return
+	}
+}
+
+func (a *App) handleInputEditKey(e *sdl.KeyboardEvent) bool {
+	ctrl := e.Mod&sdl.KeymodCtrl != 0
+	if ctrl && e.Key == sdl.KeycodeV {
+		a.editInput(func(input *textInput) { input.InsertText(a.GetClipboard()) })
+		return true
+	}
+	if ctrl && e.Key == sdl.KeycodeW {
+		a.editInput(func(input *textInput) { input.DeleteWordLeft() })
+		return true
+	}
+	if ctrl && e.Key == sdl.KeycodeBackspace {
+		a.editInput(func(input *textInput) { input.DeleteWordLeft() })
+		return true
+	}
+	return false
+}
+
+func (a *App) handleInputModeBinding(token string) bool {
+	if !strings.HasPrefix(token, "<") {
+		return false
+	}
+	action, ok := a.sequenceLookup[normalizeBinding(token)]
+	if !ok {
+		return false
+	}
+	if a.completion.view != nil && a.completion.view.visible {
+		switch action {
+		case "confirm", "show_completion", "next_completion", "prev_completion", "close":
+		default:
+			a.closeCompletion()
+		}
+	}
+	a.runAction(action)
+	return true
+}
+
+func (a *App) handleSDLKeyUp(e *sdl.KeyboardEvent) {
+	a.lastKeyUpCode = e.Key
+	a.lastKeyUpAt = time.Now()
+	if !a.panning || a.panKey == "" {
+		return
+	}
+	if token, ok := keyToken(e.Key, e.Mod); ok && token == a.panKey {
+		a.stopPan()
+	}
+}
+
+func (a *App) handleSDLTextInput(e *sdl.TextInputEvent) {
+	text := e.Text()
+	if text == "" {
+		return
+	}
+	if a.ignoreText != "" {
+		text, _ = strings.CutPrefix(text, a.ignoreText)
+		a.ignoreText = ""
+		if text == "" {
+			return
+		}
+	}
+	if view := a.activeModalUIView(); view != nil {
+		if view.searching && view.searchable {
+			a.setUIViewQuery(view, view.query+text)
+		}
+		return
+	}
+	if a.mode == modeNormal {
+		return
+	}
+	for _, r := range text {
+		if r >= 0x20 && r != 0x7f {
+			a.editInput(func(input *textInput) { input.InsertRune(r) })
+		}
+	}
+}
+
+func (a *App) handleSDLMouseWheel(e *sdl.MouseWheelEvent) {
+	if view := a.activeModalUIView(); view != nil {
+		_, wy := normalizedWheelDeltas(e)
+		if wy != 0 {
+			_, rows := view.contentGeometry(a)
+			delta := -1
+			if wy < 0 {
+				delta = 1
+			}
+			scrollUIView(view, delta, rows)
+			a.pendingRedraw = true
+		}
+		return
+	}
+	wx, wy := normalizedWheelDeltas(e)
+	if sdl.GetModState()&sdl.KeymodCtrl != 0 {
+		if wy > 0 {
+			a.runMouseBinding("<c-wheel_up>")
+		}
+		if wy < 0 {
+			a.runMouseBinding("<c-wheel_down>")
+		}
+		return
+	}
+	a.runDiscreteMouseWheel(wx, wy)
+}
+
+func (a *App) handleSDLMouseButton(e *sdl.MouseButtonEvent) {
+	if view := a.activeModalUIView(); view != nil {
+		if view.onMouseButton != nil {
+			view.onMouseButton(a, e)
+		}
+		return
+	}
+	if a.overview != nil {
+		a.clickOverview(e)
+		return
+	}
+	if a.presentation != nil {
+		a.clickPresentation(e)
+		return
+	}
+	if e.Type == sdl.EventMouseButtonUp && a.panning && e.Button == a.panButton {
+		a.stopPan()
+		return
+	}
+	if event, ok := mouseButtonEvent(e.Button, e.Type); ok {
+		a.mouseButton = e.Button
+		handled := a.runMouseBinding(event)
+		a.mouseButton = 0
+		if handled {
+			return
+		}
+	}
+	if a.panning {
+		return
+	}
+	if e.Button == uint8(sdl.ButtonLeft) && e.Type == sdl.EventMouseButtonDown && a.clickFormField(float64(e.X), float64(e.Y)) {
+		return
+	}
+	if e.Button == uint8(sdl.ButtonRight) && e.Type == sdl.EventMouseButtonDown && a.openAnnotationMenu(e) {
+		return
+	}
+	if e.Button != uint8(sdl.ButtonLeft) || a.handleLinkButton(e) || !a.config.MouseTextSelect {
+		return
+	}
+	// A press starts a new selection, replacing any previous one; the
+	// finished selection stays highlighted until the next press or close.
+	if e.Type == sdl.EventMouseButtonDown {
+		a.selection = textSelection{}
+		if page, point, ok := a.pagePointAtScreen(float64(e.X), float64(e.Y)); ok {
+			a.selection = textSelection{active: true, mode: clickSelectMode(e.Clicks), anchorPage: page, anchor: point, focusPage: page, focus: point}
+			if a.selection.mode != mupdf.SelectChars {
+				a.refreshSelection() // a double or triple click selects without a drag
+			}
+		}
+		a.emitSelectionChanged()
+		return
+	}
+	if e.Type == sdl.EventMouseButtonUp && a.selection.active {
+		a.selection.active = false
+		a.copySelectionToClipboard()
+		a.emitSelectionChanged()
+	}
+}
+
+func clickSelectMode(clicks uint8) mupdf.SelectMode {
+	switch {
+	case clicks >= 3:
+		return mupdf.SelectLines
+	case clicks == 2:
+		return mupdf.SelectWords
+	default:
+		return mupdf.SelectChars
+	}
+}
+
+// handleLinkButton follows a link once the left button is pressed and
+// released over it, so a drag that starts on a link does not fire it.
+func (a *App) handleLinkButton(e *sdl.MouseButtonEvent) bool {
+	link, over := a.linkAt(float64(e.X), float64(e.Y))
+	if e.Type == sdl.EventMouseButtonDown {
+		a.links.pressed = nil
+		if !over {
+			return false
+		}
+		a.links.pressed = &link
+		if a.selection.active || !a.selection.empty() {
+			a.clearSelection()
+		}
+		return true
+	}
+	pressed := a.links.pressed
+	a.links.pressed = nil
+	if pressed == nil {
+		return false
+	}
+	if over && link == *pressed {
+		a.activateLink(link)
+	}
+	return true
+}
+
+func (a *App) handleSDLMouseMotion(e *sdl.MouseMotionEvent) bool {
+	a.pointer = sdl.FPoint{X: e.X, Y: e.Y}
+	if view := a.activeModalUIView(); view != nil {
+		if view.onMouseMotion != nil {
+			return view.onMouseMotion(a, e)
+		}
+		return a.uiViewHover(view, int(e.X), int(e.Y))
+	}
+	if a.panning && (a.panButton == 0 || uint32(e.State)&buttonMask(a.panButton) != 0) {
+		oldX, oldY := a.scrollX, a.scrollY
+		a.scrollBy(-float64(e.Xrel), -float64(e.Yrel))
+		return a.scrollX != oldX || a.scrollY != oldY
+	}
+	a.stopPan()
+
+	link, overLink := a.linkAt(float64(e.X), float64(e.Y))
+	hoverChanged := a.setHoveredLink(link, overLink)
+	a.hoverLinkPreview(link, overLink, e.X, e.Y)
+
+	if !a.selection.active || uint32(e.State)&uint32(sdl.ButtonLMask) == 0 {
+		return hoverChanged
+	}
+	page, point, ok := a.pagePointAtScreen(float64(e.X), float64(e.Y))
+	if ok {
+		a.selection.focusPage, a.selection.focus = page, point
+		a.refreshSelection()
+		return true
+	}
+	return false
+}
+
+// setHoveredLink shows the hovered link's target in the status bar and
+// restores the previous message when the pointer leaves it. It reports
+// whether the message changed.
+func (a *App) setHoveredLink(link mupdf.Link, over bool) bool {
+	a.setLinkCursor(over)
+	target := ""
+	if over {
+		target = a.linkTarget(link)
+	}
+	if target == a.links.hoverMessage {
+		return false
+	}
+	if a.links.hoverMessage == "" || a.message != a.links.hoverMessage {
+		a.links.messageBeforeHover = a.message
+	}
+	a.links.hoverMessage = target
+	if target == "" {
+		a.message = a.links.messageBeforeHover
+	} else {
+		a.message = target
+	}
+	return true
+}
+
+func (a *App) linkTarget(link mupdf.Link) string {
+	if link.External || link.Page < 0 {
+		return link.URI
+	}
+	return "page " + a.pageLabel(link.Page)
+}
+
+func (a *App) setLinkCursor(hand bool) {
+	if hand == a.cursorIsHand {
+		return
+	}
+	if hand {
+		if a.cursorHand != nil {
+			sdl.SetCursor(a.cursorHand)
+			a.cursorIsHand = true
+		}
+		return
+	}
+	if a.cursorArrow != nil {
+		sdl.SetCursor(a.cursorArrow)
+		a.cursorIsHand = false
+	}
+}
+
+func (a *App) stopPan() {
+	a.panning = false
+	a.panButton = 0
+	a.panKey = ""
+}
+
+func (a *App) handleCountToken(token string) bool {
+	if len(token) == 1 && token[0] >= '1' && token[0] <= '9' {
+		a.pendingCount += token
+		a.message = a.pendingCount
+		return true
+	}
+	if token == "0" && a.pendingCount != "" {
+		a.pendingCount += token
+		a.message = a.pendingCount
+		return true
+	}
+	if token == "g" && a.pendingCount != "" {
+		a.gotoPageInput(a.pendingCount)
+		a.pendingCount = ""
+		return true
+	}
+	if a.pendingCount != "" {
+		if a.runCountAction(token) {
+			a.pendingCount = ""
+			return true
+		}
+		a.pendingCount = ""
+	}
+	return false
+}
+
+func (a *App) runCountAction(token string) bool {
+	count, err := strconv.Atoi(a.pendingCount)
+	if err != nil || count <= 0 {
+		return false
+	}
+	action, ok := a.sequenceLookup[normalizeBinding(token)]
+	if !ok || !a.isCountableAction(action) {
+		return false
+	}
+	for range count {
+		a.runAction(action)
+	}
+	return true
+}
+
+func (a *App) isCountableAction(action string) bool {
+	if a.runtime != nil {
+		return a.runtime.IsCountableAction(action)
+	}
+	return actions.IsCountable(action)
+}
+
+func (a *App) commitInputMode() {
+	if a.completion.view != nil && a.completion.view.visible {
+		a.acceptCompletion()
+		return
+	}
+	currentMode := a.mode
+	input := strings.TrimSpace(a.input.Value)
+	// Passwords and prompt answers are taken as typed, blank included.
+	verbatim := currentMode == modePassword || currentMode == modePrompt
+	if verbatim {
+		input = a.input.Value
+	}
+	a.mode = modeNormal
+	a.input.Reset()
+	a.closeCompletion()
+	if input == "" && !verbatim {
+		return
+	}
+	a.recordPromptHistory(currentMode, input)
+	switch currentMode {
+	case modeCommand:
+		a.runCommand(input)
+	case modeGotoPage:
+		a.gotoPageInput(input)
+	case modeSearch:
+		a.startSearch(input, a.searchInput)
+	case modePassword:
+		a.submitDocumentPassword(input)
+	case modePrompt:
+		a.answerPrompt(input)
+	}
+}
+
+func (a *App) editInput(edit func(*textInput)) {
+	a.closeCompletion()
+	edit(&a.input)
+}
