@@ -72,11 +72,7 @@ func run() error {
 	if flag.NArg() == 0 {
 		// Finder sends the documents to open in an Apple Event, not as
 		// arguments. The window shows one document, so the first wins.
-		launched, settled := viewer.LaunchDocuments()
-		if verbose && (len(launched) > 0 || !settled) {
-			log.Printf("launch documents=%q settled=%t", launched, settled)
-		}
-		if len(launched) > 0 {
+		if launched := viewer.LaunchDocuments(verbose); len(launched) > 0 {
 			docPath = config.AbsoluteDocumentPath(launched[0])
 		} else if recent := config.RecentFiles(1); len(recent) > 0 {
 			docPath = recent[0]
