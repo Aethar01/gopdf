@@ -156,6 +156,8 @@ type sdlState struct {
 	// axes in autoscrollMarkerKey.
 	autoscrollMarker    *sdl.Texture
 	autoscrollMarkerKey autoscrollMarkerKey
+	// titleBar is the window's own title bar, where the system draws none.
+	titleBar *titleBar
 }
 
 // linkInputState tracks the link under the pointer.

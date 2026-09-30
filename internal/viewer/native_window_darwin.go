@@ -10,7 +10,7 @@ import "C"
 
 import "github.com/jupiterrider/purego-sdl3/sdl"
 
-func configureNativeWindow(window *sdl.Window) {
+func (a *App) configureNativeWindow(window *sdl.Window) {
 	if window == nil {
 		return
 	}

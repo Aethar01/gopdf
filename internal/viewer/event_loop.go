@@ -27,7 +27,7 @@ func (a *App) Run() error {
 		sdl.Quit()
 		return fmt.Errorf("SDL window creation failed: %s", sdl.GetError())
 	}
-	configureNativeWindow(window)
+	a.configureNativeWindow(window)
 	a.logf("created SDL window 1400x900")
 	a.window = window
 	a.renderer = renderer
@@ -71,6 +71,7 @@ func (a *App) Run() error {
 		a.advanceSmoothScroll()
 		a.advanceSmoothZoom()
 		a.advanceAutoscroll()
+		a.advanceTitleBar()
 		if a.runtime != nil {
 			if a.runtime.PollPluginOperations() {
 				a.applyRuntimeChanges("plugin operation")
@@ -138,6 +139,9 @@ func (a *App) eventWaitTimeoutMS() int {
 	}
 	// Wake for the earliest pending deadline.
 	deadlines := []time.Time{a.captureDeadline(), a.previewDeadline(), a.renderScaleReadyAt}
+	if wait := a.titleBarWaitTimeout(); wait > 0 {
+		deadlines = append(deadlines, time.Now().Add(wait))
+	}
 	if len(a.sequence) > 0 {
 		deadlines = append(deadlines, a.sequenceAt.Add(time.Duration(a.config.SequenceTimeoutMS)*time.Millisecond))
 	}
@@ -245,6 +249,7 @@ func (a *App) handleSDLEvent(event *sdl.Event) error {
 		a.handleMouseButtonEvent(&e)
 	case sdl.EventMouseMotion:
 		e := event.Motion()
+		a.noteTitleBarPointer(float64(e.X), float64(e.Y), true)
 		if a.handleInputMouseMotion(&e) {
 			redraw = true
 		} else {
@@ -265,6 +270,9 @@ func (a *App) handleSDLEvent(event *sdl.Event) error {
 
 func (a *App) handleMouseButtonEvent(e *sdl.MouseButtonEvent) {
 	a.pointer = sdl.FPoint{X: e.X, Y: e.Y}
+	if a.handleTitleBarButton(e) {
+		return
+	}
 	if a.handleAutoscrollButton(e) {
 		return
 	}
@@ -396,6 +404,9 @@ func (a *App) drawFrame() error {
 		if err := a.drawUIView(a.renderer, view); err != nil {
 			return err
 		}
+	}
+	if err := a.drawTitleBar(a.renderer); err != nil {
+		return err
 	}
 	sdl.RenderPresent(a.renderer)
 	return nil

@@ -324,6 +324,9 @@ func (a *App) handleSDLMouseMotion(e *sdl.MouseMotionEvent) bool {
 	}
 
 	link, overLink := a.linkAt(float64(e.X), float64(e.Y))
+	if a.titleBarButtonAt(float64(e.X), float64(e.Y)) != titleButtonNone {
+		link, overLink = mupdf.Link{}, false // the button is over the link
+	}
 	hoverChanged := a.setHoveredLink(link, overLink)
 	a.hoverLinkPreview(link, overLink, e.X, e.Y)
 
