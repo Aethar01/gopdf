@@ -42,6 +42,10 @@ func run() error {
 	flag.StringVar(&gotoSpec, "goto", "", "open at PAGE, or at X:Y points from the top-left corner of PAGE")
 	flag.StringVar(&command, "command", "", "run a viewer command, as typed after ':'")
 	flag.Parse()
+	if verbose {
+		// Startup steps take milliseconds, so seconds alone hide where time goes.
+		log.SetFlags(log.LstdFlags | log.Lmicroseconds)
+	}
 
 	if printVersion {
 		fmt.Println(version)
@@ -66,7 +70,15 @@ func run() error {
 
 	var docPath string
 	if flag.NArg() == 0 {
-		if recent := config.RecentFiles(1); len(recent) > 0 {
+		// Finder sends the documents to open in an Apple Event, not as
+		// arguments. The window shows one document, so the first wins.
+		launched, settled := viewer.LaunchDocuments()
+		if verbose && (len(launched) > 0 || !settled) {
+			log.Printf("launch documents=%q settled=%t", launched, settled)
+		}
+		if len(launched) > 0 {
+			docPath = config.AbsoluteDocumentPath(launched[0])
+		} else if recent := config.RecentFiles(1); len(recent) > 0 {
 			docPath = recent[0]
 			if session, ok := config.GetDocumentSession(docPath); !pageSet && ok {
 				startPage = session.Page + 1

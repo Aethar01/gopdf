@@ -9,8 +9,9 @@ import (
 	"github.com/jupiterrider/purego-sdl3/sdl"
 )
 
-func (a *App) Run() error {
-	a.logf("init SDL")
+// initSDL starts SDL's video subsystem. It may run more than once: SDL counts
+// the calls, and Close shuts it down for good.
+func initSDL() error {
 	// On macOS, prefer normal key repeat over the system press-and-hold accent
 	// menu. SDL requires this hint to be set before initialization.
 	sdl.SetHint("SDL_MAC_PRESS_AND_HOLD", "0")
@@ -19,6 +20,14 @@ func (a *App) Run() error {
 	sdl.SetHint("SDL_MOUSE_INTEGER_MODE", "0")
 	if !sdl.Init(sdl.InitVideo) {
 		return fmt.Errorf("SDL init failed: %s", sdl.GetError())
+	}
+	return nil
+}
+
+func (a *App) Run() error {
+	a.logf("init SDL")
+	if err := initSDL(); err != nil {
+		return err
 	}
 	sdl.SetHint("SDL_RENDER_SCALE_QUALITY", "2")
 	var window *sdl.Window
