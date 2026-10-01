@@ -4,6 +4,7 @@ import (
 	"math"
 	"time"
 
+	"gopdf/internal/config"
 	"gopdf/internal/mupdf"
 
 	"github.com/jupiterrider/purego-sdl3/sdl"
@@ -105,8 +106,8 @@ func (a *App) drawLinkPreview(renderer *sdl.Renderer) {
 	}
 	a.preview.drawn = true
 	popup, x, y := a.previewPlacement()
-	a.drawShadow(renderer, popup, 0)
-	fillRect(renderer, popup, a.pageBackgroundColor())
+	st := a.style(config.ElementLinkPreview)
+	a.drawBoxParts(renderer, &st, popup, boxBody)
 	viewportW, viewportH := a.viewportSize()
 	page := a.preview.link.Page
 	a.withClip(renderer, popup, func() error {
@@ -115,5 +116,5 @@ func (a *App) drawLinkPreview(renderer *sdl.Renderer) {
 		}
 		return nil
 	})
-	strokeRoundedRect(renderer, popup, 0, a.hairline(), a.borderColor())
+	a.drawBoxParts(renderer, &st, popup, boxBorder)
 }

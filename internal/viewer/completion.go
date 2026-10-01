@@ -1,6 +1,7 @@
 package viewer
 
 import (
+	"math"
 	"os"
 	"path/filepath"
 	"sort"
@@ -292,41 +293,43 @@ func (a *App) drawCompletion(renderer *sdl.Renderer) error {
 	if len(rows) == 0 {
 		return nil
 	}
+	panel, row := a.style(config.ElementCompletion), a.style(config.ElementRow)
+	padTop, padRight, padBottom, padLeft := a.insets(panel.Padding.V)
+	_, rowPadRight, _, rowPadLeft := a.insets(row.Padding.V)
 	rowHeight := a.modalListRowHeight()
-	inset := a.modalListTextInset()
+	inset := int(math.Round(float64(padLeft + rowPadLeft)))
 	margin := a.ipx(8)
 	width := 0
 	for _, row := range rows {
 		width = max(width, measureText(a.fontFace, row.text))
 	}
-	width = clampInt(width+2*inset, a.ipx(120), max(a.ipx(120), a.winW-2*margin))
+	width += int(math.Round(float64(padLeft + rowPadLeft + rowPadRight + padRight)))
+	width = clampInt(width, a.ipx(120), max(a.ipx(120), a.winW-2*margin))
 	// Line the completions' text up with the word being completed.
 	x := a.promptOrigin() + measureText(a.fontFace, a.inputPrefix()+a.input.Left()) - inset
 	x = clampInt(x, margin, max(margin, a.winW-width-margin))
-	vpad := int(a.modalListRowInset())
-	height := len(rows)*rowHeight + 2*vpad
+	height := len(rows)*rowHeight + int(math.Round(float64(padTop+padBottom)))
 	y := max(margin, a.statusTop()-height-a.ipx(6))
 	rect := sdl.FRect{X: float32(x), Y: float32(y), W: float32(width), H: float32(height)}
-	if err := a.drawModalListFrame(renderer, rect); err != nil {
-		return err
-	}
-	return a.withClip(renderer, rect, func() error { return a.drawCompletionRows(renderer, rows, rect) })
+	return a.drawPanel(renderer, config.ElementCompletion, rect, func() error { return a.drawCompletionRows(renderer, rows, rect, &panel) })
 }
 
-func (a *App) drawCompletionRows(renderer *sdl.Renderer, rows []completionRow, rect sdl.FRect) error {
+func (a *App) drawCompletionRows(renderer *sdl.Renderer, rows []completionRow, rect sdl.FRect, panel *config.Style) error {
+	padTop, padRight, _, padLeft := a.insets(panel.Padding.V)
 	rowHeight := a.modalListRowHeight()
-	inset := a.modalListTextInset()
-	vpad := int(a.modalListRowInset())
-	x, y, width := int(rect.X), int(rect.Y), int(rect.W)
 	baseline := a.modalListBaselineOffset(rowHeight)
 	for i, row := range rows {
-		rowY := y + vpad + i*rowHeight
+		rowY := int(rect.Y+padTop) + i*rowHeight
+		st := a.style(config.ElementRow)
 		if row.selected {
-			if err := a.drawModalListSelection(renderer, rect, rowY, rowHeight); err != nil {
-				return err
-			}
+			st = a.style(config.ElementRowSelected)
 		}
-		if err := a.drawText(renderer, a.truncateModalListText(row.text, width-2*inset), x+inset, rowY+baseline, a.foregroundColor()); err != nil {
+		box := sdl.FRect{X: rect.X + padLeft, Y: float32(rowY), W: rect.W - padLeft - padRight, H: float32(rowHeight)}
+		a.drawBox(renderer, &st, box)
+		_, rowPadRight, _, rowPadLeft := a.insets(st.Padding.V)
+		textX := int(math.Round(float64(box.X + rowPadLeft)))
+		width := int(math.Round(float64(box.X+box.W-rowPadRight))) - textX
+		if err := a.drawTextFace(renderer, truncateText(a.styleFace(&st), row.text, width), textX, rowY+baseline, a.textColor(&st, false), st.Bold.V); err != nil {
 			return err
 		}
 	}

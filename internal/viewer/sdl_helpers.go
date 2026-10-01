@@ -410,9 +410,13 @@ func (a *App) cachedTextTexture(renderer *sdl.Renderer, s string, clr color.Colo
 	if heading {
 		face = a.headingFont()
 	}
-	tex, w, h, ascent, err := textTexture(renderer, face, s, clr)
+	// Translucent text is drawn opaque and faded as a whole.
+	tex, w, h, ascent, err := textTexture(renderer, face, s, color.RGBA{R: key.r, G: key.g, B: key.b, A: 0xff})
 	if err != nil {
 		return cachedTextTexture{}, err
+	}
+	if key.a < 0xff {
+		sdl.SetTextureAlphaMod(tex, key.a)
 	}
 	entry := cachedTextTexture{texture: tex, width: w, height: h, ascent: ascent}
 	a.textCache.add(key, entry)
@@ -472,6 +476,7 @@ func (s *sdlState) clearTextTextureCache() {
 
 func (s *sdlState) Close() {
 	s.clearTextTextureCache()
+	s.masks.clear()
 	s.closeUIFonts()
 	s.destroyCursors()
 	if s.autoscrollMarker != nil {

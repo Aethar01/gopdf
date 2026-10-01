@@ -223,6 +223,9 @@ func (a *App) applyConfig(cfg config.Config, assigned map[string]bool) {
 	prev := a.config
 	a.config = cfg
 	a.applyConfigSettings()
+	// Shapes drawn by Lua may draw differently after any change.
+	a.masks.clear()
+	a.shapeErrors = nil
 	if prev.Theme.Font != cfg.Theme.Font {
 		a.loadUIFont()
 	}
@@ -273,6 +276,7 @@ func (a *App) applyConfigSettings() {
 // loadUIFont loads the theme's UI font at the window's display scale.
 func (a *App) loadUIFont() {
 	a.clearTextTextureCache()
+	a.masks.clear()
 	a.closeUIFonts()
 	a.uiScale = a.displayScale()
 	font := a.config.Theme.Font

@@ -1,6 +1,7 @@
 package viewer
 
 import (
+	"math"
 	"slices"
 	"strings"
 	"unicode/utf8"
@@ -125,10 +126,12 @@ func (a *App) drawLinkHints(renderer *sdl.Renderer) {
 		return
 	}
 	_, viewportH := a.viewportSize()
-	metrics := a.fontFace.Metrics()
+	st := a.style(config.ElementHint)
+	face := a.styleFace(&st)
+	metrics := face.Metrics()
 	ascent, descent := metrics.Ascent.Ceil(), metrics.Descent.Ceil()
-	bg, fg := a.selectionColor(), a.hintForegroundColor()
-	typedFG := mixRGBA(fg, bg, 0.5)
+	padTop, padRight, padBottom, padLeft := a.insets(st.Padding.V)
+	fg, typedFG := a.textColor(&st, false), a.textColor(&st, true)
 	for _, hint := range a.hints.hints {
 		if !strings.HasPrefix(hint.label, a.hints.typed) {
 			continue
@@ -138,17 +141,14 @@ func (a *App) drawLinkHints(renderer *sdl.Renderer) {
 			continue
 		}
 		minX, minY, _, maxY := a.quadScreenBounds(rectQuad(hint.link.Bounds), hint.page, x, y)
-		pad, vpad := a.ipx(5), a.ipx(2)
-		w := measureText(a.headingFont(), hint.label) + 2*pad
-		box := hintBox(minX, minY, maxY, float64(w), float64(ascent+descent+2*vpad), float64(viewportH))
-		radius := min(a.uiRadius()/2, box.H/2)
-		a.drawShadow(renderer, box, radius)
-		fillRoundedRect(renderer, box, radius, 1, bg)
-		strokeRoundedRect(renderer, box, radius, a.hairline(), mixRGBA(bg, fg, 0.25))
-		left, baseline := int(box.X)+pad, int(box.Y)+vpad+ascent
-		typedW := measureText(a.headingFont(), a.hints.typed)
-		a.drawHeading(renderer, a.hints.typed, left, baseline, typedFG)
-		a.drawHeading(renderer, hint.label[len(a.hints.typed):], left+typedW, baseline, fg)
+		w := float64(measureText(face, hint.label)) + float64(padLeft+padRight)
+		box := hintBox(minX, minY, maxY, math.Round(w), math.Round(float64(ascent+descent)+float64(padTop+padBottom)), float64(viewportH))
+		box.X, box.Y = float32(math.Round(float64(box.X))), float32(math.Round(float64(box.Y)))
+		a.drawBox(renderer, &st, box)
+		left, baseline := int(box.X+padLeft), int(math.Round(float64(box.Y+padTop)))+ascent
+		typedW := measureText(face, a.hints.typed)
+		a.drawTextFace(renderer, a.hints.typed, left, baseline, typedFG, st.Bold.V)
+		a.drawTextFace(renderer, hint.label[len(a.hints.typed):], left+typedW, baseline, fg, st.Bold.V)
 	}
 }
 

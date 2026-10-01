@@ -104,6 +104,7 @@ gopdf.theme = {
   shadow = true, -- Draw a soft shadow under floating panels.
   status_bar_style = "bar", -- Status bar layout: bar along the bottom of the window, or pill, floating over the page.
   status_bar_padding = 10, -- Horizontal status bar padding in logical pixels.
+  elements = {}, -- The style of each piece of the UI, such as panel or row_selected; see Elements in the reference.
 }
 
 -- Default key bindings.

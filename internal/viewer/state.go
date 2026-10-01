@@ -4,6 +4,7 @@ import (
 	"sync"
 	"time"
 
+	"gopdf/internal/config"
 	"gopdf/internal/instance"
 	"gopdf/internal/mupdf"
 
@@ -156,6 +157,10 @@ type sdlState struct {
 	fontWarning string     // the last font warning logged, so a reload does not repeat it
 	clips       []sdl.Rect // the clip rects withClip has in place, innermost last
 	textCache   textTextureCache
+	masks       maskCache // the theme's shapes, rasterised
+	// shapeErrors are the theme's shapes that failed to draw, each
+	// reported once.
+	shapeErrors map[config.Shape]bool
 	// autoscrollMarker is the drawn autoscroll anchor, for the size and
 	// axes in autoscrollMarkerKey.
 	autoscrollMarker    *sdl.Texture

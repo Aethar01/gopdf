@@ -216,7 +216,7 @@ func OptionNames() []string {
 
 func (r *Runtime) OptionValue(name string) (string, error) {
 	name = normalizeOptionName(name)
-	desc, ok := configOptions[name]
+	desc, ok := lookupOption(name)
 	if !ok {
 		return r.pluginOptionValue(name)
 	}
@@ -225,7 +225,7 @@ func (r *Runtime) OptionValue(name string) (string, error) {
 
 func (r *Runtime) SetOption(name, value string) error {
 	name = normalizeOptionName(name)
-	desc, ok := configOptions[name]
+	desc, ok := lookupOption(name)
 	if !ok {
 		if err := movedOptionError(name); err != nil {
 			return err
@@ -246,7 +246,7 @@ func (r *Runtime) SetOption(name, value string) error {
 
 func (r *Runtime) ToggleOption(name string) error {
 	name = normalizeOptionName(name)
-	desc, ok := configOptions[name]
+	desc, ok := lookupOption(name)
 	if !ok {
 		option, ok := r.pluginOption(name)
 		if !ok {

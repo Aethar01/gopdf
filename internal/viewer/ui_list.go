@@ -3,6 +3,7 @@ package viewer
 import (
 	"fmt"
 	"image/color"
+	"math"
 	"strconv"
 	"strings"
 
@@ -358,10 +359,7 @@ func (a *App) drawUIView(renderer *sdl.Renderer, view *uiView) error {
 		return view.draw(a, renderer)
 	}
 	rect, _ := view.frameGeometry(a)
-	if err := a.drawModalListFrame(renderer, rect); err != nil {
-		return err
-	}
-	return a.withClip(renderer, rect, func() error { return a.drawUIViewContent(renderer, view, rect) })
+	return a.drawPanel(renderer, config.ElementPanel, rect, func() error { return a.drawUIViewContent(renderer, view, rect) })
 }
 
 func (a *App) drawUIViewContent(renderer *sdl.Renderer, view *uiView, rect sdl.FRect) error {
@@ -388,7 +386,8 @@ func (a *App) drawUIViewContent(renderer *sdl.Renderer, view *uiView, rect sdl.F
 		if view.empty != nil {
 			empty = view.empty(a, view)
 		}
-		return a.drawText(renderer, empty, int(listRect.X)+a.modalListTextInset(), int(listRect.Y)+rowHeight+baselineOffset, a.mutedColor())
+		st := a.style(config.ElementRowDisabled)
+		return a.drawText(renderer, empty, int(listRect.X)+a.modalListTextInset(), int(listRect.Y)+rowHeight+baselineOffset, a.textColor(&st, false))
 	}
 	return a.drawUIListItems(renderer, listRect, rows, view, items)
 }
@@ -409,41 +408,47 @@ func (a *App) drawUIListItems(renderer *sdl.Renderer, rect sdl.FRect, rows int, 
 		}
 		item := items[itemIndex]
 		y := int(rect.Y) + rowHeight + row*rowHeight
-		if item.index == view.selected {
-			if err := a.drawModalListSelection(renderer, rect, y, rowHeight); err != nil {
-				return err
-			}
+		element := config.ElementRow
+		switch {
+		case item.heading:
+			element = config.ElementHeading
+		case item.index == view.selected:
+			element = config.ElementRowSelected
+		case item.disabled:
+			element = config.ElementRowDisabled
 		}
-		inset := a.modalListTextInset()
-		clr, secondaryColor := a.foregroundColor(), a.mutedColor()
-		if item.disabled {
-			clr = a.mutedColor()
-		}
+		st := a.style(element)
+		box := a.rowBox(rect, y, rowHeight)
+		a.drawBox(renderer, &st, box)
+		_, padRight, _, padLeft := a.insets(st.Padding.V)
+		face := a.styleFace(&st)
+		textX, textEnd := int(math.Round(float64(box.X+padLeft))), int(math.Round(float64(box.X+box.W-padRight)))
+		baseline := y + baselineOffset
 		if item.heading {
-			if err := a.drawHeading(renderer, a.truncateModalListText(item.text, int(rect.W)-2*inset), int(rect.X)+inset, y+baselineOffset, a.mutedColor()); err != nil {
+			if err := a.drawTextFace(renderer, truncateText(face, item.text, textEnd-textX), textX, baseline, a.textColor(&st, false), st.Bold.V); err != nil {
 				return err
 			}
 			continue
 		}
 		text := strings.Repeat("  ", max(0, item.depth)) + item.marker + item.text
-		textWidth := int(rect.W) - 2*inset
 		// The right-hand column gets at most 45% of a narrow row.
 		secondary := a.truncateModalListText(item.secondary, int(rect.W*0.45))
 		secondaryWidth := measureText(a.fontFace, secondary)
+		textWidth := textEnd - textX
 		if secondary != "" {
 			textWidth -= secondaryWidth + a.ipx(12)
 		}
-		textX := int(rect.X) + inset
 		if item.swatch != nil {
+			swatchStyle := a.style(config.ElementSwatch)
+			swatchStyle.Fill.V = config.Color{RGB: [3]uint8{item.swatch.R, item.swatch.G, item.swatch.B}, Alpha: float64(item.swatch.A) / 255}
 			size := float32(a.uiLineHeight())
-			swatch := sdl.FRect{X: float32(textX), Y: float32(y) + (float32(rowHeight)-size)/2, W: size, H: size}
-			fillRoundedRect(renderer, swatch, min(a.uiRadius()/2, size/2), 1, *item.swatch)
-			strokeRoundedRect(renderer, swatch, min(a.uiRadius()/2, size/2), a.hairline(), a.borderColor())
-			textX += int(size) + a.ipx(8)
-			textWidth -= int(size) + a.ipx(8)
+			a.drawBox(renderer, &swatchStyle, sdl.FRect{X: float32(textX), Y: float32(y) + (float32(rowHeight)-size)/2, W: size, H: size})
+			advance := int(size) + a.ipx(swatchStyle.Gap.V)
+			textX += advance
+			textWidth -= advance
 		}
 		if item.key != "" {
-			if err := a.drawText(renderer, a.truncateModalListText(item.key, keyColumn), textX, y+baselineOffset, a.mutedColor()); err != nil {
+			if err := a.drawText(renderer, a.truncateModalListText(item.key, keyColumn), textX, baseline, a.textColor(&st, true)); err != nil {
 				return err
 			}
 		}
@@ -451,11 +456,11 @@ func (a *App) drawUIListItems(renderer *sdl.Renderer, rect sdl.FRect, rows int, 
 			textX += keyColumn + a.ipx(16)
 			textWidth -= keyColumn + a.ipx(16)
 		}
-		if err := a.drawText(renderer, a.truncateModalListText(text, textWidth), textX, y+baselineOffset, clr); err != nil {
+		if err := a.drawTextFace(renderer, truncateText(face, text, textWidth), textX, baseline, a.textColor(&st, false), st.Bold.V); err != nil {
 			return err
 		}
 		if secondary != "" {
-			if err := a.drawText(renderer, secondary, int(rect.X+rect.W)-inset-secondaryWidth, y+baselineOffset, secondaryColor); err != nil {
+			if err := a.drawText(renderer, secondary, textEnd-secondaryWidth, baseline, a.textColor(&st, true)); err != nil {
 				return err
 			}
 		}

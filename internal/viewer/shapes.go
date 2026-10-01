@@ -1,10 +1,16 @@
 package viewer
 
 import (
+	"container/list"
+	"image"
 	"image/color"
+	"log"
 	"math"
 
+	"gopdf/internal/config"
+
 	"github.com/jupiterrider/purego-sdl3/sdl"
+	"golang.org/x/image/vector"
 )
 
 // px converts logical pixels, as the theme measures, to output pixels at
@@ -28,143 +34,472 @@ func (a *App) hairline() float32 {
 	return max(1, float32(math.Round(float64(a.px(1)))))
 }
 
-// uiRadius is the theme's corner radius in output pixels.
-func (a *App) uiRadius() float32 { return a.px(float64(a.config.Theme.Radius)) }
+// style is how an element is drawn in the current theme.
+func (a *App) style(e config.Element) config.Style {
+	return a.config.Theme.Style(e)
+}
 
-// uiPadding is the theme's padding in output pixels.
-func (a *App) uiPadding() int { return a.ipx(float64(a.config.Theme.Padding)) }
+// lineWidth is a border or line width in output pixels: none for 0, and
+// otherwise never under one pixel, so hairlines stay visible.
+func (a *App) lineWidth(v float64) float32 {
+	if v <= 0 {
+		return 0
+	}
+	return max(1, a.px(v))
+}
 
-// fillRoundedRect fills rect with corners of the given radius. The edge
-// fades out over feather pixels centred on it, which antialiases it at one
-// pixel and makes a soft shadow when wider.
-func fillRoundedRect(renderer *sdl.Renderer, rect sdl.FRect, radius, feather float32, clr color.RGBA) {
-	if rect.W <= 0 || rect.H <= 0 || clr.A == 0 {
+// styleColor is c in the current color mode at opacity.
+func (a *App) styleColor(c config.Color, opacity float64) color.RGBA {
+	alpha := c.Alpha * opacity
+	rgb := c.RGB
+	switch c.Name {
+	case "":
+	case "shadow":
+		// Shadows need more strength to show over a dark background.
+		rgb = [3]uint8{}
+		if isLight(a.backgroundColor()) {
+			alpha *= 0x22 / 255.0
+		} else {
+			alpha *= 0x55 / 255.0
+		}
+	default:
+		rgb, _ = a.palette().Lookup(c.Name)
+	}
+	return color.RGBA{R: rgb[0], G: rgb[1], B: rgb[2], A: uint8(math.Round(255 * min(1, max(0, alpha))))}
+}
+
+// textColor is the style's text colour, or its secondary colour.
+func (a *App) textColor(st *config.Style, secondary bool) color.RGBA {
+	if secondary {
+		return a.styleColor(st.Secondary.V, st.Opacity.V)
+	}
+	return a.styleColor(st.Text.V, st.Opacity.V)
+}
+
+// insets converts a style's insets to output pixels.
+func (a *App) insets(in config.Insets) (top, right, bottom, left float32) {
+	return a.px(in.Top), a.px(in.Right), a.px(in.Bottom), a.px(in.Left)
+}
+
+// boxParts selects the parts of a box to draw.
+type boxParts int
+
+const (
+	boxBody   boxParts = 1 << iota // shadows and fill
+	boxBorder                      // the border
+	boxAll    = boxBody | boxBorder
+)
+
+// drawBox draws the box of an element styled st over rect: its shadows,
+// then its fill and its border.
+func (a *App) drawBox(renderer *sdl.Renderer, st *config.Style, rect sdl.FRect) {
+	a.drawBoxParts(renderer, st, rect, boxAll)
+}
+
+// drawBoxParts draws parts of a box. A box holding other elements has its
+// border drawn after them, so that they cannot cover it.
+func (a *App) drawBoxParts(renderer *sdl.Renderer, st *config.Style, rect sdl.FRect, parts boxParts) {
+	box := pixelRect(rect)
+	if box.W <= 0 || box.H <= 0 {
 		return
 	}
-	half := max(feather, 0) / 2
-	shape := newRoundedShape(rect, radius, half)
-	solid, clear := fcolor(clr), fcolor(clr)
-	clear.A = 0
-	inner := shape.outline(-half)
-	outer := shape.outline(half)
-	vertices := make([]sdl.Vertex, 0, 1+len(inner)+len(outer))
-	vertices = append(vertices, sdl.Vertex{Position: sdl.FPoint{X: rect.X + rect.W/2, Y: rect.Y + rect.H/2}, Color: solid})
-	for _, p := range inner {
-		vertices = append(vertices, sdl.Vertex{Position: p, Color: solid})
+	opacity := st.Opacity.V
+	shape := a.boxShape(st, box)
+	var layers []config.ShadowLayer
+	if parts&boxBody != 0 {
+		layers = st.Shadow.V.List()
 	}
-	for _, p := range outer {
-		vertices = append(vertices, sdl.Vertex{Position: p, Color: clear})
+	for i := len(layers) - 1; i >= 0; i-- {
+		layer := layers[i]
+		clr := a.styleColor(layer.Color, opacity)
+		if clr.A == 0 {
+			continue
+		}
+		mask := maskSpec{shape: shape, w: box.W, h: box.H, spread: a.px(layer.Spread), blur: a.px(layer.Blur)}
+		a.drawMask(renderer, mask, box.X+int32(math.Round(float64(a.px(layer.X)))), box.Y+int32(math.Round(float64(a.px(layer.Y)))), clr)
 	}
-	n := int32(len(inner))
-	indices := make([]int32, 0, 9*n)
+	if clr := a.styleColor(st.Fill.V, opacity); clr.A > 0 && parts&boxBody != 0 {
+		a.drawMask(renderer, maskSpec{shape: shape, w: box.W, h: box.H}, box.X, box.Y, clr)
+	}
+	if width := a.lineWidth(st.BorderWidth.V); width > 0 && parts&boxBorder != 0 {
+		if clr := a.styleColor(st.BorderColor.V, opacity); clr.A > 0 {
+			mask := maskSpec{shape: shape, w: box.W, h: box.H, border: width, sides: st.BorderSides.V}
+			a.drawMask(renderer, mask, box.X, box.Y, clr)
+		}
+	}
+}
+
+// pixelRect rounds rect's edges to whole pixels, which the shape masks are
+// drawn at.
+func pixelRect(rect sdl.FRect) sdl.Rect {
+	x0, y0 := math.Round(float64(rect.X)), math.Round(float64(rect.Y))
+	x1, y1 := math.Round(float64(rect.X+rect.W)), math.Round(float64(rect.Y+rect.H))
+	return sdl.Rect{X: int32(x0), Y: int32(y0), W: int32(x1 - x0), H: int32(y1 - y0)}
+}
+
+// boxShape is st's shape for a box, its radii in output pixels and fitted
+// to the box as CSS fits them.
+func (a *App) boxShape(st *config.Style, box sdl.Rect) boxShape {
+	shape := boxShape{Shape: st.Shape.V}
+	w, h := float64(box.W), float64(box.H)
+	switch shape.Kind {
+	case "pill":
+		r := float32(min(w, h) / 2)
+		shape.Kind, shape.radius = "rect", [4]float32{r, r, r, r}
+	case "path":
+		shape.scale = a.px(1)
+	default:
+		var r [4]float64
+		for i, v := range st.Radius.V {
+			r[i] = float64(a.px(v))
+		}
+		fit := min(1, w/max(r[0]+r[1], 1e-9), w/max(r[3]+r[2], 1e-9), h/max(r[0]+r[3], 1e-9), h/max(r[1]+r[2], 1e-9))
+		for i := range r {
+			shape.radius[i] = float32(r[i] * fit)
+		}
+	}
+	return shape
+}
+
+// boxShape is a shape ready to rasterise: a rect with radii in output
+// pixels, or a path at a scale from logical to output pixels.
+type boxShape struct {
+	config.Shape
+	radius [4]float32
+	scale  float32
+}
+
+// maskSpec is a mask of a shape on a w by h box: its fill, its border
+// border pixels wide on sides, or its shadow, grown by spread and blurred.
+type maskSpec struct {
+	shape        boxShape
+	w, h         int32
+	border       float32
+	sides        config.Sides
+	spread, blur float32
+}
+
+// mask is a rasterised shape as a texture, white with the shape's
+// coverage as alpha. Drawn, its origin sits at the box's top left less
+// pad; sliceX and sliceY, when not zero, are the widths of the edges kept
+// as they are when the middle stretches to the box's size.
+type mask struct {
+	texture        *sdl.Texture
+	w, h           int32
+	pad            int32
+	sliceX, sliceY int32
+}
+
+// blurMargin is how far a blur reaches beyond a shape.
+func blurMargin(blur float32) int32 {
+	if blur <= 0 {
+		return 0
+	}
+	return int32(math.Ceil(1.5*float64(blur))) + 1 // three standard deviations
+}
+
+// drawMask draws spec's mask with its box at x, y in clr.
+func (a *App) drawMask(renderer *sdl.Renderer, spec maskSpec, x, y int32, clr color.RGBA) {
+	m, ok := a.shapeMask(renderer, spec)
+	if !ok {
+		return
+	}
+	sdl.SetTextureColorMod(m.texture, clr.R, clr.G, clr.B)
+	sdl.SetTextureAlphaMod(m.texture, clr.A)
+	full := sdl.Rect{X: x - m.pad, Y: y - m.pad, W: spec.w + 2*m.pad, H: spec.h + 2*m.pad}
+	// The mask's columns and rows: the left and right slices as they are,
+	// and the middle stretched to the rest.
+	spans := func(size, full, slice int32) [][2][2]int32 { // {src start, len}, {dst start, len}
+		if slice == 0 {
+			return [][2][2]int32{{{0, size}, {0, full}}}
+		}
+		return [][2][2]int32{
+			{{0, slice}, {0, slice}},
+			{{slice, size - 2*slice}, {slice, full - 2*slice}},
+			{{size - slice, slice}, {full - slice, slice}},
+		}
+	}
+	for _, col := range spans(m.w, full.W, m.sliceX) {
+		for _, row := range spans(m.h, full.H, m.sliceY) {
+			if col[1][1] <= 0 || row[1][1] <= 0 {
+				continue
+			}
+			src := sdl.FRect{X: float32(col[0][0]), Y: float32(row[0][0]), W: float32(col[0][1]), H: float32(row[0][1])}
+			dst := sdl.FRect{X: float32(full.X + col[1][0]), Y: float32(full.Y + row[1][0]), W: float32(col[1][1]), H: float32(row[1][1])}
+			sdl.RenderTexture(renderer, m.texture, &src, &dst)
+		}
+	}
+}
+
+// shapeMask returns spec's mask, rasterising it on first use.
+func (a *App) shapeMask(renderer *sdl.Renderer, spec maskSpec) (mask, bool) {
+	// A rect only changes at its corners, so its mask needs to be no
+	// bigger than its corners, plus a middle to stretch.
+	pad := blurMargin(spec.blur)
+	key := spec
+	var sliceX, sliceY int32
+	if spec.shape.Kind == "rect" {
+		corner := int32(math.Ceil(float64(max(spec.shape.radius[0], spec.shape.radius[1], spec.shape.radius[2], spec.shape.radius[3], spec.border)+max(0, spec.spread)))) + 2*pad + 1
+		if spec.w+2*pad > 2*corner+2 {
+			sliceX, key.w = corner, 2*(corner-pad)+2
+		}
+		if spec.h+2*pad > 2*corner+2 {
+			sliceY, key.h = corner, 2*(corner-pad)+2
+		}
+	}
+	if m, ok := a.masks.get(key); ok {
+		return m, true
+	}
+	img := a.rasterMask(key, pad)
+	if img == nil {
+		return mask{}, false
+	}
+	pix := make([]byte, 4*len(img.Pix))
+	for i, v := range img.Pix {
+		pix[4*i], pix[4*i+1], pix[4*i+2], pix[4*i+3] = 0xff, 0xff, 0xff, v
+	}
+	tex, err := textureFromPixels(renderer, img.Rect.Dx(), img.Rect.Dy(), pix, 4*img.Rect.Dx())
+	if err != nil {
+		log.Printf("shape mask: %v", err)
+		return mask{}, false
+	}
+	sdl.SetTextureScaleMode(tex, sdl.ScaleModeNearest)
+	m := mask{texture: tex, w: int32(img.Rect.Dx()), h: int32(img.Rect.Dy()), pad: pad, sliceX: sliceX, sliceY: sliceY}
+	a.masks.add(key, m)
+	return m, true
+}
+
+// rasterMask rasterises spec's mask with pad pixels around the box.
+func (a *App) rasterMask(spec maskSpec, pad int32) *image.Alpha {
+	w, h := int(spec.w+2*pad), int(spec.h+2*pad)
+	if w <= 0 || h <= 0 || w*h > 1<<26 {
+		return nil
+	}
+	fx, fy, fw, fh := float32(pad), float32(pad), float32(spec.w), float32(spec.h)
+	switch {
+	case spec.border > 0:
+		img := a.rasterShape(spec.shape, w, h, fx, fy, fw, fh, 0)
+		// The border is what the shape covers beyond the same shape inset
+		// on the bordered sides.
+		var in [4]float32 // top, right, bottom, left
+		for i, side := range []config.Sides{config.SideTop, config.SideRight, config.SideBottom, config.SideLeft} {
+			if spec.sides&side != 0 {
+				in[i] = spec.border
+			}
+		}
+		inner := spec.shape
+		for i, sides := range [4][2]int{{0, 3}, {0, 1}, {2, 1}, {2, 3}} { // each corner's two sides
+			inner.radius[i] = max(0, inner.radius[i]-max(in[sides[0]], in[sides[1]]))
+		}
+		hole := a.rasterShape(inner, w, h, fx+in[3], fy+in[0], fw-in[1]-in[3], fh-in[0]-in[2], 0)
+		for i, v := range hole.Pix {
+			img.Pix[i] = uint8(max(0, int(img.Pix[i])-int(v)))
+		}
+		return img
+	case spec.spread != 0 || spec.blur > 0:
+		img := a.rasterShape(spec.shape, w, h, fx-spec.spread, fy-spec.spread, fw+2*spec.spread, fh+2*spec.spread, spec.spread)
+		blurAlpha(img, float64(spec.blur)/2)
+		return img
+	}
+	return a.rasterShape(spec.shape, w, h, fx, fy, fw, fh, 0)
+}
+
+// rasterShape draws shape over the box at x, y, bw by bh, in a w by h
+// mask; grow is how far the box was grown, which grows a rect's corners.
+func (a *App) rasterShape(shape boxShape, w, h int, x, y, bw, bh, grow float32) *image.Alpha {
+	img := image.NewAlpha(image.Rect(0, 0, w, h))
+	if bw <= 0 || bh <= 0 {
+		return img
+	}
+	r := vector.NewRasterizer(w, h)
+	if shape.Kind == "path" {
+		ops, err := a.shapePath(shape, float64(bw), float64(bh))
+		if err == nil {
+			tracePath(r, ops, x, y, bw, bh, shape.scale)
+			r.Draw(img, img.Bounds(), image.Opaque, image.Point{})
+			return img
+		}
+		shape.Kind = "rect" // draw a plain rect in place of a broken shape
+	}
+	var radius config.Corners
+	for i, v := range shape.radius {
+		radius[i] = float64(max(0, v+grow))
+	}
+	tracePath(r, config.RoundedRectPath(0, 0, float64(bw), float64(bh), radius), x, y, bw, bh, 1)
+	r.Draw(img, img.Bounds(), image.Opaque, image.Point{})
+	return img
+}
+
+// shapePath is the path of a path shape for a box bw by bh output pixels,
+// from its text or its Lua function. An error is reported once per shape.
+func (a *App) shapePath(shape boxShape, bw, bh float64) ([]config.PathOp, error) {
+	var ops []config.PathOp
+	var err error
+	if shape.Func != nil {
+		ops, err = a.runtime.ShapePath(shape.Func, bw/float64(shape.scale), bh/float64(shape.scale))
+	} else {
+		ops, err = config.ParsePath(shape.Path)
+	}
+	if err != nil && !a.shapeErrors[shape.Shape] {
+		if a.shapeErrors == nil {
+			a.shapeErrors = map[config.Shape]bool{}
+		}
+		a.shapeErrors[shape.Shape] = true
+		log.Printf("theme shape: %v", err)
+		a.message = "theme shape: " + err.Error()
+	}
+	return ops, err
+}
+
+// tracePath adds ops to r with the box at x, y, w by h; scale converts the
+// ops' pixels to output pixels.
+func tracePath(r *vector.Rasterizer, ops []config.PathOp, x, y, w, h, scale float32) {
+	at := func(p config.PathPoint) (float32, float32) {
+		return x + float32(p.X.Frac)*w + float32(p.X.Px)*scale, y + float32(p.Y.Frac)*h + float32(p.Y.Px)*scale
+	}
+	for _, op := range ops {
+		switch op.Op {
+		case 'M':
+			r.MoveTo(at(op.Pts[0]))
+		case 'L':
+			r.LineTo(at(op.Pts[0]))
+		case 'Q':
+			cx, cy := at(op.Pts[0])
+			px, py := at(op.Pts[1])
+			r.QuadTo(cx, cy, px, py)
+		case 'C':
+			c1x, c1y := at(op.Pts[0])
+			c2x, c2y := at(op.Pts[1])
+			px, py := at(op.Pts[2])
+			r.CubeTo(c1x, c1y, c2x, c2y, px, py)
+		case 'Z':
+			r.ClosePath()
+		}
+	}
+	r.ClosePath()
+}
+
+// blurAlpha blurs img with a gaussian of standard deviation sigma pixels,
+// approximated by three box blurs each way.
+func blurAlpha(img *image.Alpha, sigma float64) {
+	if sigma <= 0 {
+		return
+	}
+	w, h := img.Rect.Dx(), img.Rect.Dy()
+	buf := make([]float32, w*h)
+	for i, v := range img.Pix {
+		buf[i] = float32(v)
+	}
+	tmp := make([]float32, max(w, h))
+	for _, radius := range boxBlurRadii(sigma) {
+		for y := range h {
+			boxBlurLine(buf[y*w:(y+1)*w], 1, tmp[:w], radius)
+		}
+		for x := range w {
+			boxBlurLine(buf[x:], w, tmp[:h], radius)
+		}
+	}
+	for i, v := range buf {
+		img.Pix[i] = uint8(min(255, max(0, v+0.5)))
+	}
+}
+
+// boxBlurRadii are the radii of three box blurs that together approximate
+// a gaussian of standard deviation sigma.
+func boxBlurRadii(sigma float64) [3]int {
+	ideal := math.Sqrt(12*sigma*sigma/3 + 1)
+	lower := int(math.Floor(ideal))
+	if lower%2 == 0 {
+		lower--
+	}
+	upper := lower + 2
+	m := int(math.Round((12*sigma*sigma - 3*float64(lower*lower) - 12*float64(lower) - 9) / (-4*float64(lower) - 4)))
+	var radii [3]int
+	for i := range radii {
+		size := upper
+		if i < m {
+			size = lower
+		}
+		radii[i] = max(0, (size-1)/2)
+	}
+	return radii
+}
+
+// boxBlurLine blurs the n = len(tmp) values of line, stride apart, by
+// averaging each with radius values either side; beyond the ends is 0.
+func boxBlurLine(line []float32, stride int, tmp []float32, radius int) {
+	n := len(tmp)
 	for i := range n {
-		j := (i + 1) % n
-		indices = append(indices, 0, 1+i, 1+j)                        // the fan inside
-		indices = append(indices, 1+i, 1+n+i, 1+n+j, 1+i, 1+n+j, 1+j) // the fading edge
+		tmp[i] = line[i*stride]
 	}
-	sdl.RenderGeometry(renderer, nil, vertices, indices)
-}
-
-// strokeRoundedRect draws a line width pixels wide just inside the edge of
-// rect, antialiased.
-func strokeRoundedRect(renderer *sdl.Renderer, rect sdl.FRect, radius, width float32, clr color.RGBA) {
-	if rect.W <= 0 || rect.H <= 0 || width <= 0 || clr.A == 0 {
-		return
+	var sum float32
+	for i := 0; i < min(radius, n); i++ {
+		sum += tmp[i]
 	}
-	shape := newRoundedShape(rect, radius, width+0.5)
-	solid, clear := fcolor(clr), fcolor(clr)
-	clear.A = 0
-	// Bands from the inside out: fade in, solid, fade out.
-	grows := []float32{-width - 0.5, -width + 0.5, -0.5, 0.5}
-	colors := []sdl.FColor{clear, solid, solid, clear}
-	if width <= 1 {
-		grows, colors = []float32{-width - 0.5, -0.5, 0.5}, []sdl.FColor{clear, solid, clear}
-	}
-	var vertices []sdl.Vertex
-	var n int32
-	for i, grow := range grows {
-		points := shape.outline(grow)
-		n = int32(len(points))
-		for _, p := range points {
-			vertices = append(vertices, sdl.Vertex{Position: p, Color: colors[i]})
+	scale := 1 / float32(2*radius+1)
+	for i := range n {
+		if j := i + radius; j < n {
+			sum += tmp[j]
+		}
+		line[i*stride] = sum * scale
+		if j := i - radius; j >= 0 {
+			sum -= tmp[j]
 		}
 	}
-	var indices []int32
-	for band := range int32(len(grows) - 1) {
-		in, out := band*n, (band+1)*n
-		for i := range n {
-			j := (i + 1) % n
-			indices = append(indices, in+i, out+i, out+j, in+i, out+j, in+j)
-		}
+}
+
+// maskCache keeps shape masks, evicting the least recently used once
+// full. Its zero value is empty and ready to use.
+type maskCache struct {
+	entries map[maskSpec]*list.Element // values are maskCacheEntry
+	order   list.List
+	bytes   int // the size of the masks' textures
+}
+
+// A mask the size of its box, as a path's is, takes a texture the size of
+// a panel, so the cache is limited in bytes as well as entries.
+const (
+	maxMaskCacheEntries = 256
+	maxMaskCacheBytes   = 64 << 20
+)
+
+type maskCacheEntry struct {
+	key  maskSpec
+	mask mask
+}
+
+func (c *maskCache) get(key maskSpec) (mask, bool) {
+	elem, ok := c.entries[key]
+	if !ok {
+		return mask{}, false
 	}
-	sdl.RenderGeometry(renderer, nil, vertices, indices)
+	c.order.MoveToBack(elem)
+	return elem.Value.(maskCacheEntry).mask, true
 }
 
-func fcolor(c color.RGBA) sdl.FColor {
-	return sdl.FColor{R: float32(c.R) / 255, G: float32(c.G) / 255, B: float32(c.B) / 255, A: float32(c.A) / 255}
-}
-
-// roundedShape is a rounded rectangle whose outline can be grown or shrunk
-// by a distance, with the same number of points at every distance so that
-// outlines join into bands.
-type roundedShape struct {
-	centers [4]sdl.FPoint // corner centres, clockwise from the top left
-	radius  float32       // of the corners at distance 0
-	steps   int           // points per corner
-}
-
-// newRoundedShape makes the shape of rect; reach is the furthest any
-// outline will shrink, which the corner centres must allow for.
-func newRoundedShape(rect sdl.FRect, radius, reach float32) roundedShape {
-	r := min(max(radius, reach), rect.W/2, rect.H/2)
-	r = max(r, 0)
-	return roundedShape{
-		centers: [4]sdl.FPoint{
-			{X: rect.X + r, Y: rect.Y + r},
-			{X: rect.X + rect.W - r, Y: rect.Y + r},
-			{X: rect.X + rect.W - r, Y: rect.Y + rect.H - r},
-			{X: rect.X + r, Y: rect.Y + rect.H - r},
-		},
-		radius: r,
-		steps:  max(2, min(16, int(r/2)+2)),
+func (c *maskCache) add(key maskSpec, m mask) {
+	if c.entries == nil {
+		c.entries = map[maskSpec]*list.Element{}
+	}
+	c.entries[key] = c.order.PushBack(maskCacheEntry{key: key, mask: m})
+	c.bytes += m.bytes()
+	for c.order.Len() > 1 && (len(c.entries) > maxMaskCacheEntries || c.bytes > maxMaskCacheBytes) {
+		entry := c.order.Remove(c.order.Front()).(maskCacheEntry)
+		delete(c.entries, entry.key)
+		c.bytes -= entry.mask.bytes()
+		destroyTexture(entry.mask.texture)
 	}
 }
 
-// outline is the points of the shape grown outwards by grow pixels.
-func (s roundedShape) outline(grow float32) []sdl.FPoint {
-	r := float64(max(0, s.radius+grow))
-	points := make([]sdl.FPoint, 0, 4*s.steps)
-	for corner, c := range s.centers {
-		start := math.Pi + float64(corner)*math.Pi/2 // top left starts pointing left
-		for i := range s.steps {
-			angle := start + float64(i)/float64(s.steps-1)*math.Pi/2
-			points = append(points, sdl.FPoint{X: c.X + float32(r*math.Cos(angle)), Y: c.Y + float32(r*math.Sin(angle))})
-		}
-	}
-	return points
-}
+func (m mask) bytes() int { return 4 * int(m.w) * int(m.h) }
 
-// drawShadow draws the theme's soft shadow under a floating rect.
-func (a *App) drawShadow(renderer *sdl.Renderer, rect sdl.FRect, radius float32) {
-	if !a.config.Theme.Shadow {
-		return
+func (c *maskCache) clear() {
+	for _, elem := range c.entries {
+		destroyTexture(elem.Value.(maskCacheEntry).mask.texture)
 	}
-	alpha := uint8(0x22)
-	if !isLight(a.backgroundColor()) {
-		alpha = 0x55
-	}
-	blur := a.px(14)
-	offset := a.px(3)
-	shadow := sdl.FRect{X: rect.X, Y: rect.Y + offset, W: rect.W, H: rect.H}
-	fillRoundedRect(renderer, shadow, radius+blur/2, blur, color.RGBA{A: alpha})
-	fillRoundedRect(renderer, sdl.FRect{X: rect.X, Y: rect.Y + offset/3, W: rect.W, H: rect.H}, radius+a.px(1), a.px(3), color.RGBA{A: alpha / 2})
-}
-
-// drawPanel draws a floating panel: shadow, fill and hairline border.
-func (a *App) drawPanel(renderer *sdl.Renderer, rect sdl.FRect, radius float32) {
-	a.drawShadow(renderer, rect, radius)
-	fillRoundedRect(renderer, rect, radius, 1, a.panelColor())
-	strokeRoundedRect(renderer, rect, radius, a.hairline(), a.borderColor())
+	c.entries = nil
+	c.order.Init()
+	c.bytes = 0
 }
 
 // drawTextHighlight marks rect on a page the way a highlighter would: on a

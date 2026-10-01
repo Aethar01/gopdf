@@ -321,10 +321,7 @@ func (a *App) keybindMenuRowHeight() int {
 
 func (a *App) drawKeybindMenu(renderer *sdl.Renderer) error {
 	rect, _ := a.keybindMenuGeometry()
-	if err := a.drawModalListFrame(renderer, rect); err != nil {
-		return err
-	}
-	return a.withClip(renderer, rect, func() error { return a.drawKeybindMenuContent(renderer, rect) })
+	return a.drawPanel(renderer, config.ElementPanel, rect, func() error { return a.drawKeybindMenuContent(renderer, rect) })
 }
 
 func (a *App) drawKeybindMenuContent(renderer *sdl.Renderer, rect sdl.FRect) error {
@@ -350,15 +347,16 @@ func (a *App) drawKeybindMenuContent(renderer *sdl.Renderer, rect sdl.FRect) err
 	}
 	listRect, listRows := a.keybindMenuListGeometry()
 	if !a.keybindMenu.selectingAction {
+		// The button is drawn as a selected row while it is selected.
 		button := a.keybindNewButtonRect(rect)
+		st := a.style(config.ElementButton)
 		if a.keybindMenu.view.selected == -1 {
-			if err := a.drawModalListSelection(renderer, rect, int(button.Y), rowHeight); err != nil {
-				return err
-			}
+			selected := a.style(config.ElementRowSelected)
+			a.drawBox(renderer, &selected, button)
 		} else {
-			strokeRoundedRect(renderer, button, a.uiRadius()*0.75, a.hairline(), a.borderColor())
+			a.drawBox(renderer, &st, button)
 		}
-		if err := a.drawText(renderer, "+ "+newKeybindLabel, int(rect.X)+a.modalListTextInset(), int(button.Y)+baselineOffset, a.accentColor()); err != nil {
+		if err := a.drawTextFace(renderer, "+ "+newKeybindLabel, int(rect.X)+a.modalListTextInset(), int(button.Y)+baselineOffset, a.textColor(&st, false), st.Bold.V); err != nil {
 			return err
 		}
 	}

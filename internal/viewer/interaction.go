@@ -406,9 +406,7 @@ func (a *App) drawSelection(renderer *sdl.Renderer) {
 	}
 }
 
-func (a *App) hintForegroundColor() color.RGBA { return rgb(a.palette().HintForeground) }
-
-// selectionColor highlights selected text and backs link hints.
+// selectionColor highlights selected text.
 func (a *App) selectionColor() color.RGBA { return rgb(a.palette().Selection) }
 
 // quadScreenBounds maps a quad on page, whose screen origin is (x, y), to

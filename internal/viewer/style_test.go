@@ -30,7 +30,7 @@ func TestStatusBarStyleBarSpansTheBottom(t *testing.T) {
 	app := testStyleApp("bar")
 	l := app.statusLayout()
 	h := float32(app.statusBarHeight())
-	if l.pill || l.leftArea != (sdl.FRect{X: 0, Y: 600 - h, W: 800, H: h}) {
+	if l.bar != (sdl.FRect{X: 0, Y: 600 - h, W: 800, H: h}) {
 		t.Fatalf("bar layout = %+v", l)
 	}
 	if _, viewportH := app.viewportSize(); viewportH != 600-int(h) {
@@ -47,7 +47,7 @@ func TestStatusBarStylePillFloatsOverThePage(t *testing.T) {
 		t.Fatalf("viewport height = %d, want the whole window under the pills", viewportH)
 	}
 	l := app.statusLayout()
-	if !l.pill || l.leftArea.W != 0 {
+	if l.bar.X == 0 || l.leftArea.W != 0 {
 		t.Fatalf("with no message the left pill should be hidden: %+v", l.leftArea)
 	}
 	if l.rightArea.W == 0 || l.rightArea.X+l.rightArea.W >= 800 || l.rightArea.Y+l.rightArea.H >= 600 {
@@ -120,32 +120,78 @@ func TestUIFontFallsBackWithWarning(t *testing.T) {
 	closeFontFace(regular)
 }
 
-func TestRoundedShapeOutlinesLineUp(t *testing.T) {
-	rect := sdl.FRect{X: 10, Y: 20, W: 100, H: 40}
-	for _, radius := range []float32{0, 8, 50} {
-		shape := newRoundedShape(rect, radius, 1)
-		inner, outer := shape.outline(-1), shape.outline(1)
-		if len(inner) != len(outer) {
-			t.Fatalf("radius %v: outlines of %d and %d points cannot be joined", radius, len(inner), len(outer))
-		}
-		edge := shape.outline(0)
-		minX, minY, maxX, maxY := edge[0].X, edge[0].Y, edge[0].X, edge[0].Y
-		for _, p := range edge {
-			minX, minY, maxX, maxY = min(minX, p.X), min(minY, p.Y), max(maxX, p.X), max(maxY, p.Y)
-		}
-		const eps = 0.01
-		if minX < rect.X-eps || minY < rect.Y-eps || maxX > rect.X+rect.W+eps || maxY > rect.Y+rect.H+eps ||
-			maxX-minX < rect.W-eps || maxY-minY < rect.H-eps {
-			t.Fatalf("radius %v: outline spans %v,%v to %v,%v, want the rect %+v", radius, minX, minY, maxX, maxY, rect)
-		}
-	}
-}
-
 func TestIsLight(t *testing.T) {
 	if !isLight(color.RGBA{R: 0xff, G: 0xff, B: 0xff}) || isLight(color.RGBA{R: 0x1f, G: 0x24, B: 0x20}) {
 		t.Fatal("isLight misjudges white or the dark page")
 	}
-	if got := mixRGBA(color.RGBA{A: 0xff}, color.RGBA{R: 200, A: 0xff}, 0.5); got != (color.RGBA{R: 100, A: 0xff}) {
-		t.Fatalf("mixRGBA = %v", got)
+}
+
+func TestBorderMaskIsTheShapesEdge(t *testing.T) {
+	app := &App{}
+	rect := boxShape{Shape: config.Shape{Kind: "rect"}}
+	img := app.rasterMask(maskSpec{shape: rect, w: 20, h: 10, border: 2, sides: config.SidesAll}, 0)
+	for _, p := range []struct{ x, y, want int }{{0, 5, 255}, {1, 5, 255}, {2, 5, 0}, {10, 5, 0}, {10, 9, 255}, {19, 0, 255}} {
+		if got := int(img.AlphaAt(p.x, p.y).A); got != p.want {
+			t.Errorf("all sides: alpha at %d,%d = %d, want %d", p.x, p.y, got, p.want)
+		}
+	}
+	img = app.rasterMask(maskSpec{shape: rect, w: 20, h: 10, border: 1, sides: config.SideTop}, 0)
+	for _, p := range []struct{ x, y, want int }{{10, 0, 255}, {0, 5, 0}, {10, 9, 0}} {
+		if got := int(img.AlphaAt(p.x, p.y).A); got != p.want {
+			t.Errorf("top only: alpha at %d,%d = %d, want %d", p.x, p.y, got, p.want)
+		}
+	}
+}
+
+func TestShadowMaskBlursPastTheBox(t *testing.T) {
+	app := &App{}
+	spec := maskSpec{shape: boxShape{Shape: config.Shape{Kind: "rect"}}, w: 40, h: 40, blur: 8}
+	pad := blurMargin(spec.blur)
+	img := app.rasterMask(spec, pad)
+	if img.Rect.Dx() != 40+2*int(pad) {
+		t.Fatalf("mask width = %d, want the box and its blur", img.Rect.Dx())
+	}
+	centre, edge, corner := img.AlphaAt(int(pad)+20, int(pad)+20).A, img.AlphaAt(int(pad), int(pad)+20).A, img.AlphaAt(0, 0).A
+	if centre < 250 || edge < 100 || edge > 155 || corner > 2 {
+		t.Fatalf("blurred alpha: centre %d, edge %d, corner %d", centre, edge, corner)
+	}
+}
+
+func TestPathShapeMask(t *testing.T) {
+	app := &App{}
+	// A triangle filling the top left half of the box.
+	shape := boxShape{Shape: config.Shape{Kind: "path", Path: "M0,0 L100%,0 L0,100% Z"}, scale: 1}
+	img := app.rasterMask(maskSpec{shape: shape, w: 20, h: 20}, 0)
+	if img.AlphaAt(2, 2).A != 255 || img.AlphaAt(17, 17).A != 0 {
+		t.Fatalf("triangle mask: %d at the top left, %d at the bottom right", img.AlphaAt(2, 2).A, img.AlphaAt(17, 17).A)
+	}
+}
+
+func TestBoxShapeFitsRadii(t *testing.T) {
+	app := &App{}
+	st := config.Style{Shape: config.Opt[config.Shape]{V: config.Shape{Kind: "rect"}, Set: true}, Radius: config.Opt[config.Corners]{V: config.Corners{30, 30, 0, 0}, Set: true}}
+	if got := app.boxShape(&st, sdl.Rect{W: 40, H: 100}).radius; got != [4]float32{20, 20, 0, 0} {
+		t.Fatalf("radii %v should shrink to fit a 40 pixel width", got)
+	}
+	st.Shape.V.Kind = "pill"
+	if got := app.boxShape(&st, sdl.Rect{W: 100, H: 24}).radius; got != [4]float32{12, 12, 12, 12} {
+		t.Fatalf("pill radii = %v", got)
+	}
+}
+
+func TestStatusElementPlacesTheBar(t *testing.T) {
+	app := testStyleApp("bar")
+	app.config.Theme.Elements[config.ElementStatus].Margin = config.Opt[config.Insets]{V: config.Insets{Right: 20, Bottom: 6, Left: 30}, Set: true}
+	l := app.statusLayout()
+	h := float32(app.statusBarHeight())
+	if l.bar != (sdl.FRect{X: 30, Y: 600 - 6 - h, W: 750, H: h}) {
+		t.Fatalf("bar = %+v", l.bar)
+	}
+	if _, viewportH := app.viewportSize(); viewportH != 600-6-int(h) {
+		t.Fatalf("viewport height = %d, want the window less the bar and its margin", viewportH)
+	}
+	app.config.Theme.Elements[config.ElementStatus].Floating = config.Opt[bool]{V: true, Set: true}
+	if _, viewportH := app.viewportSize(); viewportH != 600 {
+		t.Fatalf("floating bar leaves a viewport %d high", viewportH)
 	}
 }

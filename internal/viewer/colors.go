@@ -30,25 +30,10 @@ func (a *App) backgroundColor() color.RGBA {
 func (a *App) pageBackgroundColor() color.RGBA { return rgb(a.palette().Page) }
 func (a *App) foregroundColor() color.RGBA     { return rgb(a.palette().Foreground) }
 func (a *App) mutedColor() color.RGBA          { return rgb(a.palette().Muted) }
-func (a *App) accentColor() color.RGBA         { return rgb(a.palette().Accent) }
-func (a *App) panelColor() color.RGBA          { return rgb(a.palette().Panel) }
-func (a *App) borderColor() color.RGBA         { return rgb(a.palette().Border) }
 func (a *App) statusBarColor() color.RGBA      { return rgb(a.palette().StatusBar) }
-
-// rowSelectionColor fills the selected row of a menu: the accent, faint
-// over the panel.
-func (a *App) rowSelectionColor() color.RGBA {
-	return mixRGBA(a.panelColor(), a.accentColor(), 0.16)
-}
 
 func rgb(c [3]uint8) color.RGBA {
 	return color.RGBA{R: c[0], G: c[1], B: c[2], A: 0xff}
-}
-
-// mixRGBA is t of the way from a to b.
-func mixRGBA(a, b color.RGBA, t float64) color.RGBA {
-	mix := func(x, y uint8) uint8 { return uint8(float64(x) + (float64(y)-float64(x))*t + 0.5) }
-	return color.RGBA{R: mix(a.R, b.R), G: mix(a.G, b.G), B: mix(a.B, b.B), A: mix(a.A, b.A)}
 }
 
 // isLight reports whether c is a light colour, one dark text reads on.

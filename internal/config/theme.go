@@ -22,6 +22,9 @@ type Theme struct {
 	Shadow           bool
 	StatusBarStyle   string // bar or pill
 	StatusBarPadding int    // horizontal status bar padding in logical pixels
+	// Elements are the styles the elements table sets, over the ones the
+	// fields above give.
+	Elements [ElementCount]Style
 }
 
 // Palette is the colours of one color mode.
@@ -150,25 +153,28 @@ var themeGroups = []string{"alt", "font"}
 
 var themeFields = buildThemeFields()
 
+// paletteColors are the colours of a palette, as the theme table names
+// them.
+var paletteColors = []struct {
+	name, description string
+	field             func(*Palette) *[3]uint8
+}{
+	{"background", "Canvas behind the pages", func(p *Palette) *[3]uint8 { return &p.Background }},
+	{"page", "Paper of pages still rendering", func(p *Palette) *[3]uint8 { return &p.Page }},
+	{"foreground", "UI text", func(p *Palette) *[3]uint8 { return &p.Foreground }},
+	{"muted", "Secondary UI text, such as menu details and the right of the status bar", func(p *Palette) *[3]uint8 { return &p.Muted }},
+	{"accent", "Prompts, the selected menu row and the overview's selected page", func(p *Palette) *[3]uint8 { return &p.Accent }},
+	{"panel", "Background of menus, completion and other panels", func(p *Palette) *[3]uint8 { return &p.Panel }},
+	{"border", "Hairlines around panels and above the status bar", func(p *Palette) *[3]uint8 { return &p.Border }},
+	{"status_bar", "Status bar background", func(p *Palette) *[3]uint8 { return &p.StatusBar }},
+	{"selection", "Highlight of selected text and the background of link hints", func(p *Palette) *[3]uint8 { return &p.Selection }},
+	{"search", "Highlight of search matches", func(p *Palette) *[3]uint8 { return &p.Search }},
+	{"search_current", "Highlight of the current search match", func(p *Palette) *[3]uint8 { return &p.SearchCurrent }},
+	{"hint_foreground", "Text of link hints", func(p *Palette) *[3]uint8 { return &p.HintForeground }},
+	{"presentation", "Background around the page in presentation mode", func(p *Palette) *[3]uint8 { return &p.Presentation }},
+}
+
 func buildThemeFields() []themeField {
-	colors := []struct {
-		name, description string
-		field             func(*Palette) *[3]uint8
-	}{
-		{"background", "Canvas behind the pages", func(p *Palette) *[3]uint8 { return &p.Background }},
-		{"page", "Paper of pages still rendering", func(p *Palette) *[3]uint8 { return &p.Page }},
-		{"foreground", "UI text", func(p *Palette) *[3]uint8 { return &p.Foreground }},
-		{"muted", "Secondary UI text, such as menu details and the right of the status bar", func(p *Palette) *[3]uint8 { return &p.Muted }},
-		{"accent", "Prompts, the selected menu row and the overview's selected page", func(p *Palette) *[3]uint8 { return &p.Accent }},
-		{"panel", "Background of menus, completion and other panels", func(p *Palette) *[3]uint8 { return &p.Panel }},
-		{"border", "Hairlines around panels and above the status bar", func(p *Palette) *[3]uint8 { return &p.Border }},
-		{"status_bar", "Status bar background", func(p *Palette) *[3]uint8 { return &p.StatusBar }},
-		{"selection", "Highlight of selected text and the background of link hints", func(p *Palette) *[3]uint8 { return &p.Selection }},
-		{"search", "Highlight of search matches", func(p *Palette) *[3]uint8 { return &p.Search }},
-		{"search_current", "Highlight of the current search match", func(p *Palette) *[3]uint8 { return &p.SearchCurrent }},
-		{"hint_foreground", "Text of link hints", func(p *Palette) *[3]uint8 { return &p.HintForeground }},
-		{"presentation", "Background around the page in presentation mode", func(p *Palette) *[3]uint8 { return &p.Presentation }},
-	}
 	var fields []themeField
 	for _, group := range []struct {
 		prefix, suffix string
@@ -177,7 +183,7 @@ func buildThemeFields() []themeField {
 		{"", ".", func(c *Config) *Palette { return &c.Theme.Palette }},
 		{"alt.", " in alternate-color mode.", func(c *Config) *Palette { return &c.Theme.Alt }},
 	} {
-		for _, color := range colors {
+		for _, color := range paletteColors {
 			field, palette := color.field, group.palette
 			description := color.description + group.suffix
 			if group.prefix == "alt." && altRecolors[color.name] != "" {
@@ -294,6 +300,15 @@ func applyThemeTable(cfg *Config, tbl *lua.LTable, prefix string) error {
 		if name == "base" {
 			return
 		}
+		if name == "elements" {
+			sub, ok := value.(*lua.LTable)
+			if !ok {
+				err = fmt.Errorf("elements: expected a table of elements")
+				return
+			}
+			err = applyElementsTable(cfg, sub)
+			return
+		}
 		if sub, ok := value.(*lua.LTable); ok && slices.Contains(themeGroups, name) {
 			err = applyThemeTable(cfg, sub, name+".")
 			return
@@ -311,19 +326,31 @@ func applyThemeTable(cfg *Config, tbl *lua.LTable, prefix string) error {
 }
 
 // setThemeField sets one field, or every field a nested table holds, as for
-// gopdf.theme.alt = { accent = "#..." }. Nothing changes if any is invalid.
+// gopdf.theme.alt = { accent = "#..." }; element names start "elements.".
+// Nothing changes if any is invalid.
 func (r *Runtime) setThemeField(name string, value lua.LValue) error {
-	if sub, ok := value.(*lua.LTable); ok && slices.Contains(themeGroups, name) {
-		work := r.cfg
-		if err := applyThemeTable(&work, sub, name+"."); err != nil {
-			return err
-		}
-		r.cfg.Theme = work.Theme
-		r.markAssigned("theme")
-		r.dirty = true
-		return nil
+	work := r.cfg
+	sub, isTable := value.(*lua.LTable)
+	var err error
+	switch element, isElement := strings.CutPrefix(name, "elements."); {
+	case name == "elements" && isTable:
+		err = applyElementsTable(&work, sub)
+	case name == "elements":
+		err = fmt.Errorf("elements: expected a table of elements")
+	case isElement:
+		err = applyElementValue(&work, element, value)
+	case isTable && slices.Contains(themeGroups, name):
+		err = applyThemeTable(&work, sub, name+".")
+	default:
+		return r.setOption(themeOptionPrefix+name, value)
 	}
-	return r.setOption(themeOptionPrefix+name, value)
+	if err != nil {
+		return err
+	}
+	r.cfg.Theme = work.Theme
+	r.markAssigned("theme")
+	r.dirty = true
+	return nil
 }
 
 // luaThemeTable writes theme as a plain table, as gopdf.theme is set.
@@ -346,6 +373,7 @@ func luaThemeTable(L *lua.LState, theme Theme) *lua.LTable {
 		}
 		target.RawSetString(member, field.desc.get(L, &cfg))
 	}
+	tbl.RawSetString("elements", luaElementsTable(L, &theme.Elements))
 	return tbl
 }
 
@@ -372,6 +400,8 @@ func newLuaThemeTable(L *lua.LState, rt *Runtime, cfg *Config, prefix string) *l
 			L.Push(lua.LString(cfg.Theme.Base))
 		case slices.Contains(themeGroups, name):
 			L.Push(newLuaThemeTable(L, rt, cfg, name+"."))
+		case name == "elements":
+			L.Push(newLuaElementsTable(L, rt, cfg, ""))
 		default:
 			desc, ok := configOptions[themeOptionPrefix+name]
 			if !ok {
@@ -384,6 +414,9 @@ func newLuaThemeTable(L *lua.LState, rt *Runtime, cfg *Config, prefix string) *l
 	L.SetField(mt, "__newindex", L.NewFunction(func(L *lua.LState) int {
 		name := prefix + strings.ToLower(strings.TrimSpace(L.CheckString(2)))
 		if err := rt.setThemeField(name, L.CheckAny(3)); err != nil {
+			if strings.HasPrefix(name, "elements") {
+				L.RaiseError("gopdf.theme.%v", err) // the error names the element
+			}
 			L.RaiseError("gopdf.theme.%s: %v", name, err)
 		}
 		return 0

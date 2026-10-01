@@ -177,7 +177,7 @@ func newLuaOptionsTable(L *lua.LState, rt *Runtime, cfg *Config) *lua.LTable {
 			L.Push(newLuaThemeTable(L, rt, cfg, ""))
 			return 1
 		}
-		if desc, ok := configOptions[name]; ok {
+		if desc, ok := lookupOption(name); ok {
 			L.Push(desc.get(L, cfg))
 			return 1
 		}
@@ -505,7 +505,7 @@ func (r *Runtime) unbindMouse(event string) error {
 
 func (r *Runtime) setOption(name string, value lua.LValue) error {
 	name = normalizeOptionName(name)
-	if desc, ok := configOptions[name]; ok {
+	if desc, ok := lookupOption(name); ok {
 		if err := desc.apply(&r.cfg, value); err != nil {
 			return err
 		}
