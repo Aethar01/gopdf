@@ -103,6 +103,7 @@ type luaGeneration struct {
 	plugins          *pluginState
 	operations       map[int]*pluginOperation
 	pluginGeneration int
+	draw             drawCache
 }
 
 type UIOverlay struct {

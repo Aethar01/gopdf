@@ -278,6 +278,23 @@ func renderElementReference(b *strings.Builder) {
 	b.WriteString("```lua\ngopdf.theme.elements.row_selected.shape = \"M0,0 H100%-8 L100%,50% L100%-8,100% H0 Z\"\n```\n\n")
 	b.WriteString("A function is called as `shape(path, w, h)` with the box's size in logical pixels, whenever an element is drawn at a size not drawn before. Its `path` has the methods `move_to(x, y)`, `line_to(x, y)`, `quad_to(cx, cy, x, y)`, `cubic_to(c1x, c1y, c2x, c2y, x, y)`, `close()`, `rect(x, y, w, h [, radius])` and `ellipse(cx, cy, rx [, ry])`, each returning `path`. If a shape fails, its element is drawn as a plain rect and the error is reported once.\n\n")
 	b.WriteString("```lua\ngopdf.theme.elements.status_left.shape = function(path, w, h)\n  path:move_to(h / 2, 0):line_to(w, 0):line_to(w - h / 2, h):line_to(0, h):close()\nend\n```\n")
+	b.WriteString("\n#### Drawing\n\n")
+	b.WriteString("An element's `draw` function draws its box in place of the default drawing, as `draw(canvas, box, state)`, each time the element is drawn; its text is drawn over it as usual. `box` holds the box's `x`, `y`, `w` and `h` in logical pixels from the window's top left, and `state` the `element` being drawn and whether `alt` colours are on, so a function set on `row` can tell `row_selected` apart. Both tables are reused from call to call, so copy what you keep. Like other properties, a draw function carries to the elements that start from its element; assigning `false` or `nil` removes it.\n\n")
+	b.WriteString("The canvas's coordinates are logical pixels from the box's top left, and may reach outside it. Its methods are:\n\n")
+	b.WriteString("| Method | Draws |\n|---|---|\n")
+	for _, row := range [][2]string{
+		{"canvas:default()", "The box as it would be drawn without the function."},
+		{"canvas:fill(path, color)", "The inside of a path: path data as a shape takes, or a path from `canvas:path()`."},
+		{"canvas:stroke(path, color [, width])", "A line along a path, 1 logical pixel wide unless given, with round joins."},
+		{"canvas:rect(x, y, w, h, color [, radius])", "A rect, its corners rounded by radius."},
+		{"canvas:text(x, y, text, color [, bold])", "Text with the top of its line at y, in the UI font; returns its width."},
+		{"canvas:measure(text [, bold])", "Nothing; returns the width and line height of text."},
+		{"canvas:path()", "Nothing; returns an empty path, with the methods a shape function's path has."},
+	} {
+		fmt.Fprintf(b, "| %s | %s |\n", markdownCode(row[0]), row[1])
+	}
+	b.WriteString("\nColours are written as in the elements table, and the element's `opacity` applies to them. Panels and the link preview draw their border over their contents, which they do only when the function called `canvas:default()`. If the function fails, the element is drawn as it would be without it, the error is reported once, and the function is not called again until the configuration changes.\n\n")
+	b.WriteString("```lua\ngopdf.theme.elements.row_selected.draw = function(canvas, box, state)\n  canvas:default()\n  canvas:rect(0, 5, 3, box.h - 10, \"accent\", 1.5) -- a bar at the left\nend\n```\n")
 }
 
 // renderExampleTheme writes the default theme as a gopdf.theme table.

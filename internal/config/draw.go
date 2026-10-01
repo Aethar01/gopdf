@@ -1,0 +1,291 @@
+package config
+
+import (
+	"errors"
+	"fmt"
+
+	lua "github.com/yuin/gopher-lua"
+)
+
+// luaPath is a path Lua builds, for a shape or for a canvas to draw.
+type luaPath struct{ ops []PathOp }
+
+const luaPathType = "gopdf.path"
+
+var errNoMove = errors.New("start the path with move_to")
+
+// newLuaPath makes an empty path. Its methods, each returning the path,
+// are move_to(x, y), line_to(x, y), quad_to(cx, cy, x, y), cubic_to(c1x,
+// c1y, c2x, c2y, x, y), close(), rect(x, y, w, h [, radius]) and
+// ellipse(cx, cy, rx [, ry]).
+func newLuaPath(L *lua.LState) (*lua.LUserData, *luaPath) {
+	path := &luaPath{}
+	ud := L.NewUserData()
+	ud.Value = path
+	L.SetMetatable(ud, luaPathMetatable(L))
+	return ud, path
+}
+
+func luaPathMetatable(L *lua.LState) *lua.LTable {
+	mt := L.NewTypeMetatable(luaPathType)
+	if mt.RawGetString("__index") != lua.LNil {
+		return mt
+	}
+	methods := L.NewTable()
+	method := func(name string, required, optional int, add func(p *luaPath, v []float64) error) {
+		L.SetField(methods, name, L.NewFunction(func(L *lua.LState) int {
+			p := checkLuaPath(L, 1)
+			v := make([]float64, required+optional)
+			for i := range v {
+				if i >= required && L.Get(i+2) == lua.LNil {
+					v = v[:i]
+					break
+				}
+				v[i] = float64(L.CheckNumber(i + 2))
+			}
+			if err := add(p, v); err != nil {
+				L.RaiseError("path:%s: %v", name, err)
+			}
+			L.Push(L.Get(1))
+			return 1
+		}))
+	}
+	// add appends op once the path has started.
+	add := func(p *luaPath, op PathOp) error {
+		if len(p.ops) == 0 {
+			return errNoMove
+		}
+		p.ops = append(p.ops, op)
+		return nil
+	}
+	method("move_to", 2, 0, func(p *luaPath, v []float64) error {
+		p.ops = append(p.ops, PathOp{Op: 'M', Pts: [3]PathPoint{pxPoint(v[0], v[1])}})
+		return nil
+	})
+	method("line_to", 2, 0, func(p *luaPath, v []float64) error {
+		return add(p, PathOp{Op: 'L', Pts: [3]PathPoint{pxPoint(v[0], v[1])}})
+	})
+	method("quad_to", 4, 0, func(p *luaPath, v []float64) error {
+		return add(p, PathOp{Op: 'Q', Pts: [3]PathPoint{pxPoint(v[0], v[1]), pxPoint(v[2], v[3])}})
+	})
+	method("cubic_to", 6, 0, func(p *luaPath, v []float64) error {
+		return add(p, PathOp{Op: 'C', Pts: [3]PathPoint{pxPoint(v[0], v[1]), pxPoint(v[2], v[3]), pxPoint(v[4], v[5])}})
+	})
+	method("close", 0, 0, func(p *luaPath, _ []float64) error { return add(p, PathOp{Op: 'Z'}) })
+	method("rect", 4, 1, func(p *luaPath, v []float64) error {
+		radius := 0.0
+		if len(v) == 5 {
+			radius = min(max(0, v[4]), v[2]/2, v[3]/2)
+		}
+		p.ops = append(p.ops, RoundedRectPath(v[0], v[1], v[2], v[3], corners(radius))...)
+		return nil
+	})
+	method("ellipse", 3, 1, func(p *luaPath, v []float64) error {
+		ry := v[2]
+		if len(v) == 4 {
+			ry = v[3]
+		}
+		p.ops = append(p.ops, ellipsePath(v[0], v[1], v[2], ry)...)
+		return nil
+	})
+	L.SetField(mt, "__index", methods)
+	return mt
+}
+
+func checkLuaPath(L *lua.LState, n int) *luaPath {
+	if ud, ok := L.Get(n).(*lua.LUserData); ok {
+		if p, ok := ud.Value.(*luaPath); ok {
+			return p
+		}
+	}
+	L.ArgError(n, "expected a path")
+	return nil
+}
+
+// ShapePath runs a shape's function for a box w by h logical pixels and
+// returns the path it drew. The function is called as fn(path, w, h), path
+// being a path as newLuaPath makes.
+func (r *Runtime) ShapePath(fn *lua.LFunction, w, h float64) ([]PathOp, error) {
+	if r == nil || r.state == nil {
+		return nil, fmt.Errorf("no Lua state")
+	}
+	ud, path := newLuaPath(r.state)
+	if err := r.callLua(lua.P{Fn: fn, NRet: 0, Protect: true}, ud, lua.LNumber(w), lua.LNumber(h)); err != nil {
+		return nil, err
+	}
+	if len(path.ops) == 0 {
+		return nil, fmt.Errorf("the shape function drew no path")
+	}
+	return path.ops, nil
+}
+
+// Canvas is what an element's draw function draws on. Coordinates are in
+// logical pixels from the top left of the element's box.
+type Canvas interface {
+	// Default draws the element as it would be without the function.
+	Default()
+	Fill(path []PathOp, c Color)
+	Stroke(path []PathOp, c Color, width float64)
+	// Text draws text with the top of its line at y, returning its width.
+	Text(x, y float64, text string, c Color, bold bool) float64
+	Measure(text string, bold bool) (w, h float64)
+}
+
+// DrawState is what a draw function is told about the element it draws.
+type DrawState struct {
+	Element    Element
+	X, Y, W, H float64 // the box, in logical pixels from the window's top left
+	Alt        bool    // whether alternate-color mode is on
+}
+
+const luaCanvasType = "gopdf.canvas"
+
+// drawCache keeps what draw functions use on every frame: the canvas they
+// are given, and the colours and path data they write, parsed.
+type drawCache struct {
+	canvas     *lua.LUserData
+	box, state *lua.LTable
+	colors     map[string]Color
+	paths      map[string][]PathOp
+}
+
+// maxDrawCacheEntries bounds each map, which is emptied when full, in
+// case a function writes ever new colours or paths.
+const maxDrawCacheEntries = 256
+
+func (c *drawCache) color(s string) (Color, error) {
+	if clr, ok := c.colors[s]; ok {
+		return clr, nil
+	}
+	clr, err := parseStyleColor(s)
+	if err == nil {
+		if c.colors == nil || len(c.colors) >= maxDrawCacheEntries {
+			c.colors = map[string]Color{}
+		}
+		c.colors[s] = clr
+	}
+	return clr, err
+}
+
+func (c *drawCache) path(s string) ([]PathOp, error) {
+	if ops, ok := c.paths[s]; ok {
+		return ops, nil
+	}
+	ops, err := ParsePath(s)
+	if err == nil {
+		if c.paths == nil || len(c.paths) >= maxDrawCacheEntries {
+			c.paths = map[string][]PathOp{}
+		}
+		c.paths[s] = ops
+	}
+	return ops, err
+}
+
+// RunDraw runs an element's draw function as fn(canvas, box, state). The
+// canvas is cleared afterwards, so one kept past the call cannot draw, and
+// box and state are the same tables on every call, saving their garbage
+// on every frame.
+func (r *Runtime) RunDraw(fn *lua.LFunction, canvas Canvas, state DrawState) error {
+	if r == nil || r.state == nil {
+		return fmt.Errorf("no Lua state")
+	}
+	L := r.state
+	ud := r.draw.canvas
+	if ud == nil {
+		ud = L.NewUserData()
+		L.SetMetatable(ud, luaCanvasMetatable(L, &r.draw))
+		r.draw.canvas = ud
+	}
+	ud.Value = canvas
+	defer func() { ud.Value = nil }()
+	if r.draw.box == nil {
+		r.draw.box, r.draw.state = L.NewTable(), L.NewTable()
+	}
+	box, st := r.draw.box, r.draw.state
+	box.RawSetString("x", lua.LNumber(state.X))
+	box.RawSetString("y", lua.LNumber(state.Y))
+	box.RawSetString("w", lua.LNumber(state.W))
+	box.RawSetString("h", lua.LNumber(state.H))
+	st.RawSetString("element", lua.LString(state.Element.String()))
+	st.RawSetString("alt", lua.LBool(state.Alt))
+	return r.callLua(lua.P{Fn: fn, NRet: 0, Protect: true}, ud, box, st)
+}
+
+func luaCanvasMetatable(L *lua.LState, cache *drawCache) *lua.LTable {
+	mt := L.NewTypeMetatable(luaCanvasType)
+	if mt.RawGetString("__index") != lua.LNil {
+		return mt
+	}
+	check := func(L *lua.LState) Canvas {
+		if ud, ok := L.Get(1).(*lua.LUserData); ok {
+			if c, ok := ud.Value.(Canvas); ok {
+				return c
+			}
+		}
+		L.ArgError(1, "expected a canvas drawing now")
+		return nil
+	}
+	color := func(L *lua.LState, n int) Color {
+		var c Color
+		var err error
+		if s, ok := L.Get(n).(lua.LString); ok {
+			c, err = cache.color(string(s))
+		} else {
+			c, err = colorFromLua(L.CheckAny(n))
+		}
+		if err != nil {
+			L.ArgError(n, err.Error())
+		}
+		return c
+	}
+	path := func(L *lua.LState, n int) []PathOp {
+		if s, ok := L.Get(n).(lua.LString); ok {
+			ops, err := cache.path(string(s))
+			if err != nil {
+				L.ArgError(n, err.Error())
+			}
+			return ops
+		}
+		return checkLuaPath(L, n).ops
+	}
+	methods := L.NewTable()
+	L.SetFuncs(methods, map[string]lua.LGFunction{
+		"default": func(L *lua.LState) int {
+			check(L).Default()
+			return 0
+		},
+		"fill": func(L *lua.LState) int {
+			check(L).Fill(path(L, 2), color(L, 3))
+			return 0
+		},
+		"stroke": func(L *lua.LState) int {
+			check(L).Stroke(path(L, 2), color(L, 3), float64(L.OptNumber(4, 1)))
+			return 0
+		},
+		"rect": func(L *lua.LState) int {
+			c := check(L)
+			x, y, w, h := float64(L.CheckNumber(2)), float64(L.CheckNumber(3)), float64(L.CheckNumber(4)), float64(L.CheckNumber(5))
+			radius := min(max(0, float64(L.OptNumber(7, 0))), w/2, h/2)
+			c.Fill(RoundedRectPath(x, y, w, h, corners(radius)), color(L, 6))
+			return 0
+		},
+		"text": func(L *lua.LState) int {
+			c := check(L)
+			L.Push(lua.LNumber(c.Text(float64(L.CheckNumber(2)), float64(L.CheckNumber(3)), L.CheckString(4), color(L, 5), L.OptBool(6, false))))
+			return 1
+		},
+		"measure": func(L *lua.LState) int {
+			w, h := check(L).Measure(L.CheckString(2), L.OptBool(3, false))
+			L.Push(lua.LNumber(w))
+			L.Push(lua.LNumber(h))
+			return 2
+		},
+		"path": func(L *lua.LState) int {
+			ud, _ := newLuaPath(L)
+			L.Push(ud)
+			return 1
+		},
+	})
+	L.SetField(mt, "__index", methods)
+	return mt
+}

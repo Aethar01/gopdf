@@ -156,13 +156,19 @@ gopdf.theme = require("themes.forest")
 
 Tweak a single field with `gopdf.theme.radius = 0` or, at runtime, `:set theme.radius=0`. With no `font.family` the UI uses the system's interface font. The [reference](https://aethar01.github.io/gopdf_docs/) lists every field.
 
-To go further, each piece of the UI, such as a panel, a menu row, the status bar or a link hint, is an element with its own fill, border, shadows, padding and shape. A shape can be any path, written as SVG path data or drawn by a Lua function:
+To go further, each piece of the UI, such as a panel, a menu row, the status bar or a link hint, is an element with its own fill, border, shadows, padding and shape. A shape can be any path, written as SVG path data or drawn by a Lua function, and an element's `draw` function can draw its box however it likes:
 
 ```lua
 gopdf.theme.elements = {
   panel = { radius = 14, shadow = "0 8 24 shadow" },
   row_selected = { fill = "accent", text = "panel" },
   status_left = { shape = "M0,0 H100%-8 L100%,50% L100%-8,100% H0 Z" },
+  hint = {
+    draw = function(canvas, box, state)
+      canvas:default()
+      canvas:stroke("M0,100% H100%", "accent", 2) -- underline each hint
+    end,
+  },
 }
 ```
 

@@ -1,7 +1,6 @@
 package config
 
 import (
-	"errors"
 	"fmt"
 	"math"
 	"slices"
@@ -43,7 +42,7 @@ const noElement Element = -1
 // The properties an element can take: every element with a box takes
 // boxProps, and those with text textProps.
 var (
-	boxProps  = []string{"shape", "radius", "fill", "border", "shadow", "opacity"}
+	boxProps  = []string{"shape", "radius", "fill", "border", "shadow", "opacity", "draw"}
 	textProps = []string{"text", "secondary", "bold", "padding"}
 )
 
@@ -71,7 +70,7 @@ var elementSpecs = [ElementCount]struct {
 	ElementInputSelection:    {"input_selection", noElement, boxProps, "Selected text in a prompt."},
 	ElementHint:              {"hint", noElement, slices.Concat(boxProps, textProps), "A link hint label. Its secondary colour is for the letters already typed."},
 	ElementOverviewSelection: {"overview_selection", noElement, slices.Concat(boxProps, []string{"padding"}), "The outline around the overview's selected page; padding is its distance from the page."},
-	ElementLinkPreview:       {"link_preview", noElement, []string{"fill", "border", "shadow", "opacity"}, "The popup previewing a link's target, always a rect, as the page shows to its corners. Its fill shows while the page renders."},
+	ElementLinkPreview:       {"link_preview", noElement, []string{"fill", "border", "shadow", "opacity", "draw"}, "The popup previewing a link's target, always a rect, as the page shows to its corners. Its fill shows while the page renders."},
 }
 
 func (e Element) String() string { return elementSpecs[e].name }
@@ -113,6 +112,11 @@ type Style struct {
 	Width       Opt[float64]
 	Gap         Opt[float64]
 	Floating    Opt[bool]
+	// Draw draws the element's box in place of the default drawing.
+	Draw Opt[*lua.LFunction]
+
+	// Element is the element Theme.Style resolved the style for.
+	Element Element
 }
 
 // Shape is the outline of an element's box: a rect, its corners rounded
@@ -201,6 +205,7 @@ func baseStyle() Style {
 		Width:       some(1.0),
 		Gap:         some(0.0),
 		Floating:    some(false),
+		Draw:        some[*lua.LFunction](nil),
 	}
 }
 
@@ -321,7 +326,9 @@ func (t *Theme) Style(e Element) Style {
 	if parent := elementSpecs[e].parent; parent != noElement {
 		base = t.Style(parent)
 	}
-	return t.Elements[e].over(elementDefaults(t, e).over(base))
+	style := t.Elements[e].over(elementDefaults(t, e).over(base))
+	style.Element = e
+	return style
 }
 
 // over returns base with the properties s sets replaced.
@@ -408,6 +415,35 @@ var styleProps = []styleProp{
 	numberProp("gap", "Space between the element's parts in logical pixels.", func(s *Style) *Opt[float64] { return &s.Gap }),
 	optProp("floating", "boolean", "Float over the page rather than take space from it.",
 		func(s *Style) *Opt[bool] { return &s.Floating }, boolFromLua, parseBoolOption, func(_ *lua.LState, v bool) lua.LValue { return lua.LBool(v) }, strconv.FormatBool),
+	optProp("draw", "function", "A function(canvas, box, state) that draws the box in place of the default drawing. See [Drawing](#drawing).",
+		func(s *Style) *Opt[*lua.LFunction] { return &s.Draw }, drawFromLua,
+		func(string) (*lua.LFunction, error) {
+			return nil, fmt.Errorf("draw takes a Lua function; set it in Lua")
+		},
+		func(_ *lua.LState, fn *lua.LFunction) lua.LValue {
+			if fn == nil {
+				return lua.LNil
+			}
+			return fn
+		},
+		func(fn *lua.LFunction) string {
+			if fn == nil {
+				return "nil"
+			}
+			return "function"
+		}),
+}
+
+func drawFromLua(value lua.LValue) (*lua.LFunction, error) {
+	switch value := value.(type) {
+	case *lua.LFunction:
+		return value, nil
+	case lua.LBool:
+		if !value {
+			return nil, nil // draw = false restores the default drawing
+		}
+	}
+	return nil, fmt.Errorf("expected a function(canvas, box, state)")
 }
 
 // borderProps are the properties the border table holds.
@@ -711,13 +747,13 @@ func formatShape(s Shape) string {
 
 // paletteNames are the colours a style can name: the palette's, and
 // shadow, black at the strength shadows need over the background.
-func paletteNames() []string {
+var paletteNames = func() []string {
 	names := make([]string, 0, len(paletteColors)+1)
 	for _, c := range paletteColors {
 		names = append(names, c.name)
 	}
 	return append(names, "shadow")
-}
+}()
 
 // Lookup returns the palette colour of that name.
 func (p *Palette) Lookup(name string) ([3]uint8, bool) {
@@ -759,7 +795,7 @@ func parseStyleColor(raw string) (Color, error) {
 		}
 		raw, alpha = strings.TrimSpace(base), p/100
 	}
-	if slices.Contains(paletteNames(), raw) {
+	if slices.Contains(paletteNames, raw) {
 		return Color{Name: raw, Alpha: alpha}, nil
 	}
 	if strings.HasPrefix(raw, "#") && len(raw) == 9 {
@@ -771,7 +807,7 @@ func parseStyleColor(raw string) (Color, error) {
 	}
 	rgb, err := parseColorOption(raw)
 	if err != nil {
-		return Color{}, fmt.Errorf("unknown colour %q; expected none, #RRGGBB, #RRGGBBAA or one of %s", raw, strings.Join(paletteNames(), ", "))
+		return Color{}, fmt.Errorf("unknown colour %q; expected none, #RRGGBB, #RRGGBBAA or one of %s", raw, strings.Join(paletteNames, ", "))
 	}
 	return Color{RGB: rgb, Alpha: alpha}, nil
 }
@@ -1195,92 +1231,4 @@ func StylePropertyReferences() []StylePropertyReference {
 		refs[i] = StylePropertyReference{Name: p.name, Type: p.kind, Description: p.description}
 	}
 	return refs
-}
-
-var errNoMove = errors.New("start the path with move_to")
-
-// ShapePath runs a shape's function for a box w by h logical pixels and
-// returns the path it drew. The function is called as fn(path, w, h);
-// path's methods, each returning path, are move_to(x, y), line_to(x, y),
-// quad_to(cx, cy, x, y), cubic_to(c1x, c1y, c2x, c2y, x, y), close(),
-// rect(x, y, w, h [, radius]) and ellipse(cx, cy, rx [, ry]).
-func (r *Runtime) ShapePath(fn *lua.LFunction, w, h float64) ([]PathOp, error) {
-	if r == nil || r.state == nil {
-		return nil, fmt.Errorf("no Lua state")
-	}
-	L := r.state
-	var ops []PathOp
-	path := L.NewTable()
-	method := func(name string, required, optional int, add func(v []float64) error) {
-		L.SetField(path, name, L.NewFunction(func(L *lua.LState) int {
-			v := make([]float64, required+optional)
-			for i := range v {
-				if i >= required && L.Get(i+2) == lua.LNil {
-					v = v[:i]
-					break
-				}
-				v[i] = float64(L.CheckNumber(i + 2))
-			}
-			if err := add(v); err != nil {
-				L.RaiseError("path:%s: %v", name, err)
-			}
-			L.Push(L.Get(1))
-			return 1
-		}))
-	}
-	method("move_to", 2, 0, func(v []float64) error {
-		ops = append(ops, PathOp{Op: 'M', Pts: [3]PathPoint{pxPoint(v[0], v[1])}})
-		return nil
-	})
-	method("line_to", 2, 0, func(v []float64) error {
-		if len(ops) == 0 {
-			return errNoMove
-		}
-		ops = append(ops, PathOp{Op: 'L', Pts: [3]PathPoint{pxPoint(v[0], v[1])}})
-		return nil
-	})
-	method("quad_to", 4, 0, func(v []float64) error {
-		if len(ops) == 0 {
-			return errNoMove
-		}
-		ops = append(ops, PathOp{Op: 'Q', Pts: [3]PathPoint{pxPoint(v[0], v[1]), pxPoint(v[2], v[3])}})
-		return nil
-	})
-	method("cubic_to", 6, 0, func(v []float64) error {
-		if len(ops) == 0 {
-			return errNoMove
-		}
-		ops = append(ops, PathOp{Op: 'C', Pts: [3]PathPoint{pxPoint(v[0], v[1]), pxPoint(v[2], v[3]), pxPoint(v[4], v[5])}})
-		return nil
-	})
-	method("close", 0, 0, func([]float64) error {
-		if len(ops) == 0 {
-			return errNoMove
-		}
-		ops = append(ops, PathOp{Op: 'Z'})
-		return nil
-	})
-	method("rect", 4, 1, func(v []float64) error {
-		radius := 0.0
-		if len(v) == 5 {
-			radius = min(max(0, v[4]), v[2]/2, v[3]/2)
-		}
-		ops = append(ops, RoundedRectPath(v[0], v[1], v[2], v[3], corners(radius))...)
-		return nil
-	})
-	method("ellipse", 3, 1, func(v []float64) error {
-		ry := v[2]
-		if len(v) == 4 {
-			ry = v[3]
-		}
-		ops = append(ops, ellipsePath(v[0], v[1], v[2], ry)...)
-		return nil
-	})
-	if err := r.callLua(lua.P{Fn: fn, NRet: 0, Protect: true}, path, lua.LNumber(w), lua.LNumber(h)); err != nil {
-		return nil, err
-	}
-	if len(ops) == 0 {
-		return nil, fmt.Errorf("the shape function drew no path")
-	}
-	return ops, nil
 }

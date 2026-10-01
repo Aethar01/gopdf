@@ -107,7 +107,7 @@ func (a *App) drawLinkPreview(renderer *sdl.Renderer) {
 	a.preview.drawn = true
 	popup, x, y := a.previewPlacement()
 	st := a.style(config.ElementLinkPreview)
-	a.drawBoxParts(renderer, &st, popup, boxBody)
+	border := a.drawBoxParts(renderer, &st, popup, boxBody)
 	viewportW, viewportH := a.viewportSize()
 	page := a.preview.link.Page
 	a.withClip(renderer, popup, func() error {
@@ -116,5 +116,7 @@ func (a *App) drawLinkPreview(renderer *sdl.Renderer) {
 		}
 		return nil
 	})
-	a.drawBoxParts(renderer, &st, popup, boxBorder)
+	if border {
+		a.drawBoxParts(renderer, &st, popup, boxBorder)
+	}
 }

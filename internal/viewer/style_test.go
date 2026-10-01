@@ -129,13 +129,13 @@ func TestIsLight(t *testing.T) {
 func TestBorderMaskIsTheShapesEdge(t *testing.T) {
 	app := &App{}
 	rect := boxShape{Shape: config.Shape{Kind: "rect"}}
-	img := app.rasterMask(maskSpec{shape: rect, w: 20, h: 10, border: 2, sides: config.SidesAll}, 0)
+	img, _ := app.rasterMask(maskSpec{shape: rect, w: 20, h: 10, border: 2, sides: config.SidesAll}, 0)
 	for _, p := range []struct{ x, y, want int }{{0, 5, 255}, {1, 5, 255}, {2, 5, 0}, {10, 5, 0}, {10, 9, 255}, {19, 0, 255}} {
 		if got := int(img.AlphaAt(p.x, p.y).A); got != p.want {
 			t.Errorf("all sides: alpha at %d,%d = %d, want %d", p.x, p.y, got, p.want)
 		}
 	}
-	img = app.rasterMask(maskSpec{shape: rect, w: 20, h: 10, border: 1, sides: config.SideTop}, 0)
+	img, _ = app.rasterMask(maskSpec{shape: rect, w: 20, h: 10, border: 1, sides: config.SideTop}, 0)
 	for _, p := range []struct{ x, y, want int }{{10, 0, 255}, {0, 5, 0}, {10, 9, 0}} {
 		if got := int(img.AlphaAt(p.x, p.y).A); got != p.want {
 			t.Errorf("top only: alpha at %d,%d = %d, want %d", p.x, p.y, got, p.want)
@@ -147,7 +147,7 @@ func TestShadowMaskBlursPastTheBox(t *testing.T) {
 	app := &App{}
 	spec := maskSpec{shape: boxShape{Shape: config.Shape{Kind: "rect"}}, w: 40, h: 40, blur: 8}
 	pad := blurMargin(spec.blur)
-	img := app.rasterMask(spec, pad)
+	img, _ := app.rasterMask(spec, pad)
 	if img.Rect.Dx() != 40+2*int(pad) {
 		t.Fatalf("mask width = %d, want the box and its blur", img.Rect.Dx())
 	}
@@ -161,7 +161,7 @@ func TestPathShapeMask(t *testing.T) {
 	app := &App{}
 	// A triangle filling the top left half of the box.
 	shape := boxShape{Shape: config.Shape{Kind: "path", Path: "M0,0 L100%,0 L0,100% Z"}, scale: 1}
-	img := app.rasterMask(maskSpec{shape: shape, w: 20, h: 20}, 0)
+	img, _ := app.rasterMask(maskSpec{shape: shape, w: 20, h: 20}, 0)
 	if img.AlphaAt(2, 2).A != 255 || img.AlphaAt(17, 17).A != 0 {
 		t.Fatalf("triangle mask: %d at the top left, %d at the bottom right", img.AlphaAt(2, 2).A, img.AlphaAt(17, 17).A)
 	}
@@ -193,5 +193,31 @@ func TestStatusElementPlacesTheBar(t *testing.T) {
 	app.config.Theme.Elements[config.ElementStatus].Floating = config.Opt[bool]{V: true, Set: true}
 	if _, viewportH := app.viewportSize(); viewportH != 600 {
 		t.Fatalf("floating bar leaves a viewport %d high", viewportH)
+	}
+}
+
+func TestStrokeMaskFollowsThePath(t *testing.T) {
+	app := &App{}
+	shape := boxShape{Shape: config.Shape{Kind: "path", Path: "M0,10 H100%"}, scale: 1}
+	img, pad := app.rasterMask(maskSpec{shape: shape, w: 40, h: 20, stroke: 4}, 0)
+	if pad < 2 {
+		t.Fatalf("pad = %d, want room for half the stroke", pad)
+	}
+	at := func(x, y int) uint8 { return img.AlphaAt(x+int(pad), y+int(pad)).A }
+	if at(20, 10) != 255 || at(20, 9) != 255 || at(20, 14) != 0 || at(20, 5) != 0 {
+		t.Fatalf("stroke alpha across the line: %d %d %d %d", at(20, 5), at(20, 9), at(20, 10), at(20, 14))
+	}
+}
+
+func TestPathReachingPastItsBoxIsPadded(t *testing.T) {
+	app := &App{}
+	// A tail pointing up out of the box.
+	shape := boxShape{Shape: config.Shape{Kind: "path", Path: "M0,0 L5,-6 L10,0 H100% V100% H0 Z"}, scale: 1}
+	img, pad := app.rasterMask(maskSpec{shape: shape, w: 20, h: 10}, 0)
+	if pad < 6 {
+		t.Fatalf("pad = %d, want the tail's height", pad)
+	}
+	if got := img.AlphaAt(5+int(pad), int(pad)-3).A; got < 200 {
+		t.Fatalf("tail alpha = %d", got)
 	}
 }

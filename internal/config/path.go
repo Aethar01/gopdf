@@ -215,7 +215,8 @@ func pxPoint(x, y float64) PathPoint { return PathPoint{Length{Px: x}, Length{Px
 // RoundedRectPath is the path of a rect at x, y, w by h, its corners
 // rounded clockwise from the top left by r, which must fit.
 func RoundedRectPath(x, y, w, h float64, r Corners) []PathOp {
-	ops := []PathOp{{Op: 'M', Pts: [3]PathPoint{pxPoint(x+r[0], y)}}}
+	ops := make([]PathOp, 1, 10)
+	ops[0] = PathOp{Op: 'M', Pts: [3]PathPoint{pxPoint(x+r[0], y)}}
 	// Each corner: its point on the edge before it, its point on the
 	// edge after it, and the direction from the first to the corner.
 	type corner struct{ cx, cy, r, inX, inY, outX, outY float64 }
@@ -252,4 +253,37 @@ func ellipsePath(cx, cy, rx, ry float64) []PathOp {
 		{Op: 'C', Pts: [3]PathPoint{pxPoint(cx+kx, cy-ry), pxPoint(cx+rx, cy-ky), pxPoint(cx+rx, cy)}},
 		{Op: 'Z'},
 	}
+}
+
+// FormatPath writes ops as path data that ParsePath reads back.
+func FormatPath(ops []PathOp) string {
+	var b strings.Builder
+	length := func(l Length) {
+		switch {
+		case l.Frac == 0:
+			b.WriteString(strconv.FormatFloat(l.Px, 'f', -1, 64))
+		default:
+			b.WriteString(strconv.FormatFloat(l.Frac*100, 'f', -1, 64) + "%")
+			if l.Px > 0 {
+				b.WriteByte('+')
+			}
+			if l.Px != 0 {
+				b.WriteString(strconv.FormatFloat(l.Px, 'f', -1, 64))
+			}
+		}
+	}
+	points := map[byte]int{'M': 1, 'L': 1, 'Q': 2, 'C': 3}
+	for i, op := range ops {
+		if i > 0 {
+			b.WriteByte(' ')
+		}
+		b.WriteByte(op.Op)
+		for _, p := range op.Pts[:points[op.Op]] {
+			b.WriteByte(' ')
+			length(p.X)
+			b.WriteByte(',')
+			length(p.Y)
+		}
+	}
+	return b.String()
 }

@@ -6,6 +6,7 @@ import (
 	"image/color"
 	"log"
 	"math"
+	"slices"
 
 	"gopdf/internal/config"
 
@@ -97,8 +98,20 @@ func (a *App) drawBox(renderer *sdl.Renderer, st *config.Style, rect sdl.FRect) 
 }
 
 // drawBoxParts draws parts of a box. A box holding other elements has its
-// border drawn after them, so that they cannot cover it.
-func (a *App) drawBoxParts(renderer *sdl.Renderer, st *config.Style, rect sdl.FRect, parts boxParts) {
+// border drawn after them, so that they cannot cover it. A style's draw
+// function draws its box when the body is drawn; the border is still to
+// be drawn after only if the function drew the default box, which the
+// result reports.
+func (a *App) drawBoxParts(renderer *sdl.Renderer, st *config.Style, rect sdl.FRect, parts boxParts) bool {
+	if fn := st.Draw.V; fn != nil && parts&boxBody != 0 && !a.themeErrors[fn] {
+		return a.runDrawFunction(renderer, st, rect, parts)
+	}
+	a.drawDefaultBox(renderer, st, rect, parts)
+	return true
+}
+
+// drawDefaultBox draws parts of a box as its style describes.
+func (a *App) drawDefaultBox(renderer *sdl.Renderer, st *config.Style, rect sdl.FRect, parts boxParts) {
 	box := pixelRect(rect)
 	if box.W <= 0 || box.H <= 0 {
 		return
@@ -170,13 +183,15 @@ type boxShape struct {
 }
 
 // maskSpec is a mask of a shape on a w by h box: its fill, its border
-// border pixels wide on sides, or its shadow, grown by spread and blurred.
+// border pixels wide on sides, its shadow, grown by spread and blurred, or
+// for a path a line stroke pixels wide along it.
 type maskSpec struct {
 	shape        boxShape
 	w, h         int32
 	border       float32
 	sides        config.Sides
 	spread, blur float32
+	stroke       float32
 }
 
 // mask is a rasterised shape as a texture, white with the shape's
@@ -250,7 +265,7 @@ func (a *App) shapeMask(renderer *sdl.Renderer, spec maskSpec) (mask, bool) {
 	if m, ok := a.masks.get(key); ok {
 		return m, true
 	}
-	img := a.rasterMask(key, pad)
+	img, pad := a.rasterMask(key, pad)
 	if img == nil {
 		return mask{}, false
 	}
@@ -269,14 +284,30 @@ func (a *App) shapeMask(renderer *sdl.Renderer, spec maskSpec) (mask, bool) {
 	return m, true
 }
 
-// rasterMask rasterises spec's mask with pad pixels around the box.
-func (a *App) rasterMask(spec maskSpec, pad int32) *image.Alpha {
+// rasterMask rasterises spec's mask with at least pad pixels around the
+// box, and more for a path reaching past it, returning the pad it used.
+func (a *App) rasterMask(spec maskSpec, pad int32) (*image.Alpha, int32) {
+	var ops []config.PathOp
+	if spec.shape.Kind == "path" {
+		var err error
+		if ops, err = a.shapePath(spec.shape, float64(spec.w), float64(spec.h)); err != nil {
+			spec.shape = boxShape{Shape: config.Shape{Kind: "rect"}} // a plain rect in place of a broken shape
+		} else {
+			pad += pathOverflow(ops, spec.w, spec.h, spec.shape.scale) + int32(math.Ceil(float64(max(0, spec.spread)+spec.stroke/2)))
+		}
+	}
 	w, h := int(spec.w+2*pad), int(spec.h+2*pad)
 	if w <= 0 || h <= 0 || w*h > 1<<26 {
-		return nil
+		return nil, 0
 	}
 	fx, fy, fw, fh := float32(pad), float32(pad), float32(spec.w), float32(spec.h)
 	switch {
+	case spec.stroke > 0 && ops != nil:
+		img := image.NewAlpha(image.Rect(0, 0, w, h))
+		r := vector.NewRasterizer(w, h)
+		strokePath(r, flattenPath(ops, pathPlacer(fx, fy, fw, fh, spec.shape.scale)), spec.stroke)
+		r.Draw(img, img.Bounds(), image.Opaque, image.Point{})
+		return img, pad
 	case spec.border > 0:
 		img := a.rasterShape(spec.shape, w, h, fx, fy, fw, fh, 0)
 		// The border is what the shape covers beyond the same shape inset
@@ -295,13 +326,35 @@ func (a *App) rasterMask(spec maskSpec, pad int32) *image.Alpha {
 		for i, v := range hole.Pix {
 			img.Pix[i] = uint8(max(0, int(img.Pix[i])-int(v)))
 		}
-		return img
+		return img, pad
 	case spec.spread != 0 || spec.blur > 0:
 		img := a.rasterShape(spec.shape, w, h, fx-spec.spread, fy-spec.spread, fw+2*spec.spread, fh+2*spec.spread, spec.spread)
 		blurAlpha(img, float64(spec.blur)/2)
-		return img
+		return img, pad
 	}
-	return a.rasterShape(spec.shape, w, h, fx, fy, fw, fh, 0)
+	return a.rasterShape(spec.shape, w, h, fx, fy, fw, fh, 0), pad
+}
+
+// pathOverflow is how far ops, laid over a w by h box, reach past it on
+// any side.
+func pathOverflow(ops []config.PathOp, w, h int32, scale float32) int32 {
+	at := pathPlacer(0, 0, float32(w), float32(h), scale)
+	var over float32
+	for _, op := range ops {
+		for _, p := range op.Pts {
+			x, y := at(p)
+			over = max(over, -x, -y, x-float32(w), y-float32(h))
+		}
+	}
+	return int32(math.Ceil(float64(over)))
+}
+
+// pathPlacer places path points over the box at x, y, w by h; scale
+// converts their pixels to output pixels.
+func pathPlacer(x, y, w, h, scale float32) func(config.PathPoint) (float32, float32) {
+	return func(p config.PathPoint) (float32, float32) {
+		return x + float32(p.X.Frac)*w + float32(p.X.Px)*scale, y + float32(p.Y.Frac)*h + float32(p.Y.Px)*scale
+	}
 }
 
 // rasterShape draws shape over the box at x, y, bw by bh, in a w by h
@@ -340,23 +393,30 @@ func (a *App) shapePath(shape boxShape, bw, bh float64) ([]config.PathOp, error)
 	} else {
 		ops, err = config.ParsePath(shape.Path)
 	}
-	if err != nil && !a.shapeErrors[shape.Shape] {
-		if a.shapeErrors == nil {
-			a.shapeErrors = map[config.Shape]bool{}
-		}
-		a.shapeErrors[shape.Shape] = true
-		log.Printf("theme shape: %v", err)
-		a.message = "theme shape: " + err.Error()
+	if err != nil {
+		a.reportThemeError(shape.Shape, "theme shape", err)
 	}
 	return ops, err
+}
+
+// reportThemeError reports err, from a shape or draw function the theme
+// gave, once for each such key until the config changes.
+func (a *App) reportThemeError(key any, what string, err error) {
+	if a.themeErrors[key] {
+		return
+	}
+	if a.themeErrors == nil {
+		a.themeErrors = map[any]bool{}
+	}
+	a.themeErrors[key] = true
+	log.Printf("%s: %v", what, err)
+	a.message = what + ": " + err.Error()
 }
 
 // tracePath adds ops to r with the box at x, y, w by h; scale converts the
 // ops' pixels to output pixels.
 func tracePath(r *vector.Rasterizer, ops []config.PathOp, x, y, w, h, scale float32) {
-	at := func(p config.PathPoint) (float32, float32) {
-		return x + float32(p.X.Frac)*w + float32(p.X.Px)*scale, y + float32(p.Y.Frac)*h + float32(p.Y.Px)*scale
-	}
+	at := pathPlacer(x, y, w, h, scale)
 	for _, op := range ops {
 		switch op.Op {
 		case 'M':
@@ -545,4 +605,134 @@ func intersectRects(a, b sdl.Rect) sdl.Rect {
 	x0, y0 := max(a.X, b.X), max(a.Y, b.Y)
 	x1, y1 := min(a.X+a.W, b.X+b.W), min(a.Y+a.H, b.Y+b.H)
 	return sdl.Rect{X: x0, Y: y0, W: max(0, x1-x0), H: max(0, y1-y0)}
+}
+
+// flattenPath turns ops into polylines through the points at places,
+// curves divided into short lines. A closed subpath ends at its start.
+func flattenPath(ops []config.PathOp, at func(config.PathPoint) (float32, float32)) [][]point32 {
+	var lines [][]point32
+	var line []point32
+	var start, current point32
+	pt := func(p config.PathPoint) point32 {
+		x, y := at(p)
+		return point32{x, y}
+	}
+	flush := func() {
+		if len(line) > 1 {
+			lines = append(lines, line)
+		}
+		line = nil
+	}
+	const steps = 16
+	for _, op := range ops {
+		switch op.Op {
+		case 'M':
+			flush()
+			start = pt(op.Pts[0])
+			current = start
+			line = []point32{start}
+		case 'L':
+			current = pt(op.Pts[0])
+			line = append(line, current)
+		case 'Q':
+			c, end := pt(op.Pts[0]), pt(op.Pts[1])
+			for i := 1; i <= steps; i++ {
+				t := float32(i) / steps
+				u := 1 - t
+				line = append(line, point32{u*u*current.x + 2*u*t*c.x + t*t*end.x, u*u*current.y + 2*u*t*c.y + t*t*end.y})
+			}
+			current = end
+		case 'C':
+			c1, c2, end := pt(op.Pts[0]), pt(op.Pts[1]), pt(op.Pts[2])
+			for i := 1; i <= steps; i++ {
+				t := float32(i) / steps
+				u := 1 - t
+				a, b, c, d := u*u*u, 3*u*u*t, 3*u*t*t, t*t*t
+				line = append(line, point32{a*current.x + b*c1.x + c*c2.x + d*end.x, a*current.y + b*c1.y + c*c2.y + d*end.y})
+			}
+			current = end
+		case 'Z':
+			line = append(line, start)
+			current = start
+			flush()
+			line = []point32{start}
+		}
+	}
+	flush()
+	return lines
+}
+
+type point32 struct{ x, y float32 }
+
+// strokePath adds a line width pixels wide along each polyline to r, with
+// round joins where the line turns. Every piece is wound the same way, so
+// where pieces overlap their coverage adds up rather than cancelling.
+func strokePath(r *vector.Rasterizer, lines [][]point32, width float32) {
+	half := width / 2
+	for _, line := range lines {
+		closed := line[0] == line[len(line)-1]
+		for i := 0; i+1 < len(line); i++ {
+			p, q := line[i], line[i+1]
+			dx, dy := q.x-p.x, q.y-p.y
+			length := float32(math.Hypot(float64(dx), float64(dy)))
+			if length == 0 {
+				continue
+			}
+			nx, ny := -dy/length*half, dx/length*half
+			addPolygon(r, []point32{{p.x + nx, p.y + ny}, {q.x + nx, q.y + ny}, {q.x - nx, q.y - ny}, {p.x - nx, p.y - ny}})
+		}
+		for i, p := range line {
+			var prev, next point32
+			switch {
+			case i > 0 && i+1 < len(line):
+				prev, next = line[i-1], line[i+1]
+			case closed && len(line) > 2:
+				prev, next = line[len(line)-2], line[1]
+			default:
+				continue // an open end is cut square
+			}
+			if turns(prev, p, next) {
+				addPolygon(r, disc(p, half))
+			}
+		}
+	}
+}
+
+// turns reports whether a line through a, b and c bends at b by more
+// than a curve's divisions do.
+func turns(a, b, c point32) bool {
+	ux, uy, vx, vy := b.x-a.x, b.y-a.y, c.x-b.x, c.y-b.y
+	lu, lv := math.Hypot(float64(ux), float64(uy)), math.Hypot(float64(vx), float64(vy))
+	if lu == 0 || lv == 0 {
+		return false
+	}
+	return float64(ux*vx+uy*vy)/(lu*lv) < math.Cos(15*math.Pi/180)
+}
+
+func disc(c point32, r float32) []point32 {
+	n := max(8, min(32, int(r*4)))
+	points := make([]point32, n)
+	for i := range points {
+		angle := 2 * math.Pi * float64(i) / float64(n)
+		points[i] = point32{c.x + r*float32(math.Cos(angle)), c.y + r*float32(math.Sin(angle))}
+	}
+	return points
+}
+
+// addPolygon adds the closed polygon through points to r, wound clockwise
+// on screen.
+func addPolygon(r *vector.Rasterizer, points []point32) {
+	var area float32
+	for i, p := range points {
+		q := points[(i+1)%len(points)]
+		area += p.x*q.y - q.x*p.y
+	}
+	if area < 0 {
+		slices.Reverse(points)
+	}
+	r.MoveTo(points[0].x, points[0].y)
+	for _, p := range points[1:] {
+		r.LineTo(p.x, p.y)
+	}
+	r.ClosePath()
 }

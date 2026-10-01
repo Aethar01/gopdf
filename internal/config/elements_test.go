@@ -1,6 +1,8 @@
 package config
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -329,6 +331,133 @@ func TestElementReferencesCoverEveryElement(t *testing.T) {
 	for _, ref := range StylePropertyReferences() {
 		if ref.Description == "" {
 			t.Errorf("property %s is undocumented", ref.Name)
+		}
+	}
+}
+
+// recordingCanvas notes what a draw function draws.
+type recordingCanvas struct{ calls []string }
+
+func (c *recordingCanvas) Default() { c.calls = append(c.calls, "default") }
+func (c *recordingCanvas) Fill(path []PathOp, clr Color) {
+	c.calls = append(c.calls, "fill "+FormatPath(path)+" "+formatStyleColor(clr))
+}
+func (c *recordingCanvas) Stroke(path []PathOp, clr Color, width float64) {
+	c.calls = append(c.calls, "stroke "+FormatPath(path)+" "+formatStyleColor(clr)+" "+formatNumber(width))
+}
+func (c *recordingCanvas) Text(x, y float64, text string, clr Color, bold bool) float64 {
+	c.calls = append(c.calls, "text "+text)
+	return 42
+}
+func (c *recordingCanvas) Measure(text string, bold bool) (float64, float64) { return 10, 16 }
+
+func TestDrawFunctionDrawsOnTheCanvas(t *testing.T) {
+	rt := mustLoadThemeTestConfig(t, `
+gopdf.theme.elements.row.draw = function(canvas, box, state)
+  assert(state.element == "row_selected", state.element)
+  assert(box.w == 100 and box.h == 20 and not state.alt)
+  canvas:default()
+  canvas:rect(0, 0, 3, box.h, "accent")
+  canvas:fill("M0,0 L100%,0 L50%,100% Z", "#ff000080")
+  canvas:stroke(canvas:path():move_to(0, 0):line_to(box.w, 0), "border", 2)
+  local w, h = canvas:measure("hi")
+  assert(w == 10 and h == 16)
+  assert(canvas:text(0, 0, "hi", "muted") == 42)
+end
+`)
+	theme := rt.Config().Theme
+	// Rows' draw function carries to the selected row.
+	style := theme.Style(ElementRowSelected)
+	canvas := &recordingCanvas{}
+	if err := rt.RunDraw(style.Draw.V, canvas, DrawState{Element: style.Element, W: 100, H: 20}); err != nil {
+		t.Fatal(err)
+	}
+	want := []string{
+		"default",
+		"fill M 0,0 L 3,0 L 3,20 L 0,20 L 0,0 Z accent",
+		"fill M 0,0 L 100%,0 L 50%,100% Z #ff000080",
+		"stroke M 0,0 L 100,0 border 2",
+		"text hi",
+	}
+	if strings.Join(canvas.calls, "\n") != strings.Join(want, "\n") {
+		t.Fatalf("calls:\n%s\nwant:\n%s", strings.Join(canvas.calls, "\n"), strings.Join(want, "\n"))
+	}
+	if err := rt.SetOption("theme.elements.row.draw", "x"); err == nil || !strings.Contains(err.Error(), "set it in Lua") {
+		t.Fatalf(":set of draw = %v", err)
+	}
+	if _, err := rt.Eval(`gopdf.theme.elements.row.draw = false`); err != nil {
+		t.Fatal(err)
+	}
+	if theme := rt.Config().Theme; theme.Style(ElementRow).Draw.V != nil {
+		t.Fatal("draw = false left the function")
+	}
+}
+
+func TestDrawFunctionErrors(t *testing.T) {
+	rt := mustLoadThemeTestConfig(t, `
+gopdf.theme.elements.hint.draw = function(canvas) canvas:fill("M 0", "accent") end
+gopdf.theme.elements.panel.draw = function(canvas) canvas:fill("M0,0 L1,1", "acent") end
+`)
+	theme := rt.Config().Theme
+	for e, want := range map[Element]string{ElementHint: "path ends", ElementPanel: `unknown colour "acent"`} {
+		if err := rt.RunDraw(theme.Style(e).Draw.V, &recordingCanvas{}, DrawState{Element: e}); err == nil || !strings.Contains(err.Error(), want) {
+			t.Errorf("%s: error = %v, want %q", e, err, want)
+		}
+	}
+	if _, err := loadThemeTestConfig(t, `gopdf.theme.elements.hint.draw = 3`); err == nil || !strings.Contains(err.Error(), "expected a function") {
+		t.Fatalf("draw = 3: %v", err)
+	}
+}
+
+func TestFormatPathParsesBack(t *testing.T) {
+	text := "M 0,0 L 100%-6,0 Q 50%,100%+2 0,10 C 1,2 3,4 25%,-1 Z"
+	ops, err := ParsePath(text)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := FormatPath(ops); got != text {
+		t.Fatalf("FormatPath = %q, want %q", got, text)
+	}
+}
+
+func TestKeptCanvasCannotDraw(t *testing.T) {
+	rt := mustLoadThemeTestConfig(t, `
+kept = nil
+gopdf.theme.elements.row.draw = function(canvas) kept = canvas end
+`)
+	theme := rt.Config().Theme
+	if err := rt.RunDraw(theme.Style(ElementRow).Draw.V, &recordingCanvas{}, DrawState{}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := rt.Eval(`kept:default()`); err == nil || !strings.Contains(err.Error(), "expected a canvas drawing now") {
+		t.Fatalf("drawing on a kept canvas: %v", err)
+	}
+}
+
+// A draw function runs for every element it styles on every frame.
+func BenchmarkRunDraw(b *testing.B) {
+	path := filepath.Join(b.TempDir(), "config.lua")
+	source := `
+gopdf.theme.elements.row.draw = function(canvas, box, state)
+  canvas:default()
+  canvas:rect(0, 5, 3, box.h - 10, "accent", 1.5)
+  canvas:stroke("M0,100% H100%", "accent/50", 1)
+end
+`
+	if err := os.WriteFile(path, []byte(source), 0o644); err != nil {
+		b.Fatal(err)
+	}
+	rt, err := OpenWithOptions(path, "", OpenOptions{NoPlugins: true})
+	if err != nil {
+		b.Fatal(err)
+	}
+	defer rt.Close()
+	theme := rt.Config().Theme
+	fn := theme.Style(ElementRow).Draw.V
+	b.ReportAllocs()
+	for b.Loop() {
+		if err := rt.RunDraw(fn, &recordingCanvas{}, DrawState{Element: ElementRow, W: 300, H: 24}); err != nil {
+			b.Fatal(err)
 		}
 	}
 }

@@ -72,11 +72,13 @@ func (a *App) modalListBaselineOffset(rowHeight int) int {
 // clipped to it, and its border over that.
 func (a *App) drawPanel(renderer *sdl.Renderer, element config.Element, rect sdl.FRect, drawContent func() error) error {
 	st := a.style(element)
-	a.drawBoxParts(renderer, &st, rect, boxBody)
+	border := a.drawBoxParts(renderer, &st, rect, boxBody)
 	if err := a.withClip(renderer, rect, drawContent); err != nil {
 		return err
 	}
-	a.drawBoxParts(renderer, &st, rect, boxBorder)
+	if border {
+		a.drawBoxParts(renderer, &st, rect, boxBorder)
+	}
 	return nil
 }
 
