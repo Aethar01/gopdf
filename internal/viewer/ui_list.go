@@ -20,7 +20,25 @@ type uiRow struct {
 	depth     int
 	marker    string
 	disabled  bool
+	key       string      // a key binding, drawn in a column before the text
+	heading   bool        // a section title, drawn in the heading face; also disabled
 	swatch    *color.RGBA // a colour sample drawn before the text
+}
+
+// splitHeader splits a panel header such as "Outline /query (3/10)" into
+// its title and the detail after it, drawn muted.
+func splitHeader(header string) (title, detail string) {
+	cut := len(header)
+	for _, sep := range []string{" /", " ("} {
+		if i := strings.Index(header, sep); i > 0 && i < cut {
+			cut = i
+		}
+	}
+	title, detail = header[:cut], strings.TrimSpace(header[cut:])
+	if strings.HasPrefix(detail, "(") && strings.HasSuffix(detail, ")") && strings.Count(detail, "(") == 1 {
+		detail = detail[1 : len(detail)-1]
+	}
+	return title, strings.ReplaceAll(strings.ReplaceAll(detail, " (", "  "), ")", "")
 }
 
 type uiView struct {
@@ -129,7 +147,17 @@ func (v *uiView) frameGeometry(a *App) (sdl.FRect, int) {
 	if v.geometry != nil {
 		return v.geometry(a)
 	}
-	return a.modalListGeometry(v.widthPercent, v.heightPercent)
+	rect, rows := a.modalListGeometry(v.widthPercent, v.heightPercent)
+	if v.listGeometry != nil {
+		return rect, rows
+	}
+	// A short list gets a panel to fit, from the same top, so filtering it
+	// leaves the header in place.
+	if fit := max(1, len(v.visibleRows())); fit < rows {
+		rect.H -= float32((rows - fit) * a.modalListRowHeight())
+		rows = fit
+	}
+	return rect, rows
 }
 
 func (v *uiView) contentGeometry(a *App) (sdl.FRect, int) {
@@ -330,10 +358,14 @@ func (a *App) drawUIView(renderer *sdl.Renderer, view *uiView) error {
 		return view.draw(a, renderer)
 	}
 	rect, _ := view.frameGeometry(a)
-	listRect, rows := view.contentGeometry(a)
 	if err := a.drawModalListFrame(renderer, rect); err != nil {
 		return err
 	}
+	return a.withClip(renderer, rect, func() error { return a.drawUIViewContent(renderer, view, rect) })
+}
+
+func (a *App) drawUIViewContent(renderer *sdl.Renderer, view *uiView, rect sdl.FRect) error {
+	listRect, rows := view.contentGeometry(a)
 	items := view.visibleRows()
 	header := view.title
 	if view.header != nil {
@@ -347,7 +379,8 @@ func (a *App) drawUIView(renderer *sdl.Renderer, view *uiView) error {
 	}
 	rowHeight := a.modalListRowHeight()
 	baselineOffset := a.modalListBaselineOffset(rowHeight)
-	if err := a.drawText(renderer, a.truncateModalListText(header, int(rect.W)-24), int(rect.X)+12, int(rect.Y)+baselineOffset, a.foregroundColor()); err != nil {
+	title, detail := splitHeader(header)
+	if err := a.drawModalListHeader(renderer, rect, title, detail); err != nil {
 		return err
 	}
 	if len(items) == 0 {
@@ -355,7 +388,7 @@ func (a *App) drawUIView(renderer *sdl.Renderer, view *uiView) error {
 		if view.empty != nil {
 			empty = view.empty(a, view)
 		}
-		return a.drawText(renderer, empty, int(listRect.X)+16, int(listRect.Y)+rowHeight+baselineOffset, a.foregroundColor())
+		return a.drawText(renderer, empty, int(listRect.X)+a.modalListTextInset(), int(listRect.Y)+rowHeight+baselineOffset, a.mutedColor())
 	}
 	return a.drawUIListItems(renderer, listRect, rows, view, items)
 }
@@ -368,6 +401,7 @@ func (a *App) drawUIListItems(renderer *sdl.Renderer, rect sdl.FRect, rows int, 
 	baselineOffset := a.modalListBaselineOffset(rowHeight)
 	rows = max(1, rows)
 	view.scroll = clampInt(view.scroll, 0, max(0, len(items)-rows))
+	keyColumn := a.keyColumnWidth(items, int(rect.W*0.35))
 	for row := 0; row < rows; row++ {
 		itemIndex := view.scroll + row
 		if itemIndex >= len(items) {
@@ -380,38 +414,65 @@ func (a *App) drawUIListItems(renderer *sdl.Renderer, rect sdl.FRect, rows int, 
 				return err
 			}
 		}
-		clr := a.foregroundColor()
-		if item.index == view.selected {
-			clr = a.highlightForegroundColor()
+		inset := a.modalListTextInset()
+		clr, secondaryColor := a.foregroundColor(), a.mutedColor()
+		if item.disabled {
+			clr = a.mutedColor()
+		}
+		if item.heading {
+			if err := a.drawHeading(renderer, a.truncateModalListText(item.text, int(rect.W)-2*inset), int(rect.X)+inset, y+baselineOffset, a.mutedColor()); err != nil {
+				return err
+			}
+			continue
 		}
 		text := strings.Repeat("  ", max(0, item.depth)) + item.marker + item.text
-		textWidth := int(rect.W) - 32
+		textWidth := int(rect.W) - 2*inset
 		// The right-hand column gets at most 45% of a narrow row.
 		secondary := a.truncateModalListText(item.secondary, int(rect.W*0.45))
 		secondaryWidth := measureText(a.fontFace, secondary)
 		if secondary != "" {
-			textWidth = int(rect.W) - 36 - secondaryWidth
+			textWidth -= secondaryWidth + a.ipx(12)
 		}
-		if item.disabled {
-			clr.A /= 2
-		}
-		textX := int(rect.X) + 16
+		textX := int(rect.X) + inset
 		if item.swatch != nil {
-			size := rowHeight - 8
-			fillRect(renderer, sdl.FRect{X: float32(textX), Y: float32(y + 4), W: float32(size), H: float32(size)}, *item.swatch)
-			textX += size + 8
-			textWidth -= size + 8
+			size := float32(a.uiLineHeight())
+			swatch := sdl.FRect{X: float32(textX), Y: float32(y) + (float32(rowHeight)-size)/2, W: size, H: size}
+			fillRoundedRect(renderer, swatch, min(a.uiRadius()/2, size/2), 1, *item.swatch)
+			strokeRoundedRect(renderer, swatch, min(a.uiRadius()/2, size/2), a.hairline(), a.borderColor())
+			textX += int(size) + a.ipx(8)
+			textWidth -= int(size) + a.ipx(8)
+		}
+		if item.key != "" {
+			if err := a.drawText(renderer, a.truncateModalListText(item.key, keyColumn), textX, y+baselineOffset, a.mutedColor()); err != nil {
+				return err
+			}
+		}
+		if keyColumn > 0 {
+			textX += keyColumn + a.ipx(16)
+			textWidth -= keyColumn + a.ipx(16)
 		}
 		if err := a.drawText(renderer, a.truncateModalListText(text, textWidth), textX, y+baselineOffset, clr); err != nil {
 			return err
 		}
 		if secondary != "" {
-			if err := a.drawText(renderer, secondary, int(rect.X+rect.W)-16-secondaryWidth, y+baselineOffset, clr); err != nil {
+			if err := a.drawText(renderer, secondary, int(rect.X+rect.W)-inset-secondaryWidth, y+baselineOffset, secondaryColor); err != nil {
 				return err
 			}
 		}
 	}
 	return a.drawModalListScrollbar(renderer, rect, rowHeight, rows, len(items), view.scroll)
+}
+
+// keyColumnWidth is the width of the key column: the widest key of items,
+// at most limit, or 0 with no keys.
+func (a *App) keyColumnWidth(items []uiRow, limit int) int {
+	width := 0
+	for _, item := range items {
+		if item.key != "" {
+			width = max(width, measureText(a.fontFace, item.key))
+		}
+	}
+	return min(width, limit)
 }
 
 func (a *App) uiViewIndexAt(view *uiView, x, y int) (uiRow, bool) {

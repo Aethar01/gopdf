@@ -46,8 +46,8 @@ func (a *App) handleInputMouseMotion(e *sdl.MouseMotionEvent) bool {
 }
 
 func (a *App) inputPositionAt(x, y float64, dragging bool) (int, bool) {
-	barY := a.winH - a.statusBarHeight()
-	if !dragging && (y < float64(barY) || y > float64(a.winH)) {
+	area := a.statusLayout().leftArea
+	if !dragging && (y < float64(area.Y) || y > float64(area.Y+area.H)) {
 		return 0, false
 	}
 	startX := float64(a.promptOrigin() + measureText(a.fontFace, a.inputPrefix()))

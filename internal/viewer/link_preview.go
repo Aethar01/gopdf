@@ -105,14 +105,15 @@ func (a *App) drawLinkPreview(renderer *sdl.Renderer) {
 	}
 	a.preview.drawn = true
 	popup, x, y := a.previewPlacement()
+	a.drawShadow(renderer, popup, 0)
 	fillRect(renderer, popup, a.pageBackgroundColor())
-	clip := sdl.Rect{X: int32(popup.X), Y: int32(popup.Y), W: int32(popup.W), H: int32(popup.H)}
-	sdl.SetRenderClipRect(renderer, &clip)
 	viewportW, viewportH := a.viewportSize()
 	page := a.preview.link.Page
-	for _, tile := range a.cache.pageTiles(page, a.tileVersion(page)) {
-		a.drawTile(renderer, tile, x, y, viewportW, viewportH)
-	}
-	sdl.SetRenderClipRect(renderer, nil)
-	strokeRect(renderer, popup, a.foregroundColor(), 1)
+	a.withClip(renderer, popup, func() error {
+		for _, tile := range a.cache.pageTiles(page, a.tileVersion(page)) {
+			a.drawTile(renderer, tile, x, y, viewportW, viewportH)
+		}
+		return nil
+	})
+	strokeRoundedRect(renderer, popup, 0, a.hairline(), a.borderColor())
 }

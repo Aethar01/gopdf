@@ -69,6 +69,7 @@ func renderReference(luaRefs []config.LuaReferenceEntry, luaDocs map[string]stri
 	for _, ref := range config.OptionReferences() {
 		fmt.Fprintf(&b, "| %s | %s | %s | %s |\n", markdownCode(ref.Name), ref.Type, markdownCode(ref.Default), ref.Description)
 	}
+	renderThemeReference(&b)
 	b.WriteString("\n## Commands\n\n")
 	b.WriteString("| Command | Description |\n|---|---|\n")
 	for _, ref := range commands.CommandReferences() {
@@ -111,9 +112,11 @@ func renderReference(luaRefs []config.LuaReferenceEntry, luaDocs map[string]stri
 	b.WriteString("\n## Lua tables\n\n")
 	b.WriteString("- `gopdf.document`: `path`, `name`, `extension`, `exists`, `size_bytes`, and `page_count`.\n")
 	b.WriteString("- `gopdf.options` (alias `gopdf.o`): all entries from the configuration-options table.\n")
+	b.WriteString("- `gopdf.theme`: the theme; see [Theme](#theme). Read or assign whole, or one field at a time.\n")
+	b.WriteString("- `gopdf.themes`: each built-in theme as a fresh table, such as `gopdf.themes.birch`.\n")
 	b.WriteString("- `gopdf.cache`, `gopdf.ui`, and `gopdf.plugin`: functions are listed above.\n")
 	b.WriteString("\n### Status bar\n\n")
-	b.WriteString("Show or hide the status bar with `gopdf.options.status_bar_visible`. Configure horizontal spacing with `gopdf.options.status_bar_padding` and text size with `gopdf.options.ui_font_size`. The `status_bar_left` and `status_bar_right` options are templates with these substitutions:\n\n")
+	b.WriteString("Show or hide the status bar with `gopdf.options.status_bar_visible`. Its look comes from the theme: `status_bar_style` places it along the bottom or floating as pills, `status_bar_padding` sets its horizontal spacing and `font.size` its text size. The `status_bar_left` and `status_bar_right` options are templates with these substitutions:\n\n")
 	b.WriteString("| Placeholder | Value |\n|---|---|\n")
 	b.WriteString("| `{message}` | Status message or active input prompt. |\n")
 	b.WriteString("| `{page}` | Current physical page, or the page range for a dual-page spread. |\n")
@@ -212,6 +215,8 @@ func renderExampleConfig() string {
 	for _, ref := range config.OptionReferences() {
 		fmt.Fprintf(&b, "gopdf.options.%s = %s -- %s\n", ref.Name, ref.Default, ref.Description)
 	}
+	b.WriteString("\n-- The theme. Fields left out keep the values of the base theme.\n\n")
+	renderExampleTheme(&b)
 	b.WriteString("\n-- Default key bindings.\n\n")
 	for _, action := range actions.All() {
 		for _, key := range action.Keys {
@@ -229,6 +234,50 @@ func renderExampleConfig() string {
 		fmt.Fprintf(&b, "gopdf.bind_mouse(%q, gopdf.%s)\n", event, cfg.MouseBindings[event])
 	}
 	return b.String()
+}
+
+// renderThemeReference documents the theme table and its presets.
+func renderThemeReference(b *strings.Builder) {
+	b.WriteString("\n## Theme\n\n")
+	b.WriteString("The theme is everything about how the viewer looks: its colours, UI font and the shape of its panels. Assign it as one table, so a theme can be shared as a single table:\n\n")
+	b.WriteString("```lua\ngopdf.theme = {\n  base = \"birch\",  -- start from a built-in theme; the default is " + config.DefaultTheme + "\n  accent = \"#335533\",\n  alt = { accent = \"#88aa88\" },\n  font = { family = \"Iosevka\", size = 14 },\n}\n```\n\n")
+	b.WriteString("`require` searches the configuration file's directory first, so a theme can live in a file of its own beside `config.lua`. Have it return its table, as `themes/forest.lua` holding `return { accent = \"#2f5d3a\" }`, and apply it with `gopdf.theme = require(\"themes.forest\")`; dots in the name are directories, and `require(\"forest\")` would load `forest.lua`.\n\n")
+	b.WriteString("Fields left out keep the base theme's values. Assign a preset by name with `gopdf.theme = \"birch\"`, or a single field with `gopdf.theme.accent = \"#335533\"`; at runtime use `:set theme=birch` or `:set theme.accent=#335533`. Built-in themes: " + codeList(config.ThemeNames()) + ". `gopdf.themes.<name>` gives a copy of one to change.\n\n")
+	b.WriteString("Colours are `\"#RRGGBB\"` or `{ r, g, b }`. The `alt` table holds the colours used in alternate-color mode, toggled with `:colors`, and has the same colour fields as the theme. The `font` table picks the UI font; with neither `family` nor `path` set it is the system's interface font.\n\n")
+	b.WriteString("| Field | Type | Default | Description |\n|---|---|---|---|\n")
+	for _, ref := range config.ThemeReferences() {
+		fmt.Fprintf(b, "| %s | %s | %s | %s |\n", markdownCode(ref.Name), ref.Type, markdownCode(ref.Default), ref.Description)
+	}
+}
+
+// renderExampleTheme writes the default theme as a gopdf.theme table.
+func renderExampleTheme(b *strings.Builder) {
+	fmt.Fprintf(b, "gopdf.theme = {\n  base = %q,\n", config.DefaultTheme)
+	group := ""
+	for _, ref := range config.ThemeReferences() {
+		name, member, nested := strings.Cut(ref.Name, ".")
+		if !nested {
+			name, member = "", name
+		}
+		if name != group {
+			if group != "" {
+				b.WriteString("  },\n")
+			}
+			if name != "" {
+				fmt.Fprintf(b, "  %s = {\n", name)
+			}
+			group = name
+		}
+		indent := "  "
+		if group != "" {
+			indent = "    "
+		}
+		fmt.Fprintf(b, "%s%s = %s, -- %s\n", indent, member, ref.Default, ref.Description)
+	}
+	if group != "" {
+		b.WriteString("  },\n")
+	}
+	b.WriteString("}\n")
 }
 
 func markdownCode(value string) string {

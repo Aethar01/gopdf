@@ -205,41 +205,6 @@ func normalizeLinkSchemes(schemes []string) []string {
 	return normalized
 }
 
-func colorOption(description string, get func(*Config) [3]uint8, set func(*Config, [3]uint8)) optionDesc {
-	return optionDesc{
-		kind:        "color",
-		description: description,
-		get: func(L *lua.LState, cfg *Config) lua.LValue {
-			tbl := L.NewTable()
-			c := get(cfg)
-			for i := range 3 {
-				tbl.RawSetInt(i+1, lua.LNumber(c[i]))
-			}
-			return tbl
-		},
-		format: func(cfg *Config) string {
-			color := get(cfg)
-			return fmt.Sprintf("%d,%d,%d", color[0], color[1], color[2])
-		},
-		applyText: func(cfg *Config, raw string) error {
-			color, err := parseColorOption(raw)
-			if err != nil {
-				return err
-			}
-			set(cfg, color)
-			return nil
-		},
-		apply: func(cfg *Config, value lua.LValue) error {
-			tbl, ok := value.(*lua.LTable)
-			if !ok {
-				return fmt.Errorf("expected table")
-			}
-			set(cfg, readColor(tbl, get(cfg)))
-			return nil
-		},
-	}
-}
-
 func OptionNames() []string {
 	names := make([]string, 0, len(configOptions))
 	for name := range configOptions {
@@ -262,6 +227,9 @@ func (r *Runtime) SetOption(name, value string) error {
 	name = normalizeOptionName(name)
 	desc, ok := configOptions[name]
 	if !ok {
+		if err := movedOptionError(name); err != nil {
+			return err
+		}
 		if err := r.setPluginOption(name, value); err != nil {
 			return fmt.Errorf("%s: %w", name, err)
 		}
@@ -421,8 +389,6 @@ var configOptions = map[string]optionDesc{
 		c.PageGapHorizontal = v
 		c.SpreadGap = v
 	}),
-	"status_bar_padding":  intOption("Horizontal status bar padding in pixels.", func(c *Config) int { return c.StatusBarPadding }, func(c *Config, v int) { c.StatusBarPadding = v }),
-	"ui_font_size":        intOption("UI font size in pixels.", func(c *Config) int { return c.UIFontSize }, func(c *Config, v int) { c.UIFontSize = v }),
 	"sequence_timeout_ms": intOption("Maximum delay between keys in a binding sequence.", func(c *Config) int { return c.SequenceTimeoutMS }, func(c *Config, v int) { c.SequenceTimeoutMS = v }),
 	"animation_frame_ms":  intOption("Animation timestep in milliseconds; clamped to at least 1.", func(c *Config) int { return c.AnimationFrameMS }, func(c *Config, v int) { c.AnimationFrameMS = max(1, v) }),
 	"render_threads":      intOption("Page rendering threads; 0 picks one per core up to 4, leaving a core free. Applies to newly opened documents.", func(c *Config) int { return c.RenderThreads }, func(c *Config, v int) { c.RenderThreads = max(0, v) }),
@@ -459,26 +425,13 @@ var configOptions = map[string]optionDesc{
 			c.PinchSensitivity = v
 		}
 	}),
-	"render_mode":             stringOption("Initial render mode: continuous or single.", func(c *Config) string { return c.RenderMode }, func(c *Config, v string) { c.RenderMode = NormalizeRenderMode(v) }),
-	"hint_chars":              stringOption("Characters used for link hint labels, in order of preference.", func(c *Config) string { return c.HintChars }, func(c *Config, v string) { c.HintChars = v }),
-	"fit_mode":                stringOption("Initial fit mode: page, width, height, or manual.", func(c *Config) string { return c.FitMode }, func(c *Config, v string) { c.FitMode = NormalizeFitMode(v) }),
-	"anchor_position":         stringOption("Viewport anchor: center, top, or bottom.", func(c *Config) string { return c.AnchorPosition }, func(c *Config, v string) { c.AnchorPosition = NormalizeAnchorPosition(v) }),
-	"status_bar_visible":      boolOption("Show the status bar.", func(c *Config) bool { return c.StatusBarVisible }, func(c *Config, v bool) { c.StatusBarVisible = v }),
-	"status_bar_left":         stringOption("Left status bar template.", func(c *Config) string { return c.StatusBarLeft }, func(c *Config, v string) { c.StatusBarLeft = v }),
-	"status_bar_right":        stringOption("Right status bar template.", func(c *Config) string { return c.StatusBarRight }, func(c *Config, v string) { c.StatusBarRight = v }),
-	"background":              colorOption("Viewer background color.", func(c *Config) [3]uint8 { return c.Background }, func(c *Config, v [3]uint8) { c.Background = v }),
-	"page_background":         colorOption("Normal page background color.", func(c *Config) [3]uint8 { return c.PageBackground }, func(c *Config, v [3]uint8) { c.PageBackground = v }),
-	"foreground":              colorOption("UI foreground color.", func(c *Config) [3]uint8 { return c.Foreground }, func(c *Config, v [3]uint8) { c.Foreground = v }),
-	"status_bar_color":        colorOption("Normal status bar background color.", func(c *Config) [3]uint8 { return c.StatusBarColor }, func(c *Config, v [3]uint8) { c.StatusBarColor = v }),
-	"alt_background":          colorOption("Viewer background in alternate-color mode.", func(c *Config) [3]uint8 { return c.AltBackground }, func(c *Config, v [3]uint8) { c.AltBackground = v }),
-	"alt_page_background":     colorOption("Page background in alternate-color mode.", func(c *Config) [3]uint8 { return c.AltPageBackground }, func(c *Config, v [3]uint8) { c.AltPageBackground = v }),
-	"alt_foreground":          colorOption("UI foreground in alternate-color mode.", func(c *Config) [3]uint8 { return c.AltForeground }, func(c *Config, v [3]uint8) { c.AltForeground = v }),
-	"alt_status_bar_color":    colorOption("Status bar background in alternate-color mode.", func(c *Config) [3]uint8 { return c.AltStatusBarColor }, func(c *Config, v [3]uint8) { c.AltStatusBarColor = v }),
-	"highlight_foreground":    colorOption("Border and text of highlights: selections, search matches and link hints.", func(c *Config) [3]uint8 { return c.HighlightForeground }, func(c *Config, v [3]uint8) { c.HighlightForeground = v }),
-	"selection_color":         colorOption("Highlight of selected text, the selected menu row, link hints and the overview's selected page.", func(c *Config) [3]uint8 { return c.SelectionColor }, func(c *Config, v [3]uint8) { c.SelectionColor = v }),
-	"search_highlight_color":  colorOption("Highlight of search matches.", func(c *Config) [3]uint8 { return c.SearchHighlightColor }, func(c *Config, v [3]uint8) { c.SearchHighlightColor = v }),
-	"presentation_background": colorOption("Background around the page in presentation mode.", func(c *Config) [3]uint8 { return c.PresentationBackground }, func(c *Config, v [3]uint8) { c.PresentationBackground = v }),
-	"search_current_color":    colorOption("Highlight of the current search match.", func(c *Config) [3]uint8 { return c.SearchCurrentColor }, func(c *Config, v [3]uint8) { c.SearchCurrentColor = v }),
+	"render_mode":        stringOption("Initial render mode: continuous or single.", func(c *Config) string { return c.RenderMode }, func(c *Config, v string) { c.RenderMode = NormalizeRenderMode(v) }),
+	"hint_chars":         stringOption("Characters used for link hint labels, in order of preference.", func(c *Config) string { return c.HintChars }, func(c *Config, v string) { c.HintChars = v }),
+	"fit_mode":           stringOption("Initial fit mode: page, width, height, or manual.", func(c *Config) string { return c.FitMode }, func(c *Config, v string) { c.FitMode = NormalizeFitMode(v) }),
+	"anchor_position":    stringOption("Viewport anchor: center, top, or bottom.", func(c *Config) string { return c.AnchorPosition }, func(c *Config, v string) { c.AnchorPosition = NormalizeAnchorPosition(v) }),
+	"status_bar_visible": boolOption("Show the status bar.", func(c *Config) bool { return c.StatusBarVisible }, func(c *Config, v bool) { c.StatusBarVisible = v }),
+	"status_bar_left":    stringOption("Left status bar template.", func(c *Config) string { return c.StatusBarLeft }, func(c *Config, v string) { c.StatusBarLeft = v }),
+	"status_bar_right":   stringOption("Right status bar template.", func(c *Config) string { return c.StatusBarRight }, func(c *Config, v string) { c.StatusBarRight = v }),
 }
 
 func readColor(tbl *lua.LTable, fallback [3]uint8) [3]uint8 {

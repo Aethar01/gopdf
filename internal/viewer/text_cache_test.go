@@ -80,7 +80,7 @@ func TestPromptScrollsToKeepCursorOnScreen(t *testing.T) {
 	app := testLayoutApp(1)
 	app.fontFace = basicfont.Face7x13
 	app.winW = 300
-	app.config.StatusBarPadding = 8
+	app.config.Theme.StatusBarPadding = 8
 	app.config.StatusBarLeft = "{modified}{message}"
 	app.mode = modeCommand
 	cursorX := func() int {

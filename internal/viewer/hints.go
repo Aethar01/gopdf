@@ -127,10 +127,8 @@ func (a *App) drawLinkHints(renderer *sdl.Renderer) {
 	_, viewportH := a.viewportSize()
 	metrics := a.fontFace.Metrics()
 	ascent, descent := metrics.Ascent.Ceil(), metrics.Descent.Ceil()
-	bg, fg := a.selectionColor(), a.highlightForegroundColor()
-	bg.A = 0xff
-	typedFG := fg
-	typedFG.A /= 2
+	bg, fg := a.selectionColor(), a.hintForegroundColor()
+	typedFG := mixRGBA(fg, bg, 0.5)
 	for _, hint := range a.hints.hints {
 		if !strings.HasPrefix(hint.label, a.hints.typed) {
 			continue
@@ -140,15 +138,17 @@ func (a *App) drawLinkHints(renderer *sdl.Renderer) {
 			continue
 		}
 		minX, minY, _, maxY := a.quadScreenBounds(rectQuad(hint.link.Bounds), hint.page, x, y)
-		const pad = 3
-		w := measureText(a.fontFace, hint.label) + 2*pad
-		box := hintBox(minX, minY, maxY, float64(w), float64(ascent+descent+2*pad), float64(viewportH))
-		fillRect(renderer, box, bg)
-		strokeRect(renderer, box, fg, 1)
-		left, baseline := int(box.X)+pad, int(box.Y)+pad+ascent
-		typedW := measureText(a.fontFace, a.hints.typed)
-		a.drawText(renderer, a.hints.typed, left, baseline, typedFG)
-		a.drawText(renderer, hint.label[len(a.hints.typed):], left+typedW, baseline, fg)
+		pad, vpad := a.ipx(5), a.ipx(2)
+		w := measureText(a.headingFont(), hint.label) + 2*pad
+		box := hintBox(minX, minY, maxY, float64(w), float64(ascent+descent+2*vpad), float64(viewportH))
+		radius := min(a.uiRadius()/2, box.H/2)
+		a.drawShadow(renderer, box, radius)
+		fillRoundedRect(renderer, box, radius, 1, bg)
+		strokeRoundedRect(renderer, box, radius, a.hairline(), mixRGBA(bg, fg, 0.25))
+		left, baseline := int(box.X)+pad, int(box.Y)+vpad+ascent
+		typedW := measureText(a.headingFont(), a.hints.typed)
+		a.drawHeading(renderer, a.hints.typed, left, baseline, typedFG)
+		a.drawHeading(renderer, hint.label[len(a.hints.typed):], left+typedW, baseline, fg)
 	}
 }
 

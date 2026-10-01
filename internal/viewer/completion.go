@@ -293,32 +293,40 @@ func (a *App) drawCompletion(renderer *sdl.Renderer) error {
 		return nil
 	}
 	rowHeight := a.modalListRowHeight()
+	inset := a.modalListTextInset()
+	margin := a.ipx(8)
 	width := 0
 	for _, row := range rows {
 		width = max(width, measureText(a.fontFace, row.text))
 	}
-	width = clampInt(width+24, 120, max(120, a.winW-16))
-	left := a.input.Left()
-	x := 8 + measureText(a.fontFace, a.inputPrefix()+left)
-	x = clampInt(x, 8, max(8, a.winW-width-8))
-	height := len(rows) * rowHeight
-	y := a.winH - a.statusBarHeight() - height - 4
-	y = max(8, y)
+	width = clampInt(width+2*inset, a.ipx(120), max(a.ipx(120), a.winW-2*margin))
+	// Line the completions' text up with the word being completed.
+	x := a.promptOrigin() + measureText(a.fontFace, a.inputPrefix()+a.input.Left()) - inset
+	x = clampInt(x, margin, max(margin, a.winW-width-margin))
+	vpad := int(a.modalListRowInset())
+	height := len(rows)*rowHeight + 2*vpad
+	y := max(margin, a.statusTop()-height-a.ipx(6))
 	rect := sdl.FRect{X: float32(x), Y: float32(y), W: float32(width), H: float32(height)}
 	if err := a.drawModalListFrame(renderer, rect); err != nil {
 		return err
 	}
+	return a.withClip(renderer, rect, func() error { return a.drawCompletionRows(renderer, rows, rect) })
+}
+
+func (a *App) drawCompletionRows(renderer *sdl.Renderer, rows []completionRow, rect sdl.FRect) error {
+	rowHeight := a.modalListRowHeight()
+	inset := a.modalListTextInset()
+	vpad := int(a.modalListRowInset())
+	x, y, width := int(rect.X), int(rect.Y), int(rect.W)
 	baseline := a.modalListBaselineOffset(rowHeight)
 	for i, row := range rows {
-		rowY := y + i*rowHeight
-		clr := a.foregroundColor()
+		rowY := y + vpad + i*rowHeight
 		if row.selected {
 			if err := a.drawModalListSelection(renderer, rect, rowY, rowHeight); err != nil {
 				return err
 			}
-			clr = a.highlightForegroundColor()
 		}
-		if err := a.drawText(renderer, a.truncateModalListText(row.text, width-20), x+10, rowY+baseline, clr); err != nil {
+		if err := a.drawText(renderer, a.truncateModalListText(row.text, width-2*inset), x+inset, rowY+baseline, a.foregroundColor()); err != nil {
 			return err
 		}
 	}

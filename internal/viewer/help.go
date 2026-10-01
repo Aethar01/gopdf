@@ -51,7 +51,7 @@ func (a *App) activateHelpRow(row uiRow) {
 func (a *App) helpRows() []uiRow {
 	var rows []uiRow
 	section := func(title string) {
-		rows = append(rows, uiRow{text: "── " + title + " ──", disabled: true})
+		rows = append(rows, uiRow{text: title, disabled: true, heading: true})
 	}
 	add := func(id, text, secondary, value string) {
 		rows = append(rows, uiRow{id: id, text: text, secondary: secondary, value: value})

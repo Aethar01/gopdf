@@ -20,12 +20,31 @@ func (a *App) modalListGeometry(widthPct, heightPct int) (sdl.FRect, int) {
 	x := (viewportW - w) / 2
 	y := (viewportH - h) / 2
 	rowHeight := a.modalListRowHeight()
-	rows := max(1, (h-rowHeight-16)/rowHeight)
-	return sdl.FRect{X: float32(x), Y: float32(y), W: float32(w), H: float32(h)}, rows
+	bottom := a.modalListBottomPadding()
+	rows := max(1, (h-rowHeight-bottom)/rowHeight)
+	// Fit the panel to its rows, keeping it centred.
+	fitted := min(h, rowHeight+rows*rowHeight+bottom)
+	y += (h - fitted) / 2
+	return sdl.FRect{X: float32(x), Y: float32(y), W: float32(w), H: float32(fitted)}, rows
 }
 
 func (a *App) modalListRowHeight() int {
 	return a.statusBarHeight()
+}
+
+// modalListBottomPadding is the space below a list's last row.
+func (a *App) modalListBottomPadding() int {
+	return max(a.ipx(4), a.uiPadding())
+}
+
+// modalListRowInset is how far a row's highlight is inset from the sides
+// of its panel.
+func (a *App) modalListRowInset() float32 { return a.px(6) }
+
+// modalListTextInset is how far row text is inset from the sides of its
+// panel.
+func (a *App) modalListTextInset() int {
+	return int(a.modalListRowInset()) + max(a.ipx(4), a.uiPadding())
 }
 
 func (a *App) modalListBaselineOffset(rowHeight int) int {
@@ -33,18 +52,36 @@ func (a *App) modalListBaselineOffset(rowHeight int) int {
 }
 
 func (a *App) drawModalListFrame(renderer *sdl.Renderer, rect sdl.FRect) error {
-	bg := a.backgroundColor()
-	bg.A = 0xf2
-	if err := fillRect(renderer, rect, bg); err != nil {
+	a.drawPanel(renderer, rect, a.uiRadius())
+	return nil
+}
+
+// drawModalListHeader draws a panel's title in its first row, with detail
+// such as a count after it in the muted colour, over a hairline.
+func (a *App) drawModalListHeader(renderer *sdl.Renderer, rect sdl.FRect, title, detail string) error {
+	rowHeight := a.modalListRowHeight()
+	baseline := int(rect.Y) + a.modalListBaselineOffset(rowHeight)
+	x := int(rect.X) + a.modalListTextInset()
+	width := int(rect.W) - 2*a.modalListTextInset()
+	title = truncateText(a.headingFont(), title, width)
+	if err := a.drawHeading(renderer, title, x, baseline, a.foregroundColor()); err != nil {
 		return err
 	}
-	return strokeRect(renderer, rect, a.statusBarColor(), 2)
+	if detail != "" {
+		x += measureText(a.headingFont(), title) + a.ipx(8)
+		if err := a.drawText(renderer, a.truncateModalListText(detail, int(rect.X)+int(rect.W)-a.modalListTextInset()-x), x, baseline, a.mutedColor()); err != nil {
+			return err
+		}
+	}
+	line := sdl.FRect{X: rect.X, Y: rect.Y + float32(rowHeight) - a.hairline(), W: rect.W, H: a.hairline()}
+	return fillRect(renderer, line, a.borderColor())
 }
 
 func (a *App) drawModalListSelection(renderer *sdl.Renderer, rect sdl.FRect, y, rowHeight int) error {
-	hl := a.selectionColor()
-	hl.A = 0xd8
-	return fillRect(renderer, sdl.FRect{X: rect.X + 6, Y: float32(y), W: rect.W - 12, H: float32(rowHeight)}, hl)
+	inset := a.modalListRowInset()
+	row := sdl.FRect{X: rect.X + inset, Y: float32(y), W: rect.W - 2*inset, H: float32(rowHeight)}
+	fillRoundedRect(renderer, row, a.uiRadius()*0.75, 1, a.rowSelectionColor())
+	return nil
 }
 
 func (a *App) modalListRowAt(rect sdl.FRect, rows, rowHeight, x, y int) (int, bool) {
@@ -152,14 +189,16 @@ func (a *App) drawModalListScrollbar(renderer *sdl.Renderer, rect sdl.FRect, row
 	if !ok {
 		return nil
 	}
-	trackColor := a.statusBarColor()
-	trackColor.A = 0x80
-	if err := fillRect(renderer, track, trackColor); err != nil {
-		return err
-	}
-	thumbColor := a.foregroundColor()
-	thumbColor.A = 0xb0
-	return fillRect(renderer, thumb, thumbColor)
+	// A slim thumb clear of the panel's edge; the track stays the area that
+	// takes clicks.
+	_ = track
+	w := min(thumb.W, max(2, a.px(4)))
+	thumb.X = rect.X + rect.W - a.px(5) - w
+	thumb.W = w
+	clr := a.mutedColor()
+	clr.A = 0x90
+	fillRoundedRect(renderer, thumb, w/2, 1, clr)
+	return nil
 }
 
 // truncateModalListText shortens s with an ellipsis to fit maxWidth. The

@@ -297,7 +297,8 @@ func (a *App) drawOverviewSelection(renderer *sdl.Renderer) {
 			maxX, maxY = math.Max(maxX, x+row.pageW[i]), math.Max(maxY, y+row.pageH[i])
 		}
 	}
-	const border = 3
-	rect := sdl.FRect{X: float32(minX - border), Y: float32(minY - border), W: float32(maxX - minX + 2*border), H: float32(maxY - minY + 2*border)}
-	strokeRect(renderer, rect, rgb(a.config.SelectionColor), border)
+	border, gap := float64(a.px(2.5)), float64(a.px(3))
+	out := border + gap
+	rect := sdl.FRect{X: float32(minX - out), Y: float32(minY - out), W: float32(maxX - minX + 2*out), H: float32(maxY - minY + 2*out)}
+	strokeRoundedRect(renderer, rect, min(a.uiRadius()/2+float32(out), a.px(8)), float32(border), a.accentColor())
 }

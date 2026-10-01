@@ -40,6 +40,7 @@ func (a *App) Run() error {
 	a.logf("created SDL window 1400x900")
 	a.window = window
 	a.renderer = renderer
+	a.loadUIFont() // again, now the display scale is known
 	a.waker = newLoopWaker()
 	if rw := sdl.IOFromConstMem(a.iconBytes); rw != nil {
 		if icon := sdl.LoadBMPIO(rw, true); icon != nil {
@@ -199,6 +200,8 @@ func (a *App) handleSDLEvent(event *sdl.Event) error {
 		redraw = false
 	case sdl.EventWindowExposed:
 		redraw = true
+	case sdl.EventWindowDisplayScaleChanged:
+		a.relayoutWithViewportAnchor(a.loadUIFont)
 	case sdl.EventWindowResized, sdl.EventWindowPixelSizeChanged:
 		e := event.Window()
 		a.relayoutWithViewportAnchor(func() {

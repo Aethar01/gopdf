@@ -8,11 +8,12 @@ import (
 	"image/color"
 	"io"
 	"log"
-	"net/url"
 	"os"
-	"strconv"
+	"runtime"
 	"strings"
 	"unsafe"
+
+	"gopdf/internal/config"
 
 	textfont "github.com/go-text/typesetting/font"
 	"github.com/go-text/typesetting/fontscan"
@@ -23,12 +24,11 @@ import (
 	"golang.org/x/image/math/fixed"
 )
 
-// fileBackedFontFace reads its font from an open file as needed, so it
-// caches the per-rune metrics that measuring text looks up, which would
-// otherwise read the file for every rune measured.
-type fileBackedFontFace struct {
+// cachedFontFace caches the per-rune metrics that measuring text looks up:
+// a face read from a file would otherwise read it for every rune measured.
+type cachedFontFace struct {
 	font.Face
-	file     *os.File
+	file     *os.File // the face's font, or nil for one in memory
 	advances map[rune]glyphAdvance
 	kerns    map[[2]rune]fixed.Int26_6
 }
@@ -38,7 +38,11 @@ type glyphAdvance struct {
 	ok      bool
 }
 
-func (f *fileBackedFontFace) GlyphAdvance(r rune) (fixed.Int26_6, bool) {
+func newCachedFontFace(face font.Face, file *os.File) *cachedFontFace {
+	return &cachedFontFace{Face: face, file: file, advances: map[rune]glyphAdvance{}, kerns: map[[2]rune]fixed.Int26_6{}}
+}
+
+func (f *cachedFontFace) GlyphAdvance(r rune) (fixed.Int26_6, bool) {
 	if a, ok := f.advances[r]; ok {
 		return a.advance, a.ok
 	}
@@ -47,7 +51,7 @@ func (f *fileBackedFontFace) GlyphAdvance(r rune) (fixed.Int26_6, bool) {
 	return advance, ok
 }
 
-func (f *fileBackedFontFace) Kern(r0, r1 rune) fixed.Int26_6 {
+func (f *cachedFontFace) Kern(r0, r1 rune) fixed.Int26_6 {
 	pair := [2]rune{r0, r1}
 	if k, ok := f.kerns[pair]; ok {
 		return k
@@ -57,10 +61,13 @@ func (f *fileBackedFontFace) Kern(r0, r1 rune) fixed.Int26_6 {
 	return k
 }
 
-func (f *fileBackedFontFace) Close() error {
+func (f *cachedFontFace) Close() error {
 	var faceErr error
 	if closer, ok := f.Face.(interface{ Close() error }); ok {
 		faceErr = closer.Close()
+	}
+	if f.file == nil {
+		return faceErr
 	}
 	fileErr := f.file.Close()
 	if faceErr != nil {
@@ -100,70 +107,90 @@ func (r *ttcFontReaderAt) ReadAt(p []byte, off int64) (int, error) {
 	return total + n, err
 }
 
-func loadFont(path string, size int) font.Face {
-	if path != "" {
-		var face font.Face
-		var err error
-		if strings.HasPrefix(path, "gopdf-font://") {
-			face, err = loadSystemFont(path, size)
-		} else {
-			face, err = loadFontFile(path, size)
-		}
+// systemUIFamilies are the platform's interface fonts, tried in order when
+// the theme names none, or names one that is not installed.
+func systemUIFamilies() []string {
+	switch runtime.GOOS {
+	case "darwin":
+		return []string{"System Font", "Helvetica Neue"}
+	case "windows":
+		return []string{"Segoe UI", "Tahoma"}
+	default:
+		return []string{"Adwaita Sans", "Cantarell", "Noto Sans", "Ubuntu", "DejaVu Sans", "Liberation Sans"}
+	}
+}
+
+// loadUIFonts loads the theme's UI font at size pixels, and a heavier face
+// of it for headings, which is the same face when the font has no heavier
+// weight. Without a font path or family it loads the system's interface
+// font. warning, if not nil, says why the font is not the one asked for;
+// with no font at all the faces are the built-in bitmap font.
+func loadUIFonts(f config.ThemeFont, size int) (regular, heading font.Face, warning error) {
+	size = max(1, size)
+	if f.Path != "" {
+		face, err := loadFontFile(f.Path, size)
 		if err == nil {
-			return face
+			return face, face, nil
 		}
+		warning = fmt.Errorf("font.path %q: %w", f.Path, err)
 	}
-	return basicfont.Face7x13
+	fontMap, err := systemFontMap()
+	if err != nil {
+		return basicfont.Face7x13, basicfont.Face7x13, fmt.Errorf("listing installed fonts: %w; set gopdf.theme.font.path", err)
+	}
+	families := systemUIFamilies()
+	if f.Family != "" {
+		families = append([]string{f.Family}, families...)
+	}
+	for _, family := range families {
+		regular, location, err := loadInstalledFont(fontMap, family, f.Style, f.Weight, size)
+		if err != nil {
+			if family == f.Family && warning == nil {
+				warning = fmt.Errorf("font.family %q is not installed", family)
+			}
+			continue
+		}
+		heading, headingLocation, err := loadInstalledFont(fontMap, family, f.Style, min(900, f.Weight+200), size)
+		if err != nil || headingLocation == location {
+			if heading != nil {
+				closeFontFace(heading)
+			}
+			heading = regular // the same font, as a variable font gives
+		}
+		if warning != nil {
+			warning = fmt.Errorf("%w; using %s", warning, family)
+		}
+		return regular, heading, warning
+	}
+	return basicfont.Face7x13, basicfont.Face7x13, fmt.Errorf("no interface font found (tried %s); set gopdf.theme.font.family or gopdf.theme.font.path", strings.Join(families, ", "))
 }
 
-func loadSystemFont(selector string, size int) (font.Face, error) {
-	location, err := resolveSystemFont(selector)
-	if err != nil {
-		return nil, err
-	}
-	return loadFontFileAt(location.File, size, int(location.Index))
-}
-
-func resolveSystemFont(selector string) (fontscan.Location, error) {
-	u, err := url.Parse(selector)
-	if err != nil {
-		return fontscan.Location{}, err
-	}
-	family := strings.TrimSpace(u.Query().Get("family"))
-	if family == "" {
-		return fontscan.Location{}, fmt.Errorf("empty UI font family")
-	}
-	weight, err := strconv.Atoi(u.Query().Get("weight"))
-	if err != nil || weight < 100 || weight > 900 {
-		weight = 400
-	}
-	style := textfont.StyleNormal
-	switch strings.ToLower(u.Query().Get("style")) {
-	case "italic", "oblique":
-		style = textfont.StyleItalic
-	}
-
+func systemFontMap() (*fontscan.FontMap, error) {
 	fontMap := fontscan.NewFontMap(log.New(io.Discard, "", 0))
 	if err := fontMap.UseSystemFonts(""); err != nil {
-		return fontscan.Location{}, err
+		return nil, err
 	}
-	fontMap.SetQuery(fontscan.Query{
-		Families: []string{family},
-		Aspect: textfont.Aspect{
-			Style:   style,
-			Weight:  textfont.Weight(weight),
-			Stretch: textfont.StretchNormal,
-		},
-	})
+	return fontMap, nil
+}
+
+// loadInstalledFont loads the installed family closest to style and weight.
+// It fails rather than substitute another family.
+func loadInstalledFont(fontMap *fontscan.FontMap, family, style string, weight, size int) (font.Face, fontscan.Location, error) {
+	aspect := textfont.Aspect{Style: textfont.StyleNormal, Weight: textfont.Weight(weight), Stretch: textfont.StretchNormal}
+	if style == "italic" || style == "oblique" {
+		aspect.Style = textfont.StyleItalic
+	}
+	fontMap.SetQuery(fontscan.Query{Families: []string{family}, Aspect: aspect})
 	face := fontMap.ResolveFace('M')
-	if face == nil || face.Font == nil {
-		return fontscan.Location{}, fmt.Errorf("no installed font matches %q", family)
+	if face == nil || face.Font == nil || !strings.EqualFold(face.Describe().Family, family) {
+		return nil, fontscan.Location{}, fmt.Errorf("no installed font matches %q", family)
 	}
 	location := fontMap.FontLocation(face.Font)
 	if location.File == "" {
-		return fontscan.Location{}, fmt.Errorf("no installed font location for %q", family)
+		return nil, fontscan.Location{}, fmt.Errorf("no installed font location for %q", family)
 	}
-	return location, nil
+	loaded, err := loadFontFileAt(location.File, size, int(location.Index))
+	return loaded, location, err
 }
 
 func loadFontFile(path string, size int) (font.Face, error) {
@@ -194,7 +221,7 @@ func loadFontFileAt(path string, size, collectionIndex int) (font.Face, error) {
 		_ = file.Close()
 		return nil, err
 	}
-	return &fileBackedFontFace{Face: face, file: file, advances: map[rune]glyphAdvance{}, kerns: map[[2]rune]fixed.Int26_6{}}, nil
+	return newCachedFontFace(face, file), nil
 }
 
 func openTypeFontReaderAt(file *os.File, collectionIndex int) (io.ReaderAt, error) {
@@ -253,6 +280,16 @@ func newTTCFontReaderAt(file *os.File, fontOffset int64) (io.ReaderAt, error) {
 		directory: directory,
 		shift:     int64(shift),
 	}, nil
+}
+
+// closeUIFonts closes the UI faces, the heading face being the regular one
+// when the font has no heavier weight.
+func (s *sdlState) closeUIFonts() {
+	if s.headingFace != s.fontFace {
+		closeFontFace(s.headingFace)
+	}
+	closeFontFace(s.fontFace)
+	s.fontFace, s.headingFace = nil, nil
 }
 
 func closeFontFace(face font.Face) {
@@ -327,6 +364,7 @@ const maxTextTextureCacheEntries = 512
 type textTextureKey struct {
 	text       string
 	r, g, b, a uint8
+	heading    bool
 }
 
 type cachedTextTexture struct {
@@ -337,7 +375,16 @@ type cachedTextTexture struct {
 }
 
 func (a *App) drawText(renderer *sdl.Renderer, s string, x, baselineY int, clr color.Color) error {
-	entry, err := a.cachedTextTexture(renderer, s, clr)
+	return a.drawTextFace(renderer, s, x, baselineY, clr, false)
+}
+
+// drawHeading draws s in the heavier heading face.
+func (a *App) drawHeading(renderer *sdl.Renderer, s string, x, baselineY int, clr color.Color) error {
+	return a.drawTextFace(renderer, s, x, baselineY, clr, true)
+}
+
+func (a *App) drawTextFace(renderer *sdl.Renderer, s string, x, baselineY int, clr color.Color, heading bool) error {
+	entry, err := a.cachedTextTexture(renderer, s, clr, heading)
 	if err != nil {
 		return err
 	}
@@ -345,12 +392,25 @@ func (a *App) drawText(renderer *sdl.Renderer, s string, x, baselineY int, clr c
 	return renderBool(sdl.RenderTexture(renderer, entry.texture, nil, &dst), "render text")
 }
 
-func (a *App) cachedTextTexture(renderer *sdl.Renderer, s string, clr color.Color) (cachedTextTexture, error) {
+// headingFont is the face drawHeading draws in.
+func (a *App) headingFont() font.Face {
+	if a.headingFace != nil {
+		return a.headingFace
+	}
+	return a.fontFace
+}
+
+func (a *App) cachedTextTexture(renderer *sdl.Renderer, s string, clr color.Color, heading bool) (cachedTextTexture, error) {
 	key := newTextTextureKey(s, clr)
+	key.heading = heading
 	if entry, ok := a.textCache.get(key); ok {
 		return entry, nil
 	}
-	tex, w, h, ascent, err := textTexture(renderer, a.fontFace, s, clr)
+	face := a.fontFace
+	if heading {
+		face = a.headingFont()
+	}
+	tex, w, h, ascent, err := textTexture(renderer, face, s, clr)
 	if err != nil {
 		return cachedTextTexture{}, err
 	}
@@ -412,8 +472,7 @@ func (s *sdlState) clearTextTextureCache() {
 
 func (s *sdlState) Close() {
 	s.clearTextTextureCache()
-	closeFontFace(s.fontFace)
-	s.fontFace = nil
+	s.closeUIFonts()
 	s.destroyCursors()
 	if s.autoscrollMarker != nil {
 		sdl.DestroyTexture(s.autoscrollMarker)

@@ -2,7 +2,9 @@ package viewer
 
 import (
 	"fmt"
+	"log"
 	"maps"
+	"math"
 	"strconv"
 	"strings"
 	"time"
@@ -221,7 +223,7 @@ func (a *App) applyConfig(cfg config.Config, assigned map[string]bool) {
 	prev := a.config
 	a.config = cfg
 	a.applyConfigSettings()
-	if prev.UIFontPath != cfg.UIFontPath || prev.UIFontSize != cfg.UIFontSize {
+	if prev.Theme.Font != cfg.Theme.Font {
 		a.loadUIFont()
 	}
 	if prev.AltColors != cfg.AltColors || assigned["alt_colors"] {
@@ -268,19 +270,27 @@ func (a *App) applyConfigSettings() {
 	a.document.setDelay(time.Duration(cfg.AutoReloadDelayMS) * time.Millisecond)
 }
 
+// loadUIFont loads the theme's UI font at the window's display scale.
 func (a *App) loadUIFont() {
-	oldFontFace := a.fontFace
-	a.fontFace = loadFont(a.config.UIFontPath, a.config.UIFontSize)
 	a.clearTextTextureCache()
-	closeFontFace(oldFontFace)
+	a.closeUIFonts()
+	a.uiScale = a.displayScale()
+	font := a.config.Theme.Font
+	var warning error
+	a.fontFace, a.headingFace, warning = loadUIFonts(font, int(math.Round(float64(font.Size)*a.uiScale)))
+	a.logf("load UI font family=%q path=%q size=%d scale=%.2f", font.Family, font.Path, font.Size, a.uiScale)
+	if warning != nil && warning.Error() != a.fontWarning {
+		log.Printf("UI font: %v", warning)
+		a.fontWarning = warning.Error()
+	}
 }
 
 // tilesRenderedDifferently reports whether tiles rendered under one config
 // would come out differently under the other; the alternate colours only
 // matter while they are shown.
 func (a *App) tilesRenderedDifferently(prev, cfg config.Config) bool {
-	return prev.AntiAliasing != cfg.AntiAliasing || a.altColors && (prev.AltBackground != cfg.AltBackground ||
-		prev.AltForeground != cfg.AltForeground || prev.AltColorsKeepImages != cfg.AltColorsKeepImages)
+	return prev.AntiAliasing != cfg.AntiAliasing || a.altColors && (prev.Theme.Alt.Page != cfg.Theme.Alt.Page ||
+		prev.Theme.Alt.Foreground != cfg.Theme.Alt.Foreground || prev.AltColorsKeepImages != cfg.AltColorsKeepImages)
 }
 
 func (a *App) Mode() string {

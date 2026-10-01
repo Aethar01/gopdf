@@ -4,45 +4,56 @@ import (
 	"image"
 	"image/color"
 	"slices"
+
+	"gopdf/internal/config"
 )
 
 func (a *App) statusVisible() bool {
 	return a.statusBarShown || a.mode != modeNormal
 }
 
+// palette is the theme's colours for the current color mode.
+func (a *App) palette() *config.Palette {
+	if a.altColors {
+		return &a.config.Theme.Alt
+	}
+	return &a.config.Theme.Palette
+}
+
 func (a *App) backgroundColor() color.RGBA {
 	if a.presentation != nil {
-		return rgb(a.config.PresentationBackground)
+		return rgb(a.palette().Presentation)
 	}
-	if a.altColors {
-		return rgb(a.config.AltBackground)
-	}
-	return rgb(a.config.Background)
+	return rgb(a.palette().Background)
 }
 
-func (a *App) pageBackgroundColor() color.RGBA {
-	if a.altColors {
-		return rgb(a.config.AltPageBackground)
-	}
-	return rgb(a.config.PageBackground)
-}
+func (a *App) pageBackgroundColor() color.RGBA { return rgb(a.palette().Page) }
+func (a *App) foregroundColor() color.RGBA     { return rgb(a.palette().Foreground) }
+func (a *App) mutedColor() color.RGBA          { return rgb(a.palette().Muted) }
+func (a *App) accentColor() color.RGBA         { return rgb(a.palette().Accent) }
+func (a *App) panelColor() color.RGBA          { return rgb(a.palette().Panel) }
+func (a *App) borderColor() color.RGBA         { return rgb(a.palette().Border) }
+func (a *App) statusBarColor() color.RGBA      { return rgb(a.palette().StatusBar) }
 
-func (a *App) foregroundColor() color.RGBA {
-	if a.altColors {
-		return rgb(a.config.AltForeground)
-	}
-	return rgb(a.config.Foreground)
-}
-
-func (a *App) statusBarColor() color.RGBA {
-	if a.altColors {
-		return rgb(a.config.AltStatusBarColor)
-	}
-	return rgb(a.config.StatusBarColor)
+// rowSelectionColor fills the selected row of a menu: the accent, faint
+// over the panel.
+func (a *App) rowSelectionColor() color.RGBA {
+	return mixRGBA(a.panelColor(), a.accentColor(), 0.16)
 }
 
 func rgb(c [3]uint8) color.RGBA {
 	return color.RGBA{R: c[0], G: c[1], B: c[2], A: 0xff}
+}
+
+// mixRGBA is t of the way from a to b.
+func mixRGBA(a, b color.RGBA, t float64) color.RGBA {
+	mix := func(x, y uint8) uint8 { return uint8(float64(x) + (float64(y)-float64(x))*t + 0.5) }
+	return color.RGBA{R: mix(a.R, b.R), G: mix(a.G, b.G), B: mix(a.B, b.B), A: mix(a.A, b.A)}
+}
+
+// isLight reports whether c is a light colour, one dark text reads on.
+func isLight(c color.RGBA) bool {
+	return int(c.R)*299+int(c.G)*587+int(c.B)*114 > 128*1000
 }
 
 // remapPageColors maps each pixel's luminance onto the fg-bg range, leaving

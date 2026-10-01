@@ -144,14 +144,18 @@ type layoutState struct {
 }
 
 type sdlState struct {
-	waker     *loopWaker
-	window    *sdl.Window
-	renderer  *sdl.Renderer
-	cursors   map[cursorKind]*sdl.Cursor
-	cursor    cursorKind // the cursor currently shown
-	iconBytes []byte
-	fontFace  font.Face
-	textCache textTextureCache
+	waker       *loopWaker
+	window      *sdl.Window
+	renderer    *sdl.Renderer
+	cursors     map[cursorKind]*sdl.Cursor
+	cursor      cursorKind // the cursor currently shown
+	iconBytes   []byte
+	fontFace    font.Face
+	headingFace font.Face  // heavier, for titles; may be fontFace
+	uiScale     float64    // output pixels per logical pixel the UI font was loaded at
+	fontWarning string     // the last font warning logged, so a reload does not repeat it
+	clips       []sdl.Rect // the clip rects withClip has in place, innermost last
+	textCache   textTextureCache
 	// autoscrollMarker is the drawn autoscroll anchor, for the size and
 	// axes in autoscrollMarkerKey.
 	autoscrollMarker    *sdl.Texture

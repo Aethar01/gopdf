@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
@@ -611,10 +612,10 @@ func TestRuntimeOptionInspectionAndAssignment(t *testing.T) {
 	if _, err := rt.OptionValue("natural_scroll"); err == nil {
 		t.Fatal("expected removed natural_scroll option to be unknown")
 	}
-	if err := rt.SetOption("background", "#102030"); err != nil {
+	if err := rt.SetOption("theme.background", "#102030"); err != nil {
 		t.Fatal(err)
 	}
-	if got := rt.Config().Background; got != [3]uint8{16, 32, 48} {
+	if got := rt.Config().Theme.Background; got != [3]uint8{16, 32, 48} {
 		t.Fatalf("expected parsed background color, got %v", got)
 	}
 	if err := rt.SetOption("status_bar_left", `"{document} ready"`); err != nil {
@@ -632,8 +633,9 @@ func TestReferenceMetadataCoversRegisteredOptions(t *testing.T) {
 	if err := ValidateReferenceMetadata(); err != nil {
 		t.Fatal(err)
 	}
-	if got, want := len(OptionReferences()), len(OptionNames()); got != want {
-		t.Fatalf("expected %d option references, got %d", want, got)
+	// The theme and its fields are documented by ThemeReferences.
+	if got, want := len(OptionReferences())+len(ThemeReferences())+1, len(OptionNames()); got != want {
+		t.Fatalf("expected %d option and theme references, got %d", want, got)
 	}
 	if len(LuaReferences()) == 0 {
 		t.Fatal("expected Lua function references")
@@ -1108,7 +1110,9 @@ func TestLuaOptionTypeErrorsIncludeSettingName(t *testing.T) {
 		{name: "boolean", lua: `options.invert_scroll = "yes"`, wantErr: "options.invert_scroll: expected boolean"},
 		{name: "number", lua: `options.page_gap = true`, wantErr: "options.page_gap: expected number"},
 		{name: "string", lua: `options.fit_mode = false`, wantErr: "options.fit_mode: expected string"},
-		{name: "table", lua: `options.background = 10`, wantErr: "options.background: expected table"},
+		{name: "table", lua: `options.link_schemes = 10`, wantErr: "options.link_schemes: expected table"},
+		{name: "theme colour", lua: `gopdf.theme.accent = 10`, wantErr: "gopdf.theme.accent: expected"},
+		{name: "moved to theme", lua: `options.background = {1, 2, 3}`, wantErr: "options.background: background moved to gopdf.theme.background"},
 		{name: "removed natural scroll", lua: `options.natural_scroll = true`, wantErr: "options.natural_scroll: unknown setting"},
 		{name: "unknown", lua: `options.no_such_setting = 1`, wantErr: "options.no_such_setting: unknown setting"},
 	}
@@ -1143,7 +1147,7 @@ options.fit_mode = " WIDTH "
 options.render_mode = "SINGLE"
 options.anchor_position = "BOTTOM"
 options.completion_max_items = 0
-options.background = { -5, 128, 999 }
+gopdf.theme.background = { -5, 128, 999 }
 `), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -1167,8 +1171,8 @@ options.background = { -5, 128, 999 }
 	if cfg.CompletionMaxItems != 1 {
 		t.Fatalf("expected completion_max_items to clamp to 1, got %d", cfg.CompletionMaxItems)
 	}
-	if cfg.Background != [3]uint8{0, 128, 255} {
-		t.Fatalf("expected clamped background color, got %v", cfg.Background)
+	if cfg.Theme.Background != [3]uint8{0, 128, 255} {
+		t.Fatalf("expected clamped background color, got %v", cfg.Theme.Background)
 	}
 }
 
@@ -1216,23 +1220,19 @@ end
 	}
 }
 
-func TestLuaColorOptionsClampEveryColorField(t *testing.T) {
+func TestLuaThemeColorsClampEveryColorField(t *testing.T) {
+	var source strings.Builder
+	want := map[string]string{}
+	for i, field := range themeFields {
+		if field.desc.kind != "color" {
+			continue
+		}
+		fmt.Fprintf(&source, "gopdf.theme.%s = { -1, %d, 300 }\n", field.name, i)
+		want[field.name] = FormatColor([3]uint8{0, uint8(i), 255})
+	}
 	dir := t.TempDir()
 	path := filepath.Join(dir, "config.lua")
-	if err := os.WriteFile(path, []byte(`
-options.background = { -1, 10, 300 }
-options.page_background = { 1, 2, 3 }
-options.foreground = { 4, 5, 6 }
-options.status_bar_color = { 7, 8, 9 }
-options.alt_background = { 10, 11, 12 }
-options.alt_page_background = { 13, 14, 15 }
-options.alt_foreground = { 16, 17, 18 }
-options.alt_status_bar_color = { 19, 20, 21 }
-options.highlight_foreground = { 22, 23, 24 }
-options.selection_color = { 25, 26, 27 }
-options.search_highlight_color = { 28, 29, 30 }
-options.search_current_color = { 31, 32, 33 }
-`), 0o644); err != nil {
+	if err := os.WriteFile(path, []byte(source.String()), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -1242,29 +1242,9 @@ options.search_current_color = { 31, 32, 33 }
 	}
 	defer rt.Close()
 
-	cfg := rt.Config()
-	checks := []struct {
-		name string
-		got  [3]uint8
-		want [3]uint8
-	}{
-		{name: "background", got: cfg.Background, want: [3]uint8{0, 10, 255}},
-		{name: "page background", got: cfg.PageBackground, want: [3]uint8{1, 2, 3}},
-		{name: "foreground", got: cfg.Foreground, want: [3]uint8{4, 5, 6}},
-		{name: "status bar", got: cfg.StatusBarColor, want: [3]uint8{7, 8, 9}},
-		{name: "alt background", got: cfg.AltBackground, want: [3]uint8{10, 11, 12}},
-		{name: "alt page background", got: cfg.AltPageBackground, want: [3]uint8{13, 14, 15}},
-		{name: "alt foreground", got: cfg.AltForeground, want: [3]uint8{16, 17, 18}},
-		{name: "alt status bar", got: cfg.AltStatusBarColor, want: [3]uint8{19, 20, 21}},
-		{name: "highlight foreground", got: cfg.HighlightForeground, want: [3]uint8{22, 23, 24}},
-		{name: "selection", got: cfg.SelectionColor, want: [3]uint8{25, 26, 27}},
-		{name: "search highlight", got: cfg.SearchHighlightColor, want: [3]uint8{28, 29, 30}},
-		{name: "search current", got: cfg.SearchCurrentColor, want: [3]uint8{31, 32, 33}},
-	}
-
-	for _, check := range checks {
-		if check.got != check.want {
-			t.Fatalf("%s = %v, want %v", check.name, check.got, check.want)
+	for name, want := range want {
+		if got, err := rt.OptionValue("theme." + name); err != nil || got != want {
+			t.Errorf("theme.%s = %s, %v; want %s", name, got, err, want)
 		}
 	}
 }

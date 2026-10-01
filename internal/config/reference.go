@@ -23,6 +23,9 @@ func OptionReferences() []OptionReference {
 	defaults := Default()
 	refs := make([]OptionReference, 0, len(configOptions))
 	for _, name := range OptionNames() {
+		if isThemeOption(name) {
+			continue // documented by ThemeReferences
+		}
 		desc := configOptions[name]
 		value := desc.format(&defaults)
 		if desc.kind == "color" {

@@ -25,7 +25,7 @@ func (a *App) drawInkLoader(renderer *sdl.Renderer, x, y, width, height float64,
 	radius := math.Max(3, math.Min(10, math.Min(width, height)*0.018))
 	ground := y + height/2 + radius*2
 	bounce := radius * 5
-	ink := a.foregroundColor()
+	ink := a.mutedColor()
 	shadow := ink
 	for i := range inkDropCount {
 		// Each drop runs a phase behind the last; t is 0 and 1 at landing.
