@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"path/filepath"
 	"strings"
 	"sync"
 
@@ -24,11 +25,31 @@ func (r *Runtime) applyLuaConfig(path string) error {
 	if L == nil {
 		L = r.initLuaState()
 	}
+	prependPackagePath(L, filepath.Dir(path))
 	if err := L.DoFile(path); err != nil {
 		r.closeLuaState()
 		return fmt.Errorf("%s: %w", path, err)
 	}
 	return nil
+}
+
+// prependPackagePath makes require search dir first, so a config can
+// require the Lua files beside it: require("forest") loads dir/forest.lua
+// and require("themes.forest") dir/themes/forest.lua.
+func prependPackagePath(L *lua.LState, dir string) {
+	packageTable, ok := L.GetGlobal("package").(*lua.LTable)
+	if !ok || dir == "" {
+		return
+	}
+	patterns := filepath.Join(dir, "?.lua") + ";" + filepath.Join(dir, "?", "init.lua")
+	current := lua.LVAsString(L.GetField(packageTable, "path"))
+	if strings.HasPrefix(current, patterns) {
+		return
+	}
+	if current != "" {
+		patterns += ";" + current
+	}
+	L.SetField(packageTable, "path", lua.LString(patterns))
 }
 
 func (r *Runtime) initLuaState() *lua.LState {
