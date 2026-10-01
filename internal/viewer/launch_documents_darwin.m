@@ -1,5 +1,6 @@
 #import <Cocoa/Cocoa.h>
 #import <CoreServices/CoreServices.h>
+#include <stdlib.h>
 #include <string.h>
 
 // Finder and `open` hand a launching app its documents in an open-documents
@@ -8,123 +9,110 @@
 // drop. These handlers note the launch event and its files on their way to
 // AppKit's own handlers, which still run as before.
 
-static AEEventHandlerUPP gopdfAppKitOpenApplication;
-static SRefCon gopdfAppKitOpenApplicationRefcon;
-static AEEventHandlerUPP gopdfAppKitOpenDocuments;
-static SRefCon gopdfAppKitOpenDocumentsRefcon;
+typedef struct {
+    AEEventHandlerUPP handler;
+    SRefCon refcon;
+} GoPDFAppleEventHandler;
 
+static GoPDFAppleEventHandler gopdfAppKitOpenApplication;
+static GoPDFAppleEventHandler gopdfAppKitOpenDocuments;
+
+// gopdfLaunchPaths collects the launch documents until they are taken.
 static NSMutableArray<NSString *> *gopdfLaunchPaths;
-static BOOL gopdfLaunchEventSeen;
-static BOOL gopdfLaunchFinished;
-static BOOL gopdfLaunchTaken;
+static BOOL gopdfLaunchEventHandled;
 
-static OSErr gopdfForwardAppleEvent(AEEventHandlerUPP handler, SRefCon refcon, const AppleEvent *event, AppleEvent *reply) {
-    if (handler == NULL) {
+static OSErr gopdfForwardAppleEvent(GoPDFAppleEventHandler appKit, const AppleEvent *event, AppleEvent *reply) {
+    if (appKit.handler == NULL) {
         return noErr;
     }
-    return InvokeAEEventHandlerUPP(event, reply, refcon, handler);
+    return InvokeAEEventHandlerUPP(event, reply, appKit.refcon, appKit.handler);
 }
 
-static void gopdfRecordLaunchDocuments(const AppleEvent *event) {
+static void gopdfRecordDocuments(const AppleEvent *event) {
     AEDesc copy;
     if (AEDuplicateDesc(event, &copy) != noErr) {
         return;
     }
-    // The descriptor owns the copy and disposes of it when released.
-    NSAppleEventDescriptor *descriptor = [[NSAppleEventDescriptor alloc] initWithAEDescNoCopy:&copy];
-    NSAppleEventDescriptor *files = [[descriptor paramDescriptorForKeyword:keyDirectObject] coerceToDescriptorType:typeAEList];
-    for (NSInteger i = 1; i <= files.numberOfItems; i++) {
-        NSString *path = [[files descriptorAtIndex:i] fileURLValue].path;
-        if (path.length > 0) {
-            [gopdfLaunchPaths addObject:path];
+    @autoreleasepool {
+        // The descriptor owns the copy and disposes of it when released.
+        NSAppleEventDescriptor *descriptor = [[NSAppleEventDescriptor alloc] initWithAEDescNoCopy:&copy];
+        NSAppleEventDescriptor *files = [[descriptor paramDescriptorForKeyword:keyDirectObject] coerceToDescriptorType:typeAEList];
+        for (NSInteger i = 1; i <= files.numberOfItems; i++) {
+            NSString *path = [[files descriptorAtIndex:i] fileURLValue].path;
+            if (path.length > 0) {
+                [gopdfLaunchPaths addObject:path];
+            }
         }
+        [descriptor release];
     }
-    [descriptor release];
 }
 
 static OSErr gopdfHandleOpenApplication(const AppleEvent *event, AppleEvent *reply, SRefCon refcon) {
     (void)refcon;
-    gopdfLaunchEventSeen = YES;
-    return gopdfForwardAppleEvent(gopdfAppKitOpenApplication, gopdfAppKitOpenApplicationRefcon, event, reply);
+    gopdfLaunchEventHandled = YES;
+    return gopdfForwardAppleEvent(gopdfAppKitOpenApplication, event, reply);
 }
 
 static OSErr gopdfHandleOpenDocuments(const AppleEvent *event, AppleEvent *reply, SRefCon refcon) {
     (void)refcon;
-    if (!gopdfLaunchTaken) {
-        @autoreleasepool {
-            gopdfRecordLaunchDocuments(event);
-        }
-        gopdfLaunchEventSeen = YES;
+    if (gopdfLaunchPaths != nil) {
+        gopdfRecordDocuments(event);
     }
-    return gopdfForwardAppleEvent(gopdfAppKitOpenDocuments, gopdfAppKitOpenDocumentsRefcon, event, reply);
+    gopdfLaunchEventHandled = YES;
+    return gopdfForwardAppleEvent(gopdfAppKitOpenDocuments, event, reply);
 }
 
-static void gopdfWrapAppleEventHandler(AEEventID eventID, AEEventHandlerProcPtr wrapper, AEEventHandlerUPP *appKitHandler, SRefCon *appKitRefcon) {
-    if (AEGetEventHandler(kCoreEventClass, eventID, appKitHandler, appKitRefcon, false) != noErr) {
-        *appKitHandler = NULL;
-        *appKitRefcon = NULL;
+static void gopdfWrapAppleEventHandler(AEEventID eventID, AEEventHandlerProcPtr wrapper, GoPDFAppleEventHandler *appKit) {
+    if (AEGetEventHandler(kCoreEventClass, eventID, &appKit->handler, &appKit->refcon, false) != noErr) {
+        *appKit = (GoPDFAppleEventHandler){0};
     }
     AEInstallEventHandler(kCoreEventClass, eventID, NewAEEventHandlerUPP(wrapper), NULL, false);
 }
 
-// gopdfWatchLaunchEvents must run before SDL creates NSApp: AppKit installs its
+// gopdfWatchLaunch must run once, before SDL creates NSApp: AppKit installs its
 // handlers just before it announces it will finish launching, and dispatches
 // the launch event after.
-void gopdfWatchLaunchEvents(void) {
-    static BOOL watching;
-    if (watching) {
-        return;
-    }
-    watching = YES;
-    if (NSApp != nil) {
-        gopdfLaunchFinished = YES;
-        return;
-    }
-
+void gopdfWatchLaunch(void) {
+    gopdfLaunchPaths = [[NSMutableArray alloc] init];
     @autoreleasepool {
-        gopdfLaunchPaths = [[NSMutableArray alloc] init];
         NSNotificationCenter *center = [NSNotificationCenter defaultCenter];
         [center addObserverForName:NSApplicationWillFinishLaunchingNotification
                             object:nil
                              queue:nil
                         usingBlock:^(NSNotification *notification) {
             (void)notification;
-            gopdfWrapAppleEventHandler(kAEOpenApplication, gopdfHandleOpenApplication,
-                                       &gopdfAppKitOpenApplication, &gopdfAppKitOpenApplicationRefcon);
-            gopdfWrapAppleEventHandler(kAEOpenDocuments, gopdfHandleOpenDocuments,
-                                       &gopdfAppKitOpenDocuments, &gopdfAppKitOpenDocumentsRefcon);
+            gopdfWrapAppleEventHandler(kAEOpenApplication, gopdfHandleOpenApplication, &gopdfAppKitOpenApplication);
+            gopdfWrapAppleEventHandler(kAEOpenDocuments, gopdfHandleOpenDocuments, &gopdfAppKitOpenDocuments);
         }];
         [center addObserverForName:NSApplicationDidFinishLaunchingNotification
                             object:nil
                              queue:nil
                         usingBlock:^(NSNotification *notification) {
             (void)notification;
-            gopdfLaunchFinished = YES;
+            gopdfLaunchEventHandled = YES;
         }];
     }
 }
 
-// gopdfLaunchSettled reports whether the launch event has been handled, so its
+// gopdfLaunchHandled reports whether the launch event has been handled, so its
 // documents, if any, are known.
-int gopdfLaunchSettled(void) {
-    return gopdfLaunchEventSeen || gopdfLaunchFinished;
+int gopdfLaunchHandled(void) {
+    return gopdfLaunchEventHandled;
 }
 
-int gopdfLaunchDocumentCount(void) {
-    return (int)gopdfLaunchPaths.count;
-}
-
-// gopdfLaunchDocument returns a copy of the path, which the caller frees.
-char *gopdfLaunchDocument(int index) {
+// gopdfTakeLaunchDocuments returns the launch documents and stops recording;
+// later documents reach the viewer as SDL drops. The caller frees each path
+// and the array.
+char **gopdfTakeLaunchDocuments(int *count) {
+    NSUInteger n = gopdfLaunchPaths.count;
+    char **paths = n > 0 ? calloc(n, sizeof(char *)) : NULL;
     @autoreleasepool {
-        return strdup(gopdfLaunchPaths[index].fileSystemRepresentation);
+        for (NSUInteger i = 0; paths != NULL && i < n; i++) {
+            paths[i] = strdup(gopdfLaunchPaths[i].fileSystemRepresentation);
+        }
     }
-}
-
-// gopdfFinishLaunchDocuments stops recording; later documents reach the viewer
-// as SDL drops.
-void gopdfFinishLaunchDocuments(void) {
-    gopdfLaunchTaken = YES;
+    *count = paths != NULL ? (int)n : 0;
     [gopdfLaunchPaths release];
     gopdfLaunchPaths = nil;
+    return paths;
 }

@@ -42,10 +42,6 @@ func run() error {
 	flag.StringVar(&gotoSpec, "goto", "", "open at PAGE, or at X:Y points from the top-left corner of PAGE")
 	flag.StringVar(&command, "command", "", "run a viewer command, as typed after ':'")
 	flag.Parse()
-	if verbose {
-		// Startup steps take milliseconds, so seconds alone hide where time goes.
-		log.SetFlags(log.LstdFlags | log.Lmicroseconds)
-	}
 
 	if printVersion {
 		fmt.Println(version)
