@@ -124,6 +124,22 @@ assert(gopdf.options.theme.font.family == "Iosevka")
 	}
 }
 
+// gopdf.theme holds no fields of its own, so assigning it back must keep
+// the theme rather than copy nothing.
+func TestThemeAssignedToItselfIsKept(t *testing.T) {
+	rt := mustLoadThemeTestConfig(t, `
+local theme = gopdf.theme
+theme.accent = "#123456"
+gopdf.theme = theme
+gopdf.theme = gopdf.options.theme
+`)
+	want := mustPreset(t, DefaultTheme)
+	want.Accent = [3]uint8{0x12, 0x34, 0x56}
+	if got := rt.Config().Theme; got != want {
+		t.Fatalf("theme = %+v\nwant %+v", got, want)
+	}
+}
+
 func TestThemesTableGivesPresetsToChange(t *testing.T) {
 	rt := mustLoadThemeTestConfig(t, `
 local mine = gopdf.themes.birch

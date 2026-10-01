@@ -254,6 +254,9 @@ func themeFromLua(cfg *Config, value lua.LValue) (Theme, error) {
 	case lua.LString:
 		return presetOrError(string(value))
 	case *lua.LTable:
+		if isLuaThemeProxy(value) {
+			return cfg.Theme, nil // gopdf.theme assigned to itself
+		}
 		base := DefaultTheme
 		if b := value.RawGetString("base"); b != lua.LNil {
 			if b.Type() != lua.LTString {
@@ -346,11 +349,22 @@ func luaThemeTable(L *lua.LState, theme Theme) *lua.LTable {
 	return tbl
 }
 
+// themeProxyKey marks the metatable of gopdf.theme, which holds no fields
+// of its own to copy, with the prefix of the table it stands for.
+const themeProxyKey = "__gopdf_theme"
+
+// isLuaThemeProxy reports whether tbl is gopdf.theme itself.
+func isLuaThemeProxy(tbl *lua.LTable) bool {
+	mt, ok := tbl.Metatable.(*lua.LTable)
+	return ok && mt.RawGetString(themeProxyKey) == lua.LString("")
+}
+
 // newLuaThemeTable is gopdf.theme: reading a field gives its value and
 // assigning one sets it. prefix names the nested table it stands for.
 func newLuaThemeTable(L *lua.LState, rt *Runtime, cfg *Config, prefix string) *lua.LTable {
 	tbl := L.NewTable()
 	mt := L.NewTable()
+	mt.RawSetString(themeProxyKey, lua.LString(prefix))
 	L.SetField(mt, "__index", L.NewFunction(func(L *lua.LState) int {
 		name := prefix + strings.ToLower(strings.TrimSpace(L.CheckString(2)))
 		switch {
