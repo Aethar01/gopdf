@@ -350,3 +350,28 @@ gopdf.theme.elements.pannel = { radius = 2 }
 		t.Fatal(":set theme.glow succeeded")
 	}
 }
+
+func TestAltColorsCanFollowTheSystem(t *testing.T) {
+	rt := mustLoadThemeTestConfig(t, `
+gopdf.options.alt_colors = "system"
+assert(gopdf.options.alt_colors == "system")
+`)
+	if cfg := rt.Config(); !cfg.AltColorsSystem {
+		t.Fatalf("alt_colors = %+v", cfg.AltColors)
+	}
+	if err := rt.SetOption("alt_colors", "true"); err != nil {
+		t.Fatal(err)
+	}
+	if cfg := rt.Config(); !cfg.AltColors || cfg.AltColorsSystem {
+		t.Fatalf("alt_colors=true left system %v, on %v", cfg.AltColorsSystem, cfg.AltColors)
+	}
+	if err := rt.SetOption("alt_colors", "system"); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := rt.OptionValue("alt_colors"); got != `"system"` {
+		t.Fatalf("alt_colors = %s", got)
+	}
+	if err := rt.SetOption("alt_colors", "sometimes"); err == nil || !strings.Contains(err.Error(), `"system"`) {
+		t.Fatalf("bad alt_colors: %v", err)
+	}
+}

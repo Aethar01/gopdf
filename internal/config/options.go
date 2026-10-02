@@ -346,7 +346,6 @@ var configOptions = map[string]optionDesc{
 	"invert_scroll":          boolOption("Invert horizontal and vertical discrete mouse-wheel scrolling.", func(c *Config) bool { return c.InvertScroll }, func(c *Config, v bool) { c.InvertScroll = v }),
 	"invert_smooth_scroll":   boolOption("Invert horizontal and vertical smooth wheel or trackpad scrolling.", func(c *Config) bool { return c.InvertSmoothScroll }, func(c *Config, v bool) { c.InvertSmoothScroll = v }),
 	"session_database":       boolOption("Persist per-document view state, marks, and recent files.", func(c *Config) bool { return c.SessionDatabase }, func(c *Config, v bool) { c.SessionDatabase = v }),
-	"alt_colors":             boolOption("Start with alternate colors enabled.", func(c *Config) bool { return c.AltColors }, func(c *Config, v bool) { c.AltColors = v }),
 	"alt_colors_keep_images": boolOption("Keep raster images in their own colors in alternate-color mode.", func(c *Config) bool { return c.AltColorsKeepImages }, func(c *Config, v bool) { c.AltColorsKeepImages = v }),
 	"trim_margins":           boolOption("Lay pages out by their content, trimming blank margins.", func(c *Config) bool { return c.TrimMargins }, func(c *Config, v bool) { c.TrimMargins = v }),
 	"annotation_colors":      stringListOption("Highlight colours offered by the highlight picker, as #RRGGBB.", func(c *Config) []string { return c.AnnotationColors }, func(c *Config, v []string) { c.AnnotationColors = v }),
@@ -473,4 +472,58 @@ func NormalizeAnchorPosition(s string) string {
 		return s
 	}
 	return "center"
+}
+
+func init() {
+	registerOption("alt_colors", altColorsOption())
+}
+
+// altColorsOption starts in alternate colors, true or false, or with
+// "system" follows the OS's dark mode.
+func altColorsOption() optionDesc {
+	set := func(c *Config, value string) error {
+		if strings.EqualFold(strings.TrimSpace(value), "system") {
+			c.AltColorsSystem = true
+			return nil
+		}
+		on, err := parseBoolOption(value)
+		if err != nil {
+			return fmt.Errorf(`expected true, false or "system"`)
+		}
+		c.AltColors, c.AltColorsSystem = on, false
+		return nil
+	}
+	return optionDesc{
+		kind:        "boolean",
+		description: `Start with alternate colors: true, false, or "system" to follow the OS's dark mode as it changes.`,
+		get: func(L *lua.LState, c *Config) lua.LValue {
+			if c.AltColorsSystem {
+				return lua.LString("system")
+			}
+			return lua.LBool(c.AltColors)
+		},
+		format: func(c *Config) string {
+			if c.AltColorsSystem {
+				return `"system"`
+			}
+			return strconv.FormatBool(c.AltColors)
+		},
+		applyText: func(c *Config, raw string) error {
+			value, err := parseStringOption(raw)
+			if err != nil {
+				return err
+			}
+			return set(c, value)
+		},
+		apply: func(c *Config, value lua.LValue) error {
+			switch value := value.(type) {
+			case lua.LBool:
+				c.AltColors, c.AltColorsSystem = bool(value), false
+				return nil
+			case lua.LString:
+				return set(c, string(value))
+			}
+			return fmt.Errorf(`expected true, false or "system"`)
+		},
+	}
 }

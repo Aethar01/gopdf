@@ -205,7 +205,7 @@ func (a *App) applyConfigState(cfg config.Config) {
 	a.cancelSmoothScroll()
 	a.fitMode = parseFitMode(cfg.FitMode)
 	a.renderMode = parseRenderMode(cfg.RenderMode)
-	a.altColors = cfg.AltColors
+	a.altColors = a.wantAltColors(cfg)
 	a.dualPage = cfg.DualPage
 	a.trimMargins = cfg.TrimMargins
 	a.firstPageOffset = cfg.FirstPageOffset
@@ -229,8 +229,8 @@ func (a *App) applyConfig(cfg config.Config, assigned map[string]bool) {
 	if prev.Theme.Font != cfg.Theme.Font {
 		a.loadUIFont()
 	}
-	if prev.AltColors != cfg.AltColors || assigned["alt_colors"] {
-		a.setAltColors(cfg.AltColors)
+	if prev.AltColors != cfg.AltColors || prev.AltColorsSystem != cfg.AltColorsSystem || assigned["alt_colors"] {
+		a.setAltColors(a.wantAltColors(cfg))
 	}
 	if prev.TrimMargins != cfg.TrimMargins || assigned["trim_margins"] {
 		a.setTrimMargins(cfg.TrimMargins)
@@ -259,6 +259,24 @@ func (a *App) applyConfig(cfg config.Config, assigned map[string]bool) {
 			a.cancelSmoothScroll()
 		}
 	})
+}
+
+// wantAltColors is whether cfg asks for alternate colors: as it says, or
+// with alt_colors = "system" while the OS is in dark mode. The OS is only
+// asked once SDL is running.
+func (a *App) wantAltColors(cfg config.Config) bool {
+	if !cfg.AltColorsSystem {
+		return cfg.AltColors
+	}
+	return a.renderer != nil && sdl.GetSystemTheme() == sdl.SystemThemeDark
+}
+
+// followSystemColors switches alternate colors with the OS's dark mode,
+// when the config asks for that.
+func (a *App) followSystemColors() {
+	if a.config.AltColorsSystem {
+		a.setAltColors(a.wantAltColors(a.config))
+	}
 }
 
 // showConfigWarnings shows in the status bar what the configuration was

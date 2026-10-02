@@ -31,6 +31,7 @@ type Config struct {
 	OverviewGap           int
 	LoadingIndicator      bool
 	AltColors             bool
+	AltColorsSystem       bool // follow the OS's dark mode instead of AltColors
 	PageGap               int
 	SpreadGap             int
 	PageGapVertical       int

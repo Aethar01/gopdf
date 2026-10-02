@@ -62,6 +62,7 @@ func (a *App) Run() error {
 	}
 	a.showConfigWarnings()
 	a.refreshReducedMotion()
+	a.followSystemColors()
 	a.recomputeLayout(a.viewportSize())
 	a.pendingRedraw = true
 	a.syncTextInput()
@@ -216,6 +217,8 @@ func (a *App) handleSDLEvent(event *sdl.Event) error {
 	case sdl.EventWindowLeaveFullscreen:
 		a.fullscreen = false
 		redraw = false
+	case sdl.EventSystemThemeChanged:
+		a.followSystemColors()
 	case sdl.EventWindowFocusGained:
 		a.refreshReducedMotion()
 		redraw = false
