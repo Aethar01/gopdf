@@ -141,6 +141,7 @@ gopdf.theme = {
   alt = { accent = "#88aa88" }, -- colours for alternate-color mode
   font = { family = "Iosevka", size = 14 },
   status_bar_style = "pill",   -- float the status bar over the page
+  motion = { scale = 0 },      -- no animation
 }
 ```
 

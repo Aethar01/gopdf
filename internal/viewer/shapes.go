@@ -51,7 +51,7 @@ func (a *App) lineWidth(v float64) float32 {
 
 // styleColor is c in the current color mode at opacity.
 func (a *App) styleColor(c config.Color, opacity float64) color.RGBA {
-	alpha := c.Alpha * opacity
+	alpha := c.Alpha * opacity * (1 - a.motion.fade)
 	rgb := c.RGB
 	switch c.Name {
 	case "":

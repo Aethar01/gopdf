@@ -104,6 +104,14 @@ gopdf.theme = {
   shadow = true, -- Draw a soft shadow under floating panels.
   status_bar_style = "bar", -- Status bar layout: bar along the bottom of the window, or pill, floating over the page.
   status_bar_padding = 10, -- Horizontal status bar padding in logical pixels.
+  motion = {
+    scale = 1, -- Speed of every transition: 1 as given, 2 twice as slow, 0 for no motion at all.
+    panel = "none", -- Menus and completion fading in as they open, and menus fading out as they close.
+    selection = "80ms ease-out", -- The selected row's highlight gliding to the next row selected.
+    prompt = "100ms ease-out", -- The sides of the status bar growing and shrinking with their text, as a pill does when a prompt opens.
+    message = "none", -- Status messages fading in, and out when cleared.
+    cursor = "50ms ease-out", -- The prompt's cursor gliding to where it moves.
+  },
   elements = {}, -- The style of each piece of the UI, such as panel or row_selected; see Elements in the reference.
 }
 

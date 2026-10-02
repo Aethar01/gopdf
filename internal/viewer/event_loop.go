@@ -144,7 +144,7 @@ func (a *App) openInitialDocument() error {
 }
 
 func (a *App) eventWaitTimeoutMS() int {
-	if a.smoothScrollActive() || a.smoothZoomAnimating() || a.autoscrollMoving() || a.loaderVisible {
+	if a.smoothScrollActive() || a.smoothZoomAnimating() || a.autoscrollMoving() || a.loaderVisible || a.motion.animating {
 		return max(1, int(a.animationFrameDuration()/time.Millisecond))
 	}
 	// Wake for the earliest pending deadline.
@@ -401,6 +401,7 @@ func (a *App) drawFrame() error {
 	if !sdl.RenderClear(a.renderer) {
 		return fmt.Errorf("SDL clear failed: %s", sdl.GetError())
 	}
+	a.beginMotionFrame()
 	a.drawPages(a.renderer)
 	// An on-screen loader animates, so it asks for the next frame.
 	a.pendingRedraw = a.loaderVisible
@@ -412,13 +413,15 @@ func (a *App) drawFrame() error {
 			return err
 		}
 	}
-	if view := a.activeUIView(); view != nil {
-		if err := a.drawUIView(a.renderer, view); err != nil {
-			return err
-		}
+	if err := a.drawUIViews(a.renderer); err != nil {
+		return err
 	}
 	if err := a.drawTitleBar(a.renderer); err != nil {
 		return err
+	}
+	// A transition still on its way asks for the next frame.
+	if a.motion.animating {
+		a.pendingRedraw = true
 	}
 	sdl.RenderPresent(a.renderer)
 	return nil

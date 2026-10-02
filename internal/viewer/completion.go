@@ -318,14 +318,30 @@ func (a *App) drawCompletionRows(renderer *sdl.Renderer, rows []completionRow, r
 	padTop, padRight, _, padLeft := a.insets(panel.Padding.V)
 	rowHeight := a.modalListRowHeight()
 	baseline := a.modalListBaselineOffset(rowHeight)
+	rowBox := func(y float64) sdl.FRect {
+		return sdl.FRect{X: rect.X + padLeft, Y: float32(math.Round(y)), W: rect.W - padLeft - padRight, H: float32(rowHeight)}
+	}
+	// The selected row's box glides to it from the row selected before,
+	// moving among the completions so that it stays with its row when they
+	// scroll.
+	for i, row := range rows {
+		if row.selected {
+			st := a.style(config.ElementRowSelected)
+			selected := a.completion.view.selected
+			at := a.animate("selection completion", float64(selected), a.config.Theme.Motion.Selection)
+			a.drawBox(renderer, &st, rowBox(float64(rect.Y+padTop)+float64(rowHeight)*(at-float64(selected-i))))
+		}
+	}
 	for i, row := range rows {
 		rowY := int(rect.Y+padTop) + i*rowHeight
 		st := a.style(config.ElementRow)
 		if row.selected {
 			st = a.style(config.ElementRowSelected)
 		}
-		box := sdl.FRect{X: rect.X + padLeft, Y: float32(rowY), W: rect.W - padLeft - padRight, H: float32(rowHeight)}
-		a.drawBox(renderer, &st, box)
+		box := rowBox(float64(rowY))
+		if !row.selected {
+			a.drawBox(renderer, &st, box)
+		}
 		_, rowPadRight, _, rowPadLeft := a.insets(st.Padding.V)
 		textX := int(math.Round(float64(box.X + rowPadLeft)))
 		width := int(math.Round(float64(box.X+box.W-rowPadRight))) - textX

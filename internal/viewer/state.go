@@ -245,6 +245,7 @@ type uiState struct {
 	outlineMenu   outlineMenuState
 	keybindMenu   keybindMenuState
 	completion    completionState
+	motion        motionState
 }
 
 type navigationState struct {

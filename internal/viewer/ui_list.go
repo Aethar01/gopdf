@@ -355,6 +355,12 @@ func (a *App) drawUIView(renderer *sdl.Renderer, view *uiView) error {
 	if view == nil || !view.visible {
 		return nil
 	}
+	return a.drawUIViewFrame(renderer, view)
+}
+
+// drawUIViewFrame draws view whether or not it is open, as it is while
+// it fades out.
+func (a *App) drawUIViewFrame(renderer *sdl.Renderer, view *uiView) error {
 	if view.draw != nil {
 		return view.draw(a, renderer)
 	}
@@ -401,6 +407,18 @@ func (a *App) drawUIListItems(renderer *sdl.Renderer, rect sdl.FRect, rows int, 
 	rows = max(1, rows)
 	view.scroll = clampInt(view.scroll, 0, max(0, len(items)-rows))
 	keyColumn := a.keyColumnWidth(items, int(rect.W*0.35))
+	// The selected row's box is drawn first, gliding to it from the row
+	// selected before. It moves among the rows, not across the screen, so
+	// when the list scrolls it stays with its row.
+	for row := 0; row < rows && view.scroll+row < len(items); row++ {
+		if item := items[view.scroll+row]; item.index == view.selected && !item.heading {
+			at := a.animate("selection "+viewKey(view), float64(view.scroll+row), a.config.Theme.Motion.Selection)
+			st := a.style(config.ElementRowSelected)
+			box := a.rowBox(rect, 0, rowHeight)
+			box.Y = float32(math.Round(float64(rect.Y) + float64(rowHeight)*(1+at-float64(view.scroll))))
+			a.drawBox(renderer, &st, box)
+		}
+	}
 	for row := 0; row < rows; row++ {
 		itemIndex := view.scroll + row
 		if itemIndex >= len(items) {
@@ -419,7 +437,9 @@ func (a *App) drawUIListItems(renderer *sdl.Renderer, rect sdl.FRect, rows int, 
 		}
 		st := a.style(element)
 		box := a.rowBox(rect, y, rowHeight)
-		a.drawBox(renderer, &st, box)
+		if element != config.ElementRowSelected {
+			a.drawBox(renderer, &st, box)
+		}
 		_, padRight, _, padLeft := a.insets(st.Padding.V)
 		face := a.styleFace(&st)
 		textX, textEnd := int(math.Round(float64(box.X+padLeft))), int(math.Round(float64(box.X+box.W-padRight)))

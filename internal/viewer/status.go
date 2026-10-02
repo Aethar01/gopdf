@@ -87,11 +87,27 @@ func (a *App) drawStatusBar(renderer *sdl.Renderer) error {
 	l := a.statusLayout()
 	status, leftStyle, rightStyle := a.style(config.ElementStatus), a.style(config.ElementStatusLeft), a.style(config.ElementStatusRight)
 	a.drawBox(renderer, &status, l.bar)
-	a.drawBox(renderer, &leftStyle, l.leftArea)
-	a.drawBox(renderer, &rightStyle, l.rightArea)
+	// The sides grow and shrink with their text, the left from the bar's
+	// left edge and the right from its right.
+	tr := a.config.Theme.Motion.Prompt
+	leftW := float32(a.animate("status left", float64(l.leftArea.W), tr))
+	rightW := float32(a.animate("status right", float64(l.rightArea.W), tr))
+	leftBox := sdl.FRect{X: l.bar.X, Y: l.bar.Y, W: leftW, H: l.bar.H}
+	rightBox := sdl.FRect{X: l.bar.X + l.bar.W - rightW, Y: l.bar.Y, W: rightW, H: l.bar.H}
+	a.drawBox(renderer, &leftStyle, leftBox)
+	a.drawBox(renderer, &rightStyle, rightBox)
 	// The left text scrolls with a long prompt, so it is clipped to its
-	// side; the cursor's width past the end is kept visible.
-	textBox := sdl.FRect{X: float32(l.textX), Y: l.bar.Y, W: float32(l.textEnd-l.textX) + a.hairline(), H: l.bar.H}
+	// side, and to the side's box while that grows; the cursor's width
+	// past the end is kept visible. Text fading out keeps its room.
+	_, padRight, _, _ := a.insets(leftStyle.Padding.V)
+	end := float32(l.textEnd)
+	if l.left == "" && a.motion.fadingText != "" {
+		end = l.bar.X + l.bar.W - padRight
+	}
+	if boxDrawn(&leftStyle) {
+		end = min(end, leftBox.X+leftBox.W-padRight)
+	}
+	textBox := sdl.FRect{X: float32(l.textX), Y: l.bar.Y, W: end - float32(l.textX) + a.hairline(), H: l.bar.H}
 	err := a.withClip(renderer, textBox, func() error {
 		if err := a.drawInputSelection(renderer, l); err != nil {
 			return err
@@ -104,16 +120,29 @@ func (a *App) drawStatusBar(renderer *sdl.Renderer) error {
 	if err != nil {
 		return err
 	}
-	return a.drawText(renderer, l.right, l.rightX, l.baseline, a.textColor(&rightStyle, false))
+	drawRight := func() error {
+		return a.drawText(renderer, l.right, l.rightX, l.baseline, a.textColor(&rightStyle, false))
+	}
+	if boxDrawn(&rightStyle) {
+		return a.withClip(renderer, rightBox, drawRight)
+	}
+	return drawRight()
+}
+
+// boxDrawn reports whether st draws anything for its box, so that what
+// is inside the box should stay inside it.
+func boxDrawn(st *config.Style) bool {
+	return st.Fill.V.Alpha > 0 || st.BorderWidth.V > 0 || st.Shadow.V.N > 0 || st.Draw.V != nil
 }
 
 // drawStatusLeft draws the left text; while a prompt is open, its prefix,
 // such as : or /, is drawn in the accent colour.
 func (a *App) drawStatusLeft(renderer *sdl.Renderer, l statusLayout, st *config.Style) error {
-	fg := a.textColor(st, false)
 	if a.mode == modeNormal {
-		return a.drawText(renderer, l.left, l.textX, l.baseline, fg)
+		return a.drawStatusMessage(renderer, l, st)
 	}
+	a.motion.fadingText = ""
+	fg := a.textColor(st, false)
 	x := a.promptOrigin() - a.promptStart()
 	prompt := a.style(config.ElementPrompt)
 	before, after, found := strings.Cut(a.config.StatusBarLeft, "{message}")
@@ -141,6 +170,28 @@ func (a *App) drawStatusLeft(renderer *sdl.Renderer, l statusLayout, st *config.
 		x += measureText(a.fontFace, part.text)
 	}
 	return nil
+}
+
+// drawStatusMessage draws the left text outside a prompt: a new message
+// fades in, and the last text fades out once there is none.
+func (a *App) drawStatusMessage(renderer *sdl.Renderer, l statusLayout, st *config.Style) error {
+	m := &a.motion
+	tr := a.config.Theme.Motion.Message
+	text, opacity := l.left, 1.0
+	switch {
+	case text != "":
+		m.fadingText = text
+		opacity = a.animateFrom("message in "+a.message, 0, 1, tr)
+	case m.fadingText != "":
+		text, opacity = m.fadingText, a.animateFrom("message out "+m.fadingText, 1, 0, tr)
+		if opacity <= 0 {
+			m.fadingText = ""
+		}
+	}
+	if text == "" || opacity <= 0 {
+		return nil
+	}
+	return a.faded(opacity, func() error { return a.drawText(renderer, text, l.textX, l.baseline, a.textColor(st, false)) })
 }
 
 // promptStart is how far into the left status text the prompt begins: the
@@ -214,11 +265,13 @@ func (a *App) drawInputCursor(renderer *sdl.Renderer, l statusLayout) error {
 	if a.mode == modeNormal {
 		return nil
 	}
-	_, left := a.inputDisplay()
-	x := a.promptOrigin() + measureText(a.fontFace, a.inputPrefix()+left)
+	display, left := a.inputDisplay()
+	// The cursor glides when moved through the text, and snaps to where
+	// typing or deleting puts it, which a glide would only lag behind.
+	x := a.animate("cursor "+display, float64(a.promptOrigin()+measureText(a.fontFace, a.inputPrefix()+left)), a.config.Theme.Motion.Cursor)
 	top, bottom := a.statusTextSpan(l)
 	st := a.style(config.ElementCursor)
-	a.drawBox(renderer, &st, sdl.FRect{X: float32(x), Y: float32(top), W: a.lineWidth(st.Width.V), H: float32(bottom - top)})
+	a.drawBox(renderer, &st, sdl.FRect{X: float32(math.Round(x)), Y: float32(top), W: a.lineWidth(st.Width.V), H: float32(bottom - top)})
 	return nil
 }
 
