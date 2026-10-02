@@ -157,6 +157,7 @@ type sdlState struct {
 	clips       []sdl.Rect // the clip rects withClip has in place, innermost last
 	textCache   textTextureCache
 	masks       maskCache // the theme's shapes, rasterised
+	frameStart  time.Time // when the last frame began to be drawn
 	// themeErrors are the theme's shapes and draw functions that failed,
 	// each reported once.
 	themeErrors map[any]bool

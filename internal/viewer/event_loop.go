@@ -37,6 +37,11 @@ func (a *App) Run() error {
 		return fmt.Errorf("SDL window creation failed: %s", sdl.GetError())
 	}
 	a.configureNativeWindow(window)
+	// Frames are presented in step with the display, so animations move
+	// once per refresh rather than when a timer happens to fire.
+	if !sdl.SetRenderVSync(renderer, 1) {
+		a.logf("vsync unavailable: %s", sdl.GetError())
+	}
 	a.logf("created SDL window 1400x900")
 	a.window = window
 	a.renderer = renderer
@@ -148,7 +153,10 @@ func (a *App) openInitialDocument() error {
 
 func (a *App) eventWaitTimeoutMS() int {
 	if a.smoothScrollActive() || a.smoothZoomAnimating() || a.autoscrollMoving() || a.loaderVisible || a.motion.animating {
-		return max(1, int(a.animationFrameDuration()/time.Millisecond))
+		// Wait only what is left of the frame; drawing and presenting,
+		// which waits for the display, took the rest.
+		left := a.animationFrameDuration() - time.Since(a.frameStart)
+		return max(0, int(left/time.Millisecond))
 	}
 	// Wake for the earliest pending deadline.
 	deadlines := []time.Time{a.captureDeadline(), a.previewDeadline(), a.renderScaleReadyAt}
@@ -409,6 +417,7 @@ func (a *App) drawFrame() error {
 	if !sdl.RenderClear(a.renderer) {
 		return fmt.Errorf("SDL clear failed: %s", sdl.GetError())
 	}
+	a.frameStart = time.Now()
 	a.beginMotionFrame()
 	a.drawPages(a.renderer)
 	// An on-screen loader animates, so it asks for the next frame.
