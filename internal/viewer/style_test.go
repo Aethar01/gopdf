@@ -264,3 +264,28 @@ func TestMenuHeadFollowsPaddingAndHeader(t *testing.T) {
 		t.Fatal("the head took a click meant for it")
 	}
 }
+
+func TestUIFontFallsBackForMissingCharacters(t *testing.T) {
+	regular, _, _ := loadUIFonts(config.ThemeFont{Size: 16, Weight: 400, Style: "normal"}, 16)
+	defer closeFontFace(regular)
+	face, ok := regular.(*fallbackFace)
+	if !ok {
+		t.Fatalf("UI font is %T, want a fallback face", regular)
+	}
+	if _, ok := face.Face.GlyphAdvance('漢'); ok {
+		t.Skip("the UI font has CJK itself")
+	}
+	if advance, ok := regular.GlyphAdvance('漢'); !ok || advance == 0 {
+		if face.faceFor('漢') == face.Face {
+			t.Skip("no installed font has CJK")
+		}
+		t.Fatalf("no advance for a CJK character: %v %v", advance, ok)
+	}
+	if face.faceFor('a') != face.Face {
+		t.Fatal("a character the UI font has came from a fallback")
+	}
+	// Measuring mixed text counts the fallback's widths.
+	if w := measureText(regular, "a漢"); w <= measureText(regular, "a") {
+		t.Fatalf("measured %d", w)
+	}
+}

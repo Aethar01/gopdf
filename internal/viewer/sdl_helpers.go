@@ -127,6 +127,30 @@ func systemUIFamilies() []string {
 // with no font at all the faces are the built-in bitmap font.
 func loadUIFonts(f config.ThemeFont, size int) (regular, heading font.Face, warning error) {
 	size = max(1, size)
+	regular, heading, warning = loadUIFontFaces(f, size)
+	// Characters the UI font lacks are drawn in installed fonts that have
+	// them, found from the same families.
+	families := systemUIFamilies()
+	if f.Family != "" {
+		families = append([]string{f.Family}, families...)
+	}
+	aspect := func(weight int) textfont.Aspect {
+		a := textfont.Aspect{Style: textfont.StyleNormal, Weight: textfont.Weight(weight), Stretch: textfont.StretchNormal}
+		if f.Style == "italic" || f.Style == "oblique" {
+			a.Style = textfont.StyleItalic
+		}
+		return a
+	}
+	wrapped := newFallbackFace(regular, families, aspect(f.Weight), size)
+	if heading == regular {
+		return wrapped, wrapped, warning
+	}
+	return wrapped, newFallbackFace(heading, families, aspect(min(900, f.Weight+200)), size), warning
+}
+
+// loadUIFontFaces loads the faces loadUIFonts describes, without falling
+// back for characters they lack.
+func loadUIFontFaces(f config.ThemeFont, size int) (regular, heading font.Face, warning error) {
 	if f.Path != "" {
 		face, err := loadFontFile(f.Path, size)
 		if err == nil {
