@@ -403,7 +403,7 @@ func (a *App) drawUIViewContent(renderer *sdl.Renderer, view *uiView, rect sdl.F
 			empty = view.empty(a, view)
 		}
 		st := a.style(config.ElementRowDisabled)
-		return a.drawText(renderer, empty, int(listRect.X)+a.modalListTextInset(), int(listRect.Y)+rowHeight+baselineOffset, a.textColor(&st, false))
+		return a.drawText(renderer, empty, int(listRect.X)+a.modalListTextInset(), int(listRect.Y)+a.modalListHeadHeight()+baselineOffset, a.textColor(&st, false))
 	}
 	return a.drawUIListItems(renderer, listRect, rows, view, items)
 }
@@ -420,7 +420,8 @@ func (a *App) drawUIListItems(renderer *sdl.Renderer, rect sdl.FRect, rows int, 
 	keyColumn := a.keyColumnWidth(items, int(rect.W*0.35))
 	// Rows sit where the offset puts them, those part-way out of the list
 	// cut off at its edges.
-	top := float64(rect.Y) + float64(rowHeight)
+	head := a.modalListHeadHeight()
+	top := float64(rect.Y) + float64(head)
 	rowY := func(index float64) int { return int(math.Round(top + (index-offset)*float64(rowHeight))) }
 	first, last := int(math.Floor(offset)), min(len(items), int(math.Ceil(offset))+rows)
 	list := sdl.FRect{X: rect.X, Y: float32(top), W: rect.W, H: float32(rows * rowHeight)}
@@ -502,7 +503,7 @@ func (a *App) drawUIListItems(renderer *sdl.Renderer, rect sdl.FRect, rows int, 
 	if err != nil {
 		return err
 	}
-	return a.drawModalListScrollbar(renderer, rect, rowHeight, rows, len(items), offset)
+	return a.drawModalListScrollbar(renderer, rect, head, rows, len(items), offset)
 }
 
 // keyColumnWidth is the width of the key column: the widest key of items,
@@ -524,12 +525,12 @@ func (a *App) uiViewIndexAt(view *uiView, x, y int) (uiRow, bool) {
 		return uiRow{}, false
 	}
 	rect, rows := view.contentGeometry(a)
-	rowHeight := a.modalListRowHeight()
-	if _, ok := a.modalListRowAt(rect, rows, rowHeight, x, y); !ok {
+	rowHeight, head := a.modalListRowHeight(), a.modalListHeadHeight()
+	if _, ok := a.modalListRowAt(rect, rows, head, rowHeight, x, y); !ok {
 		return uiRow{}, false
 	}
 	items := view.visibleRows()
-	top := float64(rect.Y) + float64(rowHeight)
+	top := float64(rect.Y) + float64(head)
 	itemIndex := int(math.Floor(view.offset + (float64(y)-top)/float64(rowHeight)))
 	if itemIndex < 0 || itemIndex >= len(items) {
 		return uiRow{}, false
@@ -542,9 +543,8 @@ func (a *App) uiViewStartScrollbarDrag(view *uiView, x, y int) bool {
 		return false
 	}
 	rect, rows := view.contentGeometry(a)
-	rowHeight := a.modalListRowHeight()
 	offset := view.offset
-	if !modalListStartScrollbarDrag(rect, rowHeight, rows, len(view.visibleRows()), x, y, &offset, &view.scrollbarDragOffsetY, &view.draggingScrollbar) {
+	if !modalListStartScrollbarDrag(rect, a.modalListHeadHeight(), rows, len(view.visibleRows()), x, y, &offset, &view.scrollbarDragOffsetY, &view.draggingScrollbar) {
 		return false
 	}
 	a.scrollListTo(view, offset)
@@ -556,9 +556,8 @@ func (a *App) uiViewDragScrollbar(view *uiView, y int) {
 		return
 	}
 	rect, rows := view.contentGeometry(a)
-	rowHeight := a.modalListRowHeight()
 	offset := view.offset
-	modalListDragScrollbar(rect, rowHeight, rows, len(view.visibleRows()), y, &offset, view.scrollbarDragOffsetY)
+	modalListDragScrollbar(rect, a.modalListHeadHeight(), rows, len(view.visibleRows()), y, &offset, view.scrollbarDragOffsetY)
 	a.scrollListTo(view, offset)
 }
 

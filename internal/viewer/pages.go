@@ -115,6 +115,20 @@ func (a *App) finishPageBox(renderer *sdl.Renderer, st *config.Style, rect sdl.F
 // tile is rotated about its own centre, placed where that centre falls on
 // the rotated page.
 func (a *App) drawTile(renderer *sdl.Renderer, tile *renderedTile, x, y float64, viewportW, viewportH int) {
+	dst, ok := a.tileRect(tile, x, y, viewportW, viewportH)
+	if !ok {
+		return
+	}
+	if normalizeRotation(a.rotation) == 0 {
+		sdl.RenderTexture(renderer, tile.texture, nil, &dst)
+		return
+	}
+	sdl.RenderTextureRotated(renderer, tile.texture, nil, &dst, a.rotation, nil, sdl.FlipNone)
+}
+
+// tileRect is where a tile of the page whose screen origin is (x, y) is
+// drawn before it is rotated, and false if it is off screen.
+func (a *App) tileRect(tile *renderedTile, x, y float64, viewportW, viewportH int) (sdl.FRect, bool) {
 	drawScale := a.scale / tile.scale
 	drawW := float64(tile.rect.Dx()) * drawScale
 	drawH := float64(tile.rect.Dy()) * drawScale
@@ -123,19 +137,14 @@ func (a *App) drawTile(renderer *sdl.Renderer, tile *renderedTile, x, y float64,
 	dx, dy := a.pageTransform(tile.key.page).toScreen(pageX, pageY)
 	centerX, centerY := x+dx, y+dy
 	if radius := math.Max(drawW, drawH) / 2; centerX+radius < 0 || centerY+radius < 0 || centerX-radius > float64(viewportW) || centerY-radius > float64(viewportH) {
-		return
+		return sdl.FRect{}, false
 	}
-	dst := sdl.FRect{
+	return sdl.FRect{
 		X: float32(centerX - drawW/2),
 		Y: float32(centerY - drawH/2),
 		W: float32(drawW),
 		H: float32(drawH),
-	}
-	if normalizeRotation(a.rotation) == 0 {
-		sdl.RenderTexture(renderer, tile.texture, nil, &dst)
-		return
-	}
-	sdl.RenderTextureRotated(renderer, tile.texture, nil, &dst, a.rotation, nil, sdl.FlipNone)
+	}, true
 }
 
 func (a *App) drawPageBackground(renderer *sdl.Renderer, x, y float64, page int) error {

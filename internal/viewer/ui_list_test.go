@@ -82,19 +82,19 @@ func TestModalListRowAtUsesRowsBelowHeaderOnly(t *testing.T) {
 	app := &App{}
 	rect := sdl.FRect{X: 10, Y: 20, W: 200, H: 160}
 
-	if _, ok := app.modalListRowAt(rect, 3, 30, 50, 25); ok {
+	if _, ok := app.modalListRowAt(rect, 3, 30, 30, 50, 25); ok {
 		t.Fatal("expected click in modal header to miss rows")
 	}
-	if got, ok := app.modalListRowAt(rect, 3, 30, 50, 55); !ok || got != 0 {
+	if got, ok := app.modalListRowAt(rect, 3, 30, 30, 50, 55); !ok || got != 0 {
 		t.Fatalf("expected first row hit, got row=%d ok=%v", got, ok)
 	}
-	if got, ok := app.modalListRowAt(rect, 3, 30, 50, 115); !ok || got != 2 {
+	if got, ok := app.modalListRowAt(rect, 3, 30, 30, 50, 115); !ok || got != 2 {
 		t.Fatalf("expected third row hit, got row=%d ok=%v", got, ok)
 	}
-	if _, ok := app.modalListRowAt(rect, 3, 30, 50, 145); ok {
+	if _, ok := app.modalListRowAt(rect, 3, 30, 30, 50, 145); ok {
 		t.Fatal("expected click below configured rows to miss")
 	}
-	if _, ok := app.modalListRowAt(rect, 3, 30, 500, 55); ok {
+	if _, ok := app.modalListRowAt(rect, 3, 30, 30, 500, 55); ok {
 		t.Fatal("expected click outside modal bounds to miss")
 	}
 }

@@ -58,9 +58,9 @@ var elementSpecs = [ElementCount]struct {
 	props       []string
 	description string
 }{
-	ElementPanel:             {"panel", noElement, slices.Concat(boxProps, []string{"padding"}), "Menus and other floating panels. The sides and bottom of its padding surround a menu's rows; the header sits at its top edge."},
+	ElementPanel:             {"panel", noElement, slices.Concat(boxProps, []string{"padding"}), "Menus and other floating panels. Its padding surrounds a menu's header and rows."},
 	ElementCompletion:        {"completion", ElementPanel, slices.Concat(boxProps, []string{"padding"}), "The completion panel above the prompt. Its padding surrounds its rows."},
-	ElementHeader:            {"header", noElement, slices.Concat(boxProps, textProps, []string{"gap"}), "A menu's title, as tall as a row; the sides of its padding set the title in. Its secondary colour is for the count or query after the title, set off by gap."},
+	ElementHeader:            {"header", noElement, slices.Concat(boxProps, textProps, []string{"gap"}), "A menu's title, a line of text with its padding around it. Its secondary colour is for the count or query after the title, set off by gap."},
 	ElementRow:               {"row", noElement, slices.Concat(boxProps, textProps), "A row of a menu or of completion. Its secondary colour is for key bindings and the detail on the right. Its padding above and below sets the height of rows."},
 	ElementRowSelected:       {"row_selected", ElementRow, slices.Concat(boxProps, textProps), "The selected row."},
 	ElementRowDisabled:       {"row_disabled", ElementRow, slices.Concat(boxProps, textProps), "A row that cannot be chosen."},
@@ -76,7 +76,7 @@ var elementSpecs = [ElementCount]struct {
 	ElementInputSelection:    {"input_selection", noElement, boxProps, "Selected text in a prompt."},
 	ElementHint:              {"hint", noElement, slices.Concat(boxProps, textProps), "A link hint label. Its secondary colour is for the letters already typed."},
 	ElementOverviewSelection: {"overview_selection", noElement, slices.Concat(boxProps, []string{"padding"}), "The outline around the overview's selected page; padding is its distance from the page."},
-	ElementLinkPreview:       {"link_preview", noElement, []string{"fill", "border", "shadow", "opacity", "draw"}, "The popup previewing a link's target, always a rect, as the page shows to its corners. Its fill shows while the page renders."},
+	ElementLinkPreview:       {"link_preview", noElement, []string{"radius", "fill", "border", "shadow", "opacity", "draw"}, "The popup previewing a link's target, a rect with corners rounded by its radius. Its fill shows while the page renders."},
 	ElementTitleBar:          {"title_bar", noElement, slices.Concat(boxProps, []string{"text"}), "Behind the window buttons gopdf draws where the system draws no title bar, as on Windows. Its text colour draws the buttons' symbols."},
 	ElementTitleButton:       {"title_button", noElement, slices.Concat(boxProps, []string{"text"}), "A window button under the pointer, drawn a little fainter while pressed."},
 	ElementTitleClose:        {"title_close", ElementTitleButton, slices.Concat(boxProps, []string{"text"}), "The close button under the pointer."},

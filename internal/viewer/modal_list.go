@@ -22,11 +22,11 @@ func (a *App) modalListGeometry(widthPct, heightPct int) (sdl.FRect, int) {
 	h = clampInt(h, 160, viewportH)
 	x := (viewportW - w) / 2
 	y := (viewportH - h) / 2
-	rowHeight := a.modalListRowHeight()
+	rowHeight, head := a.modalListRowHeight(), a.modalListHeadHeight()
 	bottom := a.modalListBottomPadding()
-	rows := max(1, (h-rowHeight-bottom)/rowHeight)
+	rows := max(1, (h-head-bottom)/rowHeight)
 	// Fit the panel to its rows, keeping it centred.
-	fitted := min(h, rowHeight+rows*rowHeight+bottom)
+	fitted := min(h, head+rows*rowHeight+bottom)
 	y += (h - fitted) / 2
 	return sdl.FRect{X: float32(x), Y: float32(y), W: float32(w), H: float32(fitted)}, rows
 }
@@ -36,6 +36,20 @@ func (a *App) modalListGeometry(widthPct, heightPct int) (sdl.FRect, int) {
 func (a *App) modalListRowHeight() int {
 	top, _, bottom, _ := a.insets(a.style(config.ElementRow).Padding.V)
 	return a.uiLineHeight() + int(math.Round(float64(top+bottom)))
+}
+
+// modalListHeaderHeight is the height of a menu's header: a line of text
+// and the header's padding above and below it.
+func (a *App) modalListHeaderHeight() int {
+	top, _, bottom, _ := a.insets(a.style(config.ElementHeader).Padding.V)
+	return a.uiLineHeight() + int(math.Round(float64(top+bottom)))
+}
+
+// modalListHeadHeight is how far a menu's rows start below its top: the
+// panel's padding above the header, and the header.
+func (a *App) modalListHeadHeight() int {
+	top, _, _, _ := a.insets(a.style(config.ElementPanel).Padding.V)
+	return int(math.Round(float64(top))) + a.modalListHeaderHeight()
 }
 
 // modalListBottomPadding is the space below a list's last row.
@@ -82,14 +96,15 @@ func (a *App) drawPanel(renderer *sdl.Renderer, element config.Element, rect sdl
 	return nil
 }
 
-// drawModalListHeader draws a panel's title in its first row, with detail
-// such as a count after it in the secondary colour.
+// drawModalListHeader draws a panel's title at its top, below the panel's
+// padding, with detail such as a count after it in the secondary colour.
 func (a *App) drawModalListHeader(renderer *sdl.Renderer, rect sdl.FRect, title, detail string) error {
 	st := a.style(config.ElementHeader)
-	rowHeight := a.modalListRowHeight()
-	a.drawBox(renderer, &st, sdl.FRect{X: rect.X, Y: rect.Y, W: rect.W, H: float32(rowHeight)})
+	height := a.modalListHeaderHeight()
+	top := rect.Y + float32(a.modalListHeadHeight()-height)
+	a.drawBox(renderer, &st, sdl.FRect{X: rect.X, Y: top, W: rect.W, H: float32(height)})
 	_, padRight, _, padLeft := a.insets(st.Padding.V)
-	baseline := int(rect.Y) + a.modalListBaselineOffset(rowHeight)
+	baseline := int(top) + a.modalListBaselineOffset(height)
 	x := int(rect.X + padLeft)
 	end := int(rect.X + rect.W - padRight)
 	face := a.styleFace(&st)
@@ -121,23 +136,27 @@ func (a *App) drawModalListSelection(renderer *sdl.Renderer, rect sdl.FRect, y, 
 	return nil
 }
 
-func (a *App) modalListRowAt(rect sdl.FRect, rows, rowHeight, x, y int) (int, bool) {
+// modalListRowAt is the row of a list at x, y, its rows starting head
+// pixels below the top of rect.
+func (a *App) modalListRowAt(rect sdl.FRect, rows, head, rowHeight, x, y int) (int, bool) {
 	if float32(x) < rect.X || float32(x) > rect.X+rect.W || float32(y) < rect.Y || float32(y) > rect.Y+rect.H {
 		return 0, false
 	}
-	if float32(y) < rect.Y+float32(rowHeight) {
+	if float32(y) < rect.Y+float32(head) {
 		return 0, false
 	}
-	row := (y - int(rect.Y) - rowHeight) / rowHeight
+	row := (y - int(rect.Y) - head) / rowHeight
 	if row < 0 || row >= rows {
 		return 0, false
 	}
 	return row, true
 }
 
-func modalListScrollbarRects(rect sdl.FRect, rowHeight, rows, total int, offset float64) (sdl.FRect, sdl.FRect, bool) {
-	trackTop := rect.Y + float32(rowHeight)
-	return listScrollbarRects(sdl.FRect{X: rect.X, Y: trackTop, W: rect.W, H: rect.H - float32(rowHeight) - 8}, rows, total, offset)
+// modalListScrollbarRects is the scrollbar of a list whose rows start head
+// pixels below the top of rect.
+func modalListScrollbarRects(rect sdl.FRect, head, rows, total int, offset float64) (sdl.FRect, sdl.FRect, bool) {
+	trackTop := rect.Y + float32(head)
+	return listScrollbarRects(sdl.FRect{X: rect.X, Y: trackTop, W: rect.W, H: rect.H - float32(head) - 8}, rows, total, offset)
 }
 
 // listScrollbarRects is the scrollbar's track and thumb for a list in
@@ -173,8 +192,8 @@ func modalListScrollbarScrollForY(track, thumb sdl.FRect, rows, total, y, dragOf
 	return rel / float64(travel) * float64(maxScroll)
 }
 
-func modalListStartScrollbarDrag(rect sdl.FRect, rowHeight, rows, total, x, y int, scroll *float64, dragOffset *int, dragging *bool) bool {
-	track, thumb, ok := modalListScrollbarRects(rect, rowHeight, rows, total, *scroll)
+func modalListStartScrollbarDrag(rect sdl.FRect, head, rows, total, x, y int, scroll *float64, dragOffset *int, dragging *bool) bool {
+	track, thumb, ok := modalListScrollbarRects(rect, head, rows, total, *scroll)
 	if !ok || !pointInRect(x, y, track) {
 		return false
 	}
@@ -188,8 +207,8 @@ func modalListStartScrollbarDrag(rect sdl.FRect, rowHeight, rows, total, x, y in
 	return true
 }
 
-func modalListDragScrollbar(rect sdl.FRect, rowHeight, rows, total, y int, scroll *float64, dragOffset int) {
-	track, thumb, ok := modalListScrollbarRects(rect, rowHeight, rows, total, *scroll)
+func modalListDragScrollbar(rect sdl.FRect, head, rows, total, y int, scroll *float64, dragOffset int) {
+	track, thumb, ok := modalListScrollbarRects(rect, head, rows, total, *scroll)
 	if !ok {
 		return
 	}
@@ -222,8 +241,8 @@ func pointInRect(x, y int, rect sdl.FRect) bool {
 	return float32(x) >= rect.X && float32(x) <= rect.X+rect.W && float32(y) >= rect.Y && float32(y) <= rect.Y+rect.H
 }
 
-func (a *App) drawModalListScrollbar(renderer *sdl.Renderer, rect sdl.FRect, rowHeight, rows, total int, offset float64) error {
-	if _, thumb, ok := modalListScrollbarRects(rect, rowHeight, rows, total, offset); ok {
+func (a *App) drawModalListScrollbar(renderer *sdl.Renderer, rect sdl.FRect, head, rows, total int, offset float64) error {
+	if _, thumb, ok := modalListScrollbarRects(rect, head, rows, total, offset); ok {
 		a.drawScrollbarThumb(renderer, rect, thumb)
 	}
 	return nil

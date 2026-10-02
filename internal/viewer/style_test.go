@@ -221,3 +221,46 @@ func TestPathReachingPastItsBoxIsPadded(t *testing.T) {
 		t.Fatalf("tail alpha = %d", got)
 	}
 }
+
+func TestClipConvexKeepsWhatIsInside(t *testing.T) {
+	square := []point32{{0, 0}, {10, 0}, {10, 10}, {0, 10}}
+	// A diamond inside the square, wound either way, cuts its corners.
+	diamond := []point32{{5, 0}, {10, 5}, {5, 10}, {0, 5}}
+	for _, clip := range [][]point32{diamond, {diamond[3], diamond[2], diamond[1], diamond[0]}} {
+		got := clipConvex(square, clip)
+		var area float32
+		for i, p := range got {
+			q := got[(i+1)%len(got)]
+			area += p.x*q.y - q.x*p.y
+		}
+		if area = max(area, -area) / 2; area < 49.9 || area > 50.1 {
+			t.Fatalf("clipped to %v, area %v; want the diamond's 50", got, area)
+		}
+	}
+	if got := clipConvex(square, []point32{{20, 20}, {30, 20}, {30, 30}, {20, 30}}); len(got) != 0 {
+		t.Fatalf("a square clipped to one beside it = %v, want nothing", got)
+	}
+}
+
+func TestMenuHeadFollowsPaddingAndHeader(t *testing.T) {
+	app := testStyleApp("bar")
+	rowHeight := app.modalListRowHeight()
+	if head := app.modalListHeadHeight(); head != rowHeight {
+		t.Fatalf("default head = %d, want a row's %d", head, rowHeight)
+	}
+	app.config.Theme.Elements[config.ElementPanel].Padding = config.Opt[config.Insets]{V: config.Insets{Top: 12, Bottom: 8}, Set: true}
+	app.config.Theme.Elements[config.ElementHeader].Padding = config.Opt[config.Insets]{V: config.Insets{Top: 10, Right: 14, Bottom: 10, Left: 14}, Set: true}
+	want := 12 + app.uiLineHeight() + 20
+	if head := app.modalListHeadHeight(); head != want {
+		t.Fatalf("head = %d, want %d", head, want)
+	}
+	view := app.createCoreListView("test", "Test", uiRowsFromStrings([]string{"a", "b", "c"}), 70, 70)
+	app.showUIView(view)
+	rect, _ := view.contentGeometry(app)
+	if row, ok := app.uiViewIndexAt(view, int(rect.X)+20, int(rect.Y)+want+1); !ok || row.index != 0 {
+		t.Fatalf("just below the head = row %d, %v; want the first", row.index, ok)
+	}
+	if _, ok := app.uiViewIndexAt(view, int(rect.X)+20, int(rect.Y)+want-1); ok {
+		t.Fatal("the head took a click meant for it")
+	}
+}
