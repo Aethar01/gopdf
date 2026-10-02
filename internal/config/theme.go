@@ -104,23 +104,33 @@ var themes = map[string]Theme{
 		Font: defaultThemeFont, Radius: 3, Padding: 8, Shadow: true, StatusBarStyle: "bar", StatusBarPadding: 10,
 		Motion: defaultMotion,
 	},
-	// The flat grey look of earlier releases.
+	// The flat grey look of earlier releases: greys, with yellow for
+	// highlights.
 	"classic": {
 		Palette: Palette{
 			Background: hex("220,220,220"), Page: hex("255,255,255"), Foreground: hex("20,20,20"), Muted: hex("20,20,20"),
-			Accent: hex("255,224,102"), Panel: hex("220,220,220"), Border: hex("200,200,200"), StatusBar: hex("220,220,220"),
+			Accent: hex("60,60,60"), Panel: hex("220,220,220"), Border: hex("200,200,200"), StatusBar: hex("220,220,220"),
 			Selection: hex("255,224,102"), Search: hex("255,224,102"), SearchCurrent: hex("255,150,50"),
 			HintForeground: hex("0,0,0"), Presentation: hex("0,0,0"),
 		},
 		Alt: Palette{
 			Background: hex("20,20,20"), Page: hex("17,17,17"), Foreground: hex("255,255,255"), Muted: hex("255,255,255"),
-			Accent: hex("255,224,102"), Panel: hex("20,20,20"), Border: hex("50,50,50"), StatusBar: hex("20,20,20"),
+			Accent: hex("200,200,200"), Panel: hex("20,20,20"), Border: hex("50,50,50"), StatusBar: hex("20,20,20"),
 			Selection: hex("255,224,102"), Search: hex("255,224,102"), SearchCurrent: hex("255,150,50"),
 			HintForeground: hex("0,0,0"), Presentation: hex("0,0,0"),
 		},
 		Font: defaultThemeFont, Radius: 0, Padding: 4, Shadow: false, StatusBarStyle: "bar", StatusBarPadding: 8,
-		Motion: stillMotion,
+		Motion:   stillMotion,
+		Elements: classicElements(),
 	},
+}
+
+// classicElements keep the classic theme's link hints the yellow tags
+// with black text they always were; its grey accent is too dark for them.
+func classicElements() [ElementCount]Style {
+	var elements [ElementCount]Style
+	elements[ElementHint].Fill = some(paletteColor("selection", 1))
+	return elements
 }
 
 // ThemeNames lists the built-in themes in order.
