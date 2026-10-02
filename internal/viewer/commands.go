@@ -2,7 +2,9 @@ package viewer
 
 import (
 	"fmt"
+	"log"
 	"maps"
+	"math"
 	"strconv"
 	"strings"
 	"time"
@@ -203,7 +205,7 @@ func (a *App) applyConfigState(cfg config.Config) {
 	a.cancelSmoothScroll()
 	a.fitMode = parseFitMode(cfg.FitMode)
 	a.renderMode = parseRenderMode(cfg.RenderMode)
-	a.altColors = cfg.AltColors
+	a.altColors = a.wantAltColors(cfg)
 	a.dualPage = cfg.DualPage
 	a.trimMargins = cfg.TrimMargins
 	a.firstPageOffset = cfg.FirstPageOffset
@@ -221,11 +223,14 @@ func (a *App) applyConfig(cfg config.Config, assigned map[string]bool) {
 	prev := a.config
 	a.config = cfg
 	a.applyConfigSettings()
-	if prev.UIFontPath != cfg.UIFontPath || prev.UIFontSize != cfg.UIFontSize {
+	// Shapes drawn by Lua may draw differently after any change.
+	a.masks.clear()
+	a.themeErrors = nil
+	if prev.Theme.Font != cfg.Theme.Font {
 		a.loadUIFont()
 	}
-	if prev.AltColors != cfg.AltColors || assigned["alt_colors"] {
-		a.setAltColors(cfg.AltColors)
+	if prev.AltColors != cfg.AltColors || prev.AltColorsSystem != cfg.AltColorsSystem || assigned["alt_colors"] {
+		a.setAltColors(a.wantAltColors(cfg))
 	}
 	if prev.TrimMargins != cfg.TrimMargins || assigned["trim_margins"] {
 		a.setTrimMargins(cfg.TrimMargins)
@@ -235,6 +240,7 @@ func (a *App) applyConfig(cfg config.Config, assigned map[string]bool) {
 	if a.tilesRenderedDifferently(prev, cfg) {
 		a.restyleTiles()
 	}
+	a.showConfigWarnings()
 	a.relayoutWithViewportAnchor(func() {
 		changed := false
 		apply := func(differs bool, option string, set func()) {
@@ -255,10 +261,39 @@ func (a *App) applyConfig(cfg config.Config, assigned map[string]bool) {
 	})
 }
 
+// wantAltColors is whether cfg asks for alternate colors: as it says, or
+// with alt_colors = "system" while the OS is in dark mode. The OS is only
+// asked once SDL is running.
+func (a *App) wantAltColors(cfg config.Config) bool {
+	if !cfg.AltColorsSystem {
+		return cfg.AltColors
+	}
+	return a.renderer != nil && sdl.GetSystemTheme() == sdl.SystemThemeDark
+}
+
+// followSystemColors switches alternate colors with the OS's dark mode,
+// when the config asks for that.
+func (a *App) followSystemColors() {
+	if a.config.AltColorsSystem {
+		a.setAltColors(a.wantAltColors(a.config))
+	}
+}
+
+// showConfigWarnings shows in the status bar what the configuration was
+// applied in spite of, such as theme fields this version does not know;
+// they are also logged.
+func (a *App) showConfigWarnings() {
+	if warnings := a.runtime.TakeWarnings(); len(warnings) > 0 {
+		a.message = strings.Join(warnings, "; ")
+		a.pendingRedraw = true
+	}
+}
+
 // applyConfigSettings applies the settings that are cheap to apply whether
 // or not they changed.
 func (a *App) applyConfigSettings() {
 	cfg := a.config
+	a.styles = nil
 	a.zoom = a.clampZoom(a.zoom)
 	a.cache.byteLimit = pageCacheByteLimit(cfg)
 	a.cache.evict()
@@ -268,19 +303,28 @@ func (a *App) applyConfigSettings() {
 	a.document.setDelay(time.Duration(cfg.AutoReloadDelayMS) * time.Millisecond)
 }
 
+// loadUIFont loads the theme's UI font at the window's display scale.
 func (a *App) loadUIFont() {
-	oldFontFace := a.fontFace
-	a.fontFace = loadFont(a.config.UIFontPath, a.config.UIFontSize)
 	a.clearTextTextureCache()
-	closeFontFace(oldFontFace)
+	a.masks.clear()
+	a.closeUIFonts()
+	a.uiScale = a.displayScale()
+	font := a.config.Theme.Font
+	var warning error
+	a.fontFace, a.headingFace, warning = loadUIFonts(font, int(math.Round(float64(font.Size)*a.uiScale)))
+	a.logf("load UI font family=%q path=%q size=%d scale=%.2f", font.Family, font.Path, font.Size, a.uiScale)
+	if warning != nil && warning.Error() != a.fontWarning {
+		log.Printf("UI font: %v", warning)
+		a.fontWarning = warning.Error()
+	}
 }
 
 // tilesRenderedDifferently reports whether tiles rendered under one config
 // would come out differently under the other; the alternate colours only
 // matter while they are shown.
 func (a *App) tilesRenderedDifferently(prev, cfg config.Config) bool {
-	return prev.AntiAliasing != cfg.AntiAliasing || a.altColors && (prev.AltBackground != cfg.AltBackground ||
-		prev.AltForeground != cfg.AltForeground || prev.AltColorsKeepImages != cfg.AltColorsKeepImages)
+	return prev.AntiAliasing != cfg.AntiAliasing || a.altColors && (prev.Theme.Alt.Page != cfg.Theme.Alt.Page ||
+		prev.Theme.Alt.Foreground != cfg.Theme.Alt.Foreground || prev.AltColorsKeepImages != cfg.AltColorsKeepImages)
 }
 
 func (a *App) Mode() string {

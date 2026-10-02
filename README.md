@@ -2,7 +2,7 @@
 
 A minimal, keyboard-driven document viewer backed by MuPDF and configured with Lua.
 
-gopdf provides Vim-style navigation, continuous and single-page layouts, dual-page spreads, text search and selection, outlines, links, persistent sessions and marks, configurable colors, commands, and scriptable keybindings without a permanent toolbar.
+gopdf provides Vim-style navigation, continuous and single-page layouts, dual-page spreads, text search and selection, outlines, links, persistent sessions and marks, themes, commands, and scriptable keybindings without a permanent toolbar.
 
 ## Quick Start
 
@@ -129,6 +129,49 @@ The first existing configuration file for the current platform is loaded:
 | macOS | `~/Library/Application Support/gopdf/config.lua` |
 | macOS | `~/.config/gopdf/config.lua` |
 | Windows | `%APPDATA%\gopdf\config.lua` |
+
+### Themes
+
+Colours, the UI font and the shape of panels come from one table, `gopdf.theme`. Fields left out keep the values of the base theme, so a theme can be as small as you like:
+
+```lua
+gopdf.theme = {
+  base = "birch",              -- moss (the default), birch or classic
+  accent = "#335533",
+  alt = { accent = "#88aa88" }, -- colours for alternate-color mode
+  font = { family = "Iosevka", size = 14 },
+  status_bar_style = "pill",   -- float the status bar over the page
+  motion = { scale = 0 },      -- no animation
+}
+```
+
+A theme can live in its own file. `require` looks beside `config.lua` first, with dots naming directories, so `themes/forest.lua` is `require("themes.forest")`:
+
+```lua
+-- themes/forest.lua, next to config.lua
+return { base = "moss", accent = "#2f5d3a", alt = { accent = "#8fbf8f" } }
+
+-- config.lua
+gopdf.theme = require("themes.forest")
+```
+
+Tweak a single field with `gopdf.theme.radius = 0` or, at runtime, `:set theme.radius=0`. With no `font.family` the UI uses the system's interface font. The [reference](https://aethar01.github.io/gopdf_docs/) lists every field.
+
+To go further, each piece of the UI, such as a panel, a menu row, the status bar or a link hint, is an element with its own fill, border, shadows, padding and shape. A shape can be any path, written as SVG path data or drawn by a Lua function, and an element's `draw` function can draw its box however it likes:
+
+```lua
+gopdf.theme.elements = {
+  panel = { radius = 14, shadow = "0 8 24 shadow" },
+  row_selected = { fill = "accent", text = "panel" },
+  status_left = { shape = "M0,0 H100%-8 L100%,50% L100%-8,100% H0 Z" },
+  hint = {
+    draw = function(canvas, box, state)
+      canvas:default()
+      canvas:stroke("M0,100% H100%", "accent", 2) -- underline each hint
+    end,
+  },
+}
+```
 
 Interactive keybinding changes are stored in `autogen.lua`. It is loaded before `config.lua`, so explicit user configuration takes precedence.
 

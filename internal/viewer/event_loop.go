@@ -37,9 +37,16 @@ func (a *App) Run() error {
 		return fmt.Errorf("SDL window creation failed: %s", sdl.GetError())
 	}
 	a.configureNativeWindow(window)
+	// Frames are presented in step with the display, so animations move
+	// once per refresh rather than when a timer happens to fire.
+	if !sdl.SetRenderVSync(renderer, 1) {
+		a.logf("vsync unavailable: %s", sdl.GetError())
+	}
 	a.logf("created SDL window 1400x900")
 	a.window = window
 	a.renderer = renderer
+	a.updateDisplayFrame()
+	a.loadUIFont() // again, now the display scale is known
 	a.waker = newLoopWaker()
 	if rw := sdl.IOFromConstMem(a.iconBytes); rw != nil {
 		if icon := sdl.LoadBMPIO(rw, true); icon != nil {
@@ -59,6 +66,9 @@ func (a *App) Run() error {
 	if err := a.openInitialDocument(); err != nil {
 		return err
 	}
+	a.showConfigWarnings()
+	a.refreshReducedMotion()
+	a.followSystemColors()
 	a.recomputeLayout(a.viewportSize())
 	a.pendingRedraw = true
 	a.syncTextInput()
@@ -143,8 +153,18 @@ func (a *App) openInitialDocument() error {
 }
 
 func (a *App) eventWaitTimeoutMS() int {
-	if a.smoothScrollActive() || a.smoothZoomAnimating() || a.autoscrollMoving() || a.loaderVisible {
-		return max(1, int(a.animationFrameDuration()/time.Millisecond))
+	if a.smoothScrollActive() || a.smoothZoomAnimating() || a.autoscrollMoving() || a.loaderVisible || a.motion.animating {
+		// Wait only what is left of the frame; drawing and presenting,
+		// which waits for the display, took the rest. Once the frame is
+		// over the next begins, so an animation that draws nothing, such
+		// as autoscroll held at the end of the document, still waits a
+		// frame between steps rather than spinning.
+		left := a.animationFrameDuration() - time.Since(a.frameStart)
+		if left <= 0 {
+			a.frameStart = time.Now()
+			return 0
+		}
+		return int(left / time.Millisecond)
 	}
 	// Wake for the earliest pending deadline.
 	deadlines := []time.Time{a.captureDeadline(), a.previewDeadline(), a.renderScaleReadyAt}
@@ -199,6 +219,8 @@ func (a *App) handleSDLEvent(event *sdl.Event) error {
 		redraw = false
 	case sdl.EventWindowExposed:
 		redraw = true
+	case sdl.EventWindowDisplayScaleChanged:
+		a.relayoutWithViewportAnchor(a.loadUIFont)
 	case sdl.EventWindowResized, sdl.EventWindowPixelSizeChanged:
 		e := event.Window()
 		a.relayoutWithViewportAnchor(func() {
@@ -210,6 +232,14 @@ func (a *App) handleSDLEvent(event *sdl.Event) error {
 		redraw = false
 	case sdl.EventWindowLeaveFullscreen:
 		a.fullscreen = false
+		redraw = false
+	case sdl.EventWindowDisplayChanged, sdl.EventDisplayCurrentModeChanged:
+		a.updateDisplayFrame()
+		redraw = false
+	case sdl.EventSystemThemeChanged:
+		a.followSystemColors()
+	case sdl.EventWindowFocusGained:
+		a.refreshReducedMotion()
 		redraw = false
 	case sdl.EventWindowFocusLost:
 		a.stopPan()
@@ -398,24 +428,28 @@ func (a *App) drawFrame() error {
 	if !sdl.RenderClear(a.renderer) {
 		return fmt.Errorf("SDL clear failed: %s", sdl.GetError())
 	}
+	a.frameStart = time.Now()
+	a.beginMotionFrame()
 	a.drawPages(a.renderer)
 	// An on-screen loader animates, so it asks for the next frame.
 	a.pendingRedraw = a.loaderVisible
 	a.drawLinkHints(a.renderer)
 	a.drawLinkPreview(a.renderer)
-	a.drawAutoscrollMarker(a.renderer)
 	if a.statusVisible() {
 		if err := a.drawStatusBar(a.renderer); err != nil {
 			return err
 		}
 	}
-	if view := a.activeUIView(); view != nil {
-		if err := a.drawUIView(a.renderer, view); err != nil {
-			return err
-		}
+	if err := a.drawUIViews(a.renderer); err != nil {
+		return err
 	}
+	a.drawAutoscrollMarker(a.renderer) // over a menu it scrolls
 	if err := a.drawTitleBar(a.renderer); err != nil {
 		return err
+	}
+	// A transition still on its way asks for the next frame.
+	if a.motion.animating {
+		a.pendingRedraw = true
 	}
 	sdl.RenderPresent(a.renderer)
 	return nil

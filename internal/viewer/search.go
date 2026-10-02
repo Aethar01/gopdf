@@ -456,23 +456,20 @@ func (a *App) drawSearchHighlightsForPage(renderer *sdl.Renderer, page int, x, y
 		return
 	}
 	for i, hit := range hits {
-		bg, stroke := translucent(a.config.SearchHighlightColor, 0xaa), 1
+		bg := rgb(a.palette().Search)
 		if a.search.current >= 0 && a.search.current < len(a.search.order) {
 			if ref := a.search.order[a.search.current]; ref.page == page && ref.hit == i {
-				bg, stroke = translucent(a.config.SearchCurrentColor, 0xdd), 2
+				bg = rgb(a.palette().SearchCurrent)
 			}
 		}
-		a.drawHighlightQuads(renderer, hit.Quads, page, x, y, bg, stroke)
+		a.drawHighlightQuads(renderer, hit.Quads, page, x, y, bg)
 	}
 }
 
-func (a *App) drawHighlightQuads(renderer *sdl.Renderer, quads []mupdf.Quad, page int, x, y float64, bg color.RGBA, stroke int) {
-	fg := a.highlightForegroundColor()
+func (a *App) drawHighlightQuads(renderer *sdl.Renderer, quads []mupdf.Quad, page int, x, y float64, bg color.RGBA) {
 	for _, quad := range quads {
 		minX, minY, maxX, maxY := a.quadScreenBounds(quad, page, x, y)
-		rect := sdl.FRect{X: float32(minX), Y: float32(minY), W: float32(maxX - minX), H: float32(maxY - minY)}
-		fillRect(renderer, rect, bg)
-		strokeRect(renderer, rect, fg, stroke)
+		a.drawTextHighlight(renderer, sdl.FRect{X: float32(minX), Y: float32(minY), W: float32(maxX - minX), H: float32(maxY - minY)}, bg)
 	}
 }
 

@@ -4,6 +4,7 @@ import (
 	"sync"
 	"time"
 
+	"gopdf/internal/config"
 	"gopdf/internal/instance"
 	"gopdf/internal/mupdf"
 
@@ -144,14 +145,28 @@ type layoutState struct {
 }
 
 type sdlState struct {
-	waker     *loopWaker
-	window    *sdl.Window
-	renderer  *sdl.Renderer
-	cursors   map[cursorKind]*sdl.Cursor
-	cursor    cursorKind // the cursor currently shown
-	iconBytes []byte
-	fontFace  font.Face
-	textCache textTextureCache
+	waker       *loopWaker
+	window      *sdl.Window
+	renderer    *sdl.Renderer
+	cursors     map[cursorKind]*sdl.Cursor
+	cursor      cursorKind // the cursor currently shown
+	iconBytes   []byte
+	fontFace    font.Face
+	headingFace font.Face  // heavier, for titles; may be fontFace
+	uiScale     float64    // output pixels per logical pixel the UI font was loaded at
+	fontWarning string     // the last font warning logged, so a reload does not repeat it
+	clips       []sdl.Rect // the clip rects withClip has in place, innermost last
+	textCache   textTextureCache
+	masks       maskCache                          // the theme's shapes, rasterised
+	styles      *[config.ElementCount]config.Style // the theme's styles, resolved; nil until drawn
+	pathKeys    pathKeys                           // draw functions' paths, packed
+	frameStart  time.Time                          // when the current animation frame began
+	// displayFrame is the window's display's refresh interval, or 0 when
+	// unknown; see animationFrameDuration.
+	displayFrame time.Duration
+	// themeErrors are the theme's shapes and draw functions that failed,
+	// each reported once.
+	themeErrors map[any]bool
 	// autoscrollMarker is the drawn autoscroll anchor, for the size and
 	// axes in autoscrollMarkerKey.
 	autoscrollMarker    *sdl.Texture
@@ -237,6 +252,7 @@ type uiState struct {
 	outlineMenu   outlineMenuState
 	keybindMenu   keybindMenuState
 	completion    completionState
+	motion        motionState
 }
 
 type navigationState struct {

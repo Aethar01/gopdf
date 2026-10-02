@@ -4,8 +4,8 @@ import "testing"
 
 func TestScrollOffOption(t *testing.T) {
 	cfg := Default()
-	if cfg.ScrollOff != 0 {
-		t.Fatalf("expected scroll_off=0 by default, got %d", cfg.ScrollOff)
+	if cfg.ScrollOff != 1 {
+		t.Fatalf("expected scroll_off=1 by default, got %d", cfg.ScrollOff)
 	}
 
 	desc, ok := configOptions["scroll_off"]

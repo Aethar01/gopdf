@@ -3,88 +3,70 @@ package config
 import lua "github.com/yuin/gopher-lua"
 
 type Config struct {
-	ConfigPath             string
-	AutogenPath            string
-	StatusBarVisible       bool
-	RenderMode             string
-	RenderOversample       float64
-	MinZoom                float64
-	MaxZoom                float64
-	PinchSensitivity       float64
-	ZoomStep               float64
-	PageCacheMemoryMB      int
-	LinkSchemes            []string
-	RenderThreads          int
-	MuPDFStoreMB           int
-	HintChars              string
-	AltColorsKeepImages    bool
-	TrimMargins            bool
-	AnnotationColors       []string
-	LinkPreview            bool
-	DualPage               bool
-	FirstPageOffset        bool
-	FitMode                string
-	AnchorPosition         string
-	Background             [3]uint8
-	PageBackground         [3]uint8
-	Foreground             [3]uint8
-	StatusBarColor         [3]uint8
-	AltBackground          [3]uint8
-	AltPageBackground      [3]uint8
-	AltForeground          [3]uint8
-	AltStatusBarColor      [3]uint8
-	HighlightForeground    [3]uint8
-	SelectionColor         [3]uint8
-	SearchHighlightColor   [3]uint8
-	SearchCurrentColor     [3]uint8
-	PresentationBackground [3]uint8
-	OverviewThumbWidth     int
-	OverviewMaxColumns     int
-	OverviewGap            int
-	LoadingIndicator       bool
-	AltColors              bool
-	PageGap                int
-	SpreadGap              int
-	PageGapVertical        int
-	PageGapHorizontal      int
-	ScrollStep             int
-	ScrollOff              int
-	StatusBarPadding       int
-	UIFont                 string
-	UIFontSize             int
-	UIFontStyle            string
-	UIFontWeight           int
-	UIFontPath             string
-	UIFontPathOverride     string
-	StatusBarLeft          string
-	StatusBarRight         string
-	SequenceTimeoutMS      int
-	AnimationFrameMS       int
-	NormalMessage          string
-	KeyBindings            map[string]string
-	MouseBindings          map[string]string
-	MouseTextSelect        bool
-	CopyOnSelect           bool
-	SmoothScrollSources    SmoothInputSources
-	SmoothZoomSources      SmoothInputSources
-	InvertScroll           bool
-	InvertSmoothScroll     bool
-	SmoothScrollDampening  float64
-	SmoothZoomDampening    float64
-	AutoscrollSpeedFactor  float64
-	AutoscrollMaxSpeed     float64
-	SessionDatabase        bool
-	AntiAliasing           int
-	OutlineInitialDepth    int
-	OutlineWidthPercent    int
-	OutlineHeightPercent   int
-	CompletionMaxItems     int
-	RecentFilesMax         int
-	AutoReload             bool
-	AutoReloadDelayMS      int
-	LinkPreviewDelayMS     int
-	PromptHistoryMax       int
-	TrimPadding            int
+	ConfigPath            string
+	AutogenPath           string
+	StatusBarVisible      bool
+	RenderMode            string
+	RenderOversample      float64
+	MinZoom               float64
+	MaxZoom               float64
+	PinchSensitivity      float64
+	ZoomStep              float64
+	PageCacheMemoryMB     int
+	LinkSchemes           []string
+	RenderThreads         int
+	MuPDFStoreMB          int
+	HintChars             string
+	AltColorsKeepImages   bool
+	TrimMargins           bool
+	AnnotationColors      []string
+	LinkPreview           bool
+	DualPage              bool
+	FirstPageOffset       bool
+	FitMode               string
+	AnchorPosition        string
+	Theme                 Theme
+	OverviewThumbWidth    int
+	OverviewMaxColumns    int
+	OverviewGap           int
+	LoadingIndicator      bool
+	AltColors             bool
+	AltColorsSystem       bool // follow the OS's dark mode instead of AltColors
+	PageGap               int
+	SpreadGap             int
+	PageGapVertical       int
+	PageGapHorizontal     int
+	ScrollStep            int
+	ScrollOff             int
+	StatusBarLeft         string
+	StatusBarRight        string
+	SequenceTimeoutMS     int
+	AnimationFrameMS      int
+	NormalMessage         string
+	KeyBindings           map[string]string
+	MouseBindings         map[string]string
+	MouseTextSelect       bool
+	CopyOnSelect          bool
+	SmoothScrollSources   SmoothInputSources
+	SmoothZoomSources     SmoothInputSources
+	InvertScroll          bool
+	InvertSmoothScroll    bool
+	SmoothScrollDampening float64
+	SmoothZoomDampening   float64
+	AutoscrollSpeedFactor float64
+	AutoscrollMaxSpeed    float64
+	SessionDatabase       bool
+	AntiAliasing          int
+	OutlineInitialDepth   int
+	OutlineWidthPercent   int
+	OutlineHeightPercent  int
+	CompletionMaxItems    int
+	RecentFilesMax        int
+	AutoReload            bool
+	AutoReloadDelayMS     int
+	LinkPreviewDelayMS    int
+	PromptHistoryMax      int
+	TrimPadding           int
 }
 
 type Runtime struct {
@@ -108,6 +90,7 @@ type Runtime struct {
 	loadingPlugin    string
 	activePlugin     string
 	loadingAutogen   bool
+	warnings         []string // see warn
 }
 
 // luaGeneration is what one load of the configuration builds. Reload
@@ -122,6 +105,7 @@ type luaGeneration struct {
 	plugins          *pluginState
 	operations       map[int]*pluginOperation
 	pluginGeneration int
+	draw             drawCache
 }
 
 type UIOverlay struct {

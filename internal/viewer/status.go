@@ -2,40 +2,196 @@ package viewer
 
 import (
 	"fmt"
+	"image/color"
+	"math"
 	"strings"
 	"unicode/utf8"
+
+	"gopdf/internal/config"
 
 	"github.com/jupiterrider/purego-sdl3/sdl"
 	"golang.org/x/image/font"
 )
 
-func (a *App) drawStatusBar(renderer *sdl.Renderer) error {
+// statusLayout is where the status bar goes: the status element, along
+// the bottom of the window less its margin, holding a box for each side.
+type statusLayout struct {
+	bar         sdl.FRect // the status bar as a whole
+	left, right string    // the text of each side, fitted to the space
+	leftArea    sdl.FRect // behind the left text; empty when it has none
+	rightArea   sdl.FRect // behind the right text; empty when it has none
+	textX       int       // where the left text starts
+	textEnd     int       // where the left text must end
+	rightX      int       // where the right text starts
+	baseline    int
+}
+
+func (a *App) statusLayout() statusLayout {
+	status, leftStyle, rightStyle := a.style(config.ElementStatus), a.style(config.ElementStatusLeft), a.style(config.ElementStatusRight)
 	h := a.statusBarHeight()
-	y := a.winH - h
-	if err := fillRect(renderer, sdl.FRect{X: 0, Y: float32(y), W: float32(a.winW), H: float32(h)}, a.statusBarColor()); err != nil {
+	_, marginRight, marginBottom, marginLeft := a.insets(status.Margin.V)
+	_, leftPadR, _, leftPadL := a.insets(leftStyle.Padding.V)
+	_, rightPadR, _, rightPadL := a.insets(rightStyle.Padding.V)
+	gap := a.ipx(status.Gap.V)
+	x0, x1 := int(math.Round(float64(marginLeft))), a.winW-int(math.Round(float64(marginRight)))
+	y := a.winH - int(math.Round(float64(marginBottom))) - h
+	l := statusLayout{bar: sdl.FRect{X: float32(x0), Y: float32(y), W: float32(x1 - x0), H: float32(h)}}
+	input := a.mode != modeNormal
+	pads := int(leftPadL + leftPadR + rightPadL + rightPadR)
+	l.left, l.right = fitStatusText(a.fontFace, a.formatStatusBar(a.config.StatusBarLeft), a.formatStatusBar(a.config.StatusBarRight), x1-x0-pads, gap, input)
+	rightW := 0
+	if l.right != "" {
+		rightW = measureText(a.fontFace, l.right) + int(rightPadL+rightPadR)
+		l.rightArea = sdl.FRect{X: float32(x1 - rightW), Y: float32(y), W: float32(rightW), H: float32(h)}
+		l.rightX = x1 - rightW + int(rightPadL)
+	}
+	leftW := 0
+	switch {
+	case input && rightW > 0:
+		leftW = x1 - x0 - rightW - gap
+	case input:
+		leftW = x1 - x0
+	case l.left != "":
+		leftW = measureText(a.fontFace, l.left) + int(leftPadL+leftPadR)
+	}
+	if leftW > 0 {
+		l.leftArea = sdl.FRect{X: float32(x0), Y: float32(y), W: float32(leftW), H: float32(h)}
+	}
+	l.textX, l.textEnd = x0+int(leftPadL), x0+leftW-int(leftPadR)
+	l.baseline = y + a.statusBaselineOffset(h)
+	return l
+}
+
+// statusReservedHeight is the height the status bar takes from the page
+// view: none when it floats over the page.
+func (a *App) statusReservedHeight() int {
+	status := a.style(config.ElementStatus)
+	if status.Floating.V {
+		return 0
+	}
+	_, _, marginBottom, _ := a.insets(status.Margin.V)
+	return a.statusBarHeight() + int(math.Round(float64(marginBottom)))
+}
+
+// statusTop is the top of the status bar, which completion opens above.
+func (a *App) statusTop() int {
+	return int(a.statusLayout().bar.Y)
+}
+
+func (a *App) statusBaselineOffset(h int) int {
+	m := a.fontFace.Metrics()
+	return (h + m.Ascent.Ceil() - m.Descent.Ceil()) / 2
+}
+
+func (a *App) drawStatusBar(renderer *sdl.Renderer) error {
+	l := a.statusLayout()
+	status, leftStyle, rightStyle := a.style(config.ElementStatus), a.style(config.ElementStatusLeft), a.style(config.ElementStatusRight)
+	a.drawBox(renderer, &status, l.bar)
+	// The sides grow and shrink with their text, the left from the bar's
+	// left edge and the right from its right.
+	tr := a.config.Theme.Motion.Prompt
+	leftW := float32(a.animate("status left", float64(l.leftArea.W), tr))
+	rightW := float32(a.animate("status right", float64(l.rightArea.W), tr))
+	leftBox := sdl.FRect{X: l.bar.X, Y: l.bar.Y, W: leftW, H: l.bar.H}
+	rightBox := sdl.FRect{X: l.bar.X + l.bar.W - rightW, Y: l.bar.Y, W: rightW, H: l.bar.H}
+	a.drawBox(renderer, &leftStyle, leftBox)
+	a.drawBox(renderer, &rightStyle, rightBox)
+	// The left text scrolls with a long prompt, so it is clipped to its
+	// side, and to the side's box while that grows; the cursor's width
+	// past the end is kept visible. Text fading out keeps its room.
+	_, padRight, _, _ := a.insets(leftStyle.Padding.V)
+	end := float32(l.textEnd)
+	if l.left == "" && a.motion.fadingText != "" {
+		end = l.bar.X + l.bar.W - padRight
+	}
+	if boxDrawn(&leftStyle) {
+		end = min(end, leftBox.X+leftBox.W-padRight)
+	}
+	textBox := sdl.FRect{X: float32(l.textX), Y: l.bar.Y, W: end - float32(l.textX) + a.hairline(), H: l.bar.H}
+	err := a.withClip(renderer, textBox, func() error {
+		if err := a.drawInputSelection(renderer, l); err != nil {
+			return err
+		}
+		if err := a.drawStatusLeft(renderer, l, &leftStyle); err != nil {
+			return err
+		}
+		return a.drawInputCursor(renderer, l)
+	})
+	if err != nil {
 		return err
 	}
-	pad := a.config.StatusBarPadding
-	left, right := fitStatusText(a.fontFace, a.formatStatusBar(a.config.StatusBarLeft), a.formatStatusBar(a.config.StatusBarRight), a.winW-2*pad, 2*pad, a.mode != modeNormal)
-	vertOffset := (h + a.fontFace.Metrics().Ascent.Ceil() - a.fontFace.Metrics().Descent.Ceil()) / 2
-	textX := pad
-	if a.mode != modeNormal {
-		textX = a.promptOrigin() - a.promptStart()
+	drawRight := func() error {
+		return a.drawText(renderer, l.right, l.rightX, l.baseline, a.textColor(&rightStyle, false))
 	}
-	if err := a.drawInputSelection(renderer, y, vertOffset); err != nil {
-		return err
+	if boxDrawn(&rightStyle) {
+		return a.withClip(renderer, rightBox, drawRight)
 	}
-	if err := a.drawText(renderer, left, textX, y+vertOffset, a.foregroundColor()); err != nil {
-		return err
+	return drawRight()
+}
+
+// boxDrawn reports whether st draws anything for its box, so that what
+// is inside the box should stay inside it.
+func boxDrawn(st *config.Style) bool {
+	return st.Fill.V.Alpha > 0 || st.BorderWidth.V > 0 || st.Shadow.V.N > 0 || st.Draw.V != nil
+}
+
+// drawStatusLeft draws the left text; while a prompt is open, its prefix,
+// such as : or /, is drawn in the accent colour.
+func (a *App) drawStatusLeft(renderer *sdl.Renderer, l statusLayout, st *config.Style) error {
+	if a.mode == modeNormal {
+		return a.drawStatusMessage(renderer, l, st)
 	}
-	if err := a.drawInputCursor(renderer, y, vertOffset); err != nil {
-		return err
+	a.motion.fadingText = ""
+	fg := a.textColor(st, false)
+	x := a.promptOrigin() - a.promptStart()
+	prompt := a.style(config.ElementPrompt)
+	before, after, found := strings.Cut(a.config.StatusBarLeft, "{message}")
+	if !found {
+		return a.drawText(renderer, l.left, x, l.baseline, fg)
 	}
-	rw := measureText(a.fontFace, right)
-	if err := a.drawText(renderer, right, a.winW-rw-pad, y+vertOffset, a.foregroundColor()); err != nil {
-		return err
+	prefix := a.inputPrefix()
+	display, _ := a.inputDisplay()
+	parts := []struct {
+		text string
+		clr  color.RGBA
+	}{
+		{a.formatStatusBar(before), fg},
+		{prefix, a.textColor(&prompt, false)},
+		{display, fg},
+		{a.formatStatusBar(after), fg},
+	}
+	for _, part := range parts {
+		if part.text == "" {
+			continue
+		}
+		if err := a.drawText(renderer, part.text, x, l.baseline, part.clr); err != nil {
+			return err
+		}
+		x += measureText(a.fontFace, part.text)
 	}
 	return nil
+}
+
+// drawStatusMessage draws the left text outside a prompt: a new message
+// fades in, and the last text fades out once there is none.
+func (a *App) drawStatusMessage(renderer *sdl.Renderer, l statusLayout, st *config.Style) error {
+	m := &a.motion
+	tr := a.config.Theme.Motion.Message
+	text, opacity := l.left, 1.0
+	switch {
+	case text != "":
+		m.fadingText = text
+		opacity = a.animateFrom("message in "+a.message, 0, 1, tr)
+	case m.fadingText != "":
+		text, opacity = m.fadingText, a.animateFrom("message out "+m.fadingText, 1, 0, tr)
+		if opacity <= 0 {
+			m.fadingText = ""
+		}
+	}
+	if text == "" || opacity <= 0 {
+		return nil
+	}
+	return a.faded(opacity, func() error { return a.drawText(renderer, text, l.textX, l.baseline, a.textColor(st, false)) })
 }
 
 // promptStart is how far into the left status text the prompt begins: the
@@ -62,13 +218,13 @@ func (a *App) inputDisplay() (display, left string) {
 // promptOrigin is the x at which the prompt starts. Long input scrolls left,
 // keeping its start hidden, so the cursor stays on screen.
 func (a *App) promptOrigin() int {
-	pad := a.config.StatusBarPadding
-	start := pad + a.promptStart()
+	l := a.statusLayout()
+	start := l.textX + a.promptStart()
 	display, left := a.inputDisplay()
 	prefix := a.inputPrefix()
 	prefixWidth := measureText(a.fontFace, prefix)
 	cursor := start + measureText(a.fontFace, prefix+left)
-	limit := a.winW - pad - measureText(a.fontFace, "  ") // leave room past the cursor
+	limit := l.textEnd - measureText(a.fontFace, "  ") // leave room past the cursor
 	end := start + measureText(a.fontFace, prefix+display)
 	switch {
 	case cursor-a.inputScroll > limit:
@@ -80,7 +236,7 @@ func (a *App) promptOrigin() int {
 	return start - a.inputScroll
 }
 
-func (a *App) drawInputSelection(renderer *sdl.Renderer, barY, vertOffset int) error {
+func (a *App) drawInputSelection(renderer *sdl.Renderer, l statusLayout) error {
 	if a.mode == modeNormal {
 		return nil
 	}
@@ -93,26 +249,30 @@ func (a *App) drawInputSelection(renderer *sdl.Renderer, barY, vertOffset int) e
 	selected, _ := splitAtRune(rest, end-start)
 	x := a.promptOrigin() + measureText(a.fontFace, a.inputPrefix()+left)
 	w := max(1, measureText(a.fontFace, selected))
-	mt := a.fontFace.Metrics()
-	top := barY + vertOffset - mt.Ascent.Ceil()
-	bottom := barY + vertOffset + mt.Descent.Ceil()
-	return fillRect(renderer, sdl.FRect{X: float32(x), Y: float32(top), W: float32(w), H: float32(max(1, bottom-top))}, a.selectionColor())
+	top, bottom := a.statusTextSpan(l)
+	st := a.style(config.ElementInputSelection)
+	a.drawBox(renderer, &st, sdl.FRect{X: float32(x), Y: float32(top), W: float32(w), H: float32(max(1, bottom-top))})
+	return nil
 }
 
-func (a *App) drawInputCursor(renderer *sdl.Renderer, barY, vertOffset int) error {
+// statusTextSpan is the top and bottom of the status text's glyphs.
+func (a *App) statusTextSpan(l statusLayout) (int, int) {
+	m := a.fontFace.Metrics()
+	return l.baseline - m.Ascent.Ceil(), l.baseline + m.Descent.Ceil()
+}
+
+func (a *App) drawInputCursor(renderer *sdl.Renderer, l statusLayout) error {
 	if a.mode == modeNormal {
 		return nil
 	}
-	_, left := a.inputDisplay()
-	x := a.promptOrigin() + measureText(a.fontFace, a.inputPrefix()+left)
-	fg := a.foregroundColor()
-	if !sdl.SetRenderDrawColor(renderer, fg.R, fg.G, fg.B, fg.A) {
-		return sdlError("set draw color")
-	}
-	mt := a.fontFace.Metrics()
-	cursorTop := barY + vertOffset - mt.Ascent.Ceil()
-	cursorBot := barY + vertOffset + mt.Descent.Ceil()
-	return renderBool(sdl.RenderLine(renderer, float32(x), float32(cursorTop), float32(x), float32(cursorBot)), "draw line")
+	display, left := a.inputDisplay()
+	// The cursor glides when moved through the text, and snaps to where
+	// typing or deleting puts it, which a glide would only lag behind.
+	x := a.animate("cursor "+display, float64(a.promptOrigin()+measureText(a.fontFace, a.inputPrefix()+left)), a.config.Theme.Motion.Cursor)
+	top, bottom := a.statusTextSpan(l)
+	st := a.style(config.ElementCursor)
+	a.drawBox(renderer, &st, sdl.FRect{X: float32(math.Round(x)), Y: float32(top), W: a.lineWidth(st.Width.V), H: float32(bottom - top)})
+	return nil
 }
 
 // fitStatusText keeps the two sides of the status bar from overlapping in
@@ -135,12 +295,20 @@ func fitStatusText(face font.Face, left, right string, width, gap int, keepLeft 
 	return left, right
 }
 
+// statusBarHeight is the height of the status bar: a line of text and the
+// left side's padding above and below it.
 func (a *App) statusBarHeight() int {
+	top, _, bottom, _ := a.insets(a.style(config.ElementStatusLeft).Padding.V)
+	return a.uiLineHeight() + int(math.Round(float64(top+bottom)))
+}
+
+// uiLineHeight is the height of a line of UI text.
+func (a *App) uiLineHeight() int {
 	if a.fontFace == nil {
-		return 4
+		return 0
 	}
 	metrics := a.fontFace.Metrics()
-	return max(metrics.Height.Ceil(), metrics.Ascent.Ceil()+metrics.Descent.Ceil()) + 4
+	return max(metrics.Height.Ceil(), metrics.Ascent.Ceil()+metrics.Descent.Ceil())
 }
 
 func (a *App) formatStatusBar(template string) string {

@@ -2,44 +2,24 @@ package config
 
 import (
 	"fmt"
-	"net/url"
 	"strconv"
 	"strings"
 
 	lua "github.com/yuin/gopher-lua"
 )
 
-const uiFontSelectorScheme = "gopdf-font"
-
-func init() {
-	registerOption("ui_font", stringOption("Installed UI font family; empty uses the built-in font.", func(c *Config) string { return c.UIFont }, func(c *Config, v string) {
-		c.UIFont = strings.TrimSpace(v)
-		syncUIFontPath(c)
-	}))
-	registerOption("ui_font_style", stringOption("UI font style: normal, italic, or oblique.", func(c *Config) string { return c.UIFontStyle }, func(c *Config, v string) {
-		c.UIFontStyle = normalizeUIFontStyle(v)
-		syncUIFontPath(c)
-	}))
-	registerOption("ui_font_weight", uiFontWeightOption())
-	registerOption("ui_font_path", stringOption("Explicit UI font file path; overrides ui_font, ui_font_style, and ui_font_weight.", func(c *Config) string { return c.UIFontPathOverride }, func(c *Config, v string) {
-		c.UIFontPathOverride = strings.TrimSpace(v)
-		syncUIFontPath(c)
-	}))
-}
-
 func uiFontWeightOption() optionDesc {
 	return optionDesc{
 		kind:        "font-weight",
 		description: "UI font weight as CSS number 100-900 or alias such as normal, medium, semibold, bold, or black.",
-		get:         func(L *lua.LState, cfg *Config) lua.LValue { return lua.LNumber(cfg.UIFontWeight) },
-		format:      func(cfg *Config) string { return strconv.Itoa(cfg.UIFontWeight) },
+		get:         func(L *lua.LState, cfg *Config) lua.LValue { return lua.LNumber(cfg.Theme.Font.Weight) },
+		format:      func(cfg *Config) string { return strconv.Itoa(cfg.Theme.Font.Weight) },
 		applyText: func(cfg *Config, raw string) error {
 			weight, err := parseUIFontWeight(raw)
 			if err != nil {
 				return err
 			}
-			cfg.UIFontWeight = weight
-			syncUIFontPath(cfg)
+			cfg.Theme.Font.Weight = weight
 			return nil
 		},
 		apply: func(cfg *Config, value lua.LValue) error {
@@ -56,8 +36,7 @@ func uiFontWeightOption() optionDesc {
 			if err != nil {
 				return err
 			}
-			cfg.UIFontWeight = weight
-			syncUIFontPath(cfg)
+			cfg.Theme.Font.Weight = weight
 			return nil
 		},
 	}
@@ -103,20 +82,4 @@ func parseUIFontWeight(raw string) (int, error) {
 		return 0, fmt.Errorf("expected font weight 100-900 or a named alias")
 	}
 	return weight, nil
-}
-
-func syncUIFontPath(c *Config) {
-	if c.UIFontPathOverride != "" {
-		c.UIFontPath = c.UIFontPathOverride
-		return
-	}
-	if c.UIFont == "" {
-		c.UIFontPath = ""
-		return
-	}
-	query := url.Values{}
-	query.Set("family", c.UIFont)
-	query.Set("style", normalizeUIFontStyle(c.UIFontStyle))
-	query.Set("weight", strconv.Itoa(c.UIFontWeight))
-	c.UIFontPath = uiFontSelectorScheme + "://system?" + query.Encode()
 }

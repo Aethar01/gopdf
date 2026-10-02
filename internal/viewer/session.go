@@ -162,6 +162,9 @@ func (a *App) restoreViewState(state viewState) {
 	a.firstPageOffset = state.firstPageOffset
 	a.statusBarShown = state.statusBarShown
 	a.altColors = state.altColors
+	if a.config.AltColorsSystem {
+		a.altColors = a.wantAltColors(a.config) // the OS outranks a remembered mode
+	}
 	a.updatePageMetricSizes()
 	a.page = clampInt(state.page, 0, max(0, a.pageCount-1))
 	a.recomputeLayout(a.viewportSize())

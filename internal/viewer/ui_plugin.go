@@ -114,6 +114,9 @@ func (a *App) handleGenericUIViewKey(view *uiView, e *sdl.KeyboardEvent) bool {
 	}
 	if key, ok := keyToken(e); ok {
 		if action, ok := a.sequenceLookup[key.String()]; ok {
+			// An action held down, as pan is, ends when this key is let go.
+			a.actionKeycode = e.Key
+			defer func() { a.actionKeycode = 0 }()
 			wasSearching := view.searching
 			a.runUIViewAction(view, action)
 			if !wasSearching && view.searching {

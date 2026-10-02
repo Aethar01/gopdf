@@ -4,45 +4,41 @@ import (
 	"image"
 	"image/color"
 	"slices"
+
+	"gopdf/internal/config"
 )
 
 func (a *App) statusVisible() bool {
 	return a.statusBarShown || a.mode != modeNormal
 }
 
+// palette is the theme's colours for the current color mode.
+func (a *App) palette() *config.Palette {
+	if a.altColors {
+		return &a.config.Theme.Alt
+	}
+	return &a.config.Theme.Palette
+}
+
 func (a *App) backgroundColor() color.RGBA {
 	if a.presentation != nil {
-		return rgb(a.config.PresentationBackground)
+		return rgb(a.palette().Presentation)
 	}
-	if a.altColors {
-		return rgb(a.config.AltBackground)
-	}
-	return rgb(a.config.Background)
+	return rgb(a.palette().Background)
 }
 
-func (a *App) pageBackgroundColor() color.RGBA {
-	if a.altColors {
-		return rgb(a.config.AltPageBackground)
-	}
-	return rgb(a.config.PageBackground)
-}
-
-func (a *App) foregroundColor() color.RGBA {
-	if a.altColors {
-		return rgb(a.config.AltForeground)
-	}
-	return rgb(a.config.Foreground)
-}
-
-func (a *App) statusBarColor() color.RGBA {
-	if a.altColors {
-		return rgb(a.config.AltStatusBarColor)
-	}
-	return rgb(a.config.StatusBarColor)
-}
+func (a *App) pageBackgroundColor() color.RGBA { return rgb(a.palette().Page) }
+func (a *App) foregroundColor() color.RGBA     { return rgb(a.palette().Foreground) }
+func (a *App) mutedColor() color.RGBA          { return rgb(a.palette().Muted) }
+func (a *App) statusBarColor() color.RGBA      { return rgb(a.palette().StatusBar) }
 
 func rgb(c [3]uint8) color.RGBA {
 	return color.RGBA{R: c[0], G: c[1], B: c[2], A: 0xff}
+}
+
+// isLight reports whether c is a light colour, one dark text reads on.
+func isLight(c color.RGBA) bool {
+	return int(c.R)*299+int(c.G)*587+int(c.B)*114 > 128*1000
 }
 
 // remapPageColors maps each pixel's luminance onto the fg-bg range, leaving

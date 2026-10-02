@@ -2,26 +2,15 @@ package viewer
 
 import (
 	"fmt"
-	"image/color"
 	"strings"
 	"testing"
 
 	"golang.org/x/image/font/basicfont"
 )
 
-func TestTextTextureKeyIncludesTextAndColor(t *testing.T) {
-	base := newTextTextureKey("hello", color.RGBA{R: 1, G: 2, B: 3, A: 4})
-	if base == newTextTextureKey("world", color.RGBA{R: 1, G: 2, B: 3, A: 4}) {
-		t.Fatal("text texture key ignored text")
-	}
-	if base == newTextTextureKey("hello", color.RGBA{R: 2, G: 2, B: 3, A: 4}) {
-		t.Fatal("text texture key ignored color")
-	}
-}
-
 func TestTextTextureCacheEvictsLeastRecentlyUsed(t *testing.T) {
 	var c textTextureCache
-	key := func(i int) textTextureKey { return newTextTextureKey(fmt.Sprint(i), color.Black) }
+	key := func(i int) textTextureKey { return textTextureKey{text: fmt.Sprint(i)} }
 	for i := range maxTextTextureCacheEntries {
 		c.add(key(i), cachedTextTexture{width: i})
 	}
@@ -80,7 +69,7 @@ func TestPromptScrollsToKeepCursorOnScreen(t *testing.T) {
 	app := testLayoutApp(1)
 	app.fontFace = basicfont.Face7x13
 	app.winW = 300
-	app.config.StatusBarPadding = 8
+	app.config.Theme.StatusBarPadding = 8
 	app.config.StatusBarLeft = "{modified}{message}"
 	app.mode = modeCommand
 	cursorX := func() int {

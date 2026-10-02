@@ -16,15 +16,14 @@ const (
 )
 
 type smoothScrollState struct {
-	targetX       float64
-	targetY       float64
-	appliedX      float64
-	appliedY      float64
-	modalView     *uiView
-	targetRow     float64
-	appliedRow    float64
-	appliedScroll int
-	lastAdvance   time.Time
+	targetX     float64
+	targetY     float64
+	appliedX    float64
+	appliedY    float64
+	modalView   *uiView // a list the wheel scrolls, in rows
+	targetRow   float64
+	appliedRow  float64
+	lastAdvance time.Time
 }
 
 type smoothInputSource uint8
@@ -96,11 +95,41 @@ func smoothToward(current, target, dampening float64, elapsed, frame time.Durati
 	return current + (target-current)*factor
 }
 
+// animationFrameDuration is how often animations draw a frame: the
+// display's refresh interval, unless animation_frame_ms fixes it.
 func (a *App) animationFrameDuration() time.Duration {
-	if a.config.AnimationFrameMS <= 0 {
-		return smoothAnimationFrame
+	if a.config.AnimationFrameMS > 0 {
+		return time.Duration(a.config.AnimationFrameMS) * time.Millisecond
 	}
-	return time.Duration(a.config.AnimationFrameMS) * time.Millisecond
+	if a.displayFrame > 0 {
+		return a.displayFrame
+	}
+	return smoothAnimationFrame
+}
+
+// dampingFrame is the frame smoothing's dampening is given per: a fixed
+// animation_frame_ms, or else 16ms, so that following a faster display
+// draws more often without scrolling any faster.
+func (a *App) dampingFrame() time.Duration {
+	if a.config.AnimationFrameMS > 0 {
+		return time.Duration(a.config.AnimationFrameMS) * time.Millisecond
+	}
+	return smoothAnimationFrame
+}
+
+// updateDisplayFrame reads the refresh rate of the display the window is
+// on, which animations follow unless animation_frame_ms fixes their rate.
+func (a *App) updateDisplayFrame() {
+	if a.window == nil {
+		return
+	}
+	mode := sdl.GetCurrentDisplayMode(sdl.GetDisplayForWindow(a.window))
+	if mode == nil || mode.RefreshRate <= 0 {
+		a.displayFrame = 0
+		return
+	}
+	a.displayFrame = time.Duration(float64(time.Second) / float64(mode.RefreshRate))
+	a.logf("display refresh %.2fHz", mode.RefreshRate)
 }
 
 func normalizedWheelDeltas(e *sdl.MouseWheelEvent) (float32, float32) {
@@ -204,36 +233,30 @@ func (a *App) canSmoothWheel(wx, wy float32) bool {
 	return true
 }
 
-func (a *App) modalSmoothScrollBounds(view *uiView) (*int, int, bool) {
+func (a *App) modalSmoothScrollBounds(view *uiView) (int, bool) {
 	if view == nil || !view.visible || !view.modal {
-		return nil, 0, false
+		return 0, false
 	}
 	_, rows := view.contentGeometry(a)
-	return &view.scroll, max(0, len(view.visibleRows())-rows), true
+	return max(0, len(view.visibleRows())-rows), true
 }
 
+// queueModalSmoothScroll moves a list's wheel target by deltaRows; the
+// list glides there, resting part-way into a row if the target is.
 func (a *App) queueModalSmoothScroll(view *uiView, deltaRows float64) {
 	if deltaRows == 0 {
 		return
 	}
-	scroll, maxScroll, ok := a.modalSmoothScrollBounds(view)
+	maxScroll, ok := a.modalSmoothScrollBounds(view)
 	if !ok || maxScroll == 0 {
 		a.cancelSmoothScroll()
 		return
 	}
-	*scroll = clampInt(*scroll, 0, maxScroll)
-
 	state := a.smoothScrollState()
-	if state == nil || state.modalView != view || state.appliedScroll != *scroll {
-		state = &smoothScrollState{
-			modalView:     view,
-			targetRow:     float64(*scroll),
-			appliedRow:    float64(*scroll),
-			appliedScroll: *scroll,
-		}
+	if state == nil || state.modalView != view || state.appliedRow != view.offset {
+		state = &smoothScrollState{modalView: view, targetRow: view.offset, appliedRow: view.offset}
 		a.smoothScroll = state
 	}
-
 	state.targetRow = clampFloat(state.targetRow+deltaRows, 0, float64(maxScroll))
 	if state.targetRow == state.appliedRow {
 		a.cancelSmoothScroll()
@@ -291,8 +314,8 @@ func (a *App) advanceSmoothScrollBy(elapsed time.Duration) bool {
 		return false
 	}
 
-	nextX := smoothToward(a.scrollX, state.targetX, a.config.SmoothScrollDampening, elapsed, a.animationFrameDuration())
-	nextY := smoothToward(a.scrollY, state.targetY, a.config.SmoothScrollDampening, elapsed, a.animationFrameDuration())
+	nextX := smoothToward(a.scrollX, state.targetX, a.config.SmoothScrollDampening, elapsed, a.dampingFrame())
+	nextY := smoothToward(a.scrollY, state.targetY, a.config.SmoothScrollDampening, elapsed, a.dampingFrame())
 	if math.Abs(state.targetX-nextX) <= smoothScrollSnap {
 		nextX = state.targetX
 	}
@@ -321,41 +344,30 @@ func (a *App) advanceSmoothScrollBy(elapsed time.Duration) bool {
 }
 
 func (a *App) advanceModalSmoothScrollBy(state *smoothScrollState, elapsed time.Duration) bool {
-	scroll, maxScroll, ok := a.modalSmoothScrollBounds(state.modalView)
+	view := state.modalView
+	maxScroll, ok := a.modalSmoothScrollBounds(view)
 	if !ok {
 		a.cancelSmoothScroll()
 		return false
 	}
-	if *scroll != state.appliedScroll {
-		// Keyboard selection changes and scrollbar drags are immediate. Do not
-		// let an older trackpad target pull the list back afterward.
+	if view.offset != state.appliedRow || view.settling {
+		// Keyboard selection changes and scrollbar drags take the list
+		// over. Do not let an older wheel target pull it back afterward.
 		a.cancelSmoothScroll()
 		return false
 	}
-
 	state.targetRow = clampFloat(state.targetRow, 0, float64(maxScroll))
-	state.appliedRow = clampFloat(state.appliedRow, 0, float64(maxScroll))
-	next := smoothToward(state.appliedRow, state.targetRow, a.config.SmoothScrollDampening, elapsed, a.animationFrameDuration())
+	next := smoothToward(state.appliedRow, state.targetRow, a.config.SmoothScrollDampening, elapsed, a.dampingFrame())
 	if math.Abs(state.targetRow-next) <= modalSmoothScrollSnap {
 		next = state.targetRow
 	}
-
-	oldScroll := *scroll
-	state.appliedRow = next
-	state.appliedScroll = clampInt(int(math.Round(next)), 0, maxScroll)
-	*scroll = state.appliedScroll
-
+	old := view.offset
+	a.scrollListTo(view, next)
+	state.appliedRow = view.offset
 	if state.appliedRow == state.targetRow {
-		finalScroll := clampInt(int(math.Round(state.targetRow)), 0, maxScroll)
-		state.appliedScroll = finalScroll
-		*scroll = finalScroll
 		a.cancelSmoothScroll()
 	}
-	if *scroll != oldScroll {
-		a.pendingRedraw = true
-		return true
-	}
-	return false
+	return view.offset != old
 }
 
 // shiftSmoothScroll carries an in-flight wheel animation across a relayout

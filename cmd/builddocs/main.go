@@ -69,6 +69,7 @@ func renderReference(luaRefs []config.LuaReferenceEntry, luaDocs map[string]stri
 	for _, ref := range config.OptionReferences() {
 		fmt.Fprintf(&b, "| %s | %s | %s | %s |\n", markdownCode(ref.Name), ref.Type, markdownCode(ref.Default), ref.Description)
 	}
+	renderThemeReference(&b)
 	b.WriteString("\n## Commands\n\n")
 	b.WriteString("| Command | Description |\n|---|---|\n")
 	for _, ref := range commands.CommandReferences() {
@@ -111,9 +112,11 @@ func renderReference(luaRefs []config.LuaReferenceEntry, luaDocs map[string]stri
 	b.WriteString("\n## Lua tables\n\n")
 	b.WriteString("- `gopdf.document`: `path`, `name`, `extension`, `exists`, `size_bytes`, and `page_count`.\n")
 	b.WriteString("- `gopdf.options` (alias `gopdf.o`): all entries from the configuration-options table.\n")
+	b.WriteString("- `gopdf.theme`: the theme; see [Theme](#theme). Read or assign whole, or one field at a time.\n")
+	b.WriteString("- `gopdf.themes`: each built-in theme as a fresh table, such as `gopdf.themes.birch`.\n")
 	b.WriteString("- `gopdf.cache`, `gopdf.ui`, and `gopdf.plugin`: functions are listed above.\n")
 	b.WriteString("\n### Status bar\n\n")
-	b.WriteString("Show or hide the status bar with `gopdf.options.status_bar_visible`. Configure horizontal spacing with `gopdf.options.status_bar_padding` and text size with `gopdf.options.ui_font_size`. The `status_bar_left` and `status_bar_right` options are templates with these substitutions:\n\n")
+	b.WriteString("Show or hide the status bar with `gopdf.options.status_bar_visible`. Its look comes from the theme: `status_bar_style` places it along the bottom or floating as pills, `status_bar_padding` sets its horizontal spacing and `font.size` its text size, and the `status`, `status_left` and `status_right` elements style it further. The `status_bar_left` and `status_bar_right` options are templates with these substitutions:\n\n")
 	b.WriteString("| Placeholder | Value |\n|---|---|\n")
 	b.WriteString("| `{message}` | Status message or active input prompt. |\n")
 	b.WriteString("| `{page}` | Current physical page, or the page range for a dual-page spread. |\n")
@@ -212,6 +215,8 @@ func renderExampleConfig() string {
 	for _, ref := range config.OptionReferences() {
 		fmt.Fprintf(&b, "gopdf.options.%s = %s -- %s\n", ref.Name, ref.Default, ref.Description)
 	}
+	b.WriteString("\n-- The theme. Fields left out keep the values of the base theme.\n\n")
+	renderExampleTheme(&b)
 	b.WriteString("\n-- Default key bindings.\n\n")
 	for _, action := range actions.All() {
 		for _, key := range action.Keys {
@@ -229,6 +234,99 @@ func renderExampleConfig() string {
 		fmt.Fprintf(&b, "gopdf.bind_mouse(%q, gopdf.%s)\n", event, cfg.MouseBindings[event])
 	}
 	return b.String()
+}
+
+// renderThemeReference documents the theme table and its presets.
+func renderThemeReference(b *strings.Builder) {
+	b.WriteString("\n## Theme\n\n")
+	b.WriteString("The theme is everything about how the viewer looks: its colours, UI font and the shape of its panels. Assign it as one table, so a theme can be shared as a single table:\n\n")
+	b.WriteString("```lua\ngopdf.theme = {\n  base = \"birch\",  -- start from a built-in theme; the default is " + config.DefaultTheme + "\n  accent = \"#335533\",\n  alt = { accent = \"#88aa88\" },\n  font = { family = \"Iosevka\", size = 14 },\n}\n```\n\n")
+	b.WriteString("`require` searches the configuration file's directory first, so a theme can live in a file of its own beside `config.lua`. Have it return its table, as `themes/forest.lua` holding `return { accent = \"#2f5d3a\" }`, and apply it with `gopdf.theme = require(\"themes.forest\")`; dots in the name are directories, and `require(\"forest\")` would load `forest.lua`.\n\n")
+	b.WriteString("Fields left out keep the base theme's values. Assign a preset by name with `gopdf.theme = \"birch\"`, or a single field with `gopdf.theme.accent = \"#335533\"`; at runtime use `:set theme=birch` or `:set theme.accent=#335533`. Built-in themes: " + codeList(config.ThemeNames()) + ". `gopdf.themes.<name>` gives a copy of one to change. Fields and element properties this version does not know are skipped with a warning, so a theme written for a newer version still loads; `:set` refuses them.\n\n")
+	b.WriteString("Colours are `\"#RRGGBB\"` or `{ r, g, b }`. The `alt` table holds the colours used in alternate-color mode, toggled with `:colors`, and has the same colour fields as the theme. The `font` table picks the UI font; with neither `family` nor `path` set it is the system's interface font.\n\n")
+	b.WriteString("The `motion` table sets how the UI moves. Each transition is written as CSS writes one, a duration and an easing such as `\"140ms ease-out\"`, or as `{ duration = 140, easing = \"ease-out\" }`; easings are `linear`, `ease`, `ease-in`, `ease-out`, `ease-in-out` and `cubic-bezier(x1, y1, x2, y2)`, and `\"none\"` turns one transition off. By default only what moves is animated: the selection, the cursor and the sides of the status bar glide to where they go, while menus and messages appear and go at once; give `panel` or `message` a transition to fade them. `scale` slows or speeds every transition, and `0` turns motion off altogether, as the classic theme does.\n\n")
+	b.WriteString("| Field | Type | Default | Description |\n|---|---|---|---|\n")
+	for _, ref := range config.ThemeReferences() {
+		fmt.Fprintf(b, "| %s | %s | %s | %s |\n", markdownCode(ref.Name), ref.Type, markdownCode(ref.Default), ref.Description)
+	}
+	renderElementReference(b)
+}
+
+// renderElementReference documents the elements table, its properties and
+// the shapes it can draw.
+func renderElementReference(b *strings.Builder) {
+	b.WriteString("\n### Elements\n\n")
+	b.WriteString("Each piece of the UI is an element with a style of its own, which the theme's `elements` table changes. The fields above still shape every element: an element's style starts from the theme's `radius`, `padding`, `shadow` and `status_bar_style`, and from the element it inherits from, and the properties set here go over that.\n\n")
+	b.WriteString("```lua\ngopdf.theme = {\n  elements = {\n    panel = { radius = 12, shadow = \"0 8 24 shadow\" },\n    row_selected = { fill = \"accent\", text = \"panel\" },\n    status_left = { shape = \"pill\" },\n  },\n}\n```\n\n")
+	b.WriteString("Set one property with `gopdf.theme.elements.panel.radius = 12`, or at runtime with `:set theme.elements.panel.radius=12`. Reading a property gives the value in effect, and assigning `nil` returns it to its default. The `status_bar_style` field picks the defaults of `status`, `status_left` and `status_right`: `bar` lays a bar along the bottom of the window, and `pill` floats a pill for each side over the page.\n\n")
+	b.WriteString("Colours name a palette colour, which follows the color mode, or are `\"#RRGGBB\"`, `\"#RRGGBBAA\"` or `\"none\"`; any can be followed by an opacity percentage, as `\"accent/16\"`. The name `shadow` is black at the strength shadows need over the background. Lengths are logical pixels, scaled on high-density displays.\n\n")
+	b.WriteString("| Property | Type | Description |\n|---|---|---|\n")
+	for _, ref := range config.StylePropertyReferences() {
+		fmt.Fprintf(b, "| %s | %s | %s |\n", markdownCode(ref.Name), ref.Type, ref.Description)
+	}
+	b.WriteString("\nEvery element starts from `" + config.BaseStyleReference() + "`. The elements, with what their styles change from that in the default theme:\n\n")
+	b.WriteString("| Element | Description | Properties | Default style |\n|---|---|---|---|\n")
+	for _, ref := range config.ElementReferences() {
+		description := ref.Description
+		if ref.Inherits != "" {
+			description += " Starts from " + markdownCode(ref.Inherits) + "."
+		}
+		fmt.Fprintf(b, "| %s | %s | %s | %s |\n", markdownCode(ref.Name), description, strings.Join(ref.Properties, ", "), markdownCode(ref.Defaults))
+	}
+	b.WriteString("\n#### Shapes\n\n")
+	b.WriteString("A `rect` has its corners rounded by `radius`, and a `pill` has round ends whatever its size. Any other shape is a path, given as SVG path data or drawn by a Lua function. The border is drawn inside the shape's edge, and shadows follow the shape.\n\n")
+	b.WriteString("Path data takes the commands `M`, `L`, `H`, `V`, `Q`, `C` and `Z`, lowercase for relative coordinates. A coordinate is in logical pixels from the box's top left, or a percentage of the box's width or height, offset by pixels written straight after it. This arrow points right whatever the row's width:\n\n")
+	b.WriteString("```lua\ngopdf.theme.elements.row_selected.shape = \"M0,0 H100%-8 L100%,50% L100%-8,100% H0 Z\"\n```\n\n")
+	b.WriteString("A function is called as `shape(path, w, h)` with the box's size in logical pixels, whenever an element is drawn at a size not drawn before. Its `path` has the methods `move_to(x, y)`, `line_to(x, y)`, `quad_to(cx, cy, x, y)`, `cubic_to(c1x, c1y, c2x, c2y, x, y)`, `close()`, `rect(x, y, w, h [, radius])` and `ellipse(cx, cy, rx [, ry])`, each returning `path`. If a shape fails, its element is drawn as a plain rect and the error is reported once.\n\n")
+	b.WriteString("```lua\ngopdf.theme.elements.status_left.shape = function(path, w, h)\n  path:move_to(h / 2, 0):line_to(w, 0):line_to(w - h / 2, h):line_to(0, h):close()\nend\n```\n")
+	b.WriteString("\n#### Drawing\n\n")
+	b.WriteString("An element's `draw` function draws its box in place of the default drawing, as `draw(canvas, box, state)`, each time the element is drawn; its text is drawn over it as usual. `box` holds the box's `x`, `y`, `w` and `h` in logical pixels from the window's top left, and `state` the `element` being drawn, whether `alt` colours are on, and the `time` in seconds since gopdf started, for drawing that moves, so a function set on `row` can tell `row_selected` apart. Both tables are reused from call to call, so copy what you keep. Like other properties, a draw function carries to the elements that start from its element; assigning `false` or `nil` removes it.\n\n")
+	b.WriteString("The canvas's coordinates are logical pixels from the box's top left, and may reach outside it. Its methods are:\n\n")
+	b.WriteString("| Method | Draws |\n|---|---|\n")
+	for _, row := range [][2]string{
+		{"canvas:default()", "The element as it would be drawn without the function: its box, or the loader's drops and the autoscroll marker."},
+		{"canvas:fill(path, color)", "The inside of a path: path data as a shape takes, or a path from `canvas:path()`."},
+		{"canvas:stroke(path, color [, width])", "A line along a path, 1 logical pixel wide unless given, with round joins."},
+		{"canvas:rect(x, y, w, h, color [, radius])", "A rect, its corners rounded by radius."},
+		{"canvas:text(x, y, text, color [, bold])", "Text with the top of its line at y, in the UI font; returns its width."},
+		{"canvas:measure(text [, bold])", "Nothing; returns the width and line height of text."},
+		{"canvas:path()", "Nothing; returns an empty path, with the methods a shape function's path has."},
+	} {
+		fmt.Fprintf(b, "| %s | %s |\n", markdownCode(row[0]), row[1])
+	}
+	b.WriteString("\nColours are written as in the elements table, and the element's `opacity` applies to them. Panels and the link preview draw their border over their contents, which they do only when the function called `canvas:default()`. If the function fails, the element is drawn as it would be without it, the error is reported once, and the function is not called again until the configuration changes.\n\n")
+	b.WriteString("```lua\ngopdf.theme.elements.row_selected.draw = function(canvas, box, state)\n  canvas:default()\n  canvas:rect(0, 5, 3, box.h - 10, \"accent\", 1.5) -- a bar at the left\nend\n```\n")
+}
+
+// renderExampleTheme writes the default theme as a gopdf.theme table.
+func renderExampleTheme(b *strings.Builder) {
+	fmt.Fprintf(b, "gopdf.theme = {\n  base = %q,\n", config.DefaultTheme)
+	group := ""
+	for _, ref := range config.ThemeReferences() {
+		name, member, nested := strings.Cut(ref.Name, ".")
+		if !nested {
+			name, member = "", name
+		}
+		if name != group {
+			if group != "" {
+				b.WriteString("  },\n")
+			}
+			if name != "" {
+				fmt.Fprintf(b, "  %s = {\n", name)
+			}
+			group = name
+		}
+		indent := "  "
+		if group != "" {
+			indent = "    "
+		}
+		fmt.Fprintf(b, "%s%s = %s, -- %s\n", indent, member, ref.Default, ref.Description)
+	}
+	if group != "" {
+		b.WriteString("  },\n")
+	}
+	b.WriteString("  elements = {}, -- The style of each piece of the UI, such as panel or row_selected; see Elements in the reference.\n")
+	b.WriteString("}\n")
 }
 
 func markdownCode(value string) string {

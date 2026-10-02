@@ -1,6 +1,7 @@
 package viewer
 
 import (
+	"math"
 	"slices"
 	"strings"
 	"unicode/utf8"
@@ -125,12 +126,12 @@ func (a *App) drawLinkHints(renderer *sdl.Renderer) {
 		return
 	}
 	_, viewportH := a.viewportSize()
-	metrics := a.fontFace.Metrics()
+	st := a.style(config.ElementHint)
+	face := a.styleFace(&st)
+	metrics := face.Metrics()
 	ascent, descent := metrics.Ascent.Ceil(), metrics.Descent.Ceil()
-	bg, fg := a.selectionColor(), a.highlightForegroundColor()
-	bg.A = 0xff
-	typedFG := fg
-	typedFG.A /= 2
+	padTop, padRight, padBottom, padLeft := a.insets(st.Padding.V)
+	fg, typedFG := a.textColor(&st, false), a.textColor(&st, true)
 	for _, hint := range a.hints.hints {
 		if !strings.HasPrefix(hint.label, a.hints.typed) {
 			continue
@@ -140,15 +141,14 @@ func (a *App) drawLinkHints(renderer *sdl.Renderer) {
 			continue
 		}
 		minX, minY, _, maxY := a.quadScreenBounds(rectQuad(hint.link.Bounds), hint.page, x, y)
-		const pad = 3
-		w := measureText(a.fontFace, hint.label) + 2*pad
-		box := hintBox(minX, minY, maxY, float64(w), float64(ascent+descent+2*pad), float64(viewportH))
-		fillRect(renderer, box, bg)
-		strokeRect(renderer, box, fg, 1)
-		left, baseline := int(box.X)+pad, int(box.Y)+pad+ascent
-		typedW := measureText(a.fontFace, a.hints.typed)
-		a.drawText(renderer, a.hints.typed, left, baseline, typedFG)
-		a.drawText(renderer, hint.label[len(a.hints.typed):], left+typedW, baseline, fg)
+		w := float64(measureText(face, hint.label)) + float64(padLeft+padRight)
+		box := hintBox(minX, minY, maxY, math.Round(w), math.Round(float64(ascent+descent)+float64(padTop+padBottom)), float64(viewportH))
+		box.X, box.Y = float32(math.Round(float64(box.X))), float32(math.Round(float64(box.Y)))
+		a.drawBox(renderer, &st, box)
+		left, baseline := int(box.X+padLeft), int(math.Round(float64(box.Y+padTop)))+ascent
+		typedW := measureText(face, a.hints.typed)
+		a.drawTextFace(renderer, a.hints.typed, left, baseline, typedFG, st.Bold.V)
+		a.drawTextFace(renderer, hint.label[len(a.hints.typed):], left+typedW, baseline, fg, st.Bold.V)
 	}
 }
 
