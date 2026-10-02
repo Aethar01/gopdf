@@ -177,10 +177,9 @@ type Shadow struct {
 func (s Shadow) List() []ShadowLayer { return s.Layers[:s.N] }
 
 // defaultShadow is the shadow floating panels get when the theme's shadow
-// is on: a wide soft one and a tight one where the panel meets the page.
-var defaultShadow = Shadow{N: 2, Layers: [maxShadowLayers]ShadowLayer{
-	{Y: 3, Blur: 8, Color: Color{Name: "shadow", Alpha: 1}},
-	{Y: 1, Blur: 2, Color: Color{Name: "shadow", Alpha: 0.5}},
+// is on: short and crisp, as one sheet of paper casts on another.
+var defaultShadow = Shadow{N: 1, Layers: [maxShadowLayers]ShadowLayer{
+	{Y: 2, Blur: 1, Color: Color{Name: "shadow", Alpha: 1}},
 }}
 
 func paletteColor(name string, alpha float64) Color { return Color{Name: name, Alpha: alpha} }
@@ -216,8 +215,8 @@ func symmetric(v, h float64) Insets { return Insets{v, h, v, h} }
 // parent's style.
 func elementDefaults(t *Theme, e Element) Style {
 	radius, pad := float64(t.Radius), float64(t.Padding)
-	line := max(4, pad) // the padding above and below a line of text together
-	rowInset := 6.0     // rows' distance from the sides of their panel
+	line := max(4, pad)   // the padding above and below a line of text together
+	textInset := 6 + line // text's distance from the sides of its panel
 	shadow := Shadow{}
 	if t.Shadow {
 		shadow = defaultShadow
@@ -230,9 +229,9 @@ func elementDefaults(t *Theme, e Element) Style {
 		s.Fill = some(paletteColor("panel", 1))
 		s.BorderWidth = some(1.0)
 		s.Shadow = some(shadow)
-		s.Padding = some(Insets{0, rowInset, line, rowInset})
+		s.Padding = some(Insets{Bottom: line})
 	case ElementCompletion:
-		s.Padding = some(uniform(rowInset))
+		s.Padding = some(symmetric(line/2, 0))
 	case ElementHeader:
 		// The header's box spans the top of its panel, so it takes the
 		// panel's top corners.
@@ -241,20 +240,24 @@ func elementDefaults(t *Theme, e Element) Style {
 		s.Bold = some(true)
 		s.BorderWidth = some(1.0)
 		s.BorderSides = some(SideBottom)
-		s.Padding = some(symmetric(line/2, rowInset+line))
+		s.Padding = some(symmetric(line/2, textInset))
 		s.Gap = some(8.0)
 	case ElementRow:
-		s.Padding = some(symmetric(line/2, line))
+		s.Padding = some(symmetric(line/2, textInset))
 	case ElementRowSelected:
-		s.Radius = some(corners(radius * 0.75))
-		s.Fill = some(paletteColor("accent", 0.16))
+		// A flat band across the sheet, marked at its edge like a ribbon
+		// bookmark.
+		s.Fill = some(paletteColor("accent", 0.1))
+		s.BorderWidth = some(3.0)
+		s.BorderColor = some(paletteColor("accent", 1))
+		s.BorderSides = some(SideLeft)
 	case ElementRowDisabled:
 		s.Text = some(paletteColor("muted", 1))
 	case ElementHeading:
 		s.Text = some(paletteColor("accent", 1))
 		s.Bold = some(true)
 	case ElementButton:
-		s.Radius = some(corners(radius * 0.75))
+		s.Radius = some(corners(radius))
 		s.BorderWidth = some(1.0)
 		s.Text = some(paletteColor("accent", 1))
 	case ElementScrollbar:
@@ -295,17 +298,15 @@ func elementDefaults(t *Theme, e Element) Style {
 	case ElementInputSelection:
 		s.Fill = some(paletteColor("accent", 0.3))
 	case ElementHint:
+		// A solid tag pinned to the link.
 		s.Radius = some(corners(radius / 2))
-		s.Fill = some(paletteColor("selection", 1))
-		s.BorderWidth = some(1.0)
-		s.BorderColor = some(paletteColor("hint_foreground", 0.25))
-		s.Shadow = some(shadow)
+		s.Fill = some(paletteColor("accent", 1))
 		s.Text = some(paletteColor("hint_foreground", 1))
-		s.Secondary = some(paletteColor("hint_foreground", 0.5))
+		s.Secondary = some(paletteColor("hint_foreground", 0.55))
 		s.Bold = some(true)
 		s.Padding = some(symmetric(2, 5))
 	case ElementOverviewSelection:
-		s.Radius = some(corners(min(radius/2+5.5, 8)))
+		s.Radius = some(corners(radius))
 		s.BorderWidth = some(2.5)
 		s.BorderColor = some(paletteColor("accent", 1))
 		s.Padding = some(uniform(3))

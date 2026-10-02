@@ -27,11 +27,11 @@ gopdf.theme = {
 	if got := selected.Text.V; got != (Color{RGB: [3]uint8{0x10, 0x20, 0x30}, Alpha: 1}) {
 		t.Errorf("row_selected text = %+v, want the row's", got)
 	}
-	if got := selected.Fill.V; got != paletteColor("accent", 0.16) {
+	if got := selected.Fill.V; got != paletteColor("accent", 0.1) {
 		t.Errorf("row_selected fill = %+v, want its own default", got)
 	}
-	if got := selected.Radius.V; got != corners(3) {
-		t.Errorf("row_selected radius = %v, want three quarters of the theme's", got)
+	if selected.BorderSides.V != SideLeft || selected.BorderColor.V != paletteColor("accent", 1) {
+		t.Errorf("row_selected border = %v %+v, want the accent ribbon at its left", selected.BorderSides.V, selected.BorderColor.V)
 	}
 	if got := selected.Secondary.V; got != paletteColor("accent", 1) {
 		t.Errorf("row_selected secondary = %+v", got)

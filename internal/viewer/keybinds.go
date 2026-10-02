@@ -311,7 +311,7 @@ func (a *App) keybindMenuListGeometry() (sdl.FRect, int) {
 
 func (a *App) keybindNewButtonRect(rect sdl.FRect) sdl.FRect {
 	rowHeight := a.keybindMenuRowHeight()
-	inset := a.modalListRowInset()
+	inset := a.px(6) // a framed box within the sheet
 	return sdl.FRect{X: rect.X + inset, Y: rect.Y + float32(rowHeight) + inset, W: rect.W - 2*inset, H: float32(rowHeight)}
 }
 
