@@ -407,7 +407,6 @@ func (a *App) drawFrame() error {
 	a.pendingRedraw = a.loaderVisible
 	a.drawLinkHints(a.renderer)
 	a.drawLinkPreview(a.renderer)
-	a.drawAutoscrollMarker(a.renderer)
 	if a.statusVisible() {
 		if err := a.drawStatusBar(a.renderer); err != nil {
 			return err
@@ -416,6 +415,7 @@ func (a *App) drawFrame() error {
 	if err := a.drawUIViews(a.renderer); err != nil {
 		return err
 	}
+	a.drawAutoscrollMarker(a.renderer) // over a menu it scrolls
 	if err := a.drawTitleBar(a.renderer); err != nil {
 		return err
 	}

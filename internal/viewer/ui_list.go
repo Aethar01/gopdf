@@ -6,6 +6,7 @@ import (
 	"math"
 	"strconv"
 	"strings"
+	"time"
 
 	"gopdf/internal/config"
 
@@ -43,18 +44,25 @@ func splitHeader(header string) (title, detail string) {
 }
 
 type uiView struct {
-	id                   string
-	owner                string
-	generation           int
-	title                string
-	rows                 []uiRow
-	selected             int
-	scroll               int
-	searchable           bool
-	searching            bool
-	query                string
-	visible              bool
-	draggingScrollbar    bool
+	id                string
+	owner             string
+	generation        int
+	title             string
+	rows              []uiRow
+	selected          int
+	scroll            int
+	searchable        bool
+	searching         bool
+	query             string
+	visible           bool
+	draggingScrollbar bool
+	// offset is the row shown at the list's top, which may be fractional;
+	// it follows scroll, the offset last followed being offsetScroll,
+	// while settling. See listOffset.
+	offset               float64
+	offsetScroll         int
+	settling             bool
+	offsetAt             time.Time // when offset was last brought up to date
 	scrollbarDragOffsetY int
 	modal                bool
 	widthPercent         int
@@ -290,6 +298,7 @@ func (a *App) moveUIViewSelection(view *uiView, delta int) {
 	view.selected = items[row].index
 	_, rows := view.contentGeometry(a)
 	view.scroll = modalListScrollForSelection(view.scroll, row, rows, len(items), a.config.ScrollOff)
+	settleList(view)
 	a.pendingRedraw = true
 }
 
@@ -324,6 +333,7 @@ func (a *App) ensureUIViewSelectionVisible(view *uiView) {
 	row := uiViewSelectedRow(view, items)
 	_, rows := view.contentGeometry(a)
 	view.scroll = modalListScrollForSelection(view.scroll, row, rows, len(items), a.config.ScrollOff)
+	settleList(view)
 }
 
 func uiViewSelectedRow(view *uiView, items []uiRow) int {
@@ -406,86 +416,93 @@ func (a *App) drawUIListItems(renderer *sdl.Renderer, rect sdl.FRect, rows int, 
 	baselineOffset := a.modalListBaselineOffset(rowHeight)
 	rows = max(1, rows)
 	view.scroll = clampInt(view.scroll, 0, max(0, len(items)-rows))
+	offset := a.listOffset(view, rows, len(items))
 	keyColumn := a.keyColumnWidth(items, int(rect.W*0.35))
-	// The selected row's box is drawn first, gliding to it from the row
-	// selected before. It moves among the rows, not across the screen, so
-	// when the list scrolls it stays with its row.
-	for row := 0; row < rows && view.scroll+row < len(items); row++ {
-		if item := items[view.scroll+row]; item.index == view.selected && !item.heading {
-			at := a.animate("selection "+viewKey(view), float64(view.scroll+row), a.config.Theme.Motion.Selection)
-			st := a.style(config.ElementRowSelected)
-			box := a.rowBox(rect, 0, rowHeight)
-			box.Y = float32(math.Round(float64(rect.Y) + float64(rowHeight)*(1+at-float64(view.scroll))))
-			a.drawBox(renderer, &st, box)
+	// Rows sit where the offset puts them, those part-way out of the list
+	// cut off at its edges.
+	top := float64(rect.Y) + float64(rowHeight)
+	rowY := func(index float64) int { return int(math.Round(top + (index-offset)*float64(rowHeight))) }
+	first, last := int(math.Floor(offset)), min(len(items), int(math.Ceil(offset))+rows)
+	list := sdl.FRect{X: rect.X, Y: float32(top), W: rect.W, H: float32(rows * rowHeight)}
+	err := a.withClip(renderer, list, func() error {
+		// The selected row's box is drawn first, gliding to it from the
+		// row selected before. It moves among the rows, so it stays with
+		// its row as the list scrolls.
+		for index := first; index < last; index++ {
+			if item := items[index]; item.index == view.selected && !item.heading {
+				at := a.animate("selection "+viewKey(view), float64(index), a.config.Theme.Motion.Selection)
+				st := a.style(config.ElementRowSelected)
+				a.drawBox(renderer, &st, a.rowBox(rect, rowY(at), rowHeight))
+			}
 		}
+		for index := first; index < last; index++ {
+			item := items[index]
+			y := rowY(float64(index))
+			element := config.ElementRow
+			switch {
+			case item.heading:
+				element = config.ElementHeading
+			case item.index == view.selected:
+				element = config.ElementRowSelected
+			case item.disabled:
+				element = config.ElementRowDisabled
+			}
+			st := a.style(element)
+			box := a.rowBox(rect, y, rowHeight)
+			if element != config.ElementRowSelected {
+				a.drawBox(renderer, &st, box)
+			}
+			_, padRight, _, padLeft := a.insets(st.Padding.V)
+			face := a.styleFace(&st)
+			textX, textEnd := int(math.Round(float64(box.X+padLeft))), int(math.Round(float64(box.X+box.W-padRight)))
+			baseline := y + baselineOffset
+			if item.heading {
+				if err := a.drawTextFace(renderer, truncateText(face, item.text, textEnd-textX), textX, baseline, a.textColor(&st, false), st.Bold.V); err != nil {
+					return err
+				}
+				continue
+			}
+			text := strings.Repeat("  ", max(0, item.depth)) + item.marker + item.text
+			// The right-hand column gets at most 45% of a narrow row.
+			secondary := a.truncateModalListText(item.secondary, int(rect.W*0.45))
+			secondaryWidth := measureText(a.fontFace, secondary)
+			textWidth := textEnd - textX
+			if secondary != "" {
+				textWidth -= secondaryWidth + a.ipx(12)
+			}
+			if item.swatch != nil {
+				swatchStyle := a.style(config.ElementSwatch)
+				swatchStyle.Fill.V = config.Color{RGB: [3]uint8{item.swatch.R, item.swatch.G, item.swatch.B}, Alpha: float64(item.swatch.A) / 255}
+				size := float32(a.uiLineHeight())
+				a.drawBox(renderer, &swatchStyle, sdl.FRect{X: float32(textX), Y: float32(y) + (float32(rowHeight)-size)/2, W: size, H: size})
+				advance := int(size) + a.ipx(swatchStyle.Gap.V)
+				textX += advance
+				textWidth -= advance
+			}
+			if item.key != "" {
+				if err := a.drawText(renderer, a.truncateModalListText(item.key, keyColumn), textX, baseline, a.textColor(&st, true)); err != nil {
+					return err
+				}
+			}
+			if keyColumn > 0 {
+				textX += keyColumn + a.ipx(16)
+				textWidth -= keyColumn + a.ipx(16)
+			}
+			if err := a.drawTextFace(renderer, truncateText(face, text, textWidth), textX, baseline, a.textColor(&st, false), st.Bold.V); err != nil {
+				return err
+			}
+			if secondary != "" {
+				if err := a.drawText(renderer, secondary, textEnd-secondaryWidth, baseline, a.textColor(&st, true)); err != nil {
+					return err
+				}
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return err
 	}
-	for row := 0; row < rows; row++ {
-		itemIndex := view.scroll + row
-		if itemIndex >= len(items) {
-			break
-		}
-		item := items[itemIndex]
-		y := int(rect.Y) + rowHeight + row*rowHeight
-		element := config.ElementRow
-		switch {
-		case item.heading:
-			element = config.ElementHeading
-		case item.index == view.selected:
-			element = config.ElementRowSelected
-		case item.disabled:
-			element = config.ElementRowDisabled
-		}
-		st := a.style(element)
-		box := a.rowBox(rect, y, rowHeight)
-		if element != config.ElementRowSelected {
-			a.drawBox(renderer, &st, box)
-		}
-		_, padRight, _, padLeft := a.insets(st.Padding.V)
-		face := a.styleFace(&st)
-		textX, textEnd := int(math.Round(float64(box.X+padLeft))), int(math.Round(float64(box.X+box.W-padRight)))
-		baseline := y + baselineOffset
-		if item.heading {
-			if err := a.drawTextFace(renderer, truncateText(face, item.text, textEnd-textX), textX, baseline, a.textColor(&st, false), st.Bold.V); err != nil {
-				return err
-			}
-			continue
-		}
-		text := strings.Repeat("  ", max(0, item.depth)) + item.marker + item.text
-		// The right-hand column gets at most 45% of a narrow row.
-		secondary := a.truncateModalListText(item.secondary, int(rect.W*0.45))
-		secondaryWidth := measureText(a.fontFace, secondary)
-		textWidth := textEnd - textX
-		if secondary != "" {
-			textWidth -= secondaryWidth + a.ipx(12)
-		}
-		if item.swatch != nil {
-			swatchStyle := a.style(config.ElementSwatch)
-			swatchStyle.Fill.V = config.Color{RGB: [3]uint8{item.swatch.R, item.swatch.G, item.swatch.B}, Alpha: float64(item.swatch.A) / 255}
-			size := float32(a.uiLineHeight())
-			a.drawBox(renderer, &swatchStyle, sdl.FRect{X: float32(textX), Y: float32(y) + (float32(rowHeight)-size)/2, W: size, H: size})
-			advance := int(size) + a.ipx(swatchStyle.Gap.V)
-			textX += advance
-			textWidth -= advance
-		}
-		if item.key != "" {
-			if err := a.drawText(renderer, a.truncateModalListText(item.key, keyColumn), textX, baseline, a.textColor(&st, true)); err != nil {
-				return err
-			}
-		}
-		if keyColumn > 0 {
-			textX += keyColumn + a.ipx(16)
-			textWidth -= keyColumn + a.ipx(16)
-		}
-		if err := a.drawTextFace(renderer, truncateText(face, text, textWidth), textX, baseline, a.textColor(&st, false), st.Bold.V); err != nil {
-			return err
-		}
-		if secondary != "" {
-			if err := a.drawText(renderer, secondary, textEnd-secondaryWidth, baseline, a.textColor(&st, true)); err != nil {
-				return err
-			}
-		}
-	}
-	return a.drawModalListScrollbar(renderer, rect, rowHeight, rows, len(items), view.scroll)
+	return a.drawModalListScrollbar(renderer, rect, rowHeight, rows, len(items), offset)
 }
 
 // keyColumnWidth is the width of the key column: the widest key of items,
@@ -500,18 +517,20 @@ func (a *App) keyColumnWidth(items []uiRow, limit int) int {
 	return min(width, limit)
 }
 
+// uiViewIndexAt is the row of view at x, y, which depends on how far into
+// a row the list has scrolled.
 func (a *App) uiViewIndexAt(view *uiView, x, y int) (uiRow, bool) {
 	if view == nil {
 		return uiRow{}, false
 	}
 	rect, rows := view.contentGeometry(a)
 	rowHeight := a.modalListRowHeight()
-	row, ok := a.modalListRowAt(rect, rows, rowHeight, x, y)
-	if !ok {
+	if _, ok := a.modalListRowAt(rect, rows, rowHeight, x, y); !ok {
 		return uiRow{}, false
 	}
 	items := view.visibleRows()
-	itemIndex := view.scroll + row
+	top := float64(rect.Y) + float64(rowHeight)
+	itemIndex := int(math.Floor(view.offset + (float64(y)-top)/float64(rowHeight)))
 	if itemIndex < 0 || itemIndex >= len(items) {
 		return uiRow{}, false
 	}
@@ -524,7 +543,12 @@ func (a *App) uiViewStartScrollbarDrag(view *uiView, x, y int) bool {
 	}
 	rect, rows := view.contentGeometry(a)
 	rowHeight := a.modalListRowHeight()
-	return modalListStartScrollbarDrag(rect, rowHeight, rows, len(view.visibleRows()), x, y, &view.scroll, &view.scrollbarDragOffsetY, &view.draggingScrollbar)
+	offset := view.offset
+	if !modalListStartScrollbarDrag(rect, rowHeight, rows, len(view.visibleRows()), x, y, &offset, &view.scrollbarDragOffsetY, &view.draggingScrollbar) {
+		return false
+	}
+	a.scrollListTo(view, offset)
+	return true
 }
 
 func (a *App) uiViewDragScrollbar(view *uiView, y int) {
@@ -533,7 +557,9 @@ func (a *App) uiViewDragScrollbar(view *uiView, y int) {
 	}
 	rect, rows := view.contentGeometry(a)
 	rowHeight := a.modalListRowHeight()
-	modalListDragScrollbar(rect, rowHeight, rows, len(view.visibleRows()), y, &view.scroll, view.scrollbarDragOffsetY)
+	offset := view.offset
+	modalListDragScrollbar(rect, rowHeight, rows, len(view.visibleRows()), y, &offset, view.scrollbarDragOffsetY)
+	a.scrollListTo(view, offset)
 }
 
 func (a *App) uiViewHover(view *uiView, x, y int) bool {

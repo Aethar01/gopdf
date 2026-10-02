@@ -74,10 +74,10 @@ func (a *App) stopAutoscroll() {
 	a.updateCursor()
 }
 
-// autoscrollAllowed reports whether the document view or the overview is
-// showing, the only places autoscroll applies.
+// autoscrollAllowed reports whether the document view, the overview or a
+// menu is showing, the places autoscroll applies.
 func (a *App) autoscrollAllowed() bool {
-	return a.doc != nil && a.mode == modeNormal && a.presentation == nil && a.activeModalUIView() == nil
+	return a.doc != nil && a.mode == modeNormal && a.presentation == nil
 }
 
 // releaseAutoscroll handles the release of the key or button holding
@@ -165,6 +165,10 @@ func (a *App) advanceAutoscrollBy(elapsed time.Duration) bool {
 	if vx == 0 && vy == 0 {
 		return false
 	}
+	if view := a.activeModalUIView(); view != nil {
+		a.scrollListBy(view, vy*elapsed.Seconds()/float64(a.modalListRowHeight()))
+		return true
+	}
 	oldX, oldY := a.scrollX, a.scrollY
 	a.scrollBy(vx*elapsed.Seconds(), vy*elapsed.Seconds())
 	if a.scrollX != oldX || a.scrollY != oldY {
@@ -214,6 +218,10 @@ func autoscrollSpeed(offset, factor, maxSpeed float64) float64 {
 
 // autoscrollAxes reports which axes the view can scroll along.
 func (a *App) autoscrollAxes() (horizontal, vertical bool) {
+	if view := a.activeModalUIView(); view != nil {
+		maxScroll, _ := a.modalSmoothScrollBounds(view)
+		return false, maxScroll > 0
+	}
 	maxX, maxY := a.maxScrollOffsets()
 	return maxX > 0, maxY > 0
 }
