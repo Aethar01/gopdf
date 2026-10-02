@@ -193,6 +193,7 @@ func TestStatusElementPlacesTheBar(t *testing.T) {
 		t.Fatalf("viewport height = %d, want the window less the bar and its margin", viewportH)
 	}
 	app.config.Theme.Elements[config.ElementStatus].Floating = config.Opt[bool]{V: true, Set: true}
+	app.styles = nil // as applying a changed config does
 	if _, viewportH := app.viewportSize(); viewportH != 600 {
 		t.Fatalf("floating bar leaves a viewport %d high", viewportH)
 	}
@@ -252,6 +253,7 @@ func TestMenuHeadFollowsPaddingAndHeader(t *testing.T) {
 	}
 	app.config.Theme.Elements[config.ElementPanel].Padding = config.Opt[config.Insets]{V: config.Insets{Top: 12, Bottom: 8}, Set: true}
 	app.config.Theme.Elements[config.ElementHeader].Padding = config.Opt[config.Insets]{V: config.Insets{Top: 10, Right: 14, Bottom: 10, Left: 14}, Set: true}
+	app.styles = nil
 	want := 12 + app.uiLineHeight() + 20
 	if head := app.modalListHeadHeight(); head != want {
 		t.Fatalf("head = %d, want %d", head, want)

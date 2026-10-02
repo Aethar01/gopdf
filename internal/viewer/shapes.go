@@ -35,9 +35,17 @@ func (a *App) hairline() float32 {
 	return max(1, float32(math.Round(float64(a.px(1)))))
 }
 
-// style is how an element is drawn in the current theme.
+// style is how an element is drawn in the current theme. The theme's
+// styles are resolved on first use and kept until the config changes,
+// as a frame asks for them many times over.
 func (a *App) style(e config.Element) config.Style {
-	return a.config.Theme.Style(e)
+	if a.styles == nil {
+		a.styles = new([config.ElementCount]config.Style)
+		for i := range a.styles {
+			a.styles[i] = a.config.Theme.Style(config.Element(i))
+		}
+	}
+	return a.styles[e]
 }
 
 // lineWidth is a border or line width in output pixels: none for 0, and

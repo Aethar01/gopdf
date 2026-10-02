@@ -4,6 +4,7 @@ import (
 	"sync"
 	"time"
 
+	"gopdf/internal/config"
 	"gopdf/internal/instance"
 	"gopdf/internal/mupdf"
 
@@ -156,8 +157,9 @@ type sdlState struct {
 	fontWarning string     // the last font warning logged, so a reload does not repeat it
 	clips       []sdl.Rect // the clip rects withClip has in place, innermost last
 	textCache   textTextureCache
-	masks       maskCache // the theme's shapes, rasterised
-	frameStart  time.Time // when the current animation frame began
+	masks       maskCache                          // the theme's shapes, rasterised
+	styles      *[config.ElementCount]config.Style // the theme's styles, resolved; nil until drawn
+	frameStart  time.Time                          // when the current animation frame began
 	// displayFrame is the window's display's refresh interval, or 0 when
 	// unknown; see animationFrameDuration.
 	displayFrame time.Duration

@@ -293,6 +293,7 @@ func (a *App) showConfigWarnings() {
 // or not they changed.
 func (a *App) applyConfigSettings() {
 	cfg := a.config
+	a.styles = nil
 	a.zoom = a.clampZoom(a.zoom)
 	a.cache.byteLimit = pageCacheByteLimit(cfg)
 	a.cache.evict()
