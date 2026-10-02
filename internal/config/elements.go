@@ -323,6 +323,7 @@ func elementDefaults(t *Theme, e Element) Style {
 		s.BorderColor = some(paletteColor("accent", 1))
 		s.Padding = some(uniform(3))
 	case ElementLinkPreview:
+		s.Radius = some(corners(radius))
 		s.Fill = some(paletteColor("page", 1))
 		s.BorderWidth = some(1.0)
 		s.Shadow = some(shadow)
