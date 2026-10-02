@@ -32,7 +32,7 @@ func Default() Config {
 		PageGapVertical:     0,
 		PageGapHorizontal:   0,
 		ScrollStep:          64,
-		ScrollOff:           0,
+		ScrollOff:           1,
 		StatusBarLeft:       "{modified}{message}",
 		StatusBarRight:      "{page}/{total} {mode} fit={fit} rot={rot} {zoom}",
 		SequenceTimeoutMS:   700,
