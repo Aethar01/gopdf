@@ -142,6 +142,7 @@ func TestElementErrors(t *testing.T) {
 		{"unknown colour", `gopdf.theme.elements.panel.fill = "acent"`, `unknown colour "acent"`},
 		{"bad opacity", `gopdf.theme.elements.panel.fill = "accent/150"`, `expected a percentage`},
 		{"negative radius", `gopdf.theme.elements.panel.radius = -1`, `must not be negative`},
+		{"negative padding", `gopdf.theme.elements.row.padding = { 2, -6.5 }`, `must not be negative`},
 		{"three radii", `gopdf.theme.elements.panel.radius = { 1, 2, 3 }`, `one radius or four`},
 		{"bad side", `gopdf.theme.elements.panel.border = { sides = "middle" }`, `unknown side "middle"`},
 		{"bad path", `gopdf.theme.elements.panel.shape = "M 0"`, `path ends where a coordinate was expected`},

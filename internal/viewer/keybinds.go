@@ -349,13 +349,12 @@ func (a *App) drawKeybindMenuContent(renderer *sdl.Renderer, rect sdl.FRect) err
 	if !a.keybindMenu.selectingAction {
 		// The button is drawn as a selected row while it is selected.
 		button := a.keybindNewButtonRect(rect)
-		st := a.style(config.ElementButton)
+		element := config.ElementButton
 		if a.keybindMenu.view.selected == -1 {
-			selected := a.style(config.ElementRowSelected)
-			a.drawBox(renderer, &selected, button)
-		} else {
-			a.drawBox(renderer, &st, button)
+			element = config.ElementRowSelected
 		}
+		st := a.style(element)
+		a.drawBox(renderer, &st, button)
 		if err := a.drawTextFace(renderer, "+ "+newKeybindLabel, int(rect.X)+a.modalListTextInset(), int(button.Y)+baselineOffset, a.textColor(&st, false), st.Bold.V); err != nil {
 			return err
 		}

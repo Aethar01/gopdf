@@ -636,6 +636,9 @@ func parseInsets(raw string) (Insets, error) {
 }
 
 func insetsFrom(values []float64) (Insets, error) {
+	if slices.ContainsFunc(values, func(v float64) bool { return v < 0 }) {
+		return Insets{}, fmt.Errorf("insets must not be negative")
+	}
 	switch len(values) {
 	case 1:
 		return uniform(values[0]), nil

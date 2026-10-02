@@ -37,10 +37,15 @@ func splitHeader(header string) (title, detail string) {
 		}
 	}
 	title, detail = header[:cut], strings.TrimSpace(header[cut:])
-	if strings.HasPrefix(detail, "(") && strings.HasSuffix(detail, ")") && strings.Count(detail, "(") == 1 {
-		detail = detail[1 : len(detail)-1]
+	// Only the parentheses around the trailing count go; a query keeps its own.
+	if strings.HasSuffix(detail, ")") {
+		if i := strings.LastIndex(detail, " ("); i >= 0 {
+			detail = detail[:i] + "  " + detail[i+2:len(detail)-1]
+		} else if strings.HasPrefix(detail, "(") {
+			detail = detail[1 : len(detail)-1]
+		}
 	}
-	return title, strings.ReplaceAll(strings.ReplaceAll(detail, " (", "  "), ")", "")
+	return title, detail
 }
 
 type uiView struct {

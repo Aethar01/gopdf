@@ -80,6 +80,8 @@ func TestSplitHeader(t *testing.T) {
 		"Help":                          {"Help", ""},
 		"Outline (12)":                  {"Outline", "12"},
 		"Outline /intro (3/12)":         {"Outline", "/intro  3/12"},
+		"Outline /foo(bar) (3/10)":      {"Outline", "/foo(bar)  3/10"},
+		"Outline /a (b) (1/2)":          {"Outline", "/a (b)  1/2"},
 		"Press keys for zoom (Esc ...)": {"Press keys for zoom", "Esc ..."},
 	} {
 		if title, detail := splitHeader(header); title != want[0] || detail != want[1] {
