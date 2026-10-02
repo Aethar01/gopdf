@@ -157,7 +157,7 @@ type sdlState struct {
 	clips       []sdl.Rect // the clip rects withClip has in place, innermost last
 	textCache   textTextureCache
 	masks       maskCache // the theme's shapes, rasterised
-	frameStart  time.Time // when the last frame began to be drawn
+	frameStart  time.Time // when the current animation frame began
 	// displayFrame is the window's display's refresh interval, or 0 when
 	// unknown; see animationFrameDuration.
 	displayFrame time.Duration

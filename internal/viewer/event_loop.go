@@ -155,9 +155,16 @@ func (a *App) openInitialDocument() error {
 func (a *App) eventWaitTimeoutMS() int {
 	if a.smoothScrollActive() || a.smoothZoomAnimating() || a.autoscrollMoving() || a.loaderVisible || a.motion.animating {
 		// Wait only what is left of the frame; drawing and presenting,
-		// which waits for the display, took the rest.
+		// which waits for the display, took the rest. Once the frame is
+		// over the next begins, so an animation that draws nothing, such
+		// as autoscroll held at the end of the document, still waits a
+		// frame between steps rather than spinning.
 		left := a.animationFrameDuration() - time.Since(a.frameStart)
-		return max(0, int(left/time.Millisecond))
+		if left <= 0 {
+			a.frameStart = time.Now()
+			return 0
+		}
+		return int(left / time.Millisecond)
 	}
 	// Wake for the earliest pending deadline.
 	deadlines := []time.Time{a.captureDeadline(), a.previewDeadline(), a.renderScaleReadyAt}

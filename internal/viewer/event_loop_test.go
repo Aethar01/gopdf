@@ -95,6 +95,10 @@ func TestEventWaitTimeoutUsesConfiguredAnimationFrame(t *testing.T) {
 	if got := app.eventWaitTimeoutMS(); got != 0 {
 		t.Fatalf("expected no wait after a slow frame, got %d", got)
 	}
+	// With no frame drawn since, the next wait is a whole frame, not none.
+	if got := app.eventWaitTimeoutMS(); got < 20 || got > 24 {
+		t.Fatalf("expected a frame's wait when nothing was drawn, got %d", got)
+	}
 }
 
 func TestHandleSDLEventFocusLossStopsKeyPanning(t *testing.T) {
