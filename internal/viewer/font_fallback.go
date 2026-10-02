@@ -20,8 +20,16 @@ type fallbackFace struct {
 	size      int
 	fontMap   *fontscan.FontMap
 	scanned   bool                            // whether fontMap has been looked for
-	byRune    map[rune]font.Face              // the face for each character the UI font lacks
+	ascii     [128]fallbackRune               // how each ASCII character is drawn, once looked up
+	runes     map[rune]fallbackRune           // how each other character is drawn, once looked up
 	loaded    map[fontscan.Location]font.Face // the fallback fonts loaded
+}
+
+// fallbackRune is the face that draws a character and its advance there.
+type fallbackRune struct {
+	face    font.Face
+	advance fixed.Int26_6
+	ok      bool
 }
 
 func newFallbackFace(face font.Face, families []string, aspect textfont.Aspect, size int) *fallbackFace {
@@ -30,19 +38,34 @@ func newFallbackFace(face font.Face, families []string, aspect textfont.Aspect, 
 
 // faceFor is the face that draws r: the UI font if it has r, otherwise an
 // installed font that does, and otherwise the UI font's missing glyph.
-func (f *fallbackFace) faceFor(r rune) font.Face {
-	if _, ok := f.Face.GlyphAdvance(r); ok || r < 0x20 {
-		return f.Face
+func (f *fallbackFace) faceFor(r rune) font.Face { return f.glyph(r).face }
+
+// glyph is how r is drawn: its face, as faceFor says, and its advance
+// there. Each character is looked up once, since text is measured over
+// and over as it is laid out.
+func (f *fallbackFace) glyph(r rune) fallbackRune {
+	if r >= 0 && int(r) < len(f.ascii) {
+		if g := f.ascii[r]; g.face != nil {
+			return g
+		}
+	} else if g, ok := f.runes[r]; ok {
+		return g
 	}
-	if face, ok := f.byRune[r]; ok {
-		return face
+	face := f.Face
+	if _, ok := f.Face.GlyphAdvance(r); !ok && r >= 0x20 {
+		face = f.find(r)
 	}
-	face := f.find(r)
-	if f.byRune == nil {
-		f.byRune = map[rune]font.Face{}
+	advance, ok := face.GlyphAdvance(r)
+	g := fallbackRune{face: face, advance: advance, ok: ok}
+	if r >= 0 && int(r) < len(f.ascii) {
+		f.ascii[r] = g
+	} else {
+		if f.runes == nil {
+			f.runes = map[rune]fallbackRune{}
+		}
+		f.runes[r] = g
 	}
-	f.byRune[r] = face
-	return face
+	return g
 }
 
 // find loads an installed font that has r, or returns the UI font.
@@ -93,7 +116,8 @@ func (f *fallbackFace) GlyphBounds(r rune) (fixed.Rectangle26_6, fixed.Int26_6, 
 }
 
 func (f *fallbackFace) GlyphAdvance(r rune) (fixed.Int26_6, bool) {
-	return f.faceFor(r).GlyphAdvance(r)
+	g := f.glyph(r)
+	return g.advance, g.ok
 }
 
 // Kern kerns two characters drawn in the same font.
@@ -109,7 +133,7 @@ func (f *fallbackFace) Close() error {
 	for _, face := range f.loaded {
 		closeFontFace(face)
 	}
-	f.loaded, f.byRune = nil, nil
+	f.loaded, f.runes, f.ascii = nil, nil, [128]fallbackRune{}
 	closeFontFace(f.Face)
 	return nil
 }
