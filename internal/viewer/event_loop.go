@@ -45,6 +45,7 @@ func (a *App) Run() error {
 	a.logf("created SDL window 1400x900")
 	a.window = window
 	a.renderer = renderer
+	a.updateDisplayFrame()
 	a.loadUIFont() // again, now the display scale is known
 	a.waker = newLoopWaker()
 	if rw := sdl.IOFromConstMem(a.iconBytes); rw != nil {
@@ -224,6 +225,9 @@ func (a *App) handleSDLEvent(event *sdl.Event) error {
 		redraw = false
 	case sdl.EventWindowLeaveFullscreen:
 		a.fullscreen = false
+		redraw = false
+	case sdl.EventWindowDisplayChanged, sdl.EventDisplayCurrentModeChanged:
+		a.updateDisplayFrame()
 		redraw = false
 	case sdl.EventSystemThemeChanged:
 		a.followSystemColors()

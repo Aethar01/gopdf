@@ -95,11 +95,41 @@ func smoothToward(current, target, dampening float64, elapsed, frame time.Durati
 	return current + (target-current)*factor
 }
 
+// animationFrameDuration is how often animations draw a frame: the
+// display's refresh interval, unless animation_frame_ms fixes it.
 func (a *App) animationFrameDuration() time.Duration {
-	if a.config.AnimationFrameMS <= 0 {
-		return smoothAnimationFrame
+	if a.config.AnimationFrameMS > 0 {
+		return time.Duration(a.config.AnimationFrameMS) * time.Millisecond
 	}
-	return time.Duration(a.config.AnimationFrameMS) * time.Millisecond
+	if a.displayFrame > 0 {
+		return a.displayFrame
+	}
+	return smoothAnimationFrame
+}
+
+// dampingFrame is the frame smoothing's dampening is given per: a fixed
+// animation_frame_ms, or else 16ms, so that following a faster display
+// draws more often without scrolling any faster.
+func (a *App) dampingFrame() time.Duration {
+	if a.config.AnimationFrameMS > 0 {
+		return time.Duration(a.config.AnimationFrameMS) * time.Millisecond
+	}
+	return smoothAnimationFrame
+}
+
+// updateDisplayFrame reads the refresh rate of the display the window is
+// on, which animations follow unless animation_frame_ms fixes their rate.
+func (a *App) updateDisplayFrame() {
+	if a.window == nil {
+		return
+	}
+	mode := sdl.GetCurrentDisplayMode(sdl.GetDisplayForWindow(a.window))
+	if mode == nil || mode.RefreshRate <= 0 {
+		a.displayFrame = 0
+		return
+	}
+	a.displayFrame = time.Duration(float64(time.Second) / float64(mode.RefreshRate))
+	a.logf("display refresh %.2fHz", mode.RefreshRate)
 }
 
 func normalizedWheelDeltas(e *sdl.MouseWheelEvent) (float32, float32) {
@@ -284,8 +314,8 @@ func (a *App) advanceSmoothScrollBy(elapsed time.Duration) bool {
 		return false
 	}
 
-	nextX := smoothToward(a.scrollX, state.targetX, a.config.SmoothScrollDampening, elapsed, a.animationFrameDuration())
-	nextY := smoothToward(a.scrollY, state.targetY, a.config.SmoothScrollDampening, elapsed, a.animationFrameDuration())
+	nextX := smoothToward(a.scrollX, state.targetX, a.config.SmoothScrollDampening, elapsed, a.dampingFrame())
+	nextY := smoothToward(a.scrollY, state.targetY, a.config.SmoothScrollDampening, elapsed, a.dampingFrame())
 	if math.Abs(state.targetX-nextX) <= smoothScrollSnap {
 		nextX = state.targetX
 	}
@@ -327,7 +357,7 @@ func (a *App) advanceModalSmoothScrollBy(state *smoothScrollState, elapsed time.
 		return false
 	}
 	state.targetRow = clampFloat(state.targetRow, 0, float64(maxScroll))
-	next := smoothToward(state.appliedRow, state.targetRow, a.config.SmoothScrollDampening, elapsed, a.animationFrameDuration())
+	next := smoothToward(state.appliedRow, state.targetRow, a.config.SmoothScrollDampening, elapsed, a.dampingFrame())
 	if math.Abs(state.targetRow-next) <= modalSmoothScrollSnap {
 		next = state.targetRow
 	}

@@ -4,7 +4,7 @@
 gopdf.options.alt_colors = false -- Start with alternate colors: true, false, or "system" to follow the OS's dark mode as it changes.
 gopdf.options.alt_colors_keep_images = true -- Keep raster images in their own colors in alternate-color mode.
 gopdf.options.anchor_position = "center" -- Viewport anchor: center, top, or bottom.
-gopdf.options.animation_frame_ms = 16 -- Animation timestep in milliseconds; clamped to at least 1.
+gopdf.options.animation_frame_ms = 0 -- Animation timestep in milliseconds; 0 follows the display's refresh rate.
 gopdf.options.annotation_colors = {"#ffe066", "#8ce99a", "#74c0fc", "#ffa8a8"} -- Highlight colours offered by the highlight picker, as #RRGGBB.
 gopdf.options.anti_aliasing = 8 -- MuPDF antialiasing level from 0 through 8.
 gopdf.options.auto_reload = true -- Reload the document when its file changes on disk.

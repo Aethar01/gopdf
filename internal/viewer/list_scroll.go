@@ -22,8 +22,7 @@ func (a *App) listOffset(view *uiView, rows, total int) float64 {
 	if now.IsZero() {
 		now = time.Now()
 	}
-	frame := a.animationFrameDuration()
-	elapsed := frame
+	elapsed := a.animationFrameDuration()
 	if !view.offsetAt.IsZero() {
 		elapsed = now.Sub(view.offsetAt)
 	}
@@ -46,7 +45,7 @@ func (a *App) listOffset(view *uiView, rows, total int) float64 {
 			// round from the last row to the first, glides only its
 			// last screen.
 			view.offset = clampFloat(view.offset, target-float64(rows), target+float64(rows))
-			view.offset = smoothToward(view.offset, target, a.config.SmoothScrollDampening, elapsed, frame)
+			view.offset = smoothToward(view.offset, target, a.config.SmoothScrollDampening, elapsed, a.dampingFrame())
 			if math.Abs(view.offset-target) <= modalSmoothScrollSnap {
 				view.offset = target
 			}
