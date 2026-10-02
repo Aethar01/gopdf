@@ -356,6 +356,12 @@ func textTexture(renderer *sdl.Renderer, face font.Face, s string, clr color.Col
 	if err != nil {
 		return nil, 0, 0, 0, err
 	}
+	// The drawer leaves premultiplied pixels, which blended as straight
+	// alpha would darken every anti-aliased edge a second time.
+	if !sdl.SetTextureBlendMode(tex, sdl.BlendModeBlendPremultiplied) {
+		sdl.DestroyTexture(tex)
+		return nil, 0, 0, 0, sdlError("set texture blend mode")
+	}
 	return tex, width, height, ascent, nil
 }
 
@@ -419,13 +425,12 @@ func (a *App) cachedTextTexture(renderer *sdl.Renderer, s string, clr color.Colo
 	if heading {
 		face = a.headingFont()
 	}
-	// Translucent text is drawn opaque and faded as a whole.
-	tex, w, h, ascent, err := textTexture(renderer, face, s, color.RGBA{R: key.r, G: key.g, B: key.b, A: 0xff})
+	// The key's colour is straight; the drawer takes it premultiplied.
+	premultiply := func(c uint8) uint8 { return uint8((uint16(c)*uint16(key.a) + 127) / 255) }
+	clr = color.RGBA{R: premultiply(key.r), G: premultiply(key.g), B: premultiply(key.b), A: key.a}
+	tex, w, h, ascent, err := textTexture(renderer, face, s, clr)
 	if err != nil {
 		return cachedTextTexture{}, err
-	}
-	if key.a < 0xff {
-		sdl.SetTextureAlphaMod(tex, key.a)
 	}
 	entry := cachedTextTexture{texture: tex, width: w, height: h, ascent: ascent}
 	a.textCache.add(key, entry)
