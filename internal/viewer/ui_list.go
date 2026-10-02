@@ -11,6 +11,7 @@ import (
 	"gopdf/internal/config"
 
 	"github.com/jupiterrider/purego-sdl3/sdl"
+	"golang.org/x/image/font"
 )
 
 type uiRow struct {
@@ -87,12 +88,20 @@ type uiView struct {
 	onMouseMotion  func(*App, *sdl.MouseMotionEvent) bool
 	draw           func(*App, *sdl.Renderer) error
 	filtered       uiRowFilter // visibleRows' last result
+	keyWidth       uiKeyWidth  // keyColumnWidth's last result
 }
 
 type uiRowFilter struct {
 	query  string
 	source []uiRow
 	rows   []uiRow
+}
+
+// uiKeyWidth is the widest key of rows, measured in face.
+type uiKeyWidth struct {
+	rows  []uiRow
+	face  font.Face
+	width int
 }
 
 type uiManager struct {
@@ -422,7 +431,7 @@ func (a *App) drawUIListItems(renderer *sdl.Renderer, rect sdl.FRect, rows int, 
 	rows = max(1, rows)
 	view.scroll = clampInt(view.scroll, 0, max(0, len(items)-rows))
 	offset := a.listOffset(view, rows, len(items))
-	keyColumn := a.keyColumnWidth(items, int(rect.W*0.35))
+	keyColumn := a.keyColumnWidth(view, items, int(rect.W*0.35))
 	// Rows sit where the offset puts them, those part-way out of the list
 	// cut off at its edges.
 	head := a.modalListHeadHeight()
@@ -512,15 +521,19 @@ func (a *App) drawUIListItems(renderer *sdl.Renderer, rect sdl.FRect, rows int, 
 }
 
 // keyColumnWidth is the width of the key column: the widest key of items,
-// at most limit, or 0 with no keys.
-func (a *App) keyColumnWidth(items []uiRow, limit int) int {
-	width := 0
-	for _, item := range items {
-		if item.key != "" {
-			width = max(width, measureText(a.fontFace, item.key))
+// at most limit, or 0 with no keys. It is measured once for each list of
+// items view shows.
+func (a *App) keyColumnWidth(view *uiView, items []uiRow, limit int) int {
+	k := &view.keyWidth
+	if k.face != a.fontFace || len(k.rows) != len(items) || len(items) > 0 && &k.rows[0] != &items[0] {
+		*k = uiKeyWidth{rows: items, face: a.fontFace}
+		for _, item := range items {
+			if item.key != "" {
+				k.width = max(k.width, measureText(a.fontFace, item.key))
+			}
 		}
 	}
-	return min(width, limit)
+	return min(k.width, limit)
 }
 
 // uiViewIndexAt is the row of view at x, y, which depends on how far into

@@ -117,3 +117,22 @@ func TestVisibleRowsFollowQueryAndRows(t *testing.T) {
 		t.Fatalf("rows matching beta = %d, want 0", got)
 	}
 }
+
+func TestKeyColumnWidthFollowsTheRows(t *testing.T) {
+	app := testStyleApp("bar")
+	view := &uiView{}
+	rows := []uiRow{{text: "a", key: "gg"}, {text: "b"}}
+	if got, want := app.keyColumnWidth(view, rows, 1000), measureText(app.fontFace, "gg"); got != want {
+		t.Fatalf("key column = %d, want %d", got, want)
+	}
+	if got := app.keyColumnWidth(view, rows, 5); got != 5 {
+		t.Fatalf("key column = %d, want the limit", got)
+	}
+	rows = []uiRow{{text: "a", key: "ctrl+shift+x"}, {text: "b"}}
+	if got, want := app.keyColumnWidth(view, rows, 1000), measureText(app.fontFace, "ctrl+shift+x"); got != want {
+		t.Fatalf("key column after new rows = %d, want %d", got, want)
+	}
+	if got := app.keyColumnWidth(view, rows[1:], 1000); got != 0 {
+		t.Fatalf("key column of rows without keys = %d", got)
+	}
+}
