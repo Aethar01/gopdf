@@ -357,7 +357,8 @@ func measureText(face font.Face, s string) int {
 	return d.MeasureString(s).Ceil()
 }
 
-func textTexture(renderer *sdl.Renderer, face font.Face, s string, clr color.Color) (*sdl.Texture, int, int, int, error) {
+// textTexture draws s in white, to be tinted as it is drawn.
+func textTexture(renderer *sdl.Renderer, face font.Face, s string) (*sdl.Texture, int, int, int, error) {
 	width := measureText(face, s)
 	metrics := face.Metrics()
 	ascent := metrics.Ascent.Ceil()
@@ -371,7 +372,7 @@ func textTexture(renderer *sdl.Renderer, face font.Face, s string, clr color.Col
 	img := image.NewRGBA(image.Rect(0, 0, width, height))
 	d := &font.Drawer{
 		Dst:  img,
-		Src:  image.NewUniform(clr),
+		Src:  image.White,
 		Face: face,
 		Dot:  fixed.P(0, ascent),
 	}
@@ -391,10 +392,11 @@ func textTexture(renderer *sdl.Renderer, face font.Face, s string, clr color.Col
 
 const maxTextTextureCacheEntries = 512
 
+// textTextureKey is a string as drawn: only its text and face, since
+// it is tinted to its colour and opacity as it is drawn.
 type textTextureKey struct {
-	text       string
-	r, g, b, a uint8
-	heading    bool
+	text    string
+	heading bool
 }
 
 type cachedTextTexture struct {
@@ -414,10 +416,11 @@ func (a *App) drawHeading(renderer *sdl.Renderer, s string, x, baselineY int, cl
 }
 
 func (a *App) drawTextFace(renderer *sdl.Renderer, s string, x, baselineY int, clr color.Color, heading bool) error {
-	entry, err := a.cachedTextTexture(renderer, s, clr, heading)
+	entry, err := a.cachedTextTexture(renderer, s, heading)
 	if err != nil {
 		return err
 	}
+	tintText(entry.texture, clr)
 	dst := sdl.FRect{X: float32(x), Y: float32(baselineY - entry.ascent), W: float32(entry.width), H: float32(entry.height)}
 	if err := renderBool(sdl.RenderTexture(renderer, entry.texture, nil, &dst), "render text"); err != nil {
 		return err
@@ -439,9 +442,19 @@ func (a *App) headingFont() font.Face {
 	return a.fontFace
 }
 
-func (a *App) cachedTextTexture(renderer *sdl.Renderer, s string, clr color.Color, heading bool) (cachedTextTexture, error) {
-	key := newTextTextureKey(s, clr)
-	key.heading = heading
+// tintText sets a text texture to draw in clr, whose components are
+// straight. The texture's pixels are white and premultiplied, so its
+// colour is premultiplied by its alpha too.
+func tintText(tex *sdl.Texture, clr color.Color) {
+	r, g, b, a := clr.RGBA()
+	alpha := uint16(a >> 8)
+	premultiply := func(c uint32) uint8 { return uint8((uint16(c>>8)*alpha + 127) / 255) }
+	sdl.SetTextureColorMod(tex, premultiply(r), premultiply(g), premultiply(b))
+	sdl.SetTextureAlphaMod(tex, uint8(alpha))
+}
+
+func (a *App) cachedTextTexture(renderer *sdl.Renderer, s string, heading bool) (cachedTextTexture, error) {
+	key := textTextureKey{text: s, heading: heading}
 	if entry, ok := a.textCache.get(key); ok {
 		return entry, nil
 	}
@@ -449,10 +462,7 @@ func (a *App) cachedTextTexture(renderer *sdl.Renderer, s string, clr color.Colo
 	if heading {
 		face = a.headingFont()
 	}
-	// The key's colour is straight; the drawer takes it premultiplied.
-	premultiply := func(c uint8) uint8 { return uint8((uint16(c)*uint16(key.a) + 127) / 255) }
-	clr = color.RGBA{R: premultiply(key.r), G: premultiply(key.g), B: premultiply(key.b), A: key.a}
-	tex, w, h, ascent, err := textTexture(renderer, face, s, clr)
+	tex, w, h, ascent, err := textTexture(renderer, face, s)
 	if err != nil {
 		return cachedTextTexture{}, err
 	}
@@ -501,11 +511,6 @@ func (c *textTextureCache) clear() {
 	}
 	c.entries = nil
 	c.order.Init()
-}
-
-func newTextTextureKey(s string, clr color.Color) textTextureKey {
-	r, g, b, a := clr.RGBA()
-	return textTextureKey{text: s, r: uint8(r >> 8), g: uint8(g >> 8), b: uint8(b >> 8), a: uint8(a >> 8)}
 }
 
 func (s *sdlState) clearTextTextureCache() {
