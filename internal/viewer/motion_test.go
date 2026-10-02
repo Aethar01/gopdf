@@ -2,6 +2,7 @@ package viewer
 
 import (
 	"math"
+	"runtime"
 	"testing"
 	"time"
 
@@ -94,4 +95,23 @@ func TestOSReducedMotionStopsMotion(t *testing.T) {
 	if got := app.animate("x", 20, tr.Motion.Selection); got != 20 || app.motion.animating {
 		t.Fatalf("with the OS asking for less motion = %v, animating %v", got, app.motion.animating)
 	}
+}
+
+func TestReducedMotionIsReadAtMostOnceAWhile(t *testing.T) {
+	reads := make(chan struct{}, 4)
+	defer func(read func() bool) { readOSMotion = read }(readOSMotion)
+	readOSMotion = func() bool { reads <- struct{}{}; return true }
+	app := &App{}
+	app.refreshReducedMotion()
+	<-reads
+	for app.motion.osReading.Load() {
+		runtime.Gosched()
+	}
+	app.refreshReducedMotion() // focused again straight away
+	if len(reads) != 0 || !app.motion.osReduced.Load() {
+		t.Fatalf("read again within the interval, or lost the first read")
+	}
+	app.motion.osReadAt = time.Now().Add(-osMotionReadInterval)
+	app.refreshReducedMotion()
+	<-reads
 }

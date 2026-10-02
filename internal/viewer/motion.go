@@ -26,6 +26,10 @@ type motionState struct {
 	// fadingText is the last status text shown, faded out once cleared.
 	fadingText string
 	osReduced  atomic.Bool // the OS asks for less motion; see motionScale
+	// osReading is whether the OS's setting is being read, and osReadAt
+	// when it was last read; see refreshReducedMotion.
+	osReading atomic.Bool
+	osReadAt  time.Time
 }
 
 // tween is a value moving from one place to another.
