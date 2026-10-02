@@ -159,6 +159,27 @@ func TestShadowMaskBlursPastTheBox(t *testing.T) {
 	}
 }
 
+func TestCutShadowMaskIsHollow(t *testing.T) {
+	app := &App{}
+	shape := boxShape{Shape: config.Shape{Kind: "rect"}, radius: [4]float32{6, 6, 6, 6}}
+	for _, c := range []struct {
+		name string
+		spec maskSpec
+		want bool
+	}{
+		{"cut shadow", maskSpec{shape: shape, w: 600, h: 800, blur: 8, cut: true, cutY: -3}, true},
+		{"shadow", maskSpec{shape: shape, w: 600, h: 800, blur: 8}, false},
+		{"inverted corners", maskSpec{shape: shape, w: 600, h: 800, invert: true}, true},
+	} {
+		pad := blurMargin(c.spec.blur)
+		key, sliceX, sliceY := maskSlices(c.spec, pad)
+		img, _ := app.rasterMask(key, pad)
+		if got := hollowMiddle(img, sliceX, sliceY); got != c.want {
+			t.Errorf("%s: hollow = %v, want %v", c.name, got, c.want)
+		}
+	}
+}
+
 func TestPathShapeMask(t *testing.T) {
 	app := &App{}
 	// A triangle filling the top left half of the box.

@@ -217,6 +217,9 @@ type mask struct {
 	w, h           int32
 	pad            int32
 	sliceX, sliceY int32
+	// hollow is a sliced mask whose middle is empty, as a shadow cut
+	// away under its page is, so the middle is not drawn.
+	hollow bool
 }
 
 // blurMargin is how far a blur reaches beyond a shape.
@@ -248,9 +251,9 @@ func (a *App) drawMask(renderer *sdl.Renderer, spec maskSpec, x, y int32, clr co
 			{{size - slice, slice}, {full - slice, slice}},
 		}
 	}
-	for _, col := range spans(m.w, full.W, m.sliceX) {
-		for _, row := range spans(m.h, full.H, m.sliceY) {
-			if col[1][1] <= 0 || row[1][1] <= 0 {
+	for i, col := range spans(m.w, full.W, m.sliceX) {
+		for j, row := range spans(m.h, full.H, m.sliceY) {
+			if col[1][1] <= 0 || row[1][1] <= 0 || m.hollow && i == 1 && j == 1 {
 				continue
 			}
 			src := sdl.FRect{X: float32(col[0][0]), Y: float32(row[0][0]), W: float32(col[0][1]), H: float32(row[0][1])}
@@ -262,21 +265,8 @@ func (a *App) drawMask(renderer *sdl.Renderer, spec maskSpec, x, y int32, clr co
 
 // shapeMask returns spec's mask, rasterising it on first use.
 func (a *App) shapeMask(renderer *sdl.Renderer, spec maskSpec) (mask, bool) {
-	// A rect only changes at its corners, so its mask needs to be no
-	// bigger than its corners, plus a middle to stretch.
 	pad := blurMargin(spec.blur)
-	key := spec
-	var sliceX, sliceY int32
-	if spec.shape.Kind == "rect" {
-		reach := max(spec.shape.radius[0], spec.shape.radius[1], spec.shape.radius[2], spec.shape.radius[3], spec.border) + max(0, spec.spread) + max(abs32(spec.cutX), abs32(spec.cutY))
-		corner := int32(math.Ceil(float64(reach))) + 2*pad + 1
-		if spec.w+2*pad > 2*corner+2 {
-			sliceX, key.w = corner, 2*(corner-pad)+2
-		}
-		if spec.h+2*pad > 2*corner+2 {
-			sliceY, key.h = corner, 2*(corner-pad)+2
-		}
-	}
+	key, sliceX, sliceY := maskSlices(spec, pad)
 	if m, ok := a.masks.get(key); ok {
 		return m, true
 	}
@@ -295,8 +285,44 @@ func (a *App) shapeMask(renderer *sdl.Renderer, spec maskSpec) (mask, bool) {
 	}
 	sdl.SetTextureScaleMode(tex, sdl.ScaleModeNearest)
 	m := mask{texture: tex, w: int32(img.Rect.Dx()), h: int32(img.Rect.Dy()), pad: pad, sliceX: sliceX, sliceY: sliceY}
+	m.hollow = hollowMiddle(img, sliceX, sliceY)
 	a.masks.add(key, m)
 	return m, true
+}
+
+// maskSlices is the mask spec is drawn from, which is its key in the
+// cache, and the size of its slices. A rect only changes at its corners,
+// so its mask needs to be no bigger than its corners, plus a middle to
+// stretch.
+func maskSlices(spec maskSpec, pad int32) (key maskSpec, sliceX, sliceY int32) {
+	key = spec
+	if spec.shape.Kind == "rect" {
+		reach := max(spec.shape.radius[0], spec.shape.radius[1], spec.shape.radius[2], spec.shape.radius[3], spec.border) + max(0, spec.spread) + max(abs32(spec.cutX), abs32(spec.cutY))
+		corner := int32(math.Ceil(float64(reach))) + 2*pad + 1
+		if spec.w+2*pad > 2*corner+2 {
+			sliceX, key.w = corner, 2*(corner-pad)+2
+		}
+		if spec.h+2*pad > 2*corner+2 {
+			sliceY, key.h = corner, 2*(corner-pad)+2
+		}
+	}
+	return key, sliceX, sliceY
+}
+
+// hollowMiddle reports whether the middle of a mask sliced at sliceX
+// and sliceY is transparent throughout.
+func hollowMiddle(img *image.Alpha, sliceX, sliceY int32) bool {
+	if sliceX == 0 || sliceY == 0 {
+		return false
+	}
+	for y := int(sliceY); y < img.Rect.Dy()-int(sliceY); y++ {
+		for x := int(sliceX); x < img.Rect.Dx()-int(sliceX); x++ {
+			if img.AlphaAt(x, y).A != 0 {
+				return false
+			}
+		}
+	}
+	return true
 }
 
 // rasterMask rasterises spec's mask with at least pad pixels around the
