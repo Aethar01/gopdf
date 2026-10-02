@@ -251,7 +251,7 @@ func elementDefaults(t *Theme, e Element) Style {
 	case ElementRowDisabled:
 		s.Text = some(paletteColor("muted", 1))
 	case ElementHeading:
-		s.Text = some(paletteColor("muted", 1))
+		s.Text = some(paletteColor("accent", 1))
 		s.Bold = some(true)
 	case ElementButton:
 		s.Radius = some(corners(radius * 0.75))

@@ -389,7 +389,16 @@ func (a *App) drawTextFace(renderer *sdl.Renderer, s string, x, baselineY int, c
 		return err
 	}
 	dst := sdl.FRect{X: float32(x), Y: float32(baselineY - entry.ascent), W: float32(entry.width), H: float32(entry.height)}
-	return renderBool(sdl.RenderTexture(renderer, entry.texture, nil, &dst), "render text")
+	if err := renderBool(sdl.RenderTexture(renderer, entry.texture, nil, &dst), "render text"); err != nil {
+		return err
+	}
+	// A font with no heavier weight, as a variable font is to x/image, is
+	// emboldened by drawing it again a pixel over.
+	if heading && a.headingFont() == a.fontFace {
+		dst.X += float32(max(1, a.ipx(0.5)))
+		return renderBool(sdl.RenderTexture(renderer, entry.texture, nil, &dst), "render text")
+	}
+	return nil
 }
 
 // headingFont is the face drawHeading draws in.
