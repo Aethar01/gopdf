@@ -34,6 +34,11 @@ const (
 	ElementHint
 	ElementOverviewSelection
 	ElementLinkPreview
+	ElementTitleBar
+	ElementTitleButton
+	ElementTitleClose
+	ElementLoader
+	ElementAutoscrollMarker
 	ElementCount
 )
 
@@ -71,6 +76,11 @@ var elementSpecs = [ElementCount]struct {
 	ElementHint:              {"hint", noElement, slices.Concat(boxProps, textProps), "A link hint label. Its secondary colour is for the letters already typed."},
 	ElementOverviewSelection: {"overview_selection", noElement, slices.Concat(boxProps, []string{"padding"}), "The outline around the overview's selected page; padding is its distance from the page."},
 	ElementLinkPreview:       {"link_preview", noElement, []string{"fill", "border", "shadow", "opacity", "draw"}, "The popup previewing a link's target, always a rect, as the page shows to its corners. Its fill shows while the page renders."},
+	ElementTitleBar:          {"title_bar", noElement, slices.Concat(boxProps, []string{"text"}), "Behind the window buttons gopdf draws where the system draws no title bar, as on Windows. Its text colour draws the buttons' symbols."},
+	ElementTitleButton:       {"title_button", noElement, slices.Concat(boxProps, []string{"text"}), "A window button under the pointer, drawn a little fainter while pressed."},
+	ElementTitleClose:        {"title_close", ElementTitleButton, slices.Concat(boxProps, []string{"text"}), "The close button under the pointer."},
+	ElementLoader:            {"loader", noElement, []string{"fill", "opacity", "draw"}, "The drops bouncing on a page still rendering; its box is the page."},
+	ElementAutoscrollMarker:  {"autoscroll_marker", noElement, []string{"fill", "border", "opacity", "width", "draw"}, "The marker where autoscroll started: its fill, its outline as its border, and its width."},
 }
 
 func (e Element) String() string { return elementSpecs[e].name }
@@ -314,6 +324,22 @@ func elementDefaults(t *Theme, e Element) Style {
 		s.Fill = some(paletteColor("page", 1))
 		s.BorderWidth = some(1.0)
 		s.Shadow = some(shadow)
+	case ElementTitleBar:
+		s.Fill = some(paletteColor("status_bar", 1))
+	case ElementTitleButton:
+		s.Fill = some(paletteColor("foreground", 0.15))
+	case ElementTitleClose:
+		// Windows' own close button red.
+		s.Fill = some(Color{RGB: [3]uint8{0xc4, 0x2b, 0x1c}, Alpha: 1})
+		s.Text = some(Color{RGB: [3]uint8{0xff, 0xff, 0xff}, Alpha: 1})
+	case ElementLoader:
+		s.Fill = some(paletteColor("muted", 1))
+	case ElementAutoscrollMarker:
+		// Light with a dark edge, as a pointer is, to show on any page.
+		s.Fill = some(Color{RGB: [3]uint8{250, 250, 250}, Alpha: 215.0 / 255})
+		s.BorderWidth = some(1.2)
+		s.BorderColor = some(Color{RGB: [3]uint8{40, 40, 40}, Alpha: 230.0 / 255})
+		s.Width = some(32.0)
 	}
 	return s
 }

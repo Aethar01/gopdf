@@ -1,8 +1,11 @@
 package viewer
 
 import (
+	"image/color"
 	"math"
 	"time"
+
+	"gopdf/internal/config"
 
 	"github.com/jupiterrider/purego-sdl3/sdl"
 )
@@ -19,8 +22,6 @@ const (
 	// autoscrollMaxStep bounds one frame's travel after a stall, such as a
 	// slow render, so the view does not leap.
 	autoscrollMaxStep = 100 * time.Millisecond
-	// autoscrollMarkerSize is the logical size of the anchor marker.
-	autoscrollMarkerSize = 32
 )
 
 // autoscrollState tracks browser-style autoscroll: the view scrolls
@@ -42,6 +43,8 @@ type autoscrollState struct {
 type autoscrollMarkerKey struct {
 	size                 int
 	horizontal, vertical bool
+	fill, outline        color.NRGBA
+	stroke               float64 // in glyph grid units
 }
 
 // startAutoscroll autoscrolls from the pointer. Releasing the key or mouse
@@ -259,25 +262,36 @@ func (a *App) drawAutoscrollMarker(renderer *sdl.Renderer) {
 		return
 	}
 	horizontal, vertical := a.autoscrollAxes()
+	st := a.style(config.ElementAutoscrollMarker)
+	width := max(1, st.Width.V)
+	fill, outline := a.styleColor(st.Fill.V, st.Opacity.V), a.styleColor(st.BorderColor.V, st.Opacity.V)
 	key := autoscrollMarkerKey{
-		size:       int(math.Round(autoscrollMarkerSize * a.displayScale())),
+		size:       int(math.Round(width * a.displayScale())),
 		horizontal: horizontal,
 		// A view that cannot scroll at all still shows vertical arrows.
 		vertical: vertical || !horizontal,
+		fill:     color.NRGBA(fill),
+		outline:  color.NRGBA(outline),
+		stroke:   st.BorderWidth.V * glyphGrid / width,
 	}
+	size := float32(key.size)
+	dst := sdl.FRect{X: a.autoscroll.anchor.X - size/2, Y: a.autoscroll.anchor.Y - size/2, W: size, H: size}
+	a.drawElement(renderer, &st, dst, func() { a.drawAutoscrollGlyph(renderer, key, dst) })
+}
+
+// drawAutoscrollGlyph draws the marker key describes over dst.
+func (a *App) drawAutoscrollGlyph(renderer *sdl.Renderer, key autoscrollMarkerKey, dst sdl.FRect) {
 	if a.autoscrollMarker == nil || a.autoscrollMarkerKey != key {
 		if a.autoscrollMarker != nil {
 			sdl.DestroyTexture(a.autoscrollMarker)
 			a.autoscrollMarker = nil
 		}
-		tex, err := textureFromNRGBA(renderer, autoscrollMarkerGlyph(key.horizontal, key.vertical).rasterize(key.size))
+		tex, err := textureFromNRGBA(renderer, autoscrollMarkerGlyph(key.horizontal, key.vertical, key.fill, key.outline, key.stroke).rasterize(key.size))
 		if err != nil {
 			a.logf("autoscroll marker: %v", err)
 			return
 		}
 		a.autoscrollMarker, a.autoscrollMarkerKey = tex, key
 	}
-	size := float32(key.size)
-	dst := sdl.FRect{X: a.autoscroll.anchor.X - size/2, Y: a.autoscroll.anchor.Y - size/2, W: size, H: size}
 	sdl.RenderTexture(renderer, a.autoscrollMarker, nil, &dst)
 }

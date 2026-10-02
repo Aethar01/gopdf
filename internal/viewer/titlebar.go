@@ -5,6 +5,8 @@ import (
 	"math"
 	"time"
 
+	"gopdf/internal/config"
+
 	"github.com/jupiterrider/purego-sdl3/sdl"
 )
 
@@ -288,13 +290,8 @@ func (a *App) handleTitleBarButton(e *sdl.MouseButtonEvent) bool {
 	return true
 }
 
-var (
-	titleBarCloseHover   = color.RGBA{R: 0xc4, G: 0x2b, B: 0x1c, A: 0xff}
-	titleBarClosePressed = color.RGBA{R: 0xb2, G: 0x27, B: 0x1a, A: 0xff}
-)
-
-// drawTitleBar draws the window's buttons over everything else, on the
-// status bar's color so they read over any page.
+// drawTitleBar draws the window's buttons over everything else, styled
+// as the title_bar element so they read over any page.
 func (a *App) drawTitleBar(renderer *sdl.Renderer) error {
 	if !a.titleBarActive() {
 		return nil
@@ -304,45 +301,35 @@ func (a *App) drawTitleBar(renderer *sdl.Renderer) error {
 	if alpha <= 0 {
 		return nil
 	}
-	fade := func(c color.RGBA, amount float64) color.RGBA {
-		c.A = uint8(math.Round(float64(c.A) * amount * alpha))
-		return c
-	}
-	l := a.titleBarLayout()
-	first, last := l.buttonRect(titleButtonMinimize), l.buttonRect(titleButtonClose)
-	group := sdl.FRect{X: first.X, Y: 0, W: last.X + last.W - first.X, H: first.H}
-	if err := fillRect(renderer, group, fade(a.statusBarColor(), 1)); err != nil {
-		return err
-	}
-	fg := a.foregroundColor()
-	scale := a.displayScale()
-	for b := titleButtonMinimize; b <= titleButtonClose; b++ {
-		r := l.buttonRect(b)
-		glyph := fg
-		switch {
-		case b == titleButtonClose && (t.hovered == b || t.pressed == b):
-			bg := titleBarCloseHover
-			if t.pressed == b {
-				bg = titleBarClosePressed
+	return a.faded(alpha, func() error {
+		l := a.titleBarLayout()
+		first, last := l.buttonRect(titleButtonMinimize), l.buttonRect(titleButtonClose)
+		bar := a.style(config.ElementTitleBar)
+		a.drawBox(renderer, &bar, sdl.FRect{X: first.X, Y: 0, W: last.X + last.W - first.X, H: first.H})
+		scale := a.displayScale()
+		for b := titleButtonMinimize; b <= titleButtonClose; b++ {
+			r := l.buttonRect(b)
+			glyph := a.textColor(&bar, false)
+			// The button pressed, or with none pressed the one under the
+			// pointer, is lit.
+			if t.pressed == b || t.hovered == b && t.pressed == titleButtonNone {
+				element := config.ElementTitleButton
+				if b == titleButtonClose {
+					element = config.ElementTitleClose
+				}
+				st := a.style(element)
+				if t.pressed == b {
+					st.Opacity.V *= 0.8 // pressed, a little fainter
+				}
+				a.drawBox(renderer, &st, r)
+				glyph = a.textColor(&st, false)
 			}
-			if err := fillRect(renderer, r, fade(bg, 1)); err != nil {
-				return err
-			}
-			glyph = color.RGBA{R: 0xff, G: 0xff, B: 0xff, A: 0xff}
-		case t.pressed == b:
-			if err := fillRect(renderer, r, fade(fg, 0.1)); err != nil {
-				return err
-			}
-		case t.hovered == b && t.pressed == titleButtonNone:
-			if err := fillRect(renderer, r, fade(fg, 0.15)); err != nil {
+			if err := a.drawTitleBarGlyph(renderer, b, r, glyph, scale); err != nil {
 				return err
 			}
 		}
-		if err := a.drawTitleBarGlyph(renderer, b, r, fade(glyph, 1), scale); err != nil {
-			return err
-		}
-	}
-	return nil
+		return nil
+	})
 }
 
 // drawTitleBarGlyph draws the symbol of b centered in r, with strokes as

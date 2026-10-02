@@ -2,6 +2,7 @@ package viewer
 
 import (
 	"math"
+	"time"
 
 	"gopdf/internal/config"
 
@@ -13,14 +14,26 @@ import (
 // error is reported, the function is not called again until the config
 // changes, and the box is drawn as it would be without it.
 func (a *App) runDrawFunction(renderer *sdl.Renderer, st *config.Style, rect sdl.FRect, parts boxParts) bool {
+	return a.drawElement(renderer, st, rect, func() { a.drawDefaultBox(renderer, st, rect, parts) })
+}
+
+// drawElement draws an element over rect: with its style's draw function
+// if it has one, canvas:default() running drawDefault, and otherwise with
+// drawDefault. It reports whether the default was drawn.
+func (a *App) drawElement(renderer *sdl.Renderer, st *config.Style, rect sdl.FRect, drawDefault func()) bool {
+	if st.Draw.V == nil || a.themeErrors[st.Draw.V] {
+		drawDefault()
+		return true
+	}
 	box := pixelRect(rect)
-	canvas := &elementCanvas{app: a, renderer: renderer, style: st, rect: rect, box: box, parts: parts}
+	canvas := &elementCanvas{app: a, renderer: renderer, style: st, box: box, drawDefault: drawDefault}
 	scale := float64(a.px(1))
 	state := config.DrawState{
 		Element: st.Element,
 		X:       float64(box.X) / scale, Y: float64(box.Y) / scale,
 		W: float64(box.W) / scale, H: float64(box.H) / scale,
-		Alt: a.altColors,
+		Alt:  a.altColors,
+		Time: time.Since(startTime).Seconds(),
 	}
 	if err := a.runtime.RunDraw(st.Draw.V, canvas, state); err != nil {
 		a.reportThemeError(st.Draw.V, "theme draw "+st.Element.String(), err)
@@ -36,9 +49,8 @@ type elementCanvas struct {
 	app         *App
 	renderer    *sdl.Renderer
 	style       *config.Style
-	rect        sdl.FRect
 	box         sdl.Rect
-	parts       boxParts
+	drawDefault func()
 	drewDefault bool
 }
 
@@ -47,7 +59,7 @@ func (c *elementCanvas) Default() {
 		return
 	}
 	c.drewDefault = true
-	c.app.drawDefaultBox(c.renderer, c.style, c.rect, c.parts)
+	c.drawDefault()
 }
 
 func (c *elementCanvas) Fill(path []config.PathOp, clr config.Color) {

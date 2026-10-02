@@ -136,6 +136,7 @@ type DrawState struct {
 	Element    Element
 	X, Y, W, H float64 // the box, in logical pixels from the window's top left
 	Alt        bool    // whether alternate-color mode is on
+	Time       float64 // seconds since gopdf started, for drawing that moves
 }
 
 const luaCanvasType = "gopdf.canvas"
@@ -208,6 +209,7 @@ func (r *Runtime) RunDraw(fn *lua.LFunction, canvas Canvas, state DrawState) err
 	box.RawSetString("h", lua.LNumber(state.H))
 	st.RawSetString("element", lua.LString(state.Element.String()))
 	st.RawSetString("alt", lua.LBool(state.Alt))
+	st.RawSetString("time", lua.LNumber(state.Time))
 	return r.callLua(lua.P{Fn: fn, NRet: 0, Protect: true}, ud, box, st)
 }
 

@@ -108,8 +108,9 @@ func autoscrollArrows(horizontal, vertical bool) []float64 {
 	return angles
 }
 
-// autoscrollMarkerGlyph is drawn on the page at the autoscroll anchor.
-func autoscrollMarkerGlyph(horizontal, vertical bool) glyph {
+// autoscrollMarkerGlyph is drawn on the page at the autoscroll anchor, in
+// fill with an outline stroke grid units wide.
+func autoscrollMarkerGlyph(horizontal, vertical bool, fill, outline color.NRGBA, stroke float64) glyph {
 	angles := autoscrollArrows(horizontal, vertical)
 	return glyph{
 		shape: func(x, y float64) float64 {
@@ -122,8 +123,8 @@ func autoscrollMarkerGlyph(horizontal, vertical bool) glyph {
 			}
 			return d
 		},
-		fill:    color.NRGBA{R: 250, G: 250, B: 250, A: 215},
-		outline: color.NRGBA{R: 40, G: 40, B: 40, A: 230},
-		stroke:  1.2,
+		fill:    fill,
+		outline: outline,
+		stroke:  stroke,
 	}
 }
