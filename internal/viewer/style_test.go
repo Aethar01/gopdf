@@ -3,6 +3,8 @@ package viewer
 import (
 	"image/color"
 	"path/filepath"
+	"reflect"
+	"slices"
 	"strings"
 	"testing"
 
@@ -312,5 +314,24 @@ func TestUIFontFallsBackForMissingCharacters(t *testing.T) {
 	// Measuring mixed text counts the fallback's widths.
 	if w := measureText(regular, "a漢"); w <= measureText(regular, "a") {
 		t.Fatalf("measured %d", w)
+	}
+}
+
+func TestPackedPathRoundTrips(t *testing.T) {
+	ops, err := config.ParsePath("M 0,0 L 100%,0 Q 100%,50%+4 50%,100%-2 C 1,2 3,4 5,6 Z")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var keys pathKeys
+	packed := keys.pack(ops)
+	if got := unpackPath(packed); !reflect.DeepEqual(got, ops) {
+		t.Fatalf("unpacked %v, want %v", got, ops)
+	}
+	if again := keys.pack(slices.Clone(ops)); again != packed || len(keys.keys) != 1 {
+		t.Fatalf("the same path packed again kept %d keys", len(keys.keys))
+	}
+	ops[1].Pts[0].X.Px = 1
+	if keys.pack(ops) == packed {
+		t.Fatal("a changed path packed the same")
 	}
 }

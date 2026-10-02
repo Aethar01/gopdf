@@ -188,6 +188,7 @@ type boxShape struct {
 	config.Shape
 	radius [4]float32
 	scale  float32
+	ops    string // a draw function's path, as packPath packs it, in place of Path
 }
 
 // maskSpec is a mask of a shape on a w by h box: its fill, its border
@@ -461,7 +462,9 @@ func (a *App) rasterShape(shape boxShape, w, h int, x, y, bw, bh, grow float32) 
 func (a *App) shapePath(shape boxShape, bw, bh float64) ([]config.PathOp, error) {
 	var ops []config.PathOp
 	var err error
-	if shape.Func != nil {
+	if shape.ops != "" {
+		return unpackPath(shape.ops), nil
+	} else if shape.Func != nil {
 		ops, err = a.runtime.ShapePath(shape.Func, bw/float64(shape.scale), bh/float64(shape.scale))
 	} else {
 		ops, err = config.ParsePath(shape.Path)

@@ -1,6 +1,7 @@
 package viewer
 
 import (
+	"encoding/binary"
 	"math"
 	"time"
 
@@ -76,11 +77,67 @@ func (c *elementCanvas) drawPath(path []config.PathOp, clr config.Color, stroke 
 	if len(path) == 0 || c.box.W <= 0 || c.box.H <= 0 {
 		return
 	}
-	shape := boxShape{Shape: config.Shape{Kind: "path", Path: config.FormatPath(path)}, scale: c.app.px(1)}
+	shape := boxShape{Shape: config.Shape{Kind: "path"}, ops: c.app.pathKeys.pack(path), scale: c.app.px(1)}
 	spec := maskSpec{shape: shape, w: c.box.W, h: c.box.H, stroke: stroke}
 	if rgba := c.app.styleColor(clr, c.style.Opacity.V); rgba.A > 0 {
 		c.app.drawMask(c.renderer, spec, c.box.X, c.box.Y, rgba)
 	}
+}
+
+// pathKeys packs paths for the mask cache's keys, keeping the strings
+// it made so a path drawn on every frame is packed without allocating.
+type pathKeys struct {
+	buf  []byte
+	keys map[string]string
+}
+
+// maxPathKeys bounds the strings kept, which are let go when full, in
+// case a function draws ever new paths.
+const maxPathKeys = 256
+
+// pathOpBytes is the size of a packed path op: its op and three points
+// of two lengths of two float64s.
+const pathOpBytes = 1 + 3*4*8
+
+// pack is ops packed: each op's byte and the exact bits of its points,
+// cheaper to make than its path data and as unique.
+func (k *pathKeys) pack(ops []config.PathOp) string {
+	buf := k.buf[:0]
+	for _, op := range ops {
+		buf = append(buf, op.Op)
+		for _, p := range op.Pts {
+			for _, v := range [4]float64{p.X.Frac, p.X.Px, p.Y.Frac, p.Y.Px} {
+				buf = binary.LittleEndian.AppendUint64(buf, math.Float64bits(v))
+			}
+		}
+	}
+	k.buf = buf
+	if key, ok := k.keys[string(buf)]; ok {
+		return key
+	}
+	if k.keys == nil || len(k.keys) >= maxPathKeys {
+		k.keys = map[string]string{}
+	}
+	key := string(buf)
+	k.keys[key] = key
+	return key
+}
+
+// unpackPath is the path pack packed.
+func unpackPath(packed string) []config.PathOp {
+	ops := make([]config.PathOp, 0, len(packed)/pathOpBytes)
+	for b := []byte(packed); len(b) >= pathOpBytes; b = b[pathOpBytes:] {
+		op := config.PathOp{Op: b[0]}
+		next := func(i int) float64 { return math.Float64frombits(binary.LittleEndian.Uint64(b[1+8*i:])) }
+		for i := range op.Pts {
+			op.Pts[i] = config.PathPoint{
+				X: config.Length{Frac: next(4 * i), Px: next(4*i + 1)},
+				Y: config.Length{Frac: next(4*i + 2), Px: next(4*i + 3)},
+			}
+		}
+		ops = append(ops, op)
+	}
+	return ops
 }
 
 func (c *elementCanvas) Text(x, y float64, text string, clr config.Color, bold bool) float64 {
