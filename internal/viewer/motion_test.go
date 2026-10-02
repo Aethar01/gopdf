@@ -34,10 +34,11 @@ func TestAnimateMovesToItsTarget(t *testing.T) {
 	if got := app.animate("x", 20, linear); math.Abs(got-15) > 1e-6 {
 		t.Fatalf("halfway = %v, want 15", got)
 	}
-	// A new target mid-way starts from where the value is.
+	// A new target mid-way starts from the last target, so a held key
+	// cannot leave the value further and further behind.
 	stepMotion(app, start, 50*time.Millisecond)
-	if got := app.animate("x", 0, linear); math.Abs(got-15) > 1e-6 {
-		t.Fatalf("retarget = %v, want 15", got)
+	if got := app.animate("x", 0, linear); got != 20 {
+		t.Fatalf("retarget = %v, want the last target, 20", got)
 	}
 	stepMotion(app, start, 150*time.Millisecond)
 	if got := app.animate("x", 0, linear); got != 0 || app.motion.animating {

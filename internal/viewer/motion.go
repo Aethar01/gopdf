@@ -73,7 +73,11 @@ func (a *App) animateFrom(key string, from, target float64, tr config.Transition
 		}
 		m.tweens[key] = tw
 	case tw.to != target:
-		tw.from, tw.to, tw.start = tw.value, target, m.now
+		// A new target starts from the last one, not from where the value
+		// is on its way: under a held key, which retargets faster than a
+		// transition runs, the value then trails by a step at most rather
+		// than ever further behind.
+		tw.from, tw.to, tw.start = tw.to, target, m.now
 	}
 	tw.seen = m.frame
 	duration := tr.Scaled(a.motionScale())
