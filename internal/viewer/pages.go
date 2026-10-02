@@ -7,6 +7,7 @@ import (
 	"slices"
 	"time"
 
+	"gopdf/internal/config"
 	"gopdf/internal/mupdf"
 
 	"github.com/jupiterrider/purego-sdl3/sdl"
@@ -53,7 +54,19 @@ func (a *App) drawSinglePage(renderer *sdl.Renderer) {
 }
 
 func (a *App) drawPage(renderer *sdl.Renderer, page int, x, y, width, height float64) {
-	_ = a.drawPageBackground(renderer, x, y, page)
+	// A page turned by quarter turns is styled as the page element; the
+	// style's box would not fit one turned otherwise.
+	st := a.style(config.ElementPage)
+	styled := math.Mod(normalizeRotation(a.rotation), 90) == 0
+	box := sdl.FRect{X: float32(x), Y: float32(y), W: float32(width), H: float32(height)}
+	if styled {
+		fill := st
+		fill.Shadow.V, fill.BorderWidth.V = config.Shadow{}, 0
+		a.drawBox(renderer, &fill, box)
+		defer a.finishPageBox(renderer, &st, box)
+	} else {
+		_ = a.drawPageBackground(renderer, x, y, page)
+	}
 	viewportW, viewportH := a.viewportSize()
 	tiles := a.cache.pageTiles(page, a.tileVersion(page))
 	if a.overview != nil && len(tiles) > 0 {
@@ -70,6 +83,32 @@ func (a *App) drawPage(renderer *sdl.Renderer, page int, x, y, width, height flo
 		a.loaderVisible = true
 	}
 	a.drawSearchHighlightsForPage(renderer, page, x, y)
+}
+
+// finishPageBox draws what goes over a page: the canvas over the corners
+// its shape leaves, then its shadow, cut away where the page is so it
+// falls only beside it, then its border.
+func (a *App) finishPageBox(renderer *sdl.Renderer, st *config.Style, rect sdl.FRect) {
+	box := pixelRect(rect)
+	if box.W <= 0 || box.H <= 0 {
+		return
+	}
+	shape := a.boxShape(st, box)
+	if shape.Kind != "rect" || shape.radius != [4]float32{} {
+		a.drawMask(renderer, maskSpec{shape: shape, w: box.W, h: box.H, invert: true}, box.X, box.Y, a.backgroundColor())
+	}
+	layers := st.Shadow.V.List()
+	for i := len(layers) - 1; i >= 0; i-- {
+		layer := layers[i]
+		clr := a.styleColor(layer.Color, st.Opacity.V)
+		if clr.A == 0 {
+			continue
+		}
+		dx, dy := int32(math.Round(float64(a.px(layer.X)))), int32(math.Round(float64(a.px(layer.Y))))
+		spec := maskSpec{shape: shape, w: box.W, h: box.H, spread: a.px(layer.Spread), blur: a.px(layer.Blur), cut: true, cutX: float32(-dx), cutY: float32(-dy)}
+		a.drawMask(renderer, spec, box.X+dx, box.Y+dy, clr)
+	}
+	a.drawDefaultBox(renderer, st, rect, boxBorder)
 }
 
 // drawTile draws a tile of the page whose screen origin is (x, y). The

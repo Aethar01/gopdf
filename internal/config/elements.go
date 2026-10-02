@@ -39,6 +39,7 @@ const (
 	ElementTitleClose
 	ElementLoader
 	ElementAutoscrollMarker
+	ElementPage
 	ElementCount
 )
 
@@ -80,6 +81,7 @@ var elementSpecs = [ElementCount]struct {
 	ElementTitleButton:       {"title_button", noElement, slices.Concat(boxProps, []string{"text"}), "A window button under the pointer, drawn a little fainter while pressed."},
 	ElementTitleClose:        {"title_close", ElementTitleButton, slices.Concat(boxProps, []string{"text"}), "The close button under the pointer."},
 	ElementLoader:            {"loader", noElement, []string{"fill", "opacity", "draw"}, "The drops bouncing on a page still rendering; its box is the page."},
+	ElementPage:              {"page", noElement, []string{"shape", "radius", "fill", "border", "shadow"}, "Each page of the document, its fill showing until the page renders. Pages turned other than by quarter turns are drawn plain."},
 	ElementAutoscrollMarker:  {"autoscroll_marker", noElement, []string{"fill", "border", "opacity", "width", "draw"}, "The marker where autoscroll started: its fill, its outline as its border, and its width."},
 }
 
@@ -334,6 +336,10 @@ func elementDefaults(t *Theme, e Element) Style {
 		s.Text = some(Color{RGB: [3]uint8{0xff, 0xff, 0xff}, Alpha: 1})
 	case ElementLoader:
 		s.Fill = some(paletteColor("muted", 1))
+	case ElementPage:
+		// Sheets on the desk, as the panels are.
+		s.Fill = some(paletteColor("page", 1))
+		s.Shadow = some(shadow)
 	case ElementAutoscrollMarker:
 		// Light with a dark edge, as a pointer is, to show on any page.
 		s.Fill = some(Color{RGB: [3]uint8{250, 250, 250}, Alpha: 215.0 / 255})

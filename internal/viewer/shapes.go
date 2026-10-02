@@ -192,6 +192,12 @@ type maskSpec struct {
 	sides        config.Sides
 	spread, blur float32
 	stroke       float32
+	// invert takes the mask's complement within the box, as the corners
+	// beyond a rounded shape; cut takes the shape out of it, offset by
+	// cutX and cutY, as a shadow drawn over what casts it.
+	invert     bool
+	cut        bool
+	cutX, cutY float32
 }
 
 // mask is a rasterised shape as a texture, white with the shape's
@@ -254,7 +260,8 @@ func (a *App) shapeMask(renderer *sdl.Renderer, spec maskSpec) (mask, bool) {
 	key := spec
 	var sliceX, sliceY int32
 	if spec.shape.Kind == "rect" {
-		corner := int32(math.Ceil(float64(max(spec.shape.radius[0], spec.shape.radius[1], spec.shape.radius[2], spec.shape.radius[3], spec.border)+max(0, spec.spread)))) + 2*pad + 1
+		reach := max(spec.shape.radius[0], spec.shape.radius[1], spec.shape.radius[2], spec.shape.radius[3], spec.border) + max(0, spec.spread) + max(abs32(spec.cutX), abs32(spec.cutY))
+		corner := int32(math.Ceil(float64(reach))) + 2*pad + 1
 		if spec.w+2*pad > 2*corner+2 {
 			sliceX, key.w = corner, 2*(corner-pad)+2
 		}
@@ -287,6 +294,38 @@ func (a *App) shapeMask(renderer *sdl.Renderer, spec maskSpec) (mask, bool) {
 // rasterMask rasterises spec's mask with at least pad pixels around the
 // box, and more for a path reaching past it, returning the pad it used.
 func (a *App) rasterMask(spec maskSpec, pad int32) (*image.Alpha, int32) {
+	img, pad := a.rasterShapeMask(spec, pad)
+	if img == nil {
+		return nil, 0
+	}
+	stride := img.Stride
+	if spec.invert {
+		box := image.Rect(int(pad), int(pad), int(pad+spec.w), int(pad+spec.h))
+		for y := range img.Rect.Dy() {
+			for x := range img.Rect.Dx() {
+				i := y*stride + x
+				if image.Pt(x, y).In(box) {
+					img.Pix[i] = 255 - img.Pix[i]
+				} else {
+					img.Pix[i] = 0
+				}
+			}
+		}
+	}
+	if spec.cut {
+		hole := a.rasterShape(spec.shape, img.Rect.Dx(), img.Rect.Dy(), float32(pad)+spec.cutX, float32(pad)+spec.cutY, float32(spec.w), float32(spec.h), 0)
+		for i, v := range hole.Pix {
+			img.Pix[i] = uint8(int(img.Pix[i]) * (255 - int(v)) / 255)
+		}
+	}
+	return img, pad
+}
+
+func abs32(v float32) float32 { return max(v, -v) }
+
+// rasterShapeMask rasterises the fill, border, stroke or shadow of
+// spec's shape, as rasterMask describes.
+func (a *App) rasterShapeMask(spec maskSpec, pad int32) (*image.Alpha, int32) {
 	var ops []config.PathOp
 	if spec.shape.Kind == "path" {
 		var err error
