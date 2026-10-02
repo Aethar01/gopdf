@@ -60,6 +60,7 @@ func (a *App) Run() error {
 	if err := a.openInitialDocument(); err != nil {
 		return err
 	}
+	a.showConfigWarnings()
 	a.recomputeLayout(a.viewportSize())
 	a.pendingRedraw = true
 	a.syncTextInput()

@@ -506,8 +506,10 @@ func (r *Runtime) unbindMouse(event string) error {
 func (r *Runtime) setOption(name string, value lua.LValue) error {
 	name = normalizeOptionName(name)
 	if desc, ok := lookupOption(name); ok {
-		if err := desc.apply(&r.cfg, value); err != nil {
+		if err := desc.apply(&r.cfg, value); err != nil && !isSkipped(err) {
 			return err
+		} else if err != nil {
+			r.warn(err)
 		}
 		r.markAssigned(name)
 	} else {

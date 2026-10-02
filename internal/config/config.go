@@ -89,6 +89,7 @@ type Runtime struct {
 	loadingPlugin    string
 	activePlugin     string
 	loadingAutogen   bool
+	warnings         []string // see warn
 }
 
 // luaGeneration is what one load of the configuration builds. Reload

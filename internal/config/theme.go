@@ -258,11 +258,11 @@ func init() {
 		},
 		apply: func(cfg *Config, value lua.LValue) error {
 			theme, err := themeFromLua(cfg, value)
-			if err != nil {
+			if err != nil && !isSkipped(err) {
 				return err
 			}
 			cfg.Theme = theme
-			return nil
+			return err
 		},
 	})
 }
@@ -296,17 +296,20 @@ func themeFromLua(cfg *Config, value lua.LValue) (Theme, error) {
 		}
 		work := *cfg
 		work.Theme = theme
-		if err := applyThemeTable(&work, value, ""); err != nil {
+		if err := applyThemeTable(&work, value, ""); err != nil && !isSkipped(err) {
 			return Theme{}, err
+		} else {
+			return work.Theme, err // with any fields skipped
 		}
-		return work.Theme, nil
 	default:
 		return Theme{}, fmt.Errorf("expected theme table or preset name")
 	}
 }
 
 // applyThemeTable sets the fields in tbl, whose names start with prefix.
+// Fields it does not know are skipped, and returned as skippedFields.
 func applyThemeTable(cfg *Config, tbl *lua.LTable, prefix string) error {
+	var skipped skips
 	var err error
 	tbl.ForEach(func(key, value lua.LValue) {
 		if err != nil {
@@ -326,23 +329,26 @@ func applyThemeTable(cfg *Config, tbl *lua.LTable, prefix string) error {
 				err = fmt.Errorf("elements: expected a table of elements")
 				return
 			}
-			err = applyElementsTable(cfg, sub)
+			err = skipped.add(applyElementsTable(cfg, sub))
 			return
 		}
 		if sub, ok := value.(*lua.LTable); ok && slices.Contains(themeGroups, name) {
-			err = applyThemeTable(cfg, sub, name+".")
+			err = skipped.add(applyThemeTable(cfg, sub, name+"."))
 			return
 		}
 		desc, ok := configOptions[themeOptionPrefix+name]
 		if !ok {
-			err = fmt.Errorf("%s: unknown theme field", name)
+			skipped.add(skipField(name))
 			return
 		}
 		if e := desc.apply(cfg, value); e != nil {
 			err = fmt.Errorf("%s: %w", name, e)
 		}
 	})
-	return err
+	if err != nil {
+		return err
+	}
+	return skipped.err()
 }
 
 // setThemeField sets one field, or every field a nested table holds, as for
@@ -362,10 +368,17 @@ func (r *Runtime) setThemeField(name string, value lua.LValue) error {
 	case isTable && slices.Contains(themeGroups, name):
 		err = applyThemeTable(&work, sub, name+".")
 	default:
+		if _, ok := lookupOption(themeOptionPrefix + name); !ok {
+			r.warn(skipField(name))
+			return nil
+		}
 		return r.setOption(themeOptionPrefix+name, value)
 	}
-	if err != nil {
+	if err != nil && !isSkipped(err) {
 		return err
+	}
+	if err != nil {
+		r.warn(err)
 	}
 	r.cfg.Theme = work.Theme
 	r.markAssigned("theme")

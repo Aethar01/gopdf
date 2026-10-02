@@ -139,8 +139,6 @@ func TestElementErrors(t *testing.T) {
 	tests := []struct {
 		name, lua, want string
 	}{
-		{"unknown element", `gopdf.theme.elements.pannel = { radius = 1 }`, `elements.pannel: unknown element`},
-		{"property it does not take", `gopdf.theme = { elements = { prompt = { radius = 1 } } }`, `prompt has no property "radius"`},
 		{"unknown colour", `gopdf.theme.elements.panel.fill = "acent"`, `unknown colour "acent"`},
 		{"bad opacity", `gopdf.theme.elements.panel.fill = "accent/150"`, `expected a percentage`},
 		{"negative radius", `gopdf.theme.elements.panel.radius = -1`, `must not be negative`},

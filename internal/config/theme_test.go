@@ -205,8 +205,6 @@ func TestThemeErrors(t *testing.T) {
 	}{
 		{"unknown preset", `gopdf.theme = "jungle"`, `unknown theme "jungle"; expected one of birch, classic, moss`},
 		{"unknown base", `gopdf.theme = { base = "jungle" }`, `unknown theme "jungle"`},
-		{"unknown field", `gopdf.theme = { colour = "#ffffff" }`, "colour: unknown theme field"},
-		{"unknown nested field", `gopdf.theme.alt = { radius = 2 }`, "alt.radius: unknown theme field"},
 		{"bad colour", `gopdf.theme.accent = "green"`, "gopdf.theme.accent: expected #RRGGBB or r,g,b"},
 		{"read unknown", `local _ = gopdf.theme.nope`, "gopdf.theme.nope: unknown theme field"},
 		{"moved option", `gopdf.options.ui_font_size = 12`, "ui_font_size moved to gopdf.theme.font.size"},
@@ -237,10 +235,10 @@ func TestThemeErrors(t *testing.T) {
 	}
 	tbl := rt.state.NewTable()
 	tbl.RawSetString("accent", lua.LString("#020202"))
-	tbl.RawSetString("bogus", lua.LTrue)
+	tbl.RawSetString("panel", lua.LTrue)
 	before = rt.Config().Theme
 	if err := rt.setOption("theme", tbl); err == nil {
-		t.Fatal("expected an unknown field to be rejected")
+		t.Fatal("expected a bad value to be rejected")
 	}
 	if rt.Config().Theme != before {
 		t.Fatal("a rejected theme table changed the theme")
@@ -318,5 +316,37 @@ require("fern")
 	want.Radius = 3
 	if got := rt.Config().Theme; got != want {
 		t.Fatalf("theme = %+v\nwant %+v", got, want)
+	}
+}
+
+// A theme written for a newer gopdf, with fields this one does not know,
+// loads without them, and they are reported.
+func TestUnknownThemeFieldsAreSkipped(t *testing.T) {
+	rt := mustLoadThemeTestConfig(t, `
+gopdf.theme = {
+  accent = "#123456",
+  glow = 3,
+  alt = { sparkle = true },
+  elements = { panel = { radius = 2, wobble = 1 }, sidebar = { fill = "accent" }, prompt = { radius = 4 } },
+}
+gopdf.theme.newthing = 1
+gopdf.theme.elements.pannel = { radius = 2 }
+`)
+	theme := rt.Config().Theme
+	if theme.Accent != [3]uint8{0x12, 0x34, 0x56} || theme.Style(ElementPanel).Radius.V != corners(2) {
+		t.Fatalf("known fields were not applied: accent %v, panel radius %v", theme.Accent, theme.Style(ElementPanel).Radius.V)
+	}
+	warnings := strings.Join(rt.TakeWarnings(), "\n")
+	for _, name := range []string{"glow", "alt.sparkle", "elements.panel.wobble", "elements.sidebar", "elements.prompt.radius", "newthing", "elements.pannel"} {
+		if !strings.Contains(warnings, name) {
+			t.Errorf("warnings do not name %s:\n%s", name, warnings)
+		}
+	}
+	if len(rt.TakeWarnings()) != 0 {
+		t.Fatal("warnings were not cleared once taken")
+	}
+	// :set still refuses a field it does not know.
+	if err := rt.SetOption("theme.glow", "3"); err == nil {
+		t.Fatal(":set theme.glow succeeded")
 	}
 }

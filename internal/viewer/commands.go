@@ -240,6 +240,7 @@ func (a *App) applyConfig(cfg config.Config, assigned map[string]bool) {
 	if a.tilesRenderedDifferently(prev, cfg) {
 		a.restyleTiles()
 	}
+	a.showConfigWarnings()
 	a.relayoutWithViewportAnchor(func() {
 		changed := false
 		apply := func(differs bool, option string, set func()) {
@@ -258,6 +259,16 @@ func (a *App) applyConfig(cfg config.Config, assigned map[string]bool) {
 			a.cancelSmoothScroll()
 		}
 	})
+}
+
+// showConfigWarnings shows in the status bar what the configuration was
+// applied in spite of, such as theme fields this version does not know;
+// they are also logged.
+func (a *App) showConfigWarnings() {
+	if warnings := a.runtime.TakeWarnings(); len(warnings) > 0 {
+		a.message = strings.Join(warnings, "; ")
+		a.pendingRedraw = true
+	}
 }
 
 // applyConfigSettings applies the settings that are cheap to apply whether

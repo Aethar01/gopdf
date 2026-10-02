@@ -1062,13 +1062,17 @@ func lookupOption(name string) (optionDesc, bool) {
 
 // applyElementsTable sets what tbl, as the theme's elements table, holds.
 func applyElementsTable(cfg *Config, tbl *lua.LTable) error {
+	var skipped skips
 	var err error
 	tbl.ForEach(func(key, value lua.LValue) {
 		if err == nil {
-			err = applyElementValue(cfg, strings.ToLower(lua.LVAsString(key)), value)
+			err = skipped.add(applyElementValue(cfg, strings.ToLower(lua.LVAsString(key)), value))
 		}
 	})
-	return err
+	if err != nil {
+		return err
+	}
+	return skipped.err()
 }
 
 // applyElementValue sets name, an element, one of its properties or the
@@ -1076,18 +1080,22 @@ func applyElementsTable(cfg *Config, tbl *lua.LTable) error {
 func applyElementValue(cfg *Config, name string, value lua.LValue) error {
 	elementName, propName, hasProp := strings.Cut(name, ".")
 	if _, ok := elementNamed(elementName); !ok {
-		return fmt.Errorf("elements.%s: unknown element; expected one of %s", elementName, strings.Join(ElementNames(), ", "))
+		return skipField("elements." + elementName)
 	}
 	if !hasProp || propName == "border" {
 		switch value := value.(type) {
 		case *lua.LTable:
+			var skipped skips
 			var err error
 			value.ForEach(func(key, v lua.LValue) {
 				if err == nil {
-					err = applyElementValue(cfg, name+"."+strings.ToLower(lua.LVAsString(key)), v)
+					err = skipped.add(applyElementValue(cfg, name+"."+strings.ToLower(lua.LVAsString(key)), v))
 				}
 			})
-			return err
+			if err != nil {
+				return err
+			}
+			return skipped.err()
 		case lua.LNumber:
 			if hasProp { // border = 2 sets its width
 				return applyElementValue(cfg, name+".width", value)
@@ -1104,8 +1112,7 @@ func applyElementValue(cfg *Config, name string, value lua.LValue) error {
 	}
 	desc, ok := elementOption(elementsOptionPrefix + name)
 	if !ok {
-		_, _, err := elementProperty(name)
-		return fmt.Errorf("elements.%s: %w", name, err)
+		return skipField("elements." + name) // a property it does not take, or one unknown
 	}
 	if err := desc.apply(cfg, value); err != nil {
 		return fmt.Errorf("elements.%s: %w", name, err)
