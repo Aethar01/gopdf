@@ -289,16 +289,18 @@ func hasHomePathPrefix(path string) bool {
 }
 
 func (a *App) drawCompletion(renderer *sdl.Renderer) error {
-	rows := a.visibleCompletionRows()
+	rows, selectedRow := a.completionRows()
 	if len(rows) == 0 {
 		return nil
 	}
+	visible := a.scrollCompletion(len(rows), selectedRow)
 	panel, row := a.style(config.ElementCompletion), a.style(config.ElementRow)
 	padTop, padRight, padBottom, padLeft := a.insets(panel.Padding.V)
 	_, rowPadRight, _, rowPadLeft := a.insets(row.Padding.V)
 	rowHeight := a.modalListRowHeight()
 	inset := int(math.Round(float64(padLeft + rowPadLeft)))
 	margin := a.ipx(8)
+	// The popup fits every completion, so it keeps its width as it scrolls.
 	width := 0
 	for _, row := range rows {
 		width = max(width, measureText(a.fontFace, row.text))
@@ -308,46 +310,72 @@ func (a *App) drawCompletion(renderer *sdl.Renderer) error {
 	// Line the completions' text up with the word being completed.
 	x := a.promptOrigin() + measureText(a.fontFace, a.inputPrefix()+a.input.Left()) - inset
 	x = clampInt(x, margin, max(margin, a.winW-width-margin))
-	height := len(rows)*rowHeight + int(math.Round(float64(padTop+padBottom)))
+	height := visible*rowHeight + int(math.Round(float64(padTop+padBottom)))
 	y := max(margin, a.statusTop()-height-a.ipx(6))
 	rect := sdl.FRect{X: float32(x), Y: float32(y), W: float32(width), H: float32(height)}
-	return a.drawPanel(renderer, config.ElementCompletion, rect, func() error { return a.drawCompletionRows(renderer, rows, rect, &panel) })
+	return a.drawPanel(renderer, config.ElementCompletion, rect, func() error {
+		return a.drawCompletionRows(renderer, rows, selectedRow, visible, rect, &panel)
+	})
 }
 
-func (a *App) drawCompletionRows(renderer *sdl.Renderer, rows []completionRow, rect sdl.FRect, panel *config.Style) error {
+// scrollCompletion keeps the selected row in view, scroll_off rows from
+// the popup's edges, and returns how many of the total rows show.
+func (a *App) scrollCompletion(total, selectedRow int) int {
+	view := a.completion.view
+	visible := min(total, max(1, a.config.CompletionMaxItems))
+	if selectedRow >= 0 {
+		view.scroll = modalListScrollForSelection(view.scroll, selectedRow, visible, total, a.config.ScrollOff)
+	}
+	return visible
+}
+
+// drawCompletionRows draws visible of rows at a time, scrolled as the
+// completion view's offset says, the selected row's box gliding among
+// them.
+func (a *App) drawCompletionRows(renderer *sdl.Renderer, rows []completionRow, selectedRow, visible int, rect sdl.FRect, panel *config.Style) error {
+	view := a.completion.view
 	padTop, padRight, _, padLeft := a.insets(panel.Padding.V)
 	rowHeight := a.modalListRowHeight()
 	baseline := a.modalListBaselineOffset(rowHeight)
-	rowBox := func(y float64) sdl.FRect {
-		return sdl.FRect{X: rect.X + padLeft, Y: float32(math.Round(y)), W: rect.W - padLeft - padRight, H: float32(rowHeight)}
+	offset := a.listOffset(view, visible, len(rows))
+	top := float64(rect.Y + padTop)
+	rowY := func(index float64) int { return int(math.Round(top + (index-offset)*float64(rowHeight))) }
+	rowBox := func(y int) sdl.FRect {
+		return sdl.FRect{X: rect.X + padLeft, Y: float32(y), W: rect.W - padLeft - padRight, H: float32(rowHeight)}
 	}
-	// The selected row's box glides to it from the row selected before,
-	// moving among the completions so that it stays with its row when they
-	// scroll.
-	for i, row := range rows {
-		if row.selected {
+	list := sdl.FRect{X: rect.X, Y: float32(top), W: rect.W, H: float32(visible * rowHeight)}
+	first, last := int(math.Floor(offset)), min(len(rows), int(math.Ceil(offset))+visible)
+	err := a.withClip(renderer, list, func() error {
+		if selectedRow >= first && selectedRow < last {
 			st := a.style(config.ElementRowSelected)
-			selected := a.completion.view.selected
-			at := a.animate("selection completion", float64(selected), a.config.Theme.Motion.Selection)
-			a.drawBox(renderer, &st, rowBox(float64(rect.Y+padTop)+float64(rowHeight)*(at-float64(selected-i))))
+			at := a.animate("selection "+viewKey(view), float64(selectedRow), a.config.Theme.Motion.Selection)
+			a.drawBox(renderer, &st, rowBox(rowY(at)))
 		}
+		for index := first; index < last; index++ {
+			row := rows[index]
+			y := rowY(float64(index))
+			st := a.style(config.ElementRow)
+			if row.selected {
+				st = a.style(config.ElementRowSelected)
+			}
+			box := rowBox(y)
+			if !row.selected {
+				a.drawBox(renderer, &st, box)
+			}
+			_, rowPadRight, _, rowPadLeft := a.insets(st.Padding.V)
+			textX := int(math.Round(float64(box.X + rowPadLeft)))
+			width := int(math.Round(float64(box.X+box.W-rowPadRight))) - textX
+			if err := a.drawTextFace(renderer, truncateText(a.styleFace(&st), row.text, width), textX, y+baseline, a.textColor(&st, false), st.Bold.V); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return err
 	}
-	for i, row := range rows {
-		rowY := int(rect.Y+padTop) + i*rowHeight
-		st := a.style(config.ElementRow)
-		if row.selected {
-			st = a.style(config.ElementRowSelected)
-		}
-		box := rowBox(float64(rowY))
-		if !row.selected {
-			a.drawBox(renderer, &st, box)
-		}
-		_, rowPadRight, _, rowPadLeft := a.insets(st.Padding.V)
-		textX := int(math.Round(float64(box.X + rowPadLeft)))
-		width := int(math.Round(float64(box.X+box.W-rowPadRight))) - textX
-		if err := a.drawTextFace(renderer, truncateText(a.styleFace(&st), row.text, width), textX, rowY+baseline, a.textColor(&st, false), st.Bold.V); err != nil {
-			return err
-		}
+	if _, thumb, ok := listScrollbarRects(list, visible, len(rows), offset); ok {
+		a.drawScrollbarThumb(renderer, rect, thumb)
 	}
 	return nil
 }
@@ -357,35 +385,20 @@ type completionRow struct {
 	selected bool
 }
 
-func (a *App) visibleCompletionRows() []completionRow {
+// completionRows lists the completions under their section headings,
+// with the index of the selected row, or -1.
+func (a *App) completionRows() ([]completionRow, int) {
 	items := a.completion.items
-	if len(items) == 0 {
-		return nil
+	if len(items) == 0 || a.completion.view == nil {
+		return nil, -1
 	}
-	maxItems := max(1, a.config.CompletionMaxItems)
-	if len(items) <= maxItems {
-		return completionRowsForRange(items, 0, len(items), a.completion.view.selected)
+	rows := completionRowsForRange(items, 0, len(items), clampInt(a.completion.view.selected, 0, len(items)-1))
+	for i, row := range rows {
+		if row.selected {
+			return rows, i
+		}
 	}
-	selected := clampInt(a.completion.view.selected, 0, len(items)-1)
-	start := clampInt(selected-maxItems/2, 0, len(items)-maxItems)
-	end := start + maxItems
-	showTop := start > 0
-	showBottom := end < len(items)
-	if showTop {
-		start++
-	}
-	if showBottom {
-		end--
-	}
-	rows := []completionRow{}
-	if showTop {
-		rows = append(rows, completionRow{text: "..."})
-	}
-	rows = append(rows, completionRowsForRange(items, start, end, selected)...)
-	if showBottom {
-		rows = append(rows, completionRow{text: "..."})
-	}
-	return rows
+	return rows, -1
 }
 
 func completionRowsForRange(items []completionItem, start, end, selected int) []completionRow {

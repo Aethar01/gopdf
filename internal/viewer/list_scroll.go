@@ -42,6 +42,10 @@ func (a *App) listOffset(view *uiView, rows, total int) float64 {
 		if first || !a.config.SmoothScrollSources.Has(config.SmoothInputKeyboard) {
 			view.offset = target
 		} else {
+			// A jump of more than a screen, such as to the end or
+			// round from the last row to the first, glides only its
+			// last screen.
+			view.offset = clampFloat(view.offset, target-float64(rows), target+float64(rows))
 			view.offset = smoothToward(view.offset, target, a.config.SmoothScrollDampening, elapsed, frame)
 			if math.Abs(view.offset-target) <= modalSmoothScrollSnap {
 				view.offset = target

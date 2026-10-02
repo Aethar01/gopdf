@@ -136,27 +136,25 @@ func (a *App) modalListRowAt(rect sdl.FRect, rows, rowHeight, x, y int) (int, bo
 }
 
 func modalListScrollbarRects(rect sdl.FRect, rowHeight, rows, total int, offset float64) (sdl.FRect, sdl.FRect, bool) {
-	if rows <= 0 || total <= rows {
-		return sdl.FRect{}, sdl.FRect{}, false
-	}
 	trackTop := rect.Y + float32(rowHeight)
-	trackH := rect.H - float32(rowHeight) - 8
-	if trackH < 20 {
+	return listScrollbarRects(sdl.FRect{X: rect.X, Y: trackTop, W: rect.W, H: rect.H - float32(rowHeight) - 8}, rows, total, offset)
+}
+
+// listScrollbarRects is the scrollbar's track and thumb for a list in
+// area showing rows of total rows from offset, if it needs one.
+func listScrollbarRects(area sdl.FRect, rows, total int, offset float64) (sdl.FRect, sdl.FRect, bool) {
+	if rows <= 0 || total <= rows || area.H < 20 {
 		return sdl.FRect{}, sdl.FRect{}, false
 	}
-	track := sdl.FRect{X: rect.X + rect.W - modalScrollbarWidth - 6, Y: trackTop, W: modalScrollbarWidth, H: trackH}
-	thumbH := track.H * float32(rows) / float32(total)
-	if thumbH < 20 {
-		thumbH = 20
-	}
+	track := sdl.FRect{X: area.X + area.W - modalScrollbarWidth - 6, Y: area.Y, W: modalScrollbarWidth, H: area.H}
+	thumbH := max(20, track.H*float32(rows)/float32(total))
 	maxScroll := max(0, total-rows)
 	thumbTravel := track.H - thumbH
 	thumbY := track.Y
 	if maxScroll > 0 && thumbTravel > 0 {
 		thumbY += thumbTravel * float32(clampFloat(offset, 0, float64(maxScroll))) / float32(maxScroll)
 	}
-	thumb := sdl.FRect{X: track.X, Y: thumbY, W: track.W, H: thumbH}
-	return track, thumb, true
+	return track, sdl.FRect{X: track.X, Y: thumbY, W: track.W, H: thumbH}, true
 }
 
 // modalListScrollbarScrollForY is the offset that puts the thumb at y,
@@ -225,20 +223,21 @@ func pointInRect(x, y int, rect sdl.FRect) bool {
 }
 
 func (a *App) drawModalListScrollbar(renderer *sdl.Renderer, rect sdl.FRect, rowHeight, rows, total int, offset float64) error {
-	track, thumb, ok := modalListScrollbarRects(rect, rowHeight, rows, total, offset)
-	if !ok {
-		return nil
+	if _, thumb, ok := modalListScrollbarRects(rect, rowHeight, rows, total, offset); ok {
+		a.drawScrollbarThumb(renderer, rect, thumb)
 	}
-	// A slim thumb clear of the panel's edge; the track stays the area that
-	// takes clicks.
-	_ = track
+	return nil
+}
+
+// drawScrollbarThumb draws thumb as a slim bar set off the right edge of
+// panel; the wider track around it is what takes clicks.
+func (a *App) drawScrollbarThumb(renderer *sdl.Renderer, panel, thumb sdl.FRect) {
 	st := a.style(config.ElementScrollbar)
 	_, margin, _, _ := a.insets(st.Margin.V)
 	w := max(1, a.px(st.Width.V))
-	thumb.X = rect.X + rect.W - margin - w
+	thumb.X = panel.X + panel.W - margin - w
 	thumb.W = w
 	a.drawBox(renderer, &st, thumb)
-	return nil
 }
 
 // truncateModalListText shortens s with an ellipsis to fit maxWidth. The
