@@ -2,12 +2,13 @@ package viewer
 
 import (
 	"math"
-	"sort"
+	"unicode/utf8"
 
 	"gopdf/internal/config"
 
 	"github.com/jupiterrider/purego-sdl3/sdl"
 	"golang.org/x/image/font"
+	"golang.org/x/image/math/fixed"
 )
 
 const modalScrollbarWidth = 8
@@ -259,20 +260,35 @@ func (a *App) drawScrollbarThumb(renderer *sdl.Renderer, panel, thumb sdl.FRect)
 	a.drawBox(renderer, &st, thumb)
 }
 
-// truncateModalListText shortens s with an ellipsis to fit maxWidth. The
-// cut is found by binary search, as rows are truncated on every frame.
+// truncateModalListText shortens s with an ellipsis to fit maxWidth.
 func (a *App) truncateModalListText(s string, maxWidth int) string {
 	return truncateText(a.fontFace, s, maxWidth)
 }
 
+// truncateText shortens s with an ellipsis to fit maxWidth. Rows are
+// truncated on every frame, so the cut is found in one pass over s,
+// measuring each prefix with the ellipsis as the drawer would.
 func truncateText(face font.Face, s string, maxWidth int) string {
 	if maxWidth <= 0 || measureText(face, s) <= maxWidth {
 		return s
 	}
-	runes := []rune(s)
+	const ellipsis = "..."
 	// The longest prefix, of at least one rune, that fits with the ellipsis.
-	keep := sort.Search(len(runes), func(n int) bool {
-		return measureText(face, string(runes[:n+1])+"...") > maxWidth
-	})
-	return string(runes[:max(1, keep)]) + "..."
+	dots, limit := font.MeasureString(face, ellipsis), fixed.I(maxWidth)
+	var width fixed.Int26_6
+	prev, keep := rune(-1), 0
+	for i := 0; i < len(s); {
+		r, size := utf8.DecodeRuneInString(s[i:])
+		if prev >= 0 {
+			width += face.Kern(prev, r)
+		}
+		advance, _ := face.GlyphAdvance(r)
+		width += advance
+		if keep > 0 && width+face.Kern(r, '.')+dots > limit {
+			break
+		}
+		prev, i = r, i+size
+		keep = i
+	}
+	return s[:keep] + ellipsis
 }
