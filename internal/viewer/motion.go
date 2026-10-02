@@ -3,6 +3,7 @@ package viewer
 import (
 	"fmt"
 	"math"
+	"sync/atomic"
 	"time"
 
 	"gopdf/internal/config"
@@ -24,6 +25,7 @@ type motionState struct {
 	shownView, closingView *uiView
 	// fadingText is the last status text shown, faded out once cleared.
 	fadingText string
+	osReduced  atomic.Bool // the OS asks for less motion; see motionScale
 }
 
 // tween is a value moving from one place to another.
@@ -74,7 +76,7 @@ func (a *App) animateFrom(key string, from, target float64, tr config.Transition
 		tw.from, tw.to, tw.start = tw.value, target, m.now
 	}
 	tw.seen = m.frame
-	duration := tr.Scaled(a.config.Theme.Motion.Scale)
+	duration := tr.Scaled(a.motionScale())
 	progress := 1.0
 	if duration > 0 {
 		progress = float64(m.now.Sub(tw.start)) / float64(time.Duration(duration*float64(time.Millisecond)))

@@ -81,3 +81,16 @@ func TestFadeFadesStyleColours(t *testing.T) {
 		t.Fatalf("fade left at %v", app.motion.fade)
 	}
 }
+
+func TestOSReducedMotionStopsMotion(t *testing.T) {
+	app := &App{}
+	app.config.Theme.Motion.Scale = 1
+	tr, _ := config.Preset("moss")
+	app.motion.osReduced.Store(true)
+	stepMotion(app, time.Now(), 0)
+	app.animate("x", 10, tr.Motion.Selection)
+	stepMotion(app, time.Now(), 0)
+	if got := app.animate("x", 20, tr.Motion.Selection); got != 20 || app.motion.animating {
+		t.Fatalf("with the OS asking for less motion = %v, animating %v", got, app.motion.animating)
+	}
+}

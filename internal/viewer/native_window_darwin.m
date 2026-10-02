@@ -227,3 +227,7 @@ void gopdfConfigureMacOSWindow(void *windowPointer) {
         });
     }
 }
+
+int gopdfReduceMotion(void) {
+    return [[NSWorkspace sharedWorkspace] accessibilityDisplayShouldReduceMotion] ? 1 : 0;
+}

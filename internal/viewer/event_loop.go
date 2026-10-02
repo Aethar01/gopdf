@@ -61,6 +61,7 @@ func (a *App) Run() error {
 		return err
 	}
 	a.showConfigWarnings()
+	a.refreshReducedMotion()
 	a.recomputeLayout(a.viewportSize())
 	a.pendingRedraw = true
 	a.syncTextInput()
@@ -214,6 +215,9 @@ func (a *App) handleSDLEvent(event *sdl.Event) error {
 		redraw = false
 	case sdl.EventWindowLeaveFullscreen:
 		a.fullscreen = false
+		redraw = false
+	case sdl.EventWindowFocusGained:
+		a.refreshReducedMotion()
 		redraw = false
 	case sdl.EventWindowFocusLost:
 		a.stopPan()
