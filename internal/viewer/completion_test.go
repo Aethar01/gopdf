@@ -213,7 +213,7 @@ func TestCompletionAcceptCloseAndVisibleRows(t *testing.T) {
 	if got, want := completionRowTexts(rows), []string{"a", "b", "c", "d", "e"}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("expected completion rows %v, got %v", want, got)
 	}
-	if selected != 3 || !rows[3].selected {
+	if selected != 3 || rows[3].item != 3 {
 		t.Fatalf("expected the selected completion row to be marked, selected=%d rows=%+v", selected, rows)
 	}
 
@@ -222,7 +222,7 @@ func TestCompletionAcceptCloseAndVisibleRows(t *testing.T) {
 	if got, want := completionRowTexts(rows), []string{"Recents:", "  old.pdf", "  paper.pdf", "Suggestions:", "  docs" + pathSeparator()}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("expected recent completion section %v, got %v", want, got)
 	}
-	if selected != 2 || !rows[2].selected {
+	if selected != 2 || rows[2].item != 1 {
 		t.Fatalf("expected selected recent row to remain marked under header, selected=%d rows=%+v", selected, rows)
 	}
 }

@@ -11,6 +11,7 @@ import (
 	"gopdf/internal/config"
 
 	"github.com/jupiterrider/purego-sdl3/sdl"
+	"golang.org/x/image/font"
 )
 
 type completionState struct {
@@ -18,6 +19,13 @@ type completionState struct {
 	items []completionItem
 	start int
 	end   int
+	// rows are items under their section headings, and rowOf each item's
+	// row, built when first drawn; width is the widest row's text in
+	// widthFace. They stay as long as the items do.
+	rows      []completionRow
+	rowOf     []int
+	width     int
+	widthFace font.Face
 }
 
 type completionItem struct {
@@ -301,11 +309,14 @@ func (a *App) drawCompletion(renderer *sdl.Renderer) error {
 	inset := int(math.Round(float64(padLeft + rowPadLeft)))
 	margin := a.ipx(8)
 	// The popup fits every completion, so it keeps its width as it scrolls.
-	width := 0
-	for _, row := range rows {
-		width = max(width, measureText(a.fontFace, row.text))
+	if a.completion.widthFace != a.fontFace {
+		a.completion.width = 0
+		for _, row := range rows {
+			a.completion.width = max(a.completion.width, measureText(a.fontFace, row.text))
+		}
+		a.completion.widthFace = a.fontFace
 	}
-	width += int(math.Round(float64(padLeft + rowPadLeft + rowPadRight + padRight)))
+	width := a.completion.width + int(math.Round(float64(padLeft+rowPadLeft+rowPadRight+padRight)))
 	width = clampInt(width, a.ipx(120), max(a.ipx(120), a.winW-2*margin))
 	// Line the completions' text up with the word being completed.
 	x := a.promptOrigin() + measureText(a.fontFace, a.inputPrefix()+a.input.Left()) - inset
@@ -355,11 +366,11 @@ func (a *App) drawCompletionRows(renderer *sdl.Renderer, rows []completionRow, s
 			row := rows[index]
 			y := rowY(float64(index))
 			st := a.style(config.ElementRow)
-			if row.selected {
+			if index == selectedRow {
 				st = a.style(config.ElementRowSelected)
 			}
 			box := rowBox(y)
-			if !row.selected {
+			if index != selectedRow {
 				a.drawBox(renderer, &st, box)
 			}
 			_, rowPadRight, _, rowPadLeft := a.insets(st.Padding.V)
@@ -381,48 +392,47 @@ func (a *App) drawCompletionRows(renderer *sdl.Renderer, rows []completionRow, s
 }
 
 type completionRow struct {
-	text     string
-	selected bool
+	text string
+	item int // the index of the row's completion, or -1 for a heading
 }
 
 // completionRows lists the completions under their section headings,
 // with the index of the selected row, or -1.
 func (a *App) completionRows() ([]completionRow, int) {
-	items := a.completion.items
-	if len(items) == 0 || a.completion.view == nil {
+	c := &a.completion
+	if len(c.items) == 0 || c.view == nil {
 		return nil, -1
 	}
-	rows := completionRowsForRange(items, 0, len(items), clampInt(a.completion.view.selected, 0, len(items)-1))
-	for i, row := range rows {
-		if row.selected {
-			return rows, i
-		}
+	if c.rows == nil {
+		c.rows, c.rowOf = completionRowsFor(c.items)
 	}
-	return rows, -1
+	return c.rows, c.rowOf[clampInt(c.view.selected, 0, len(c.items)-1)]
 }
 
-func completionRowsForRange(items []completionItem, start, end, selected int) []completionRow {
-	rows := []completionRow{}
+// completionRowsFor lists items under their section headings, with the
+// row each item is on.
+func completionRowsFor(items []completionItem) ([]completionRow, []int) {
+	rows, rowOf := []completionRow{}, make([]int, len(items))
 	categorized := hasRecentItems(items)
 	recentHeaderShown := false
 	suggestionHeaderShown := false
-	for i := start; i < end; i++ {
-		item := items[i]
+	for i, item := range items {
 		if item.recent && !recentHeaderShown {
-			rows = append(rows, completionRow{text: "Recents:"})
+			rows = append(rows, completionRow{text: "Recents:", item: -1})
 			recentHeaderShown = true
 		}
 		if !item.recent && categorized && !suggestionHeaderShown {
-			rows = append(rows, completionRow{text: "Suggestions:"})
+			rows = append(rows, completionRow{text: "Suggestions:", item: -1})
 			suggestionHeaderShown = true
 		}
 		text := item.display
 		if categorized {
 			text = "  " + text
 		}
-		rows = append(rows, completionRow{text: text, selected: i == selected})
+		rowOf[i] = len(rows)
+		rows = append(rows, completionRow{text: text, item: i})
 	}
-	return rows
+	return rows, rowOf
 }
 
 func hasRecentItems(items []completionItem) bool {
