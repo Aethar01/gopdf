@@ -13,7 +13,7 @@ import (
 	"gopdf/internal/viewer"
 )
 
-var version = "0.1.13"
+var version = "dev" // release builds set it to the tag
 
 //go:embed assets/gopdf.bmp
 var iconBMP []byte
