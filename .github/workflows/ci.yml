@@ -69,14 +69,17 @@ jobs:
         run: |
           app="GoPDF.app"
           mkdir -p "$app/Contents/MacOS" "$app/Contents/Frameworks"
-          go build -trimpath -o "$app/Contents/MacOS/gopdf-bin" .
-          cc -O2 assets/macos/launcher.c -o "$app/Contents/MacOS/GoPDF"
-          dylibbundler -od -b -x "$app/Contents/MacOS/gopdf-bin" -d "$app/Contents/Frameworks" -p "@executable_path/../Frameworks"
+          go build -trimpath -o "$app/Contents/MacOS/GoPDF" .
+          dylibbundler -od -b -x "$app/Contents/MacOS/GoPDF" -d "$app/Contents/Frameworks" -p "@executable_path/../Frameworks"
           cp "$(brew --prefix sdl3)/lib/libSDL3.dylib" "$app/Contents/Frameworks/libSDL3.dylib"
           install_name_tool -id "@executable_path/../Frameworks/libSDL3.dylib" "$app/Contents/Frameworks/libSDL3.dylib"
           codesign --force --sign - "$app/Contents/Frameworks/libSDL3.dylib"
+          # SDL is dlopen()ed by bare name, which dyld resolves through the
+          # executable's rpaths.
+          install_name_tool -add_rpath "@executable_path/../Frameworks" "$app/Contents/MacOS/GoPDF"
+          codesign --force --sign - "$app/Contents/MacOS/GoPDF"
           test -f "$app/Contents/Frameworks/libSDL3.dylib"
-          if otool -L "$app/Contents/MacOS/gopdf-bin" "$app"/Contents/Frameworks/*.dylib | grep -E '(/opt/homebrew|/usr/local)/'; then
+          if otool -L "$app/Contents/MacOS/GoPDF" "$app"/Contents/Frameworks/*.dylib | grep -E '(/opt/homebrew|/usr/local)/'; then
             exit 1
           fi
           env -u DYLD_LIBRARY_PATH "$app/Contents/MacOS/GoPDF" -v
