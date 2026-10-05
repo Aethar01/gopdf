@@ -45,6 +45,17 @@ func TestRunCommandValidationPaths(t *testing.T) {
 	}
 }
 
+func TestVersionCommandShowsBuildVersion(t *testing.T) {
+	previous := config.Version
+	config.Version = "v1.2.3"
+	defer func() { config.Version = previous }()
+	app := testLayoutApp(1)
+	app.runCommand(":version")
+	if app.message != "gopdf v1.2.3" {
+		t.Fatalf("expected version message, got %q", app.message)
+	}
+}
+
 func TestGotoPageInputAcceptsPageLabel(t *testing.T) {
 	app := testLayoutApp(4)
 	app.pageMetrics[0].label = "i"

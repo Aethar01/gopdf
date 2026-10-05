@@ -110,6 +110,7 @@ func newLuaModule(L *lua.LState, rt *Runtime, cfg *Config) *lua.LTable {
 		{Signature: "gopdf.open_external(uri_or_path)", Function: luaOpenExternal(rt)},
 		{Signature: "gopdf.page([page])", Function: luaPage(rt)},
 		{Signature: "gopdf.page_count()", Function: luaPageCount(rt)},
+		{Signature: "gopdf.version()", Function: luaVersion},
 		{Signature: "gopdf.goto_document_point(spec)", Function: luaGotoDocumentPoint(rt)},
 		{Signature: "gopdf.mode()", Function: luaMode(rt)},
 		{Signature: "gopdf.search(query[, backward])", Function: luaSearch(rt)},

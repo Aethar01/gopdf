@@ -51,7 +51,7 @@ jobs:
           GOARCH: ${{ matrix.goarch }}
         run: |
           mkdir -p dist
-          go build -trimpath -ldflags "-s -w -X main.version=${VERSION}" -o dist/gopdf .
+          go build -trimpath -ldflags "-s -w -X gopdf/internal/config.Version=${VERSION}" -o dist/gopdf .
 
       - name: Package
         run: |
@@ -226,7 +226,7 @@ jobs:
           CGO_ENABLED: 1
         run: |
           mkdir -p dist
-          go build -trimpath -ldflags "-s -w -H=windowsgui -X main.version=${VERSION}" -o dist/gopdf.exe .
+          go build -trimpath -ldflags "-s -w -H=windowsgui -X gopdf/internal/config.Version=${VERSION}" -o dist/gopdf.exe .
 
       - name: Package
         run: |
@@ -286,7 +286,7 @@ jobs:
           CGO_ENABLED: 1
         run: |
           mkdir -p dist
-          go build -trimpath -ldflags "-s -w -X main.version=${VERSION}" -o dist/gopdf .
+          go build -trimpath -ldflags "-s -w -X gopdf/internal/config.Version=${VERSION}" -o dist/gopdf .
           dist/gopdf -v
 
       - name: Package AppImage

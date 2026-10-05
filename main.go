@@ -13,8 +13,6 @@ import (
 	"gopdf/internal/viewer"
 )
 
-var version = "dev" // release builds set it to the tag
-
 //go:embed assets/gopdf.bmp
 var iconBMP []byte
 
@@ -44,7 +42,7 @@ func run() error {
 	flag.Parse()
 
 	if printVersion {
-		fmt.Println(version)
+		fmt.Println(config.Version)
 		return nil
 	}
 

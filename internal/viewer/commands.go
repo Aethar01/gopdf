@@ -528,6 +528,7 @@ func init() {
 		"recent":           func(a *App, _ string) { a.showRecentFiles() },
 		"lua":              (*App).runLuaCommand,
 		"help":             func(a *App, _ string) { a.toggleHelp() },
+		"version":          func(a *App, _ string) { a.message = "gopdf " + config.Version },
 	}
 	for name, action := range actionCommands {
 		commandHandlers[name] = func(a *App, _ string) { a.runAction(action) }

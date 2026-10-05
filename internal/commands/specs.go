@@ -50,6 +50,7 @@ var specs = []Spec{
 	{Name: "theme", Help: ":theme [name] - Pick a theme, seeing each as it is selected, or switch to one"},
 	{Name: "trim", ArgCompletions: []string{"on", "off"}, Help: ":trim [on|off] - Lay pages out by their content, trimming margins"},
 	{Name: "undo", Help: ":undo - Undo the last edit"},
+	{Name: "version", Help: ":version - Show the gopdf version"},
 	{Name: "write", Help: ":write [path], :w - Save edits, or a copy to path; :wq saves and exits"},
 	{Name: "zoom", ArgCompletions: []string{"in", "out", "reset"}, Help: ":zoom in|out|reset|PERCENT - Zoom a step, reset, or set e.g. :zoom 150"},
 }

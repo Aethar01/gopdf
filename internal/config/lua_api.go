@@ -465,6 +465,21 @@ func luaGotoDocumentPoint(rt *Runtime) lua.LGFunction {
 	}
 }
 
+// luaVersion returns gopdf's version.
+//
+// # Returns
+//
+// The release tag gopdf was built from, such as v0.7.0, or dev for a build not
+// made from a tag.
+//
+// # Example
+//
+//	gopdf.log("info", "running gopdf " .. gopdf.version())
+func luaVersion(L *lua.LState) int {
+	L.Push(lua.LString(Version))
+	return 1
+}
+
 // luaMode returns the current viewer input mode.
 //
 // # Returns

@@ -466,6 +466,22 @@ func TestEvalWorksWithoutConfigFile(t *testing.T) {
 	}
 }
 
+func TestLuaVersionReportsBuildVersion(t *testing.T) {
+	dir := t.TempDir()
+	rt, err := Open(filepath.Join(dir, "missing.lua"), filepath.Join(dir, "doc.pdf"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rt.Close()
+
+	previous := Version
+	Version = "v1.2.3"
+	defer func() { Version = previous }()
+	if _, err := rt.Eval(`assert(gopdf.version() == "v1.2.3", gopdf.version())`); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestLuaRecentFilesReturnsLimitedList(t *testing.T) {
 	setTestDataDir(t)
 	dir := t.TempDir()
