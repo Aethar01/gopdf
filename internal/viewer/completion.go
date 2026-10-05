@@ -365,10 +365,14 @@ func (a *App) drawCompletionRows(renderer *sdl.Renderer, rows []completionRow, s
 		for index := first; index < last; index++ {
 			row := rows[index]
 			y := rowY(float64(index))
-			st := a.style(config.ElementRow)
-			if index == selectedRow {
-				st = a.style(config.ElementRowSelected)
+			element := config.ElementRow
+			switch {
+			case row.item < 0:
+				element = config.ElementHeading // as a menu's section titles are
+			case index == selectedRow:
+				element = config.ElementRowSelected
 			}
+			st := a.style(element)
 			box := rowBox(y)
 			if index != selectedRow {
 				a.drawBox(renderer, &st, box)
