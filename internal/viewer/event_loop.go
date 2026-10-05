@@ -208,6 +208,7 @@ func (a *App) handleSDLEvent(event *sdl.Event) error {
 	}
 	a.convertPointerEventToRenderCoordinates(event)
 	defer a.syncTextInput()
+	defer a.notifySelectionChange()
 	if event.Type() != sdl.EventMouseMotion {
 		a.refreshStaleSelection() // what follows may read the selection
 	}

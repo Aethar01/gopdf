@@ -508,8 +508,15 @@ func init() {
 		"zoom":          (*App).runZoomCommand,
 		"reload-config": func(a *App, _ string) { a.reloadConfig() },
 		"keybinds":      func(a *App, _ string) { a.toggleKeybindMenu() },
-		"matches":       func(a *App, _ string) { a.showSearchMatches() },
-		"search":        func(a *App, query string) { a.startSearch(query, searchModeForward) },
+		"theme": func(a *App, name string) {
+			if name == "" {
+				a.showThemePicker()
+				return
+			}
+			a.chooseTheme(name)
+		},
+		"matches": func(a *App, _ string) { a.showSearchMatches() },
+		"search":  func(a *App, query string) { a.startSearch(query, searchModeForward) },
 		"open": func(a *App, path string) {
 			if path == "" {
 				a.message = "usage: :open <filename>"

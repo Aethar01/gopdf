@@ -215,8 +215,18 @@ func renderExampleConfig() string {
 	for _, ref := range config.OptionReferences() {
 		fmt.Fprintf(&b, "gopdf.options.%s = %s -- %s\n", ref.Name, ref.Default, ref.Description)
 	}
-	b.WriteString("\n-- The theme. Fields left out keep the values of the base theme.\n\n")
-	renderExampleTheme(&b)
+	// The theme is left commented out: assigned whole, it would replace the
+	// theme chosen with :theme in every config copied from this one.
+	b.WriteString("\n-- The theme, with each field's default. Pick one with :theme. Assigning gopdf.theme\n")
+	b.WriteString("-- whole replaces the theme picked, so set the fields you want to change one at a\n")
+	b.WriteString("-- time, as gopdf.theme.accent = \"#335533\" does, and they change whichever is picked.\n\n")
+	var theme strings.Builder
+	renderExampleTheme(&theme)
+	for _, line := range strings.SplitAfter(theme.String(), "\n") {
+		if line != "" {
+			b.WriteString("-- " + line)
+		}
+	}
 	b.WriteString("\n-- Default key bindings.\n\n")
 	for _, action := range actions.All() {
 		for _, key := range action.Keys {
@@ -242,6 +252,7 @@ func renderThemeReference(b *strings.Builder) {
 	b.WriteString("The theme is everything about how the viewer looks: its colours, UI font and the shape of its panels. Assign it as one table, so a theme can be shared as a single table:\n\n")
 	b.WriteString("```lua\ngopdf.theme = {\n  base = \"birch\",  -- start from a built-in theme; the default is " + config.DefaultTheme + "\n  accent = \"#335533\",\n  alt = { accent = \"#88aa88\" },\n  font = { family = \"Iosevka\", size = 14 },\n}\n```\n\n")
 	b.WriteString("`require` searches the configuration file's directory first, so a theme can live in a file of its own beside `config.lua`. Have it return its table, as `themes/forest.lua` holding `return { accent = \"#2f5d3a\" }`, and apply it with `gopdf.theme = require(\"themes.forest\")`; dots in the name are directories, and `require(\"forest\")` would load `forest.lua`.\n\n")
+	b.WriteString("`:theme` lists the built-in themes and the files in `themes/` beside `config.lua`, each named for its file, and shows each one as it is selected: Enter keeps it, Esc puts back the theme before, and `:theme <name>` switches straight to one. A file named for a built-in theme is left out. The theme chosen is remembered and applied before `config.lua` runs, so what `config.lua` changes field by field, as `gopdf.theme.accent = \"#335533\"` does, changes the chosen theme too; assigning `gopdf.theme` whole replaces it, and `:theme` then says that a theme it picks lasts only until gopdf restarts.\n\n")
 	b.WriteString("Fields left out keep the base theme's values. Assign a preset by name with `gopdf.theme = \"birch\"`, or a single field with `gopdf.theme.accent = \"#335533\"`; at runtime use `:set theme=birch` or `:set theme.accent=#335533`. Built-in themes: " + codeList(config.ThemeNames()) + ". `gopdf.themes.<name>` gives a copy of one to change. Fields and element properties this version does not know are skipped with a warning, so a theme written for a newer version still loads; `:set` refuses them.\n\n")
 	b.WriteString("Colours are `\"#RRGGBB\"` or `{ r, g, b }`. The `alt` table holds the colours used in alternate-color mode, toggled with `:colors`, and has the same colour fields as the theme. The `font` table picks the UI font; with neither `family` nor `path` set it is the system's interface font.\n\n")
 	b.WriteString("The `motion` table sets how the UI moves. Each transition is written as CSS writes one, a duration and an easing such as `\"140ms ease-out\"`, or as `{ duration = 140, easing = \"ease-out\" }`; easings are `linear`, `ease`, `ease-in`, `ease-out`, `ease-in-out` and `cubic-bezier(x1, y1, x2, y2)`, and `\"none\"` turns one transition off. By default only what moves is animated: the selection, the cursor and the sides of the status bar glide to where they go, while menus and messages appear and go at once; give `panel` or `message` a transition to fade them. `scale` slows or speeds every transition, and `0` turns motion off altogether, as the classic theme does.\n\n")

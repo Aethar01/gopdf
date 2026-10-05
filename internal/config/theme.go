@@ -381,6 +381,7 @@ func (r *Runtime) setThemeField(name string, value lua.LValue) error {
 		r.warn(err)
 	}
 	r.cfg.Theme = work.Theme
+	r.recordThemeOp(themeOp{field: true, name: name, value: value})
 	r.markAssigned("theme")
 	r.dirty = true
 	return nil

@@ -145,15 +145,14 @@ gopdf.theme = {
 }
 ```
 
-A theme can live in its own file. `require` looks beside `config.lua` first, with dots naming directories, so `themes/forest.lua` is `require("themes.forest")`:
+The quickest way to change the theme is `:theme`, which lists the built-in themes and those in `themes/` beside `config.lua`, showing each as you move to it; Enter keeps the one selected and gopdf remembers it. A theme file returns its table:
 
 ```lua
 -- themes/forest.lua, next to config.lua
 return { base = "moss", accent = "#2f5d3a", alt = { accent = "#8fbf8f" } }
-
--- config.lua
-gopdf.theme = require("themes.forest")
 ```
+
+Choose it with `:theme forest`, or name it in `config.lua` with `gopdf.theme = require("themes.forest")`; `require` looks beside `config.lua` first, with dots naming directories. A theme assigned in `config.lua` replaces the one picked with `:theme` each time gopdf starts, while fields set one at a time apply to whichever is picked.
 
 Tweak a single field with `gopdf.theme.radius = 0` or, at runtime, `:set theme.radius=0`. With no `font.family` the UI uses the system's interface font. The [reference](https://aethar01.github.io/gopdf_docs/) lists every field.
 

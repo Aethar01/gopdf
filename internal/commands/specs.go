@@ -47,6 +47,7 @@ var specs = []Spec{
 	{Name: "search", Help: ":search [-r] [-i] [-w] [-p] <text> - Search document text"},
 	{Name: "set", Help: ":set [option[?]|option!|option=value] - Inspect or change options"},
 	{Name: "statusbar", ArgCompletions: []string{"on", "off"}, Help: ":statusbar [on|off] - Show or hide the status bar"},
+	{Name: "theme", Help: ":theme [name] - Pick a theme, seeing each as it is selected, or switch to one"},
 	{Name: "trim", ArgCompletions: []string{"on", "off"}, Help: ":trim [on|off] - Lay pages out by their content, trimming margins"},
 	{Name: "undo", Help: ":undo - Undo the last edit"},
 	{Name: "write", Help: ":write [path], :w - Save edits, or a copy to path; :wq saves and exits"},

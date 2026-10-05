@@ -60,60 +60,62 @@ gopdf.options.trim_margins = false -- Lay pages out by their content, trimming b
 gopdf.options.trim_padding = 8 -- Margin in points kept around a page's content when trimming margins.
 gopdf.options.zoom_step = 1.15 -- Factor zoom_in multiplies the zoom by, and zoom_out divides it by; above 1.
 
--- The theme. Fields left out keep the values of the base theme.
+-- The theme, with each field's default. Pick one with :theme. Assigning gopdf.theme
+-- whole replaces the theme picked, so set the fields you want to change one at a
+-- time, as gopdf.theme.accent = "#335533" does, and they change whichever is picked.
 
-gopdf.theme = {
-  base = "moss",
-  background = "#e6e4dd", -- Canvas behind the pages.
-  page = "#ffffff", -- Paper of pages still rendering.
-  foreground = "#2a2e29", -- UI text.
-  muted = "#737a70", -- Secondary UI text, such as menu details and the right of the status bar.
-  accent = "#4d7044", -- Prompts, link hints, headings, the selected menu row's ribbon and the overview's selected page.
-  panel = "#fbfaf7", -- Background of menus, completion and other panels.
-  border = "#d5d2c9", -- Hairlines around panels and above the status bar.
-  status_bar = "#f1f0eb", -- Status bar background.
-  selection = "#bfd9a9", -- Highlight of selected text.
-  search = "#f2dc8c", -- Highlight of search matches.
-  search_current = "#eaa660", -- Highlight of the current search match.
-  hint_foreground = "#fbfaf7", -- Text of link hints, set on the accent.
-  presentation = "#0f110f", -- Background around the page in presentation mode.
-  alt = {
-    background = "#121412", -- Canvas behind the pages in alternate-color mode.
-    page = "#1f2420", -- Paper of pages still rendering, and of pages recoloured in alternate-color mode.
-    foreground = "#d9dfd4", -- UI text, and the ink of pages recoloured in alternate-color mode.
-    muted = "#8b9487", -- Secondary UI text, such as menu details and the right of the status bar in alternate-color mode.
-    accent = "#9dc48b", -- Prompts, link hints, headings, the selected menu row's ribbon and the overview's selected page in alternate-color mode.
-    panel = "#232823", -- Background of menus, completion and other panels in alternate-color mode.
-    border = "#363c35", -- Hairlines around panels and above the status bar in alternate-color mode.
-    status_bar = "#1c1f1c", -- Status bar background in alternate-color mode.
-    selection = "#4f6b45", -- Highlight of selected text in alternate-color mode.
-    search = "#7a6a32", -- Highlight of search matches in alternate-color mode.
-    search_current = "#9a6430", -- Highlight of the current search match in alternate-color mode.
-    hint_foreground = "#1c1f1c", -- Text of link hints, set on the accent in alternate-color mode.
-    presentation = "#0f110f", -- Background around the page in presentation mode in alternate-color mode.
-  },
-  font = {
-    family = "", -- Installed UI font family; empty uses the system interface font, such as SF on macOS or Segoe UI on Windows.
-    path = "", -- UI font file; overrides font.family, font.style and font.weight.
-    size = 13, -- UI font size in logical pixels, scaled up on high-density displays.
-    weight = 400, -- UI font weight as CSS number 100-900 or alias such as normal, medium, semibold, bold, or black.
-    style = "normal", -- UI font style: normal, italic, or oblique.
-  },
-  radius = 3, -- Corner radius of panels, menu rows and the status pill in logical pixels; 0 gives square corners.
-  padding = 8, -- Space around UI text in menu rows, panels and the status bar, in logical pixels.
-  shadow = true, -- Draw a soft shadow under floating panels.
-  status_bar_style = "bar", -- Status bar layout: bar along the bottom of the window, or pill, floating over the page.
-  status_bar_padding = 10, -- Horizontal status bar padding in logical pixels.
-  motion = {
-    scale = 1, -- Speed of every transition: 1 as given, 2 twice as slow, 0 for no motion at all, as when the OS is set to reduce motion.
-    panel = "none", -- Menus and completion fading in as they open, and menus fading out as they close.
-    selection = "80ms ease-out", -- The selected row's highlight gliding to the next row selected.
-    prompt = "100ms ease-out", -- The sides of the status bar growing and shrinking with their text, as a pill does when a prompt opens.
-    message = "none", -- Status messages fading in, and out when cleared.
-    cursor = "50ms ease-out", -- The prompt's cursor gliding to where it moves.
-  },
-  elements = {}, -- The style of each piece of the UI, such as panel or row_selected; see Elements in the reference.
-}
+-- gopdf.theme = {
+--   base = "moss",
+--   background = "#e6e4dd", -- Canvas behind the pages.
+--   page = "#ffffff", -- Paper of pages still rendering.
+--   foreground = "#2a2e29", -- UI text.
+--   muted = "#737a70", -- Secondary UI text, such as menu details and the right of the status bar.
+--   accent = "#4d7044", -- Prompts, link hints, headings, the selected menu row's ribbon and the overview's selected page.
+--   panel = "#fbfaf7", -- Background of menus, completion and other panels.
+--   border = "#d5d2c9", -- Hairlines around panels and above the status bar.
+--   status_bar = "#f1f0eb", -- Status bar background.
+--   selection = "#bfd9a9", -- Highlight of selected text.
+--   search = "#f2dc8c", -- Highlight of search matches.
+--   search_current = "#eaa660", -- Highlight of the current search match.
+--   hint_foreground = "#fbfaf7", -- Text of link hints, set on the accent.
+--   presentation = "#0f110f", -- Background around the page in presentation mode.
+--   alt = {
+--     background = "#121412", -- Canvas behind the pages in alternate-color mode.
+--     page = "#1f2420", -- Paper of pages still rendering, and of pages recoloured in alternate-color mode.
+--     foreground = "#d9dfd4", -- UI text, and the ink of pages recoloured in alternate-color mode.
+--     muted = "#8b9487", -- Secondary UI text, such as menu details and the right of the status bar in alternate-color mode.
+--     accent = "#9dc48b", -- Prompts, link hints, headings, the selected menu row's ribbon and the overview's selected page in alternate-color mode.
+--     panel = "#232823", -- Background of menus, completion and other panels in alternate-color mode.
+--     border = "#363c35", -- Hairlines around panels and above the status bar in alternate-color mode.
+--     status_bar = "#1c1f1c", -- Status bar background in alternate-color mode.
+--     selection = "#4f6b45", -- Highlight of selected text in alternate-color mode.
+--     search = "#7a6a32", -- Highlight of search matches in alternate-color mode.
+--     search_current = "#9a6430", -- Highlight of the current search match in alternate-color mode.
+--     hint_foreground = "#1c1f1c", -- Text of link hints, set on the accent in alternate-color mode.
+--     presentation = "#0f110f", -- Background around the page in presentation mode in alternate-color mode.
+--   },
+--   font = {
+--     family = "", -- Installed UI font family; empty uses the system interface font, such as SF on macOS or Segoe UI on Windows.
+--     path = "", -- UI font file; overrides font.family, font.style and font.weight.
+--     size = 13, -- UI font size in logical pixels, scaled up on high-density displays.
+--     weight = 400, -- UI font weight as CSS number 100-900 or alias such as normal, medium, semibold, bold, or black.
+--     style = "normal", -- UI font style: normal, italic, or oblique.
+--   },
+--   radius = 3, -- Corner radius of panels, menu rows and the status pill in logical pixels; 0 gives square corners.
+--   padding = 8, -- Space around UI text in menu rows, panels and the status bar, in logical pixels.
+--   shadow = true, -- Draw a soft shadow under floating panels.
+--   status_bar_style = "bar", -- Status bar layout: bar along the bottom of the window, or pill, floating over the page.
+--   status_bar_padding = 10, -- Horizontal status bar padding in logical pixels.
+--   motion = {
+--     scale = 1, -- Speed of every transition: 1 as given, 2 twice as slow, 0 for no motion at all, as when the OS is set to reduce motion.
+--     panel = "none", -- Menus and completion fading in as they open, and menus fading out as they close.
+--     selection = "80ms ease-out", -- The selected row's highlight gliding to the next row selected.
+--     prompt = "100ms ease-out", -- The sides of the status bar growing and shrinking with their text, as a pill does when a prompt opens.
+--     message = "none", -- Status messages fading in, and out when cleared.
+--     cursor = "50ms ease-out", -- The prompt's cursor gliding to where it moves.
+--   },
+--   elements = {}, -- The style of each piece of the UI, such as panel or row_selected; see Elements in the reference.
+-- }
 
 -- Default key bindings.
 

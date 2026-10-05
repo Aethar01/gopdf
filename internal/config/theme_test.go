@@ -270,10 +270,42 @@ func TestThemeReferencesCoverEveryField(t *testing.T) {
 	}
 }
 
-// The generated example config writes the default theme out in full, so
-// loading it must give the default theme back.
+// The generated example config writes the default theme out in full,
+// commented out so that it does not replace the theme chosen with :theme;
+// uncommented, it must give the default theme back.
 func TestExampleConfigThemeIsTheDefault(t *testing.T) {
-	rt, err := OpenWithOptions(filepath.Join("..", "..", "config.example.lua"), "", OpenOptions{NoPlugins: true})
+	example := filepath.Join("..", "..", "config.example.lua")
+	rt, err := OpenWithOptions(example, "", OpenOptions{NoPlugins: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rt.Close()
+	if rt.ConfigSetsTheme() {
+		t.Fatal("the example config assigns the theme")
+	}
+
+	data, err := os.ReadFile(example)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var theme []string
+	for _, line := range strings.Split(string(data), "\n") {
+		line = strings.TrimSuffix(line, "\r") // as Windows checks it out
+		if strings.HasPrefix(line, "-- gopdf.theme = {") || len(theme) > 0 {
+			theme = append(theme, strings.TrimPrefix(line, "-- "))
+			if line == "-- }" {
+				break
+			}
+		}
+	}
+	if len(theme) == 0 {
+		t.Fatal("no theme in the example config")
+	}
+	uncommented := filepath.Join(t.TempDir(), "config.lua")
+	if err := os.WriteFile(uncommented, []byte(strings.Join(theme, "\n")), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	rt, err = OpenWithOptions(uncommented, "", OpenOptions{NoPlugins: true})
 	if err != nil {
 		t.Fatal(err)
 	}
