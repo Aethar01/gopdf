@@ -430,6 +430,8 @@ func (a *App) drawFrame() error {
 	}
 	a.frameStart = time.Now()
 	a.beginMotionFrame()
+	a.drawing = true
+	defer func() { a.drawing, a.frameStatus = false, nil }()
 	message := a.message
 	a.drawPages(a.renderer)
 	// An on-screen loader animates, so it asks for the next frame.

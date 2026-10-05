@@ -26,7 +26,20 @@ type statusLayout struct {
 	baseline    int
 }
 
+// statusLayout lays out the status bar. While a frame is drawn it is laid
+// out once, for the bar and the prompt's cursor and completion alike.
 func (a *App) statusLayout() statusLayout {
+	if a.frameStatus != nil {
+		return *a.frameStatus
+	}
+	l := a.layoutStatus()
+	if a.drawing {
+		a.frameStatus = &l
+	}
+	return l
+}
+
+func (a *App) layoutStatus() statusLayout {
 	status, leftStyle, rightStyle := a.style(config.ElementStatus), a.style(config.ElementStatusLeft), a.style(config.ElementStatusRight)
 	h := a.statusBarHeight()
 	_, marginRight, marginBottom, marginLeft := a.insets(status.Margin.V)

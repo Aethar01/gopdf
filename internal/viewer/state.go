@@ -164,6 +164,10 @@ type sdlState struct {
 	// displayFrame is the window's display's refresh interval, or 0 when
 	// unknown; see animationFrameDuration.
 	displayFrame time.Duration
+	// drawing is set while drawFrame runs; frameStatus is the status bar's
+	// layout for that frame, once something has asked for it.
+	drawing     bool
+	frameStatus *statusLayout
 	// themeErrors are the theme's shapes and draw functions that failed,
 	// each reported once.
 	themeErrors map[any]bool

@@ -335,3 +335,18 @@ func TestPackedPathRoundTrips(t *testing.T) {
 		t.Fatal("a changed path packed the same")
 	}
 }
+
+func TestStatusLayoutIsLaidOutOncePerFrame(t *testing.T) {
+	app := testStyleApp("bar")
+	app.message = "short"
+	app.drawing = true
+	first := app.statusLayout()
+	app.message = "a much longer message than before"
+	if got := app.statusLayout(); got != first {
+		t.Fatalf("layout changed within a frame: %+v, then %+v", first, got)
+	}
+	app.drawing, app.frameStatus = false, nil
+	if got := app.statusLayout(); got.left == first.left {
+		t.Fatalf("layout outside a frame kept %q", got.left)
+	}
+}
