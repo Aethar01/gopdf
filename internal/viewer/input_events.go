@@ -180,8 +180,14 @@ func (a *App) handleSDLTextInput(e *sdl.TextInputEvent) {
 
 func (a *App) handleSDLMouseWheel(e *sdl.MouseWheelEvent) {
 	if view := a.activeModalUIView(); view != nil {
+		// Without smooth scrolling a list moves a whole row an event, as
+		// the page moves a step, however far the wheel says.
 		if _, wy := normalizedWheelDeltas(e); wy != 0 {
-			a.scrollListBy(view, -float64(wy))
+			delta := 1
+			if wy > 0 {
+				delta = -1
+			}
+			a.scrollListTo(view, float64(view.scroll+delta))
 		}
 		return
 	}

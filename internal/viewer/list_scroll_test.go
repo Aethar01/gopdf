@@ -133,3 +133,19 @@ func TestLeftButtonStaysTheListsWhenBoundToPan(t *testing.T) {
 		t.Fatalf("a left click outside the list panned %v, left it open %v", app.panning, app.activeModalUIView() != nil)
 	}
 }
+
+func TestWheelWithoutSmoothScrollingMovesAWholeRow(t *testing.T) {
+	app, view := testListApp(100)
+	_, rows := view.contentGeometry(app)
+	app.listOffset(view, rows, 100)
+	app.scrollListTo(view, 5)
+	for _, step := range []struct {
+		y    float32
+		want float64
+	}{{-0.1, 6}, {-6, 7}, {2.5, 6}} {
+		app.handleSDLMouseWheel(&sdl.MouseWheelEvent{Y: step.y})
+		if view.offset != step.want || view.scroll != int(step.want) {
+			t.Fatalf("after a wheel of %v: offset %v scroll %d, want %v", step.y, view.offset, view.scroll, step.want)
+		}
+	}
+}
