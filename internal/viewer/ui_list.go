@@ -83,12 +83,16 @@ type uiView struct {
 	onAction       func(*App, *uiView, string) bool
 	onClose        func(*App)
 	onQueryChanged func(*App, *uiView)
-	onKey          func(*App, *sdl.KeyboardEvent) bool
-	onMouseButton  func(*App, *sdl.MouseButtonEvent) bool
-	onMouseMotion  func(*App, *sdl.MouseMotionEvent) bool
-	draw           func(*App, *sdl.Renderer) error
-	filtered       uiRowFilter // visibleRows' last result
-	keyWidth       uiKeyWidth  // keyColumnWidth's last result
+	// onSelectionChanged runs after an event moves the selection, which
+	// was notifiedSelected when it last ran.
+	onSelectionChanged func(*App, *uiView)
+	notifiedSelected   int
+	onKey              func(*App, *sdl.KeyboardEvent) bool
+	onMouseButton      func(*App, *sdl.MouseButtonEvent) bool
+	onMouseMotion      func(*App, *sdl.MouseMotionEvent) bool
+	draw               func(*App, *sdl.Renderer) error
+	filtered           uiRowFilter // visibleRows' last result
+	keyWidth           uiKeyWidth  // keyColumnWidth's last result
 }
 
 type uiRowFilter struct {

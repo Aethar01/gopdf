@@ -104,6 +104,14 @@ type luaGeneration struct {
 	operations       map[int]*pluginOperation
 	pluginGeneration int
 	draw             drawCache
+	// loadingConfig is set while config.lua runs, which records its
+	// changes to the theme in themeOps and whether it assigns the theme
+	// whole in configSetsTheme; themeChoice is the theme picked with
+	// :theme, if any. See theme_choice.go.
+	loadingConfig   bool
+	themeOps        []themeOp
+	configSetsTheme bool
+	themeChoice     string
 }
 
 type UIOverlay struct {

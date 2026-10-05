@@ -286,6 +286,37 @@ func GetDocumentMark(path string, name string) (DocumentMark, bool) {
 	return mark, true
 }
 
+// getSetting returns a setting gopdf keeps for itself, or "" when it has
+// none or there is no database.
+func getSetting(name string) (string, error) {
+	db, err := openSessionDatabase()
+	if err != nil || db == nil {
+		return "", err
+	}
+	var value string
+	err = db.QueryRow(`SELECT value FROM settings WHERE name = ?`, name).Scan(&value)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", nil
+	}
+	return value, err
+}
+
+func setSetting(name, value string) error {
+	db, err := openSessionDatabase()
+	if err != nil {
+		return err
+	}
+	if db == nil {
+		return errors.New("no data directory to keep settings in")
+	}
+	_, err = db.Exec(`
+		INSERT INTO settings (name, value, updated_at)
+		VALUES (?, ?, ?)
+		ON CONFLICT(name) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at
+	`, name, value, time.Now().UnixNano())
+	return err
+}
+
 // storedKeyBindings returns the keybindings changed in the viewer: each
 // key's action, or "" for a key unbound.
 func storedKeyBindings() (map[string]string, error) {
@@ -463,6 +494,15 @@ func initSessionDatabase(db *sql.DB) error {
 			entry TEXT NOT NULL,
 			updated_at INTEGER NOT NULL,
 			PRIMARY KEY (kind, entry)
+		)
+	`); err != nil {
+		return err
+	}
+	if _, err := db.Exec(`
+		CREATE TABLE IF NOT EXISTS settings (
+			name TEXT PRIMARY KEY,
+			value TEXT NOT NULL,
+			updated_at INTEGER NOT NULL
 		)
 	`); err != nil {
 		return err

@@ -188,33 +188,49 @@ func (r *Runtime) Reload() error {
 		return nil
 	}
 	r.applyStoredKeyBindings()
-	paths := candidatePaths(r.explicitPath)
-	for _, path := range paths {
+	path, err := r.findConfig()
+	if err != nil {
+		return err
+	}
+	r.cfg.ConfigPath = path // the themes directory is beside it
+	r.applyChosenTheme()
+	if path != "" {
+		r.logf("apply config %q", path)
+		r.loadingConfig = true
+		err := r.applyLuaConfig(path)
+		r.loadingConfig = false
+		if err != nil {
+			return err
+		}
+		r.dirty = false
+		committed = true
+		return nil
+	}
+	if r.state == nil { // a theme file chosen with :theme may have started it
+		r.initLuaState()
+	}
+	r.dirty = false
+	r.logf("no user config loaded")
+	committed = true
+	return nil
+}
+
+// findConfig returns the first config file there is, or "" for none.
+func (r *Runtime) findConfig() (string, error) {
+	for _, path := range candidatePaths(r.explicitPath) {
 		r.logf("check config %q", path)
 		info, err := os.Stat(path)
 		if err != nil {
 			if os.IsNotExist(err) {
 				continue
 			}
-			return err
+			return "", err
 		}
-		if info.IsDir() {
-			continue
+		if !info.IsDir() {
+			return path, nil
 		}
-		r.logf("apply config %q", path)
-		if err := r.applyLuaConfig(path); err != nil {
-			return err
-		}
-		r.cfg.ConfigPath = path
-		r.dirty = false
-		committed = true
-		return nil
 	}
-	r.initLuaState()
-	r.dirty = false
-	r.logf("no user config loaded")
-	committed = true
-	return nil
+	return "", nil
 }
 
 func (r *Runtime) Generation() int {

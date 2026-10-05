@@ -115,6 +115,17 @@ func (a *App) commandCompletions() ([]completionItem, int, int) {
 	if cmd == "open" {
 		return a.openPathCompletions(arg), argStart, argEnd
 	}
+	if cmd == "theme" && a.runtime != nil {
+		items := []completionItem{}
+		for _, choice := range a.runtime.ThemeChoices() {
+			if strings.HasPrefix(choice.Name, arg) {
+				items = append(items, completionItem{value: choice.Name, display: choice.Name})
+			}
+		}
+		if len(items) > 0 {
+			return items, argStart, argEnd
+		}
+	}
 	if cmd == "set" {
 		names := config.OptionNames()
 		if a.runtime != nil {

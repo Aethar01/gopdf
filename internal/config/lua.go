@@ -502,6 +502,9 @@ func (r *Runtime) unbindMouse(event string) error {
 
 func (r *Runtime) setOption(name string, value lua.LValue) error {
 	name = normalizeOptionName(name)
+	if isThemeOption(name) {
+		r.recordThemeOp(themeOp{name: name, value: value})
+	}
 	if desc, ok := lookupOption(name); ok {
 		if err := desc.apply(&r.cfg, value); err != nil && !isSkipped(err) {
 			return err
