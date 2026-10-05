@@ -236,13 +236,20 @@ return M`
 
 func TestPluginReloadDropsPendingCallbacks(t *testing.T) {
 	// A callback already queued by a worker must not run against the new
-	// generation's Lua state.
+	// generation's Lua state. Only the first generation starts the timer, so
+	// the new one has no timer of its own that could set fired.
+	setTestDataDir(t)
 	rt := openPluginRuntime(t, `
 local M = gopdf.plugin.register("sample")
 M.fired = false
-M.timer:after(1, function() M.fired = true end)
+if M.storage:get("armed") == nil then
+  M.storage:set("armed", true)
+  M.timer:after(1, function() M.fired = true end)
+end
 return M
 `)
+	// Give the timer time to fire and queue its callback before the reload.
+	time.Sleep(20 * time.Millisecond)
 	if err := rt.Reload(); err != nil {
 		t.Fatal(err)
 	}
