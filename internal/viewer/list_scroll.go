@@ -84,11 +84,15 @@ func settleList(view *uiView) {
 
 // handleListScrollButton lets the mouse buttons bound to pan and
 // autoscroll scroll a list as they scroll the page. It reports whether
-// the button was one of them.
+// the button was one of them. The left button stays the list's, to pick
+// rows and close it, whatever it is bound to.
 func (a *App) handleListScrollButton(e *sdl.MouseButtonEvent) bool {
 	if e.Type == sdl.EventMouseButtonUp && a.panning && e.Button == a.panButton {
 		a.stopPan()
 		return true
+	}
+	if e.Button == uint8(sdl.ButtonLeft) {
+		return false
 	}
 	event, ok := mouseButtonEvent(e.Button, e.Type)
 	if !ok {

@@ -5,6 +5,8 @@ import (
 	"math"
 	"testing"
 	"time"
+
+	"github.com/jupiterrider/purego-sdl3/sdl"
 )
 
 // testListApp shows a list of n rows.
@@ -107,5 +109,27 @@ func TestWheelGlidesAList(t *testing.T) {
 	app.advanceSmoothScrollBy(16 * time.Millisecond)
 	if app.smoothScrollActive() {
 		t.Fatal("the wheel kept scrolling after a key")
+	}
+}
+
+func TestLeftButtonStaysTheListsWhenBoundToPan(t *testing.T) {
+	app, view := testListApp(100)
+	app.mouseBindings = map[string]string{"left_down": "pan", "middle_down": "pan"}
+
+	// The middle button pans the list.
+	app.handleSDLMouseButton(&sdl.MouseButtonEvent{Type: sdl.EventMouseButtonDown, Button: uint8(sdl.ButtonMiddle)})
+	if !app.panning {
+		t.Fatal("the middle button did not pan the list")
+	}
+	app.handleSDLMouseButton(&sdl.MouseButtonEvent{Type: sdl.EventMouseButtonUp, Button: uint8(sdl.ButtonMiddle)})
+	if app.panning {
+		t.Fatal("releasing the middle button did not stop the pan")
+	}
+
+	// The left button, clicked outside the list, closes it.
+	rect, _ := view.frameGeometry(app)
+	app.handleSDLMouseButton(&sdl.MouseButtonEvent{Type: sdl.EventMouseButtonDown, Button: uint8(sdl.ButtonLeft), X: rect.X + rect.W + 5, Y: rect.Y + rect.H + 5})
+	if app.panning || app.activeModalUIView() != nil {
+		t.Fatalf("a left click outside the list panned %v, left it open %v", app.panning, app.activeModalUIView() != nil)
 	}
 }
