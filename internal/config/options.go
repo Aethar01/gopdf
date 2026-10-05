@@ -260,8 +260,13 @@ func (r *Runtime) ToggleOption(name string) error {
 	if desc.kind != "boolean" {
 		return fmt.Errorf("%s: expected boolean option", name)
 	}
-	value := desc.get(r.state, &r.cfg)
-	return r.SetOption(name, strconv.FormatBool(!lua.LVAsBool(value)))
+	current := desc.get(r.state, &r.cfg)
+	value, ok := current.(lua.LBool)
+	if !ok {
+		// alt_colors may be "system", which is neither true nor false.
+		return fmt.Errorf("%s is %q, not true or false", name, current.String())
+	}
+	return r.SetOption(name, strconv.FormatBool(!bool(value)))
 }
 
 func normalizeOptionName(name string) string {

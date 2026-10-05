@@ -264,6 +264,15 @@ func (a *App) applyConfig(cfg config.Config, assigned map[string]bool) {
 // wantAltColors is whether cfg asks for alternate colors: as it says, or
 // with alt_colors = "system" while the OS is in dark mode. The OS is only
 // asked once SDL is running.
+// toggleOption flips the boolean option name. alt_colors following the OS
+// flips from what is shown, and so stops following it.
+func (a *App) toggleOption(name string) error {
+	if strings.EqualFold(strings.TrimSpace(name), "alt_colors") && a.config.AltColorsSystem {
+		return a.runtime.SetOption("alt_colors", strconv.FormatBool(!a.altColors))
+	}
+	return a.runtime.ToggleOption(name)
+}
+
 func (a *App) wantAltColors(cfg config.Config) bool {
 	if !cfg.AltColorsSystem {
 		return cfg.AltColors
@@ -664,7 +673,7 @@ func (a *App) runSet(input string) {
 		return
 	}
 	if name, ok := strings.CutSuffix(input, "!"); ok {
-		if err := a.runtime.ToggleOption(name); err != nil {
+		if err := a.toggleOption(name); err != nil {
 			a.message = err.Error()
 			return
 		}

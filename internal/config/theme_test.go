@@ -374,4 +374,9 @@ assert(gopdf.options.alt_colors == "system")
 	if err := rt.SetOption("alt_colors", "sometimes"); err == nil || !strings.Contains(err.Error(), `"system"`) {
 		t.Fatalf("bad alt_colors: %v", err)
 	}
+	// Toggling "system" cannot know which way the OS is, so it refuses
+	// rather than guess.
+	if err := rt.ToggleOption("alt_colors"); err == nil || !rt.Config().AltColorsSystem {
+		t.Fatalf("toggling system: %v, still system %v", err, rt.Config().AltColorsSystem)
+	}
 }
