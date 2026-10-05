@@ -35,6 +35,8 @@ func platformConfigPaths() []string {
 	return nil
 }
 
+// platformAutogenPath is where gopdf used to keep keybindings changed in
+// the viewer; see importAutogen.
 func platformAutogenPath() string {
 	if home, err := os.UserHomeDir(); err == nil {
 		return filepath.Join(home, "Library", "Application Support", "gopdf", "autogen.lua")

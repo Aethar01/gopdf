@@ -41,7 +41,7 @@ func luaBind(rt *Runtime) lua.LGFunction {
 			L.RaiseError("bind %q: %v", key, err)
 		}
 		if err := rt.setKeyBinding(key, actionName); err != nil {
-			raiseKeyError(rt, L, "bind", key, err)
+			L.RaiseError("bind %q: %v", key, err)
 		}
 		return 0
 	}
@@ -68,21 +68,10 @@ func luaUnbind(rt *Runtime) lua.LGFunction {
 	return func(L *lua.LState) int {
 		key := L.CheckString(1)
 		if err := rt.unbindKey(key); err != nil {
-			raiseKeyError(rt, L, "unbind", key, err)
+			L.RaiseError("unbind %q: %v", key, err)
 		}
 		return 0
 	}
-}
-
-// raiseKeyError raises an invalid key as a Lua error, except while loading
-// autogen.lua: there the entry is dropped, so a name an older version wrote
-// cannot stop gopdf from starting, and the next rewrite leaves it out.
-func raiseKeyError(rt *Runtime, L *lua.LState, fn, key string, err error) {
-	if rt.loadingAutogen {
-		log.Printf("autogen.lua: ignoring %s %q: %v", fn, key, err)
-		return
-	}
-	L.RaiseError("%s %q: %v", fn, key, err)
 }
 
 // luaBindMouse binds a mouse event to an action or Lua callback.

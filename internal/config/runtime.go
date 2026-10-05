@@ -187,21 +187,7 @@ func (r *Runtime) Reload() error {
 		committed = true
 		return nil
 	}
-	autogenPath := r.autogenPath()
-	if autogenPath != "" {
-		if info, err := os.Stat(autogenPath); err == nil && !info.IsDir() {
-			r.logf("apply autogen config %q", autogenPath)
-			r.loadingAutogen = true
-			if err := r.applyLuaConfig(autogenPath); err != nil {
-				r.loadingAutogen = false
-				return err
-			}
-			r.loadingAutogen = false
-			r.cfg.AutogenPath = autogenPath
-		} else if err != nil && !os.IsNotExist(err) {
-			return err
-		}
-	}
+	r.applyStoredKeyBindings()
 	paths := candidatePaths(r.explicitPath)
 	for _, path := range paths {
 		r.logf("check config %q", path)
@@ -220,13 +206,11 @@ func (r *Runtime) Reload() error {
 			return err
 		}
 		r.cfg.ConfigPath = path
-		r.cfg.AutogenPath = autogenPath
 		r.dirty = false
 		committed = true
 		return nil
 	}
 	r.initLuaState()
-	r.cfg.AutogenPath = autogenPath
 	r.dirty = false
 	r.logf("no user config loaded")
 	committed = true
@@ -252,13 +236,6 @@ func (r *Runtime) logf(format string, args ...any) {
 	if r != nil && r.verbose {
 		log.Printf(format, args...)
 	}
-}
-
-func (r *Runtime) autogenPath() string {
-	if r.explicitPath != "" {
-		return filepath.Join(filepath.Dir(r.explicitPath), "autogen.lua")
-	}
-	return platformAutogenPath()
 }
 
 func (r *Runtime) RunAction(action string) (bool, bool, error) {

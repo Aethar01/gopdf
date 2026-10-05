@@ -431,9 +431,6 @@ func luaActionName(rt *Runtime, value lua.LValue) (string, error) {
 	if rt.actionExists(action) {
 		return action, nil
 	}
-	if rt.loadingAutogen && isPluginActionName(action) {
-		return action, nil
-	}
 	return "", fmt.Errorf("unknown action %q", action)
 }
 
