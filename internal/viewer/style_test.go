@@ -350,3 +350,52 @@ func TestStatusLayoutIsLaidOutOncePerFrame(t *testing.T) {
 		t.Fatalf("layout outside a frame kept %q", got.left)
 	}
 }
+
+func TestDrawnPathIsFittedToItsBounds(t *testing.T) {
+	ops, err := config.ParsePath("M10,20 H30 V25 H10 Z")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// At twice the scale, over a box much bigger than the path.
+	fitted, bounds := fitPath(ops, 800, 600, 2)
+	if bounds != (sdl.Rect{X: 20, Y: 40, W: 40, H: 10}) {
+		t.Fatalf("bounds = %+v", bounds)
+	}
+	if p := fitted[0].Pts[0]; p.X.Px != 0 || p.Y.Px != 0 {
+		t.Fatalf("the path starts at %+v, want the top left of its bounds", p)
+	}
+
+	// Moved by whole pixels, it is the same path, so it finds the same mask.
+	moved, _ := config.ParsePath("M110,220 H130 V225 H110 Z")
+	if again, _ := fitPath(moved, 800, 600, 2); !reflect.DeepEqual(again, fitted) {
+		t.Fatalf("moved path fitted to %v, want %v", again, fitted)
+	}
+
+	// Percentages resolve against the box; a fraction of a pixel is kept,
+	// so the path rasterises as it did over the box.
+	ops, _ = config.ParsePath("M50%,0.5 L50%+4,8")
+	fitted, bounds = fitPath(ops, 100, 50, 1)
+	if bounds != (sdl.Rect{X: 50, Y: 0, W: 4, H: 8}) || fitted[0].Pts[0].Y.Px != 0.5 {
+		t.Fatalf("bounds = %+v, first point %+v", bounds, fitted[0].Pts[0])
+	}
+
+	// A straight line still has a box to be stroked in.
+	ops, _ = config.ParsePath("M0,10 H40")
+	if _, bounds = fitPath(ops, 100, 50, 1); bounds.W != 40 || bounds.H != 1 {
+		t.Fatalf("line bounds = %+v", bounds)
+	}
+}
+
+func TestFittedStrokeMaskFollowsThePath(t *testing.T) {
+	app := &App{}
+	ops, _ := config.ParsePath("M0,10 H40")
+	fitted, bounds := fitPath(ops, 100, 50, 1)
+	var keys pathKeys
+	shape := boxShape{Shape: config.Shape{Kind: "path"}, ops: keys.pack(fitted), scale: 1}
+	img, pad := app.rasterMask(maskSpec{shape: shape, w: bounds.W, h: bounds.H, stroke: 4}, 0)
+	// The line lies along the top of its one-pixel bounds, at y 10 in the box.
+	at := func(x, y int) uint8 { return img.AlphaAt(x+int(pad), y-10+int(pad)).A }
+	if at(20, 10) != 255 || at(20, 9) != 255 || at(20, 14) != 0 || at(20, 6) != 0 {
+		t.Fatalf("stroke alpha across the line: %d %d %d %d", at(20, 6), at(20, 9), at(20, 10), at(20, 14))
+	}
+}

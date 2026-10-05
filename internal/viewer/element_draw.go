@@ -72,16 +72,73 @@ func (c *elementCanvas) Stroke(path []config.PathOp, clr config.Color, width flo
 }
 
 // drawPath fills path, or with stroke strokes it, as a shape on the box,
-// so its mask is kept as a shape's is.
+// so its mask is kept as a shape's is. The mask covers only the path's
+// bounds, not the whole box: a line across a panel or a drop on a page
+// takes a mask its own size, and the same path moved by whole pixels, as
+// one animated across the box is, finds the mask already made.
 func (c *elementCanvas) drawPath(path []config.PathOp, clr config.Color, stroke float32) {
 	if len(path) == 0 || c.box.W <= 0 || c.box.H <= 0 {
 		return
 	}
-	shape := boxShape{Shape: config.Shape{Kind: "path"}, ops: c.app.pathKeys.pack(path), scale: c.app.px(1)}
-	spec := maskSpec{shape: shape, w: c.box.W, h: c.box.H, stroke: stroke}
-	if rgba := c.app.styleColor(clr, c.style.Opacity.V); rgba.A > 0 {
-		c.app.drawMask(c.renderer, spec, c.box.X, c.box.Y, rgba)
+	rgba := c.app.styleColor(clr, c.style.Opacity.V)
+	if rgba.A == 0 {
+		return
 	}
+	ops, bounds := fitPath(path, float32(c.box.W), float32(c.box.H), c.app.px(1))
+	shape := boxShape{Shape: config.Shape{Kind: "path"}, ops: c.app.pathKeys.pack(ops), scale: 1}
+	spec := maskSpec{shape: shape, w: bounds.W, h: bounds.H, stroke: stroke}
+	c.app.drawMask(c.renderer, spec, c.box.X+bounds.X, c.box.Y+bounds.Y, rgba)
+}
+
+// fitPath lays ops over a w by h box, scale output pixels to the logical
+// pixel, and returns them in output pixels from the top left of the whole
+// pixels they reach, with those pixels' place in the box. The bounds start
+// on a whole pixel, so the path is rasterised as it would be over the box.
+func fitPath(ops []config.PathOp, w, h, scale float32) ([]config.PathOp, sdl.Rect) {
+	at := pathPlacer(0, 0, w, h, scale)
+	minX, minY := float32(math.Inf(1)), float32(math.Inf(1))
+	maxX, maxY := float32(math.Inf(-1)), float32(math.Inf(-1))
+	for _, op := range ops {
+		for _, p := range op.Pts[:opPoints(op.Op)] {
+			x, y := at(p)
+			minX, minY, maxX, maxY = min(minX, x), min(minY, y), max(maxX, x), max(maxY, y)
+		}
+	}
+	if minX > maxX {
+		return nil, sdl.Rect{}
+	}
+	left, top := math.Floor(float64(minX)), math.Floor(float64(minY))
+	bounds := sdl.Rect{
+		X: int32(left), Y: int32(top),
+		// at least a pixel each way, so a straight line still has a box to stroke in
+		W: max(1, int32(math.Ceil(float64(maxX)))-int32(left)),
+		H: max(1, int32(math.Ceil(float64(maxY)))-int32(top)),
+	}
+	fitted := make([]config.PathOp, len(ops))
+	for i, op := range ops {
+		fitted[i].Op = op.Op
+		for j, p := range op.Pts[:opPoints(op.Op)] {
+			x, y := at(p)
+			fitted[i].Pts[j] = config.PathPoint{
+				X: config.Length{Px: float64(x) - left},
+				Y: config.Length{Px: float64(y) - top},
+			}
+		}
+	}
+	return fitted, bounds
+}
+
+// opPoints is how many of its points a path op uses.
+func opPoints(op byte) int {
+	switch op {
+	case 'M', 'L':
+		return 1
+	case 'Q':
+		return 2
+	case 'C':
+		return 3
+	}
+	return 0
 }
 
 // pathKeys packs paths for the mask cache's keys, keeping the strings

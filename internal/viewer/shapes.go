@@ -592,8 +592,8 @@ type maskCache struct {
 	bytes   int // the size of the masks' textures
 }
 
-// A mask the size of its box, as a path's is, takes a texture the size of
-// a panel, so the cache is limited in bytes as well as entries.
+// A mask the size of its box, as a path shape's is, takes a texture the
+// size of a panel, so the cache is limited in bytes as well as entries.
 const (
 	maxMaskCacheEntries = 256
 	maxMaskCacheBytes   = 64 << 20
