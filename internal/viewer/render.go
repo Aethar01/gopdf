@@ -122,7 +122,7 @@ func (a *App) queueRender(req renderRequest, priority int) bool {
 	req.altColors = a.altColors
 	req.aaLevel = a.config.AntiAliasing
 	if req.altColors {
-		req.altBackground, req.altForeground = a.config.AltBackground, a.config.AltForeground
+		req.altBackground, req.altForeground = a.config.Theme.Alt.Page, a.config.Theme.Alt.Foreground
 		req.keepImages = a.config.AltColorsKeepImages
 	}
 	if !a.renderWorker.Enqueue(req) {

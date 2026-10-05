@@ -46,7 +46,7 @@ func TestCtrlShiftArrowExtendsSelectionByWord(t *testing.T) {
 
 func TestMouseDragSelectsStatusBarTextInput(t *testing.T) {
 	app := &App{
-		config:          config.Config{StatusBarPadding: 8},
+		config:          config.Config{Theme: config.Theme{StatusBarPadding: 8}},
 		viewStateFields: viewStateFields{statusBarShown: true},
 		layoutState:     layoutState{winW: 500, winH: 200},
 		inputState:      inputState{mode: modeCommand},

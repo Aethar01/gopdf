@@ -134,6 +134,31 @@ func TestSetCommandInspectsAndAssignsRegisteredOptions(t *testing.T) {
 	}
 }
 
+func TestToggleAltColorsFromSystemFlipsWhatIsShown(t *testing.T) {
+	rt, err := config.Open(filepath.Join(t.TempDir(), "missing.lua"), "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rt.Close()
+	app := testLayoutApp(3)
+	app.runtime = rt
+	app.runCommand(`:set alt_colors="system"`)
+	if !app.config.AltColorsSystem {
+		t.Fatal("alt_colors did not follow the system")
+	}
+	app.altColors = false // as with the OS in light mode
+
+	app.runCommand(":set alt_colors!")
+	if app.config.AltColorsSystem || !app.config.AltColors || !app.altColors || app.message != "alt_colors=true" {
+		t.Fatalf("toggled from a light system: system %v, config %v, shown %v, message %q",
+			app.config.AltColorsSystem, app.config.AltColors, app.altColors, app.message)
+	}
+	app.runCommand(":set alt_colors!")
+	if app.config.AltColors || app.altColors {
+		t.Fatalf("toggled back: config %v, shown %v", app.config.AltColors, app.altColors)
+	}
+}
+
 func TestLuaCommandAppliesChangedOptions(t *testing.T) {
 	app := testLayoutApp(4)
 	app.winW = 800

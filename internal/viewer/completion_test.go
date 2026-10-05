@@ -1,10 +1,13 @@
 package viewer
 
 import (
+	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"reflect"
 	"testing"
+	"time"
 
 	"gopdf/internal/config"
 )
@@ -204,22 +207,23 @@ func TestCompletionAcceptCloseAndVisibleRows(t *testing.T) {
 		t.Fatalf("expected closeCompletion to clear menu and request redraw, completion=%+v redraw=%v", app.completion, app.pendingRedraw)
 	}
 
+	// Every completion is a row; the popup scrolls through them.
 	app.completion = completionState{view: &uiView{selected: 3}, items: []completionItem{{display: "a"}, {display: "b"}, {display: "c"}, {display: "d"}, {display: "e"}}}
-	rows := app.visibleCompletionRows()
-	if got, want := completionRowTexts(rows), []string{"...", "d", "e"}; !reflect.DeepEqual(got, want) {
-		t.Fatalf("expected truncated visible completion rows %v, got %v", want, got)
+	rows, selected := app.completionRows()
+	if got, want := completionRowTexts(rows), []string{"a", "b", "c", "d", "e"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("expected completion rows %v, got %v", want, got)
 	}
-	if !rows[1].selected {
-		t.Fatalf("expected selected completion row to remain marked, rows=%+v", rows)
+	if selected != 3 || rows[3].item != 3 {
+		t.Fatalf("expected the selected completion row to be marked, selected=%d rows=%+v", selected, rows)
 	}
 
 	app.completion = completionState{view: &uiView{selected: 1}, items: []completionItem{{display: "old.pdf", recent: true}, {display: "paper.pdf", recent: true}, {display: "docs" + pathSeparator(), value: "docs" + pathSeparator()}}}
-	rows = app.visibleCompletionRows()
+	rows, selected = app.completionRows()
 	if got, want := completionRowTexts(rows), []string{"Recents:", "  old.pdf", "  paper.pdf", "Suggestions:", "  docs" + pathSeparator()}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("expected recent completion section %v, got %v", want, got)
 	}
-	if !rows[2].selected {
-		t.Fatalf("expected selected recent row to remain marked under header, rows=%+v", rows)
+	if selected != 2 || rows[2].item != 1 {
+		t.Fatalf("expected selected recent row to remain marked under header, selected=%d rows=%+v", selected, rows)
 	}
 }
 
@@ -229,4 +233,37 @@ func completionRowTexts(rows []completionRow) []string {
 		texts[i] = row.text
 	}
 	return texts
+}
+
+// Cycling through completions quickly, as a held Tab does, scrolls the
+// popup smoothly along with the selection, never leaving it behind.
+func TestCompletionScrollsWithAFastSelection(t *testing.T) {
+	app := testStyleApp("bar")
+	app.config.CompletionMaxItems = 5
+	app.config.ScrollOff = 1
+	items := make([]completionItem, 30)
+	for i := range items {
+		items[i] = completionItem{display: fmt.Sprintf("item %d", i)}
+	}
+	app.completion = completionState{view: &uiView{visible: true}, items: items}
+	start := time.Now()
+	for step := range 40 {
+		app.motion.now = start.Add(time.Duration(step) * 30 * time.Millisecond) // key repeat
+		app.moveCompletion(1)
+		rows, selected := app.completionRows()
+		visible := app.scrollCompletion(len(rows), selected)
+		offset := app.listOffset(app.completion.view, visible, len(rows))
+		// The list glides behind the selection, which stays in view.
+		if float64(selected+1) <= offset || float64(selected) >= offset+float64(visible) {
+			t.Fatalf("step %d: row %d out of view at offset %v", step, selected, offset)
+		}
+	}
+	// Settled, the selection keeps a row of context.
+	app.motion.now = app.motion.now.Add(time.Second)
+	rows, selected := app.completionRows()
+	visible := app.scrollCompletion(len(rows), selected)
+	offset := app.listOffset(app.completion.view, visible, len(rows))
+	if offset != math.Round(offset) || float64(selected) < offset+1 && offset > 0 || float64(selected) > offset+float64(visible)-2 && offset+float64(visible) < float64(len(rows)) {
+		t.Fatalf("settled at offset %v with row %d selected", offset, selected)
+	}
 }

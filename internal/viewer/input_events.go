@@ -180,15 +180,14 @@ func (a *App) handleSDLTextInput(e *sdl.TextInputEvent) {
 
 func (a *App) handleSDLMouseWheel(e *sdl.MouseWheelEvent) {
 	if view := a.activeModalUIView(); view != nil {
-		_, wy := normalizedWheelDeltas(e)
-		if wy != 0 {
-			_, rows := view.contentGeometry(a)
-			delta := -1
-			if wy < 0 {
-				delta = 1
+		// Without smooth scrolling a list moves a whole row an event, as
+		// the page moves a step, however far the wheel says.
+		if _, wy := normalizedWheelDeltas(e); wy != 0 {
+			delta := 1
+			if wy > 0 {
+				delta = -1
 			}
-			scrollUIView(view, delta, rows)
-			a.pendingRedraw = true
+			a.scrollListTo(view, float64(view.scroll+delta))
 		}
 		return
 	}
@@ -207,6 +206,9 @@ func (a *App) handleSDLMouseWheel(e *sdl.MouseWheelEvent) {
 
 func (a *App) handleSDLMouseButton(e *sdl.MouseButtonEvent) {
 	if view := a.activeModalUIView(); view != nil {
+		if a.handleListScrollButton(e) {
+			return
+		}
 		if view.onMouseButton != nil {
 			view.onMouseButton(a, e)
 		}
@@ -304,6 +306,15 @@ func (a *App) handleLinkButton(e *sdl.MouseButtonEvent) bool {
 func (a *App) handleSDLMouseMotion(e *sdl.MouseMotionEvent) bool {
 	a.pointer = sdl.FPoint{X: e.X, Y: e.Y}
 	if view := a.activeModalUIView(); view != nil {
+		if a.autoscroll != nil {
+			a.noteAutoscrollPointer() // the frame loop does the scrolling
+			return false
+		}
+		if a.panning && (a.panButton == 0 || uint32(e.State)&buttonMask(a.panButton) != 0) {
+			old := view.offset
+			a.scrollListBy(view, -float64(e.Yrel)/float64(a.modalListRowHeight()))
+			return view.offset != old
+		}
 		if view.onMouseMotion != nil {
 			return view.onMouseMotion(a, e)
 		}

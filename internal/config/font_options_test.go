@@ -29,26 +29,3 @@ func TestParseUIFontWeight(t *testing.T) {
 		}
 	}
 }
-
-func TestUIFontPathOverridePrecedence(t *testing.T) {
-	cfg := Default()
-	cfg.UIFont = "Iosevka"
-	cfg.UIFontStyle = "italic"
-	cfg.UIFontWeight = 700
-	syncUIFontPath(&cfg)
-	if got := cfg.UIFontPath; got == "" || got == cfg.UIFontPathOverride {
-		t.Fatalf("expected generated system font selector, got %q", got)
-	}
-
-	cfg.UIFontPathOverride = "/tmp/custom.ttf"
-	syncUIFontPath(&cfg)
-	if got := cfg.UIFontPath; got != "/tmp/custom.ttf" {
-		t.Fatalf("path override = %q", got)
-	}
-
-	cfg.UIFontPathOverride = ""
-	syncUIFontPath(&cfg)
-	if got := cfg.UIFontPath; got == "" || got == "/tmp/custom.ttf" {
-		t.Fatalf("expected system font selector after clearing override, got %q", got)
-	}
-}

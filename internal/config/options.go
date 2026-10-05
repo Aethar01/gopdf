@@ -205,41 +205,6 @@ func normalizeLinkSchemes(schemes []string) []string {
 	return normalized
 }
 
-func colorOption(description string, get func(*Config) [3]uint8, set func(*Config, [3]uint8)) optionDesc {
-	return optionDesc{
-		kind:        "color",
-		description: description,
-		get: func(L *lua.LState, cfg *Config) lua.LValue {
-			tbl := L.NewTable()
-			c := get(cfg)
-			for i := range 3 {
-				tbl.RawSetInt(i+1, lua.LNumber(c[i]))
-			}
-			return tbl
-		},
-		format: func(cfg *Config) string {
-			color := get(cfg)
-			return fmt.Sprintf("%d,%d,%d", color[0], color[1], color[2])
-		},
-		applyText: func(cfg *Config, raw string) error {
-			color, err := parseColorOption(raw)
-			if err != nil {
-				return err
-			}
-			set(cfg, color)
-			return nil
-		},
-		apply: func(cfg *Config, value lua.LValue) error {
-			tbl, ok := value.(*lua.LTable)
-			if !ok {
-				return fmt.Errorf("expected table")
-			}
-			set(cfg, readColor(tbl, get(cfg)))
-			return nil
-		},
-	}
-}
-
 func OptionNames() []string {
 	names := make([]string, 0, len(configOptions))
 	for name := range configOptions {
@@ -251,7 +216,7 @@ func OptionNames() []string {
 
 func (r *Runtime) OptionValue(name string) (string, error) {
 	name = normalizeOptionName(name)
-	desc, ok := configOptions[name]
+	desc, ok := lookupOption(name)
 	if !ok {
 		return r.pluginOptionValue(name)
 	}
@@ -260,8 +225,11 @@ func (r *Runtime) OptionValue(name string) (string, error) {
 
 func (r *Runtime) SetOption(name, value string) error {
 	name = normalizeOptionName(name)
-	desc, ok := configOptions[name]
+	desc, ok := lookupOption(name)
 	if !ok {
+		if err := movedOptionError(name); err != nil {
+			return err
+		}
 		if err := r.setPluginOption(name, value); err != nil {
 			return fmt.Errorf("%s: %w", name, err)
 		}
@@ -278,7 +246,7 @@ func (r *Runtime) SetOption(name, value string) error {
 
 func (r *Runtime) ToggleOption(name string) error {
 	name = normalizeOptionName(name)
-	desc, ok := configOptions[name]
+	desc, ok := lookupOption(name)
 	if !ok {
 		option, ok := r.pluginOption(name)
 		if !ok {
@@ -292,8 +260,13 @@ func (r *Runtime) ToggleOption(name string) error {
 	if desc.kind != "boolean" {
 		return fmt.Errorf("%s: expected boolean option", name)
 	}
-	value := desc.get(r.state, &r.cfg)
-	return r.SetOption(name, strconv.FormatBool(!lua.LVAsBool(value)))
+	current := desc.get(r.state, &r.cfg)
+	value, ok := current.(lua.LBool)
+	if !ok {
+		// alt_colors may be "system", which is neither true nor false.
+		return fmt.Errorf("%s is %q, not true or false", name, current.String())
+	}
+	return r.SetOption(name, strconv.FormatBool(!bool(value)))
 }
 
 func normalizeOptionName(name string) string {
@@ -378,7 +351,6 @@ var configOptions = map[string]optionDesc{
 	"invert_scroll":          boolOption("Invert horizontal and vertical discrete mouse-wheel scrolling.", func(c *Config) bool { return c.InvertScroll }, func(c *Config, v bool) { c.InvertScroll = v }),
 	"invert_smooth_scroll":   boolOption("Invert horizontal and vertical smooth wheel or trackpad scrolling.", func(c *Config) bool { return c.InvertSmoothScroll }, func(c *Config, v bool) { c.InvertSmoothScroll = v }),
 	"session_database":       boolOption("Persist per-document view state, marks, and recent files.", func(c *Config) bool { return c.SessionDatabase }, func(c *Config, v bool) { c.SessionDatabase = v }),
-	"alt_colors":             boolOption("Start with alternate colors enabled.", func(c *Config) bool { return c.AltColors }, func(c *Config, v bool) { c.AltColors = v }),
 	"alt_colors_keep_images": boolOption("Keep raster images in their own colors in alternate-color mode.", func(c *Config) bool { return c.AltColorsKeepImages }, func(c *Config, v bool) { c.AltColorsKeepImages = v }),
 	"trim_margins":           boolOption("Lay pages out by their content, trimming blank margins.", func(c *Config) bool { return c.TrimMargins }, func(c *Config, v bool) { c.TrimMargins = v }),
 	"annotation_colors":      stringListOption("Highlight colours offered by the highlight picker, as #RRGGBB.", func(c *Config) []string { return c.AnnotationColors }, func(c *Config, v []string) { c.AnnotationColors = v }),
@@ -421,10 +393,8 @@ var configOptions = map[string]optionDesc{
 		c.PageGapHorizontal = v
 		c.SpreadGap = v
 	}),
-	"status_bar_padding":  intOption("Horizontal status bar padding in pixels.", func(c *Config) int { return c.StatusBarPadding }, func(c *Config, v int) { c.StatusBarPadding = v }),
-	"ui_font_size":        intOption("UI font size in pixels.", func(c *Config) int { return c.UIFontSize }, func(c *Config, v int) { c.UIFontSize = v }),
 	"sequence_timeout_ms": intOption("Maximum delay between keys in a binding sequence.", func(c *Config) int { return c.SequenceTimeoutMS }, func(c *Config, v int) { c.SequenceTimeoutMS = v }),
-	"animation_frame_ms":  intOption("Animation timestep in milliseconds; clamped to at least 1.", func(c *Config) int { return c.AnimationFrameMS }, func(c *Config, v int) { c.AnimationFrameMS = max(1, v) }),
+	"animation_frame_ms":  intOption("Animation timestep in milliseconds; 0 follows the display's refresh rate.", func(c *Config) int { return c.AnimationFrameMS }, func(c *Config, v int) { c.AnimationFrameMS = max(0, v) }),
 	"render_threads":      intOption("Page rendering threads; 0 picks one per core up to 4, leaving a core free. Applies to newly opened documents.", func(c *Config) int { return c.RenderThreads }, func(c *Config, v int) { c.RenderThreads = max(0, v) }),
 	"render_oversample":   floatOption("Render scale multiplier; values above 1 supersample.", func(c *Config) float64 { return c.RenderOversample }, func(c *Config, v float64) { c.RenderOversample = v }),
 	"smooth_scroll_dampening": floatOption("Catch-up factor for smooth scrolling per animation frame; higher values are more responsive and less damped; clamped to 0.01 through 1.", func(c *Config) float64 { return c.SmoothScrollDampening }, func(c *Config, v float64) {
@@ -459,26 +429,13 @@ var configOptions = map[string]optionDesc{
 			c.PinchSensitivity = v
 		}
 	}),
-	"render_mode":             stringOption("Initial render mode: continuous or single.", func(c *Config) string { return c.RenderMode }, func(c *Config, v string) { c.RenderMode = NormalizeRenderMode(v) }),
-	"hint_chars":              stringOption("Characters used for link hint labels, in order of preference.", func(c *Config) string { return c.HintChars }, func(c *Config, v string) { c.HintChars = v }),
-	"fit_mode":                stringOption("Initial fit mode: page, width, height, or manual.", func(c *Config) string { return c.FitMode }, func(c *Config, v string) { c.FitMode = NormalizeFitMode(v) }),
-	"anchor_position":         stringOption("Viewport anchor: center, top, or bottom.", func(c *Config) string { return c.AnchorPosition }, func(c *Config, v string) { c.AnchorPosition = NormalizeAnchorPosition(v) }),
-	"status_bar_visible":      boolOption("Show the status bar.", func(c *Config) bool { return c.StatusBarVisible }, func(c *Config, v bool) { c.StatusBarVisible = v }),
-	"status_bar_left":         stringOption("Left status bar template.", func(c *Config) string { return c.StatusBarLeft }, func(c *Config, v string) { c.StatusBarLeft = v }),
-	"status_bar_right":        stringOption("Right status bar template.", func(c *Config) string { return c.StatusBarRight }, func(c *Config, v string) { c.StatusBarRight = v }),
-	"background":              colorOption("Viewer background color.", func(c *Config) [3]uint8 { return c.Background }, func(c *Config, v [3]uint8) { c.Background = v }),
-	"page_background":         colorOption("Normal page background color.", func(c *Config) [3]uint8 { return c.PageBackground }, func(c *Config, v [3]uint8) { c.PageBackground = v }),
-	"foreground":              colorOption("UI foreground color.", func(c *Config) [3]uint8 { return c.Foreground }, func(c *Config, v [3]uint8) { c.Foreground = v }),
-	"status_bar_color":        colorOption("Normal status bar background color.", func(c *Config) [3]uint8 { return c.StatusBarColor }, func(c *Config, v [3]uint8) { c.StatusBarColor = v }),
-	"alt_background":          colorOption("Viewer background in alternate-color mode.", func(c *Config) [3]uint8 { return c.AltBackground }, func(c *Config, v [3]uint8) { c.AltBackground = v }),
-	"alt_page_background":     colorOption("Page background in alternate-color mode.", func(c *Config) [3]uint8 { return c.AltPageBackground }, func(c *Config, v [3]uint8) { c.AltPageBackground = v }),
-	"alt_foreground":          colorOption("UI foreground in alternate-color mode.", func(c *Config) [3]uint8 { return c.AltForeground }, func(c *Config, v [3]uint8) { c.AltForeground = v }),
-	"alt_status_bar_color":    colorOption("Status bar background in alternate-color mode.", func(c *Config) [3]uint8 { return c.AltStatusBarColor }, func(c *Config, v [3]uint8) { c.AltStatusBarColor = v }),
-	"highlight_foreground":    colorOption("Border and text of highlights: selections, search matches and link hints.", func(c *Config) [3]uint8 { return c.HighlightForeground }, func(c *Config, v [3]uint8) { c.HighlightForeground = v }),
-	"selection_color":         colorOption("Highlight of selected text, the selected menu row, link hints and the overview's selected page.", func(c *Config) [3]uint8 { return c.SelectionColor }, func(c *Config, v [3]uint8) { c.SelectionColor = v }),
-	"search_highlight_color":  colorOption("Highlight of search matches.", func(c *Config) [3]uint8 { return c.SearchHighlightColor }, func(c *Config, v [3]uint8) { c.SearchHighlightColor = v }),
-	"presentation_background": colorOption("Background around the page in presentation mode.", func(c *Config) [3]uint8 { return c.PresentationBackground }, func(c *Config, v [3]uint8) { c.PresentationBackground = v }),
-	"search_current_color":    colorOption("Highlight of the current search match.", func(c *Config) [3]uint8 { return c.SearchCurrentColor }, func(c *Config, v [3]uint8) { c.SearchCurrentColor = v }),
+	"render_mode":        stringOption("Initial render mode: continuous or single.", func(c *Config) string { return c.RenderMode }, func(c *Config, v string) { c.RenderMode = NormalizeRenderMode(v) }),
+	"hint_chars":         stringOption("Characters used for link hint labels, in order of preference.", func(c *Config) string { return c.HintChars }, func(c *Config, v string) { c.HintChars = v }),
+	"fit_mode":           stringOption("Initial fit mode: page, width, height, or manual.", func(c *Config) string { return c.FitMode }, func(c *Config, v string) { c.FitMode = NormalizeFitMode(v) }),
+	"anchor_position":    stringOption("Viewport anchor: center, top, or bottom.", func(c *Config) string { return c.AnchorPosition }, func(c *Config, v string) { c.AnchorPosition = NormalizeAnchorPosition(v) }),
+	"status_bar_visible": boolOption("Show the status bar.", func(c *Config) bool { return c.StatusBarVisible }, func(c *Config, v bool) { c.StatusBarVisible = v }),
+	"status_bar_left":    stringOption("Left status bar template.", func(c *Config) string { return c.StatusBarLeft }, func(c *Config, v string) { c.StatusBarLeft = v }),
+	"status_bar_right":   stringOption("Right status bar template.", func(c *Config) string { return c.StatusBarRight }, func(c *Config, v string) { c.StatusBarRight = v }),
 }
 
 func readColor(tbl *lua.LTable, fallback [3]uint8) [3]uint8 {
@@ -520,4 +477,58 @@ func NormalizeAnchorPosition(s string) string {
 		return s
 	}
 	return "center"
+}
+
+func init() {
+	registerOption("alt_colors", altColorsOption())
+}
+
+// altColorsOption starts in alternate colors, true or false, or with
+// "system" follows the OS's dark mode.
+func altColorsOption() optionDesc {
+	set := func(c *Config, value string) error {
+		if strings.EqualFold(strings.TrimSpace(value), "system") {
+			c.AltColorsSystem = true
+			return nil
+		}
+		on, err := parseBoolOption(value)
+		if err != nil {
+			return fmt.Errorf(`expected true, false or "system"`)
+		}
+		c.AltColors, c.AltColorsSystem = on, false
+		return nil
+	}
+	return optionDesc{
+		kind:        "boolean",
+		description: `Start with alternate colors: true, false, or "system" to follow the OS's dark mode as it changes.`,
+		get: func(L *lua.LState, c *Config) lua.LValue {
+			if c.AltColorsSystem {
+				return lua.LString("system")
+			}
+			return lua.LBool(c.AltColors)
+		},
+		format: func(c *Config) string {
+			if c.AltColorsSystem {
+				return `"system"`
+			}
+			return strconv.FormatBool(c.AltColors)
+		},
+		applyText: func(c *Config, raw string) error {
+			value, err := parseStringOption(raw)
+			if err != nil {
+				return err
+			}
+			return set(c, value)
+		},
+		apply: func(c *Config, value lua.LValue) error {
+			switch value := value.(type) {
+			case lua.LBool:
+				c.AltColors, c.AltColorsSystem = bool(value), false
+				return nil
+			case lua.LString:
+				return set(c, string(value))
+			}
+			return fmt.Errorf(`expected true, false or "system"`)
+		},
+	}
 }

@@ -67,7 +67,7 @@ func TestFileFontMeasuresLikeItsUncachedFace(t *testing.T) {
 	}
 	defer closeFontFace(face)
 	const s = "AVAWaY To, kerned text"
-	want := measureText(face.(*fileBackedFontFace).Face, s)
+	want := measureText(face.(*cachedFontFace).Face, s)
 	for range 2 { // the second pass reads the cache
 		if got := measureText(face, s); got != want {
 			t.Fatalf("measured %d, want %d", got, want)

@@ -311,7 +311,8 @@ func (a *App) keybindMenuListGeometry() (sdl.FRect, int) {
 
 func (a *App) keybindNewButtonRect(rect sdl.FRect) sdl.FRect {
 	rowHeight := a.keybindMenuRowHeight()
-	return sdl.FRect{X: rect.X + 6, Y: rect.Y + float32(rowHeight), W: rect.W - 12, H: float32(rowHeight)}
+	inset := a.px(6) // a framed box within the sheet
+	return sdl.FRect{X: rect.X + inset, Y: rect.Y + float32(a.modalListHeadHeight()) + inset, W: rect.W - 2*inset, H: float32(rowHeight)}
 }
 
 func (a *App) keybindMenuRowHeight() int {
@@ -320,9 +321,10 @@ func (a *App) keybindMenuRowHeight() int {
 
 func (a *App) drawKeybindMenu(renderer *sdl.Renderer) error {
 	rect, _ := a.keybindMenuGeometry()
-	if err := a.drawModalListFrame(renderer, rect); err != nil {
-		return err
-	}
+	return a.drawPanel(renderer, config.ElementPanel, rect, func() error { return a.drawKeybindMenuContent(renderer, rect) })
+}
+
+func (a *App) drawKeybindMenuContent(renderer *sdl.Renderer, rect sdl.FRect) error {
 	rowHeight := a.keybindMenuRowHeight()
 	baselineOffset := a.modalListBaselineOffset(rowHeight)
 	header := fmt.Sprintf(" Keybinds (%d)", len(a.keybindMenu.rows))
@@ -339,28 +341,21 @@ func (a *App) drawKeybindMenu(renderer *sdl.Renderer) error {
 			header = " " + action + ": " + strings.Join(a.keybindMenu.captured, " ") + " …"
 		}
 	}
-	if err := a.drawText(renderer, a.truncateModalListText(header, int(rect.W)-24), int(rect.X)+12, int(rect.Y)+baselineOffset, a.foregroundColor()); err != nil {
+	title, detail := splitHeader(strings.TrimSpace(header))
+	if err := a.drawModalListHeader(renderer, rect, title, detail); err != nil {
 		return err
 	}
 	listRect, listRows := a.keybindMenuListGeometry()
 	if !a.keybindMenu.selectingAction {
+		// The button is drawn as a selected row while it is selected.
 		button := a.keybindNewButtonRect(rect)
+		element := config.ElementButton
 		if a.keybindMenu.view.selected == -1 {
-			if err := a.drawModalListSelection(renderer, rect, int(button.Y), rowHeight); err != nil {
-				return err
-			}
-		} else {
-			buttonColor := a.statusBarColor()
-			buttonColor.A = 0xa0
-			if err := fillRect(renderer, button, buttonColor); err != nil {
-				return err
-			}
+			element = config.ElementRowSelected
 		}
-		clr := a.foregroundColor()
-		if a.keybindMenu.view.selected == -1 {
-			clr = a.highlightForegroundColor()
-		}
-		if err := a.drawText(renderer, "+ "+newKeybindLabel, int(button.X)+10, int(button.Y)+baselineOffset, clr); err != nil {
+		st := a.style(element)
+		a.drawBox(renderer, &st, button)
+		if err := a.drawTextFace(renderer, "+ "+newKeybindLabel, int(rect.X)+a.modalListTextInset(), int(button.Y)+baselineOffset, a.textColor(&st, false), st.Bold.V); err != nil {
 			return err
 		}
 	}
@@ -424,7 +419,7 @@ func (a *App) keybindListView() *uiView {
 	view.rows = keybindUIRows(a.keybindMenu.rows)
 	if !a.keybindMenu.selectingAction {
 		for index, row := range a.keybindMenu.rows {
-			view.rows[index].text = fmt.Sprintf("%-12s %s", row.key, row.action)
+			view.rows[index].key = row.key
 		}
 	}
 	return view

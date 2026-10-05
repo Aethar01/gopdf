@@ -82,19 +82,19 @@ func TestModalListRowAtUsesRowsBelowHeaderOnly(t *testing.T) {
 	app := &App{}
 	rect := sdl.FRect{X: 10, Y: 20, W: 200, H: 160}
 
-	if _, ok := app.modalListRowAt(rect, 3, 30, 50, 25); ok {
+	if _, ok := app.modalListRowAt(rect, 3, 30, 30, 50, 25); ok {
 		t.Fatal("expected click in modal header to miss rows")
 	}
-	if got, ok := app.modalListRowAt(rect, 3, 30, 50, 55); !ok || got != 0 {
+	if got, ok := app.modalListRowAt(rect, 3, 30, 30, 50, 55); !ok || got != 0 {
 		t.Fatalf("expected first row hit, got row=%d ok=%v", got, ok)
 	}
-	if got, ok := app.modalListRowAt(rect, 3, 30, 50, 115); !ok || got != 2 {
+	if got, ok := app.modalListRowAt(rect, 3, 30, 30, 50, 115); !ok || got != 2 {
 		t.Fatalf("expected third row hit, got row=%d ok=%v", got, ok)
 	}
-	if _, ok := app.modalListRowAt(rect, 3, 30, 50, 145); ok {
+	if _, ok := app.modalListRowAt(rect, 3, 30, 30, 50, 145); ok {
 		t.Fatal("expected click below configured rows to miss")
 	}
-	if _, ok := app.modalListRowAt(rect, 3, 30, 500, 55); ok {
+	if _, ok := app.modalListRowAt(rect, 3, 30, 30, 500, 55); ok {
 		t.Fatal("expected click outside modal bounds to miss")
 	}
 }
@@ -115,5 +115,24 @@ func TestVisibleRowsFollowQueryAndRows(t *testing.T) {
 	view.query = "beta"
 	if got := len(view.visibleRows()); got != 0 {
 		t.Fatalf("rows matching beta = %d, want 0", got)
+	}
+}
+
+func TestKeyColumnWidthFollowsTheRows(t *testing.T) {
+	app := testStyleApp("bar")
+	view := &uiView{}
+	rows := []uiRow{{text: "a", key: "gg"}, {text: "b"}}
+	if got, want := app.keyColumnWidth(view, rows, 1000), measureText(app.fontFace, "gg"); got != want {
+		t.Fatalf("key column = %d, want %d", got, want)
+	}
+	if got := app.keyColumnWidth(view, rows, 5); got != 5 {
+		t.Fatalf("key column = %d, want the limit", got)
+	}
+	rows = []uiRow{{text: "a", key: "ctrl+shift+x"}, {text: "b"}}
+	if got, want := app.keyColumnWidth(view, rows, 1000), measureText(app.fontFace, "ctrl+shift+x"); got != want {
+		t.Fatalf("key column after new rows = %d, want %d", got, want)
+	}
+	if got := app.keyColumnWidth(view, rows[1:], 1000); got != 0 {
+		t.Fatalf("key column of rows without keys = %d", got)
 	}
 }

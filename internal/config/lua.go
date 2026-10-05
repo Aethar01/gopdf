@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"path/filepath"
 	"strings"
 	"sync"
 
@@ -24,11 +25,31 @@ func (r *Runtime) applyLuaConfig(path string) error {
 	if L == nil {
 		L = r.initLuaState()
 	}
+	prependPackagePath(L, filepath.Dir(path))
 	if err := L.DoFile(path); err != nil {
 		r.closeLuaState()
 		return fmt.Errorf("%s: %w", path, err)
 	}
 	return nil
+}
+
+// prependPackagePath makes require search dir first, so a config can
+// require the Lua files beside it: require("forest") loads dir/forest.lua
+// and require("themes.forest") dir/themes/forest.lua.
+func prependPackagePath(L *lua.LState, dir string) {
+	packageTable, ok := L.GetGlobal("package").(*lua.LTable)
+	if !ok || dir == "" {
+		return
+	}
+	patterns := filepath.Join(dir, "?.lua") + ";" + filepath.Join(dir, "?", "init.lua")
+	current := lua.LVAsString(L.GetField(packageTable, "path"))
+	if strings.HasPrefix(current, patterns) {
+		return
+	}
+	if current != "" {
+		patterns += ";" + current
+	}
+	L.SetField(packageTable, "path", lua.LString(patterns))
 }
 
 func (r *Runtime) initLuaState() *lua.LState {
@@ -108,6 +129,30 @@ func newLuaModule(L *lua.LState, rt *Runtime, cfg *Config) *lua.LTable {
 	options := newLuaOptionsTable(L, rt, cfg)
 	L.SetField(mod, "options", options)
 	L.SetField(mod, "o", options)
+	L.SetField(mod, "themes", newLuaThemesTable(L))
+	// gopdf.theme is read and assigned through the metatable, as assigning
+	// it sets the theme rather than replacing the field.
+	mt := L.NewTable()
+	L.SetField(mt, "__index", L.NewFunction(func(L *lua.LState) int {
+		if L.CheckString(2) == "theme" {
+			L.Push(newLuaThemeTable(L, rt, cfg, ""))
+			return 1
+		}
+		L.Push(lua.LNil)
+		return 1
+	}))
+	L.SetField(mt, "__newindex", L.NewFunction(func(L *lua.LState) int {
+		key := L.CheckAny(2)
+		if key.String() == "theme" {
+			if err := rt.setOption("theme", L.CheckAny(3)); err != nil {
+				L.RaiseError("gopdf.theme: %v", err)
+			}
+			return 0
+		}
+		L.RawSet(L.CheckTable(1), key, L.CheckAny(3))
+		return 0
+	}))
+	L.SetMetatable(mod, mt)
 	for _, action := range actions.Names() {
 		name := action
 		L.SetField(mod, name, newLuaActionValue(L, rt, name))
@@ -128,7 +173,11 @@ func newLuaOptionsTable(L *lua.LState, rt *Runtime, cfg *Config) *lua.LTable {
 	}))
 	L.SetField(mt, "__index", L.NewFunction(func(L *lua.LState) int {
 		name := strings.ToLower(strings.TrimSpace(L.CheckString(2)))
-		if desc, ok := configOptions[name]; ok {
+		if name == "theme" {
+			L.Push(newLuaThemeTable(L, rt, cfg, ""))
+			return 1
+		}
+		if desc, ok := lookupOption(name); ok {
 			L.Push(desc.get(L, cfg))
 			return 1
 		}
@@ -456,13 +505,18 @@ func (r *Runtime) unbindMouse(event string) error {
 
 func (r *Runtime) setOption(name string, value lua.LValue) error {
 	name = normalizeOptionName(name)
-	if desc, ok := configOptions[name]; ok {
-		if err := desc.apply(&r.cfg, value); err != nil {
+	if desc, ok := lookupOption(name); ok {
+		if err := desc.apply(&r.cfg, value); err != nil && !isSkipped(err) {
 			return err
+		} else if err != nil {
+			r.warn(err)
 		}
 		r.markAssigned(name)
 	} else {
 		if _, ok := r.pluginOption(name); !ok {
+			if err := movedOptionError(name); err != nil {
+				return err
+			}
 			return fmt.Errorf("unknown setting")
 		}
 		if err := r.setPluginOptionValue(name, value); err != nil {

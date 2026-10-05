@@ -7,6 +7,7 @@ import (
 	"slices"
 	"time"
 
+	"gopdf/internal/config"
 	"gopdf/internal/mupdf"
 
 	"github.com/jupiterrider/purego-sdl3/sdl"
@@ -53,7 +54,19 @@ func (a *App) drawSinglePage(renderer *sdl.Renderer) {
 }
 
 func (a *App) drawPage(renderer *sdl.Renderer, page int, x, y, width, height float64) {
-	_ = a.drawPageBackground(renderer, x, y, page)
+	// A page turned by quarter turns is styled as the page element; the
+	// style's box would not fit one turned otherwise.
+	st := a.style(config.ElementPage)
+	styled := math.Mod(normalizeRotation(a.rotation), 90) == 0
+	box := sdl.FRect{X: float32(x), Y: float32(y), W: float32(width), H: float32(height)}
+	if styled {
+		fill := st
+		fill.Shadow.V, fill.BorderWidth.V = config.Shadow{}, 0
+		a.drawBox(renderer, &fill, box)
+		defer a.finishPageBox(renderer, &st, box)
+	} else {
+		_ = a.drawPageBackground(renderer, x, y, page)
+	}
 	viewportW, viewportH := a.viewportSize()
 	tiles := a.cache.pageTiles(page, a.tileVersion(page))
 	if a.overview != nil && len(tiles) > 0 {
@@ -66,16 +79,56 @@ func (a *App) drawPage(renderer *sdl.Renderer, page int, x, y, width, height flo
 		a.drawTile(renderer, tile, x, y, viewportW, viewportH)
 	}
 	if len(tiles) == 0 && a.config.LoadingIndicator && a.pagePending(page) {
-		a.drawInkLoader(renderer, x, y, width, height, time.Since(loaderEpoch))
+		a.drawInkLoader(renderer, x, y, width, height, time.Since(startTime))
 		a.loaderVisible = true
 	}
 	a.drawSearchHighlightsForPage(renderer, page, x, y)
+}
+
+// finishPageBox draws what goes over a page: the canvas over the corners
+// its shape leaves, then its shadow, cut away where the page is so it
+// falls only beside it, then its border.
+func (a *App) finishPageBox(renderer *sdl.Renderer, st *config.Style, rect sdl.FRect) {
+	box := pixelRect(rect)
+	if box.W <= 0 || box.H <= 0 {
+		return
+	}
+	shape := a.boxShape(st, box)
+	if shape.Kind != "rect" || shape.radius != [4]float32{} {
+		a.drawMask(renderer, maskSpec{shape: shape, w: box.W, h: box.H, invert: true}, box.X, box.Y, a.backgroundColor())
+	}
+	layers := st.Shadow.V.List()
+	for i := len(layers) - 1; i >= 0; i-- {
+		layer := layers[i]
+		clr := a.styleColor(layer.Color, st.Opacity.V)
+		if clr.A == 0 {
+			continue
+		}
+		dx, dy := int32(math.Round(float64(a.px(layer.X)))), int32(math.Round(float64(a.px(layer.Y))))
+		spec := maskSpec{shape: shape, w: box.W, h: box.H, spread: a.px(layer.Spread), blur: a.px(layer.Blur), cut: true, cutX: float32(-dx), cutY: float32(-dy)}
+		a.drawMask(renderer, spec, box.X+dx, box.Y+dy, clr)
+	}
+	a.drawDefaultBox(renderer, st, rect, boxBorder)
 }
 
 // drawTile draws a tile of the page whose screen origin is (x, y). The
 // tile is rotated about its own centre, placed where that centre falls on
 // the rotated page.
 func (a *App) drawTile(renderer *sdl.Renderer, tile *renderedTile, x, y float64, viewportW, viewportH int) {
+	dst, ok := a.tileRect(tile, x, y, viewportW, viewportH)
+	if !ok {
+		return
+	}
+	if normalizeRotation(a.rotation) == 0 {
+		sdl.RenderTexture(renderer, tile.texture, nil, &dst)
+		return
+	}
+	sdl.RenderTextureRotated(renderer, tile.texture, nil, &dst, a.rotation, nil, sdl.FlipNone)
+}
+
+// tileRect is where a tile of the page whose screen origin is (x, y) is
+// drawn before it is rotated, and false if it is off screen.
+func (a *App) tileRect(tile *renderedTile, x, y float64, viewportW, viewportH int) (sdl.FRect, bool) {
 	drawScale := a.scale / tile.scale
 	drawW := float64(tile.rect.Dx()) * drawScale
 	drawH := float64(tile.rect.Dy()) * drawScale
@@ -84,19 +137,14 @@ func (a *App) drawTile(renderer *sdl.Renderer, tile *renderedTile, x, y float64,
 	dx, dy := a.pageTransform(tile.key.page).toScreen(pageX, pageY)
 	centerX, centerY := x+dx, y+dy
 	if radius := math.Max(drawW, drawH) / 2; centerX+radius < 0 || centerY+radius < 0 || centerX-radius > float64(viewportW) || centerY-radius > float64(viewportH) {
-		return
+		return sdl.FRect{}, false
 	}
-	dst := sdl.FRect{
+	return sdl.FRect{
 		X: float32(centerX - drawW/2),
 		Y: float32(centerY - drawH/2),
 		W: float32(drawW),
 		H: float32(drawH),
-	}
-	if normalizeRotation(a.rotation) == 0 {
-		sdl.RenderTexture(renderer, tile.texture, nil, &dst)
-		return
-	}
-	sdl.RenderTextureRotated(renderer, tile.texture, nil, &dst, a.rotation, nil, sdl.FlipNone)
+	}, true
 }
 
 func (a *App) drawPageBackground(renderer *sdl.Renderer, x, y float64, page int) error {

@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"gopdf/internal/config"
 
@@ -85,9 +86,18 @@ func TestEventWaitTimeoutUsesConfiguredAnimationFrame(t *testing.T) {
 		config:     config.Config{AnimationFrameMS: 24},
 		smoothZoom: &smoothZoomState{targetLog: 1, appliedLog: 0},
 	}
-
-	if got := app.eventWaitTimeoutMS(); got != 24 {
-		t.Fatalf("expected animation wait timeout of 24ms, got %d", got)
+	app.frameStart = time.Now()
+	if got := app.eventWaitTimeoutMS(); got < 20 || got > 24 {
+		t.Fatalf("expected what is left of a 24ms frame, got %d", got)
+	}
+	// A frame that took its whole interval to draw leaves no wait.
+	app.frameStart = time.Now().Add(-30 * time.Millisecond)
+	if got := app.eventWaitTimeoutMS(); got != 0 {
+		t.Fatalf("expected no wait after a slow frame, got %d", got)
+	}
+	// With no frame drawn since, the next wait is a whole frame, not none.
+	if got := app.eventWaitTimeoutMS(); got < 20 || got > 24 {
+		t.Fatalf("expected a frame's wait when nothing was drawn, got %d", got)
 	}
 }
 

@@ -5,6 +5,7 @@ import (
 	"math"
 	"slices"
 
+	"gopdf/internal/config"
 	"gopdf/internal/mupdf"
 
 	"github.com/jupiterrider/purego-sdl3/sdl"
@@ -297,7 +298,13 @@ func (a *App) drawOverviewSelection(renderer *sdl.Renderer) {
 			maxX, maxY = math.Max(maxX, x+row.pageW[i]), math.Max(maxY, y+row.pageH[i])
 		}
 	}
-	const border = 3
-	rect := sdl.FRect{X: float32(minX - border), Y: float32(minY - border), W: float32(maxX - minX + 2*border), H: float32(maxY - minY + 2*border)}
-	strokeRect(renderer, rect, rgb(a.config.SelectionColor), border)
+	// The padding is between the page and the inside of the border.
+	st := a.style(config.ElementOverviewSelection)
+	top, right, bottom, left := a.insets(st.Padding.V)
+	border := a.lineWidth(st.BorderWidth.V)
+	rect := sdl.FRect{
+		X: float32(minX) - left - border, Y: float32(minY) - top - border,
+		W: float32(maxX-minX) + left + right + 2*border, H: float32(maxY-minY) + top + bottom + 2*border,
+	}
+	a.drawBox(renderer, &st, rect)
 }
