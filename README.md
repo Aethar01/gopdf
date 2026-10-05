@@ -173,9 +173,7 @@ gopdf.theme.elements = {
 }
 ```
 
-Interactive keybinding changes are stored in `autogen.lua`. It is loaded before `config.lua`, so explicit user configuration takes precedence.
-
-Session data is stored in `session.sqlite` under the platform application-data directory:
+Session data, such as each document's place, recent files, prompt history and keybindings changed in the keybind editor, is stored in `session.sqlite` under the platform application-data directory. Keybindings changed in the editor apply before `config.lua`, so explicit user configuration takes precedence. Older versions kept them in `autogen.lua`; gopdf moves one it finds into the database and renames it `autogen.lua.bak`.
 
 | Platform | Location |
 |---|---|

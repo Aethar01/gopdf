@@ -4,7 +4,6 @@ import lua "github.com/yuin/gopher-lua"
 
 type Config struct {
 	ConfigPath            string
-	AutogenPath           string
 	StatusBarVisible      bool
 	RenderMode            string
 	RenderOversample      float64
@@ -89,7 +88,6 @@ type Runtime struct {
 	nextOperationID  int
 	loadingPlugin    string
 	activePlugin     string
-	loadingAutogen   bool
 	warnings         []string // see warn
 }
 

@@ -1056,32 +1056,6 @@ func TestLuaBindingsRejectUnknownNames(t *testing.T) {
 	}
 }
 
-func TestAutogenSkipsKeysThatNoLongerParse(t *testing.T) {
-	dir := t.TempDir()
-	path := filepath.Join(dir, "config.lua")
-	if err := os.WriteFile(path, nil, 0o644); err != nil {
-		t.Fatal(err)
-	}
-	autogen := `
-gopdf.bind("<keypad-1>", gopdf.quit)
-gopdf.unbind("<c-keycode-45>")
-gopdf.bind("<c-enter>", gopdf.quit)
-`
-	if err := os.WriteFile(filepath.Join(dir, "autogen.lua"), []byte(autogen), 0o644); err != nil {
-		t.Fatal(err)
-	}
-
-	rt, err := Open(path, filepath.Join(dir, "doc.pdf"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer rt.Close()
-
-	if got := rt.Config().KeyBindings["<C-CR>"]; got != "quit" {
-		t.Fatalf("expected the valid autogen binding to load, got %q", got)
-	}
-}
-
 func TestDefaultBindingsAreValid(t *testing.T) {
 	cfg := Default()
 	for key := range cfg.KeyBindings {
@@ -1277,9 +1251,6 @@ func TestNoConfigIgnoresConfigurationFiles(t *testing.T) {
 	}
 	if skipped.Config().ConfigPath != "" {
 		t.Errorf("ConfigPath = %q, want empty", skipped.Config().ConfigPath)
-	}
-	if skipped.Config().AutogenPath != "" {
-		t.Errorf("AutogenPath = %q, want empty", skipped.Config().AutogenPath)
 	}
 	// The Lua runtime still exists, so plugins and callbacks remain usable.
 	if _, err := skipped.Eval(`assert(type(gopdf) == "table")`); err != nil {

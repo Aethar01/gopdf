@@ -286,6 +286,73 @@ func GetDocumentMark(path string, name string) (DocumentMark, bool) {
 	return mark, true
 }
 
+// storedKeyBindings returns the keybindings changed in the viewer: each
+// key's action, or "" for a key unbound.
+func storedKeyBindings() (map[string]string, error) {
+	db, err := openSessionDatabase()
+	if err != nil || db == nil {
+		return nil, err
+	}
+	rows, err := db.Query(`SELECT key, action FROM key_bindings`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	bindings := map[string]string{}
+	for rows.Next() {
+		var key, action string
+		if err := rows.Scan(&key, &action); err != nil {
+			return nil, err
+		}
+		bindings[key] = action
+	}
+	return bindings, rows.Err()
+}
+
+// storeKeyBindings records keybindings changed in the viewer, an action of
+// "" for a key unbound, together.
+func storeKeyBindings(changes map[string]string) error {
+	db, err := openSessionDatabase()
+	if err != nil {
+		return err
+	}
+	if db == nil {
+		return errors.New("no data directory to keep keybindings in")
+	}
+	tx, err := db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	now := time.Now().UnixNano()
+	for key, action := range changes {
+		if _, err := tx.Exec(`
+			INSERT INTO key_bindings (key, action, updated_at)
+			VALUES (?, ?, ?)
+			ON CONFLICT(key) DO UPDATE SET action = excluded.action, updated_at = excluded.updated_at
+		`, key, action, now); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
+}
+
+func deleteStoredKeyBindings(keys []string) error {
+	if len(keys) == 0 {
+		return nil
+	}
+	db, err := openSessionDatabase()
+	if err != nil || db == nil {
+		return err
+	}
+	for _, key := range keys {
+		if _, err := db.Exec(`DELETE FROM key_bindings WHERE key = ?`, key); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 var sessionDB struct {
 	sync.Mutex
 	path string
@@ -396,6 +463,15 @@ func initSessionDatabase(db *sql.DB) error {
 			entry TEXT NOT NULL,
 			updated_at INTEGER NOT NULL,
 			PRIMARY KEY (kind, entry)
+		)
+	`); err != nil {
+		return err
+	}
+	if _, err := db.Exec(`
+		CREATE TABLE IF NOT EXISTS key_bindings (
+			key TEXT PRIMARY KEY,
+			action TEXT NOT NULL,
+			updated_at INTEGER NOT NULL
 		)
 	`); err != nil {
 		return err
