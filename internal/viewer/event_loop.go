@@ -430,6 +430,7 @@ func (a *App) drawFrame() error {
 	}
 	a.frameStart = time.Now()
 	a.beginMotionFrame()
+	message := a.message
 	a.drawPages(a.renderer)
 	// An on-screen loader animates, so it asks for the next frame.
 	a.pendingRedraw = a.loaderVisible
@@ -447,8 +448,10 @@ func (a *App) drawFrame() error {
 	if err := a.drawTitleBar(a.renderer); err != nil {
 		return err
 	}
-	// A transition still on its way asks for the next frame.
-	if a.motion.animating {
+	// A transition still on its way asks for the next frame, as does a
+	// message set while drawing, such as a theme's error, which the status
+	// bar has already been drawn without.
+	if a.motion.animating || a.message != message {
 		a.pendingRedraw = true
 	}
 	sdl.RenderPresent(a.renderer)
