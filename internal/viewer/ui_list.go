@@ -445,7 +445,7 @@ func (a *App) drawUIListItems(renderer *sdl.Renderer, rect sdl.FRect, rows int, 
 		// its row as the list scrolls.
 		for index := first; index < last; index++ {
 			if item := items[index]; item.index == view.selected && !item.heading {
-				at := a.animate("selection "+viewKey(view), float64(index), a.config.Theme.Motion.Selection)
+				at := a.animate(tweenKey{kind: "selection", view: view}, float64(index), a.config.Theme.Motion.Selection)
 				st := a.style(config.ElementRowSelected)
 				a.drawBox(renderer, &st, a.rowBox(rect, rowY(at), rowHeight))
 			}

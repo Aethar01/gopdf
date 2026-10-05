@@ -1,7 +1,6 @@
 package viewer
 
 import (
-	"fmt"
 	"math"
 	"sync/atomic"
 	"time"
@@ -18,7 +17,7 @@ type motionState struct {
 	frame     uint64    // frames drawn
 	now       time.Time // when the frame being drawn is drawn
 	animating bool      // a transition is still running this frame
-	tweens    map[string]*tween
+	tweens    map[tweenKey]*tween
 	fade      float64 // how far what is drawn now is faded out, from 0 to 1
 	// shownView is the view drawn last frame, and closingView one drawn
 	// fading out after it closed.
@@ -30,6 +29,14 @@ type motionState struct {
 	// when it was last read; see refreshReducedMotion.
 	osReading atomic.Bool
 	osReadAt  time.Time
+}
+
+// tweenKey names a transition: what moves, and the view or text it
+// belongs to, if any.
+type tweenKey struct {
+	kind string
+	view *uiView
+	text string
 }
 
 // tween is a value moving from one place to another.
@@ -46,7 +53,9 @@ func (a *App) beginMotionFrame() {
 	m.now = time.Now()
 	m.animating = false
 	m.fade = 0
-	if len(m.tweens) > 64 {
+	// Transitions not asked for are dropped now and then, and whenever
+	// there are many, so a closed view is not kept by its keys.
+	if len(m.tweens) > 64 || m.frame%64 == 0 {
 		for key, tw := range m.tweens {
 			if tw.seen+1 < m.frame {
 				delete(m.tweens, key)
@@ -57,13 +66,13 @@ func (a *App) beginMotionFrame() {
 
 // animate returns where a value heading for target is now, moving as tr
 // says. A value not asked for last frame is already at its target.
-func (a *App) animate(key string, target float64, tr config.Transition) float64 {
+func (a *App) animate(key tweenKey, target float64, tr config.Transition) float64 {
 	return a.animateFrom(key, math.NaN(), target, tr)
 }
 
 // animateFrom is animate for a value that, when not asked for last frame,
 // starts from from, as a panel's opacity does when it opens.
-func (a *App) animateFrom(key string, from, target float64, tr config.Transition) float64 {
+func (a *App) animateFrom(key tweenKey, from, target float64, tr config.Transition) float64 {
 	m := &a.motion
 	tw := m.tweens[key]
 	switch {
@@ -73,7 +82,7 @@ func (a *App) animateFrom(key string, from, target float64, tr config.Transition
 		}
 		tw = &tween{from: from, to: target, value: from, start: m.now}
 		if m.tweens == nil {
-			m.tweens = map[string]*tween{}
+			m.tweens = map[tweenKey]*tween{}
 		}
 		m.tweens[key] = tw
 	case tw.to != target:
@@ -108,9 +117,6 @@ func (a *App) faded(opacity float64, draw func() error) error {
 	return draw()
 }
 
-// viewKey names a view's transitions.
-func viewKey(view *uiView) string { return fmt.Sprintf("%p", view) }
-
 // drawUIViews draws the open view, fading in as it opens, and one just
 // closed fading out.
 func (a *App) drawUIViews(renderer *sdl.Renderer) error {
@@ -125,7 +131,7 @@ func (a *App) drawUIViews(renderer *sdl.Renderer) error {
 	}
 	tr := a.config.Theme.Motion.Panel
 	if closing := m.closingView; closing != nil {
-		p := a.animateFrom("panel out "+viewKey(closing), 1, 0, tr)
+		p := a.animateFrom(tweenKey{kind: "panel out", view: closing}, 1, 0, tr)
 		if p <= 0 {
 			m.closingView = nil
 		} else if err := a.faded(p, func() error { return a.drawUIViewFrame(renderer, closing) }); err != nil {
@@ -135,6 +141,6 @@ func (a *App) drawUIViews(renderer *sdl.Renderer) error {
 	if view == nil {
 		return nil
 	}
-	p := a.animateFrom("panel in "+viewKey(view), 0, 1, tr)
+	p := a.animateFrom(tweenKey{kind: "panel in", view: view}, 0, 1, tr)
 	return a.faded(p, func() error { return a.drawUIView(renderer, view) })
 }

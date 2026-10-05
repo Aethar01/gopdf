@@ -103,8 +103,8 @@ func (a *App) drawStatusBar(renderer *sdl.Renderer) error {
 	// The sides grow and shrink with their text, the left from the bar's
 	// left edge and the right from its right.
 	tr := a.config.Theme.Motion.Prompt
-	leftW := float32(a.animate("status left", float64(l.leftArea.W), tr))
-	rightW := float32(a.animate("status right", float64(l.rightArea.W), tr))
+	leftW := float32(a.animate(tweenKey{kind: "status left"}, float64(l.leftArea.W), tr))
+	rightW := float32(a.animate(tweenKey{kind: "status right"}, float64(l.rightArea.W), tr))
 	leftBox := sdl.FRect{X: l.bar.X, Y: l.bar.Y, W: leftW, H: l.bar.H}
 	rightBox := sdl.FRect{X: l.bar.X + l.bar.W - rightW, Y: l.bar.Y, W: rightW, H: l.bar.H}
 	a.drawBox(renderer, &leftStyle, leftBox)
@@ -194,9 +194,9 @@ func (a *App) drawStatusMessage(renderer *sdl.Renderer, l statusLayout, st *conf
 	switch {
 	case text != "":
 		m.fadingText = text
-		opacity = a.animateFrom("message in "+a.message, 0, 1, tr)
+		opacity = a.animateFrom(tweenKey{kind: "message in", text: a.message}, 0, 1, tr)
 	case m.fadingText != "":
-		text, opacity = m.fadingText, a.animateFrom("message out "+m.fadingText, 1, 0, tr)
+		text, opacity = m.fadingText, a.animateFrom(tweenKey{kind: "message out", text: m.fadingText}, 1, 0, tr)
 		if opacity <= 0 {
 			m.fadingText = ""
 		}
@@ -281,7 +281,7 @@ func (a *App) drawInputCursor(renderer *sdl.Renderer, l statusLayout) error {
 	display, left := a.inputDisplay()
 	// The cursor glides when moved through the text, and snaps to where
 	// typing or deleting puts it, which a glide would only lag behind.
-	x := a.animate("cursor "+display, float64(a.promptOrigin()+measureText(a.fontFace, a.inputPrefix()+left)), a.config.Theme.Motion.Cursor)
+	x := a.animate(tweenKey{kind: "cursor", text: display}, float64(a.promptOrigin()+measureText(a.fontFace, a.inputPrefix()+left)), a.config.Theme.Motion.Cursor)
 	top, bottom := a.statusTextSpan(l)
 	st := a.style(config.ElementCursor)
 	a.drawBox(renderer, &st, sdl.FRect{X: float32(math.Round(x)), Y: float32(top), W: a.lineWidth(st.Width.V), H: float32(bottom - top)})

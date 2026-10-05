@@ -359,7 +359,7 @@ func (a *App) drawCompletionRows(renderer *sdl.Renderer, rows []completionRow, s
 	err := a.withClip(renderer, list, func() error {
 		if selectedRow >= first && selectedRow < last {
 			st := a.style(config.ElementRowSelected)
-			at := a.animate("selection "+viewKey(view), float64(selectedRow), a.config.Theme.Motion.Selection)
+			at := a.animate(tweenKey{kind: "selection", view: view}, float64(selectedRow), a.config.Theme.Motion.Selection)
 			a.drawBox(renderer, &st, rowBox(rowY(at)))
 		}
 		for index := first; index < last; index++ {
