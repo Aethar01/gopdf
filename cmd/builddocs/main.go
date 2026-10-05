@@ -215,8 +215,18 @@ func renderExampleConfig() string {
 	for _, ref := range config.OptionReferences() {
 		fmt.Fprintf(&b, "gopdf.options.%s = %s -- %s\n", ref.Name, ref.Default, ref.Description)
 	}
-	b.WriteString("\n-- The theme. Fields left out keep the values of the base theme.\n\n")
-	renderExampleTheme(&b)
+	// The theme is left commented out: assigned whole, it would replace the
+	// theme chosen with :theme in every config copied from this one.
+	b.WriteString("\n-- The theme, with each field's default. Pick one with :theme. Assigning gopdf.theme\n")
+	b.WriteString("-- whole replaces the theme picked, so set the fields you want to change one at a\n")
+	b.WriteString("-- time, as gopdf.theme.accent = \"#335533\" does, and they change whichever is picked.\n\n")
+	var theme strings.Builder
+	renderExampleTheme(&theme)
+	for _, line := range strings.SplitAfter(theme.String(), "\n") {
+		if line != "" {
+			b.WriteString("-- " + line)
+		}
+	}
 	b.WriteString("\n-- Default key bindings.\n\n")
 	for _, action := range actions.All() {
 		for _, key := range action.Keys {
