@@ -290,6 +290,7 @@ func TestExampleConfigThemeIsTheDefault(t *testing.T) {
 	}
 	var theme []string
 	for _, line := range strings.Split(string(data), "\n") {
+		line = strings.TrimSuffix(line, "\r") // as Windows checks it out
 		if strings.HasPrefix(line, "-- gopdf.theme = {") || len(theme) > 0 {
 			theme = append(theme, strings.TrimPrefix(line, "-- "))
 			if line == "-- }" {
