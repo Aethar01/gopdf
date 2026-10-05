@@ -34,7 +34,7 @@ func Default() Config {
 		ScrollStep:          64,
 		ScrollOff:           1,
 		StatusBarLeft:       "{modified}{message}",
-		StatusBarRight:      "{page}/{total} {mode} fit={fit} rot={rot} {zoom}",
+		StatusBarRight:      "{document}  {label}/{total}  {zoom}",
 		SequenceTimeoutMS:   700,
 		AnimationFrameMS:    0,
 		NormalMessage:       "",

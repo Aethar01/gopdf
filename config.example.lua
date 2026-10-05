@@ -54,7 +54,7 @@ gopdf.options.smooth_zoom = { mouse = true, trackpad = true, keyboard = true } -
 gopdf.options.smooth_zoom_dampening = 0.8 -- Catch-up factor for smooth zooming per animation frame; higher values are more responsive and less damped; clamped to 0.01 through 1.
 gopdf.options.spread_gap = 0 -- Horizontal spread gap; aliases page_gap_horizontal.
 gopdf.options.status_bar_left = "{modified}{message}" -- Left status bar template.
-gopdf.options.status_bar_right = "{page}/{total} {mode} fit={fit} rot={rot} {zoom}" -- Right status bar template.
+gopdf.options.status_bar_right = "{document}  {label}/{total}  {zoom}" -- Right status bar template.
 gopdf.options.status_bar_visible = true -- Show the status bar.
 gopdf.options.trim_margins = false -- Lay pages out by their content, trimming blank margins.
 gopdf.options.trim_padding = 8 -- Margin in points kept around a page's content when trimming margins.
