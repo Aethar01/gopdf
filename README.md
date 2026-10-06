@@ -130,6 +130,20 @@ The first existing configuration file for the current platform is loaded:
 | macOS | `~/.config/gopdf/config.lua` |
 | Windows | `%APPDATA%\gopdf\config.lua` |
 
+Plugins and theme files are looked for in every one of these directories, with `NAME` being `plugins` or `themes`, so those in different directories are all found; where two share a name, the first wins. Theme files beside `config.lua`, in `themes/`, come before all of them.
+
+| Platform | Directory |
+|---|---|
+| Linux | `$XDG_DATA_HOME/gopdf/NAME` or `~/.local/share/gopdf/NAME` |
+| Linux | `$XDG_CONFIG_HOME/gopdf/NAME` |
+| Linux | `~/.config/gopdf/NAME` |
+| Linux | Each `$XDG_CONFIG_DIRS/gopdf/NAME` |
+| Linux | `/usr/lib/gopdf/NAME` |
+| macOS | `~/Library/Application Support/gopdf/NAME` |
+| macOS | `~/.config/gopdf/NAME` |
+| Windows | `%LOCALAPPDATA%\gopdf\NAME` |
+| Windows | `%APPDATA%\gopdf\NAME` |
+
 ### Themes
 
 Colours, the UI font and the shape of panels come from one table, `gopdf.theme`. Fields left out keep the values of the base theme, so a theme can be as small as you like:
@@ -145,7 +159,7 @@ gopdf.theme = {
 }
 ```
 
-The quickest way to change the theme is `:theme`, which lists the built-in themes and those in `themes/` beside `config.lua`, showing each as you move to it; Enter keeps the one selected and gopdf remembers it. A theme file returns its table:
+The quickest way to change the theme is `:theme`, which lists the built-in themes and the theme files, those in `themes/` beside `config.lua` and in the theme directories above, showing each as you move to it; Enter keeps the one selected and gopdf remembers it. A theme file returns its table:
 
 ```lua
 -- themes/forest.lua, next to config.lua

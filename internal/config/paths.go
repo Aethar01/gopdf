@@ -7,7 +7,13 @@ func DataDir() string {
 }
 
 func PluginPaths() []string {
-	return unique(platformPluginPaths())
+	return unique(platformSearchPaths("plugins"))
+}
+
+// ThemePaths are the directories :theme looks in after the one beside
+// config.lua, the same as PluginPaths with themes in place of plugins.
+func ThemePaths() []string {
+	return unique(platformSearchPaths("themes"))
 }
 
 func AbsoluteDocumentPath(path string) string {

@@ -112,7 +112,11 @@ func setTestDataDir(t *testing.T) {
 		t.Setenv("HOME", dir)
 	default:
 		t.Setenv("XDG_DATA_HOME", dir)
+		t.Setenv("XDG_CONFIG_HOME", "")
+		t.Setenv("XDG_CONFIG_DIRS", "")
+		t.Setenv("HOME", dir)
 	}
+	isolateSystemDir(t)
 	t.Cleanup(CloseSessionDatabase)
 }
 

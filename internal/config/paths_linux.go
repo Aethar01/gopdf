@@ -18,23 +18,31 @@ func platformDataDir() string {
 	return ""
 }
 
-func platformPluginPaths() []string {
-	paths := make([]string, 0, 4)
+// systemDir holds plugins and themes installed for every user.
+var systemDir = filepath.Join(string(filepath.Separator), "usr", "lib", "gopdf")
+
+// platformSearchPaths are the directories searched for kind, "plugins" or
+// "themes".
+func platformSearchPaths(kind string) []string {
+	paths := make([]string, 0, 5)
 	if xdgData := os.Getenv("XDG_DATA_HOME"); xdgData != "" {
-		paths = append(paths, filepath.Join(xdgData, "gopdf", "plugins"))
+		paths = append(paths, filepath.Join(xdgData, "gopdf", kind))
 	} else if home, err := os.UserHomeDir(); err == nil {
-		paths = append(paths, filepath.Join(home, ".local", "share", "gopdf", "plugins"))
+		paths = append(paths, filepath.Join(home, ".local", "share", "gopdf", kind))
 	}
 	if xdgConfig := os.Getenv("XDG_CONFIG_HOME"); xdgConfig != "" {
-		paths = append(paths, filepath.Join(xdgConfig, "gopdf", "plugins"))
+		paths = append(paths, filepath.Join(xdgConfig, "gopdf", kind))
 	}
 	if home, err := os.UserHomeDir(); err == nil {
-		paths = append(paths, filepath.Join(home, ".config", "gopdf", "plugins"))
+		paths = append(paths, filepath.Join(home, ".config", "gopdf", kind))
 	}
 	for _, dir := range strings.Split(os.Getenv("XDG_CONFIG_DIRS"), ":") {
 		if dir != "" {
-			paths = append(paths, filepath.Join(dir, "gopdf", "plugins"))
+			paths = append(paths, filepath.Join(dir, "gopdf", kind))
 		}
+	}
+	if systemDir != "" {
+		paths = append(paths, filepath.Join(systemDir, kind))
 	}
 	return paths
 }

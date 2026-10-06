@@ -14,13 +14,15 @@ func platformDataDir() string {
 	return ""
 }
 
-func platformPluginPaths() []string {
+// platformSearchPaths are the directories searched for kind, "plugins" or
+// "themes".
+func platformSearchPaths(kind string) []string {
 	paths := make([]string, 0, 2)
 	if dir := os.Getenv("LOCALAPPDATA"); dir != "" {
-		paths = append(paths, filepath.Join(dir, "gopdf", "plugins"))
+		paths = append(paths, filepath.Join(dir, "gopdf", kind))
 	}
 	if dir := os.Getenv("APPDATA"); dir != "" {
-		paths = append(paths, filepath.Join(dir, "gopdf", "plugins"))
+		paths = append(paths, filepath.Join(dir, "gopdf", kind))
 	}
 	return paths
 }
