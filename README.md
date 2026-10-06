@@ -134,11 +134,11 @@ Plugins and theme files are looked for in every one of these directories, with `
 
 | Platform | Directory |
 |---|---|
+| Linux | `/usr/lib/gopdf/NAME` |
 | Linux | `$XDG_DATA_HOME/gopdf/NAME` or `~/.local/share/gopdf/NAME` |
 | Linux | `$XDG_CONFIG_HOME/gopdf/NAME` |
 | Linux | `~/.config/gopdf/NAME` |
 | Linux | Each `$XDG_CONFIG_DIRS/gopdf/NAME` |
-| Linux | `/usr/lib/gopdf/NAME` |
 | macOS | `~/Library/Application Support/gopdf/NAME` |
 | macOS | `~/.config/gopdf/NAME` |
 | Windows | `%LOCALAPPDATA%\gopdf\NAME` |

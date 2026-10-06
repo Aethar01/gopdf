@@ -25,6 +25,9 @@ var systemDir = filepath.Join(string(filepath.Separator), "usr", "lib", "gopdf")
 // "themes".
 func platformSearchPaths(kind string) []string {
 	paths := make([]string, 0, 5)
+	if systemDir != "" {
+		paths = append(paths, filepath.Join(systemDir, kind))
+	}
 	if xdgData := os.Getenv("XDG_DATA_HOME"); xdgData != "" {
 		paths = append(paths, filepath.Join(xdgData, "gopdf", kind))
 	} else if home, err := os.UserHomeDir(); err == nil {
@@ -40,9 +43,6 @@ func platformSearchPaths(kind string) []string {
 		if dir != "" {
 			paths = append(paths, filepath.Join(dir, "gopdf", kind))
 		}
-	}
-	if systemDir != "" {
-		paths = append(paths, filepath.Join(systemDir, kind))
 	}
 	return paths
 }

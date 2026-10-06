@@ -26,12 +26,12 @@ func TestLinuxSearchPaths(t *testing.T) {
 	t.Setenv("XDG_CONFIG_DIRS", "/etc/xdg:/opt/xdg")
 	for name, got := range map[string][]string{"plugins": PluginPaths(), "themes": ThemePaths()} {
 		want := []string{
+			"/usr/lib/gopdf/" + name,
 			"/data/gopdf/" + name,
 			"/config/gopdf/" + name,
 			"/home/reader/.config/gopdf/" + name,
 			"/etc/xdg/gopdf/" + name,
 			"/opt/xdg/gopdf/" + name,
-			"/usr/lib/gopdf/" + name,
 		}
 		if !slices.Equal(got, want) {
 			t.Errorf("%s paths = %v\nwant %v", name, got, want)
@@ -42,9 +42,9 @@ func TestLinuxSearchPaths(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", "")
 	t.Setenv("XDG_CONFIG_DIRS", "")
 	want := []string{
+		"/usr/lib/gopdf/themes",
 		"/home/reader/.local/share/gopdf/themes",
 		"/home/reader/.config/gopdf/themes",
-		"/usr/lib/gopdf/themes",
 	}
 	if got := ThemePaths(); !slices.Equal(got, want) {
 		t.Errorf("theme paths without XDG variables = %v\nwant %v", got, want)
