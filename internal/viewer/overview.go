@@ -298,6 +298,14 @@ func (a *App) drawOverviewSelection(renderer *sdl.Renderer) {
 			maxX, maxY = math.Max(maxX, x+row.pageW[i]), math.Max(maxY, y+row.pageH[i])
 		}
 	}
+	// The outline glides to the selection as a menu's selected row does.
+	// It moves among the pages, so it stays with them as the grid scrolls.
+	tr := a.config.Theme.Motion.Selection
+	glide := func(kind string, v, scroll float64) float64 {
+		return a.animate(tweenKey{kind: kind}, v+scroll, tr) - scroll
+	}
+	minX, maxX = glide("overview selection x0", minX, a.scrollX), glide("overview selection x1", maxX, a.scrollX)
+	minY, maxY = glide("overview selection y0", minY, a.scrollY), glide("overview selection y1", maxY, a.scrollY)
 	// The padding is between the page and the inside of the border.
 	st := a.style(config.ElementOverviewSelection)
 	top, right, bottom, left := a.insets(st.Padding.V)
