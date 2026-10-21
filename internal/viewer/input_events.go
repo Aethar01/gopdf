@@ -32,26 +32,6 @@ func (a *App) handleSDLKeyDown(e *sdl.KeyboardEvent) {
 			return
 		}
 		switch e.Key {
-		case sdl.KeycodeLeft:
-			if e.Mod&sdl.KeymodCtrl != 0 {
-				a.editInput(func(input *textInput) { input.MoveWordLeft() })
-			} else {
-				a.editInput(func(input *textInput) { input.Move(-1) })
-			}
-			return
-		case sdl.KeycodeRight:
-			if e.Mod&sdl.KeymodCtrl != 0 {
-				a.editInput(func(input *textInput) { input.MoveWordRight() })
-			} else {
-				a.editInput(func(input *textInput) { input.Move(1) })
-			}
-			return
-		case sdl.KeycodeBackspace:
-			a.editInput(func(input *textInput) { input.Backspace() })
-			return
-		case sdl.KeycodeDelete:
-			a.editInput(func(input *textInput) { input.Delete() })
-			return
 		case sdl.KeycodeUp, sdl.KeycodeDown:
 			older := 1
 			if e.Key == sdl.KeycodeDown {
@@ -90,23 +70,6 @@ func (a *App) handleSDLKeyDown(e *sdl.KeyboardEvent) {
 		}
 		return
 	}
-}
-
-func (a *App) handleInputEditKey(e *sdl.KeyboardEvent) bool {
-	ctrl := e.Mod&sdl.KeymodCtrl != 0
-	if ctrl && e.Key == sdl.KeycodeV {
-		a.editInput(func(input *textInput) { input.InsertText(a.GetClipboard()) })
-		return true
-	}
-	if ctrl && e.Key == sdl.KeycodeW {
-		a.editInput(func(input *textInput) { input.DeleteWordLeft() })
-		return true
-	}
-	if ctrl && e.Key == sdl.KeycodeBackspace {
-		a.editInput(func(input *textInput) { input.DeleteWordLeft() })
-		return true
-	}
-	return false
 }
 
 // ignoreKeyText drops the text a key types from the next text input event,

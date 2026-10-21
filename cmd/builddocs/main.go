@@ -178,6 +178,9 @@ func renderBindingNames(b *strings.Builder) {
 	b.WriteString("Ctrl, Alt and Cmd combine with any key: letters, digits, symbols and the names above, as in `<C-a>`, `<C-=>`, `<A-Space>` or `<D-Up>`. With them, a key is named by its unshifted character and Shift is written out: `<C-S-r>` is Ctrl+Shift+r, `<C-S-1>` is Ctrl+Shift+1, `<A-j>` is Alt+j, whatever character Option+j types on macOS, and `<C-R>` is Ctrl+r. Write `>` as `<gt>` after a modifier, as in `<C-gt>`. Without Ctrl, Alt or Cmd, Shift applies to named keys, as in `<S-Tab>` or `<S-F5>`, and `<S-j>` means `J`; for other printable keys, write the shifted character. While a prompt is open, a character pressed with Alt alone is typed rather than running its binding, since Option on macOS and AltGr elsewhere type characters of their own.\n\n")
 	b.WriteString("Modifiers may be written in any order, so `<C-S-Tab>`, `<s-c-tab>` and `<S-C-TAB>` are the same key. Bindings are stored and shown in the first form, with modifiers in C, A, D, S order.\n\n")
 
+	b.WriteString("### Editing a prompt\n\n")
+	b.WriteString("While a prompt is open, these keys edit its text before any binding of theirs runs. On every system, Left and Right move a character and with Ctrl a word, Home and End go to the ends, Shift with any of them selects, Backspace and Delete delete a character and with Ctrl a word, `<C-w>` deletes the word before the cursor, and `<C-v>` pastes. Up and Down step through the prompt's history.\n\n")
+	b.WriteString("On macOS, prompts also edit as Mac text fields do: Option with Left, Right, Backspace or Delete works by word, Cmd with Left or Right goes to the ends and Cmd-Backspace deletes to the start, and `<C-a>`, `<C-e>`, `<C-b>`, `<C-f>`, `<C-h>`, `<C-d>` and `<C-k>` work as in Emacs.\n\n")
 	b.WriteString("### Mouse events\n\n")
 	b.WriteString("| Event | Fires on |\n|---|---|\n")
 	events := keys.MouseEvents()

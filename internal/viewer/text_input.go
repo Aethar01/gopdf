@@ -100,6 +100,54 @@ func (t *textInput) DeleteWordLeft() {
 	t.selectionActive = false
 }
 
+// DeleteWordRight deletes to the end of the word after the cursor.
+func (t *textInput) DeleteWordRight() {
+	if t.DeleteSelection() {
+		return
+	}
+	runes := []rune(t.Value)
+	start := clampInt(t.Cursor, 0, len(runes))
+	t.deleteRange(start, wordRightPosition(runes, start))
+}
+
+// DeleteToStart deletes from the start of the input to the cursor.
+func (t *textInput) DeleteToStart() {
+	if t.DeleteSelection() {
+		return
+	}
+	t.deleteRange(0, t.Cursor)
+}
+
+// DeleteToEnd deletes from the cursor to the end of the input.
+func (t *textInput) DeleteToEnd() {
+	if t.DeleteSelection() {
+		return
+	}
+	t.deleteRange(t.Cursor, utf8.RuneCountInString(t.Value))
+}
+
+func (t *textInput) deleteRange(start, end int) {
+	runes := []rune(t.Value)
+	start = clampInt(start, 0, len(runes))
+	end = clampInt(end, start, len(runes))
+	t.Value = string(runes[:start]) + string(runes[end:])
+	t.Cursor = start
+	t.Anchor = start
+	t.selectionActive = false
+}
+
+// MoveToStart moves the cursor to the start of the input, selecting the
+// text it passes when extend is set.
+func (t *textInput) MoveToStart(extend bool) {
+	t.SetCursor(0, extend)
+}
+
+// MoveToEnd moves the cursor to the end of the input, selecting the text
+// it passes when extend is set.
+func (t *textInput) MoveToEnd(extend bool) {
+	t.SetCursor(utf8.RuneCountInString(t.Value), extend)
+}
+
 func (t *textInput) Move(delta int) {
 	t.MoveSelecting(delta, false)
 }

@@ -15,7 +15,7 @@ func TestShiftArrowSelectionUsesKeyboardEventModifiers(t *testing.T) {
 	app.input.SetCursor(3, false)
 
 	left := sdl.KeyboardEvent{Type: sdl.EventKeyDown, Key: sdl.KeycodeLeft, Mod: sdl.KeymodShift}
-	if !app.handleTextInputSelectionKey(&left) {
+	if !app.handleInputEditKey(&left) {
 		t.Fatal("expected Shift+Left to be handled as text selection")
 	}
 	if got, ok := app.input.SelectedText(); !ok || got != "l" {
@@ -23,7 +23,7 @@ func TestShiftArrowSelectionUsesKeyboardEventModifiers(t *testing.T) {
 	}
 
 	right := sdl.KeyboardEvent{Type: sdl.EventKeyDown, Key: sdl.KeycodeRight, Mod: sdl.KeymodShift}
-	if !app.handleTextInputSelectionKey(&right) {
+	if !app.handleInputEditKey(&right) {
 		t.Fatal("expected Shift+Right to be handled as text selection")
 	}
 	if app.input.HasSelection() {
@@ -36,7 +36,7 @@ func TestCtrlShiftArrowExtendsSelectionByWord(t *testing.T) {
 	app.input.Set("one two three")
 
 	e := sdl.KeyboardEvent{Type: sdl.EventKeyDown, Key: sdl.KeycodeLeft, Mod: sdl.KeymodCtrl | sdl.KeymodShift}
-	if !app.handleTextInputSelectionKey(&e) {
+	if !app.handleInputEditKey(&e) {
 		t.Fatal("expected Ctrl+Shift+Left to be handled")
 	}
 	if got, ok := app.input.SelectedText(); !ok || got != "three" {
