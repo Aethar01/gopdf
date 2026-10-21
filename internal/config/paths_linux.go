@@ -76,3 +76,19 @@ func platformAutogenPath() string {
 	}
 	return ""
 }
+
+// platformAppDirParents are the directories that hold an onon directory
+// of the user's: data and config. The system ones belong to packages.
+func platformAppDirParents() []string {
+	parents := make([]string, 0, 3)
+	if dir := platformDataDir(); dir != "" {
+		parents = append(parents, filepath.Dir(dir))
+	}
+	if xdg := os.Getenv("XDG_CONFIG_HOME"); xdg != "" {
+		parents = append(parents, xdg)
+	}
+	if home, err := os.UserHomeDir(); err == nil {
+		parents = append(parents, filepath.Join(home, ".config"))
+	}
+	return parents
+}

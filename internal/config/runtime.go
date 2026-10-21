@@ -66,6 +66,10 @@ func OpenWithOptions(explicitPath, docPath string, options OpenOptions) (*Runtim
 	if err := rt.Reload(); err != nil {
 		return nil, err
 	}
+	for _, note := range migrationNotes {
+		rt.warnings = append(rt.warnings, note) // logged when made
+	}
+	migrationNotes = nil
 	return rt, nil
 }
 

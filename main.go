@@ -49,6 +49,7 @@ func run() error {
 	if noConfig && cfgPath != "" {
 		return fmt.Errorf("--no-config and --config are contradictory; pass only one")
 	}
+	config.MigrateLegacyDirs() // before anything opens the session database
 
 	target, err := instance.ParseTarget(gotoSpec)
 	if err != nil {

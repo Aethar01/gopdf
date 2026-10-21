@@ -49,3 +49,16 @@ func appDataDir() string {
 	}
 	return os.Getenv("USERPROFILE")
 }
+
+// platformAppDirParents are the directories that hold an onon directory
+// of the user's.
+func platformAppDirParents() []string {
+	parents := make([]string, 0, 2)
+	if dir := appDataDir(); dir != "" {
+		parents = append(parents, dir)
+	}
+	if dir := os.Getenv("LOCALAPPDATA"); dir != "" {
+		parents = append(parents, dir)
+	}
+	return parents
+}

@@ -45,3 +45,12 @@ func platformAutogenPath() string {
 	}
 	return ""
 }
+
+// platformAppDirParents are the directories that hold an onon directory
+// of the user's: config and data, and the ~/.config some people prefer.
+func platformAppDirParents() []string {
+	if home, err := os.UserHomeDir(); err == nil {
+		return []string{filepath.Join(home, "Library", "Application Support"), filepath.Join(home, ".config")}
+	}
+	return nil
+}
