@@ -63,7 +63,6 @@ func (a *App) configureNativeWindow(window *sdl.Window) {
 	if hwnd == 0 {
 		return
 	}
-	titleBarApp = a
 	C.gopdfSubclassTitleBar(win32WindowPointer(window))
 	// Extending the frame into the window brings back the shadow a window
 	// without a frame loses. Windows 10 has no rounded corners and fails
@@ -111,17 +110,12 @@ func win32WindowPointer(window *sdl.Window) unsafe.Pointer {
 	return sdl.GetPointerProperty(properties, sdl.PropWindowWin32HwndPointer, nil)
 }
 
-// titleBarApp is the app whose title bar the window's subclass asks
-// about. It is called on the main thread, from the system's handling of
-// the window's messages while the event loop waits on them.
-var titleBarApp *App
-
 // gopdfTitleBarMaximizeAt reports whether the maximize button is shown at
 // x, y, in the window's pixels.
 //
 //export gopdfTitleBarMaximizeAt
 func gopdfTitleBarMaximizeAt(x, y C.int) C.int {
-	if a := titleBarApp; a != nil && a.titleBarButtonAt(float64(x), float64(y)) == titleButtonMaximize {
+	if a := nativeApp; a != nil && a.titleBarButtonAt(float64(x), float64(y)) == titleButtonMaximize {
 		return 1
 	}
 	return 0
@@ -132,7 +126,7 @@ func gopdfTitleBarMaximizeAt(x, y C.int) C.int {
 //
 //export gopdfTitleBarMaximizePress
 func gopdfTitleBarMaximizePress(down C.int) {
-	a := titleBarApp
+	a := nativeApp
 	if a == nil || !a.titleBarActive() {
 		return
 	}

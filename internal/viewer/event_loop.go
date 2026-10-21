@@ -36,6 +36,7 @@ func (a *App) Run() error {
 		sdl.Quit()
 		return fmt.Errorf("SDL window creation failed: %s", sdl.GetError())
 	}
+	nativeApp = a
 	a.configureNativeWindow(window)
 	// Frames are presented in step with the display, so animations move
 	// once per refresh rather than when a timer happens to fire.
@@ -101,7 +102,7 @@ func (a *App) Run() error {
 		if a.pollInstanceCommands() {
 			a.pendingRedraw = true
 		}
-		if a.pollMenuBar() {
+		if a.pollSystemActions() {
 			a.pendingRedraw = true
 		}
 		a.pollRenderUpdates()

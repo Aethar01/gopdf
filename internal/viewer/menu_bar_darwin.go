@@ -119,7 +119,7 @@ var cocoaNamedKeys = map[string]rune{
 //export gopdfMenuBarChose
 func gopdfMenuBarChose(tag C.int) {
 	if i := int(tag) - 1; i >= 0 && i < len(menuBarActions) {
-		chooseMenuBarAction(menuBarActions[i])
+		chooseSystemAction(menuBarActions[i])
 	}
 }
 
@@ -129,10 +129,10 @@ func gopdfMenuBarChose(tag C.int) {
 //export gopdfMenuBarItemState
 func gopdfMenuBarItemState(tag C.int) C.int {
 	i := int(tag) - 1
-	if i < 0 || i >= len(menuBarActions) || menuBarApp == nil {
+	if i < 0 || i >= len(menuBarActions) || nativeApp == nil {
 		return 1
 	}
-	enabled, checked := menuBarApp.menuItemState(menuBarActions[i])
+	enabled, checked := nativeApp.menuItemState(menuBarActions[i])
 	state := C.int(0)
 	if enabled {
 		state |= 1

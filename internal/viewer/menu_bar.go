@@ -4,30 +4,11 @@ import "gopdf/internal/menubar"
 
 // On systems with a menu bar, the viewer shows the one menubar describes,
 // each item with a key bound to its action. setNativeMenuBar draws it again
-// whenever the bindings change, and the items chosen reach the event loop
-// through menuBarChoices, which wakes it. When a menu opens, the system's
-// menu code asks menuItemState how to show each item.
-
-var (
-	menuBarChoices = make(chan string, 16)
-	// menuBarApp is the app the menu bar is shown for. The system's menu
-	// code reads it only on the main thread, while the event loop waits in
-	// the system's event handling.
-	menuBarApp *App
-)
-
-// chooseMenuBarAction queues an action chosen from the menu bar. The
-// system's menu code calls it, on the main thread.
-func chooseMenuBarAction(action string) {
-	select {
-	case menuBarChoices <- action:
-		menuBarApp.wakeLoop()
-	default: // a burst too quick to keep up with
-	}
-}
+// whenever the bindings change, and the items chosen go through
+// chooseSystemAction. When a menu opens, the system's menu code asks
+// menuItemState how to show each item.
 
 func (a *App) installMenuBar() {
-	menuBarApp = a
 	a.menuBarShown = true
 	a.updateMenuBar()
 }
@@ -35,20 +16,6 @@ func (a *App) installMenuBar() {
 func (a *App) updateMenuBar() {
 	if a.menuBarShown {
 		setNativeMenuBar(menubar.Menus(), a.sequenceLookup)
-	}
-}
-
-// pollMenuBar runs the actions chosen from the menu bar.
-func (a *App) pollMenuBar() bool {
-	ran := false
-	for {
-		select {
-		case action := <-menuBarChoices:
-			a.runAction(action)
-			ran = true
-		default:
-			return ran
-		}
 	}
 }
 
