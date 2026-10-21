@@ -20,6 +20,20 @@ func TestClipboardDefaultBindings(t *testing.T) {
 	}
 }
 
+func TestDesktopKeysOnWindowsAndLinux(t *testing.T) {
+	for _, goos := range []string{"windows", "linux"} {
+		bindings := DefaultBindingsFor(goos)
+		for key, want := range map[string]string{"<C-z>": "undo", "<C-y>": "redo", "<F11>": "toggle_fullscreen", "<C-o>": "jump_backward"} {
+			if got := bindings[key]; got != want {
+				t.Errorf("%s binds %s to %q, want %q", goos, key, got, want)
+			}
+		}
+	}
+	if _, ok := DefaultBindingsFor("darwin")["<C-z>"]; ok {
+		t.Error("macOS binds Ctrl-Z, which is Cmd-Z there")
+	}
+}
+
 func TestMacOSKeysAddToTheDefaults(t *testing.T) {
 	bindings := DefaultBindingsFor("darwin")
 	for key, want := range map[string]string{"<D-c>": "copy", "<C-c>": "copy", "<D-z>": "undo", "u": "undo"} {

@@ -211,6 +211,54 @@ if gopdf.platform.os == "macos" then
   gopdf.bind("<D-w>", gopdf.quit)
 end
 
+-- Also bound on Windows.
+
+if gopdf.platform.os == "windows" then
+  gopdf.bind("<C-Home>", gopdf.first_page)
+  gopdf.bind("<C-End>", gopdf.last_page)
+  gopdf.bind("<C-f>", gopdf.search_prompt)
+  gopdf.bind("<F3>", gopdf.search_next)
+  gopdf.bind("<S-F3>", gopdf.search_prev)
+  gopdf.bind("<F11>", gopdf.toggle_fullscreen)
+  gopdf.bind("<C-=>", gopdf.zoom_in)
+  gopdf.bind("<C-S-=>", gopdf.zoom_in)
+  gopdf.bind("<C-kPlus>", gopdf.zoom_in)
+  gopdf.bind("<C-->", gopdf.zoom_out)
+  gopdf.bind("<C-kMinus>", gopdf.zoom_out)
+  gopdf.bind("<C-0>", gopdf.reset_zoom)
+  gopdf.bind("<C-z>", gopdf.undo)
+  gopdf.bind("<C-y>", gopdf.redo)
+  gopdf.bind("<C-S-z>", gopdf.redo)
+  gopdf.bind("<A-Right>", gopdf.jump_forward)
+  gopdf.bind("<A-Left>", gopdf.jump_backward)
+  gopdf.bind("<C-q>", gopdf.quit)
+  gopdf.bind("<C-w>", gopdf.quit)
+end
+
+-- Also bound on Linux.
+
+if gopdf.platform.os == "linux" then
+  gopdf.bind("<C-Home>", gopdf.first_page)
+  gopdf.bind("<C-End>", gopdf.last_page)
+  gopdf.bind("<C-f>", gopdf.search_prompt)
+  gopdf.bind("<F3>", gopdf.search_next)
+  gopdf.bind("<S-F3>", gopdf.search_prev)
+  gopdf.bind("<F11>", gopdf.toggle_fullscreen)
+  gopdf.bind("<C-=>", gopdf.zoom_in)
+  gopdf.bind("<C-S-=>", gopdf.zoom_in)
+  gopdf.bind("<C-kPlus>", gopdf.zoom_in)
+  gopdf.bind("<C-->", gopdf.zoom_out)
+  gopdf.bind("<C-kMinus>", gopdf.zoom_out)
+  gopdf.bind("<C-0>", gopdf.reset_zoom)
+  gopdf.bind("<C-z>", gopdf.undo)
+  gopdf.bind("<C-y>", gopdf.redo)
+  gopdf.bind("<C-S-z>", gopdf.redo)
+  gopdf.bind("<A-Right>", gopdf.jump_forward)
+  gopdf.bind("<A-Left>", gopdf.jump_backward)
+  gopdf.bind("<C-q>", gopdf.quit)
+  gopdf.bind("<C-w>", gopdf.quit)
+end
+
 -- Default mouse bindings.
 
 gopdf.bind_mouse("<C-wheel_down>", gopdf.zoom_out)

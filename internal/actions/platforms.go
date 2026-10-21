@@ -16,6 +16,8 @@ type Platform struct {
 // keys go in a table like macOSKeys and an entry here.
 var platforms = []Platform{
 	{GOOS: "darwin", Name: "macOS", Keys: macOSKeys},
+	{GOOS: "windows", Name: "Windows", Keys: desktopKeys},
+	{GOOS: "linux", Name: "Linux", Keys: desktopKeys},
 }
 
 // macOSKeys are the Cmd shortcuts macOS applications share.
@@ -41,6 +43,25 @@ var macOSKeys = map[string][]string{
 	"jump_backward":     {"<D-[>"},
 	"jump_forward":      {"<D-]>"},
 	"toggle_fullscreen": {"<C-D-f>"},
+}
+
+// desktopKeys are the Ctrl and function-key shortcuts Windows and Linux
+// desktop applications share. Ctrl-O stays Vim's jump back.
+var desktopKeys = map[string][]string{
+	"quit":              {"<C-q>", "<C-w>"},
+	"undo":              {"<C-z>"},
+	"redo":              {"<C-y>", "<C-S-z>"},
+	"search_prompt":     {"<C-f>"},
+	"search_next":       {"<F3>"},
+	"search_prev":       {"<S-F3>"},
+	"zoom_in":           {"<C-=>", "<C-S-=>", "<C-kPlus>"},
+	"zoom_out":          {"<C-->", "<C-kMinus>"},
+	"reset_zoom":        {"<C-0>"},
+	"first_page":        {"<C-Home>"},
+	"last_page":         {"<C-End>"},
+	"jump_backward":     {"<A-Left>"},
+	"jump_forward":      {"<A-Right>"},
+	"toggle_fullscreen": {"<F11>"},
 }
 
 // Platforms returns the systems with keys of their own.
