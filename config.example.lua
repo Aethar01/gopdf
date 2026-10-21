@@ -44,6 +44,7 @@ gopdf.options.recent_files_max = 20 -- Maximum recent files retained and display
 gopdf.options.render_mode = "continuous" -- Initial render mode: continuous or single.
 gopdf.options.render_oversample = 1 -- Render scale multiplier; values above 1 supersample.
 gopdf.options.render_threads = 0 -- Page rendering threads; 0 picks one per core up to 4, leaving a core free. Applies to newly opened documents.
+gopdf.options.renderer = "auto" -- Renderer SDL draws with, read when gopdf starts: "auto" for SDL's own choice, "gpu" for its GPU renderer (Vulkan, Metal or Direct3D 12), or one of SDL's drivers, such as "vulkan", "opengl", "metal", "direct3d11" or "software". One that cannot start falls back to "auto"; SDL_RENDER_DRIVER in the environment overrides it.
 gopdf.options.scroll_off = 1 -- Minimum number of rows kept visible above and below the selected item in UI menus, like Vim's scrolloff.
 gopdf.options.scroll_step = 64 -- Keyboard and mouse scroll distance in pixels.
 gopdf.options.sequence_timeout_ms = 700 -- Maximum delay between keys in a binding sequence.

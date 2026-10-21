@@ -6,6 +6,7 @@ type Config struct {
 	ConfigPath            string
 	StatusBarVisible      bool
 	RenderMode            string
+	Renderer              string
 	RenderOversample      float64
 	MinZoom               float64
 	MaxZoom               float64

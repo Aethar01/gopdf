@@ -6,6 +6,7 @@ func Default() Config {
 	cfg := Config{
 		StatusBarVisible:    true,
 		RenderMode:          "continuous",
+		Renderer:            "auto",
 		RenderOversample:    1,
 		MinZoom:             0.5,
 		MaxZoom:             8,

@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"math"
+	"os"
 	"time"
 
 	"github.com/jupiterrider/purego-sdl3/sdl"
@@ -33,11 +34,16 @@ func (a *App) Run() error {
 		return err
 	}
 	sdl.SetHint("SDL_RENDER_SCALE_QUALITY", "2")
-	var window *sdl.Window
-	var renderer *sdl.Renderer
-	if !sdl.CreateWindowAndRenderer("gopdf", 1400, 900, sdl.WindowResizable|sdl.WindowHighPixelDensity, &window, &renderer) {
+	window := sdl.CreateWindow("gopdf", 1400, 900, sdl.WindowResizable|sdl.WindowHighPixelDensity)
+	if window == nil {
 		sdl.Quit()
 		return fmt.Errorf("SDL window creation failed: %s", sdl.GetError())
+	}
+	renderer, rendererNote := createRenderer(window, a.config.Renderer)
+	if renderer == nil {
+		sdl.DestroyWindow(window)
+		sdl.Quit()
+		return fmt.Errorf("SDL renderer creation failed: %s", sdl.GetError())
 	}
 	nativeApp = a
 	a.configureNativeWindow(window)
@@ -46,7 +52,7 @@ func (a *App) Run() error {
 	if !sdl.SetRenderVSync(renderer, 1) {
 		a.logf("vsync unavailable: %s", sdl.GetError())
 	}
-	a.logf("created SDL window 1400x900")
+	a.logf("created SDL window 1400x900 renderer=%s", sdl.GetRendererName(renderer))
 	a.window = window
 	a.renderer = renderer
 	a.updateDisplayFrame()
@@ -72,6 +78,10 @@ func (a *App) Run() error {
 		return err
 	}
 	a.showConfigWarnings()
+	if rendererNote != "" {
+		a.logf("%s", rendererNote)
+		a.message = rendererNote
+	}
 	a.refreshReducedMotion()
 	a.followSystemColors()
 	a.recomputeLayout(a.viewportSize())
@@ -136,6 +146,24 @@ func (a *App) Run() error {
 	}
 	a.logf("viewer exiting")
 	return nil
+}
+
+// createRenderer makes the renderer the renderer option names, or SDL's own
+// choice for "auto", or when SDL_RENDER_DRIVER in the environment chooses
+// one, or when the one named cannot start, which the note then says.
+func createRenderer(window *sdl.Window, name string) (*sdl.Renderer, string) {
+	if name == "" || name == "auto" || os.Getenv("SDL_RENDER_DRIVER") != "" {
+		return sdl.CreateRenderer(window, ""), ""
+	}
+	if renderer := sdl.CreateRenderer(window, name); renderer != nil {
+		return renderer, ""
+	}
+	reason := sdl.GetError()
+	renderer := sdl.CreateRenderer(window, "")
+	if renderer == nil {
+		return nil, ""
+	}
+	return renderer, fmt.Sprintf("renderer %q unavailable (%s); using %s", name, reason, sdl.GetRendererName(renderer))
 }
 
 func (a *App) openInitialDocument() error {
