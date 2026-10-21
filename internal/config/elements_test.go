@@ -11,7 +11,7 @@ import (
 
 func TestElementStylesCascade(t *testing.T) {
 	rt := mustLoadThemeTestConfig(t, `
-gopdf.theme = {
+onon.theme = {
   radius = 4,
   elements = {
     row = { text = "#102030", fill = "#eeeeee" },
@@ -88,7 +88,7 @@ func TestStatusBarStyleIsAPreset(t *testing.T) {
 
 func TestElementPropertiesParse(t *testing.T) {
 	rt := mustLoadThemeTestConfig(t, `
-local e = gopdf.theme.elements
+local e = onon.theme.elements
 e.panel.fill = "accent/16"
 e.panel.border = { width = 2, color = "#11223344", sides = { "top", "left" } }
 e.panel.shadow = "0 3 8 shadow, 1 2 3 4 #000000"
@@ -139,17 +139,17 @@ func TestElementErrors(t *testing.T) {
 	tests := []struct {
 		name, lua, want string
 	}{
-		{"unknown colour", `gopdf.theme.elements.panel.fill = "acent"`, `unknown colour "acent"`},
-		{"bad opacity", `gopdf.theme.elements.panel.fill = "accent/150"`, `expected a percentage`},
-		{"negative radius", `gopdf.theme.elements.panel.radius = -1`, `must not be negative`},
-		{"negative padding", `gopdf.theme.elements.row.padding = { 2, -6.5 }`, `must not be negative`},
-		{"three radii", `gopdf.theme.elements.panel.radius = { 1, 2, 3 }`, `one radius or four`},
-		{"bad side", `gopdf.theme.elements.panel.border = { sides = "middle" }`, `unknown side "middle"`},
-		{"bad path", `gopdf.theme.elements.panel.shape = "M 0"`, `path ends where a coordinate was expected`},
-		{"bad shadow", `gopdf.theme.elements.panel.shadow = "3"`, `expected x y`},
-		{"shadow field", `gopdf.theme.elements.panel.shadow = { blurr = 3 }`, `unknown shadow field "blurr"`},
-		{"elements not a table", `gopdf.theme.elements = 3`, `expected a table of elements`},
-		{"read unknown element", `local _ = gopdf.theme.elements.nope`, `unknown element`},
+		{"unknown colour", `onon.theme.elements.panel.fill = "acent"`, `unknown colour "acent"`},
+		{"bad opacity", `onon.theme.elements.panel.fill = "accent/150"`, `expected a percentage`},
+		{"negative radius", `onon.theme.elements.panel.radius = -1`, `must not be negative`},
+		{"negative padding", `onon.theme.elements.row.padding = { 2, -6.5 }`, `must not be negative`},
+		{"three radii", `onon.theme.elements.panel.radius = { 1, 2, 3 }`, `one radius or four`},
+		{"bad side", `onon.theme.elements.panel.border = { sides = "middle" }`, `unknown side "middle"`},
+		{"bad path", `onon.theme.elements.panel.shape = "M 0"`, `path ends where a coordinate was expected`},
+		{"bad shadow", `onon.theme.elements.panel.shadow = "3"`, `expected x y`},
+		{"shadow field", `onon.theme.elements.panel.shadow = { blurr = 3 }`, `unknown shadow field "blurr"`},
+		{"elements not a table", `onon.theme.elements = 3`, `expected a table of elements`},
+		{"read unknown element", `local _ = onon.theme.elements.nope`, `unknown element`},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -162,7 +162,7 @@ func TestElementErrors(t *testing.T) {
 }
 
 func TestElementOptionsAtRuntime(t *testing.T) {
-	rt := mustLoadThemeTestConfig(t, `gopdf.theme.radius = 6`)
+	rt := mustLoadThemeTestConfig(t, `onon.theme.radius = 6`)
 	if got, err := rt.OptionValue("theme.elements.panel.radius"); err != nil || got != "6" {
 		t.Fatalf("panel radius = %q, %v; want the theme's radius in effect", got, err)
 	}
@@ -198,7 +198,7 @@ func TestElementOptionsAtRuntime(t *testing.T) {
 		}
 	}
 	// Assigning nil clears an override, so the theme's value shows again.
-	if _, err := rt.Eval(`gopdf.theme.elements.panel.radius = nil`); err != nil {
+	if _, err := rt.Eval(`onon.theme.elements.panel.radius = nil`); err != nil {
 		t.Fatal(err)
 	}
 	if got, _ := rt.OptionValue("theme.elements.panel.radius"); got != "6" {
@@ -208,7 +208,7 @@ func TestElementOptionsAtRuntime(t *testing.T) {
 
 func TestElementsTableRoundTrips(t *testing.T) {
 	rt := mustLoadThemeTestConfig(t, `
-gopdf.theme = {
+onon.theme = {
   base = "classic",
   elements = {
     panel = { radius = { 1, 2, 3, 4 }, border = { color = "accent/25" }, shadow = true },
@@ -216,9 +216,9 @@ gopdf.theme = {
     status = { floating = true, margin = { 1, 2 } },
   },
 }
-local copy = gopdf.theme
+local copy = onon.theme
 assert(copy.elements.hint.opacity == 0.5)
-gopdf.theme = gopdf.options.theme
+onon.theme = onon.options.theme
 `)
 	theme := rt.Config().Theme
 	cfg := Default()
@@ -277,12 +277,12 @@ func TestParsePath(t *testing.T) {
 
 func TestShapePathRunsTheFunction(t *testing.T) {
 	rt := mustLoadThemeTestConfig(t, `
-gopdf.theme.elements.hint.shape = function(path, w, h)
+onon.theme.elements.hint.shape = function(path, w, h)
   path:move_to(0, 0):line_to(w, 0):quad_to(w, h, 0, h):close()
   path:ellipse(w / 2, h / 2, 2)
 end
-gopdf.theme.elements.row.shape = function(path, w, h) path:line_to(1, 1) end
-gopdf.theme.elements.panel.shape = function(path, w, h) end
+onon.theme.elements.row.shape = function(path, w, h) path:line_to(1, 1) end
+onon.theme.elements.panel.shape = function(path, w, h) end
 `)
 	theme := rt.Config().Theme
 	ops, err := rt.ShapePath(theme.Elements[ElementHint].Shape.V.Func, 40, 20)
@@ -352,7 +352,7 @@ func (c *recordingCanvas) Measure(text string, bold bool) (float64, float64) { r
 
 func TestDrawFunctionDrawsOnTheCanvas(t *testing.T) {
 	rt := mustLoadThemeTestConfig(t, `
-gopdf.theme.elements.row.draw = function(canvas, box, state)
+onon.theme.elements.row.draw = function(canvas, box, state)
   assert(state.element == "row_selected", state.element)
   assert(box.w == 100 and box.h == 20 and not state.alt)
   canvas:default()
@@ -384,7 +384,7 @@ end
 	if err := rt.SetOption("theme.elements.row.draw", "x"); err == nil || !strings.Contains(err.Error(), "set it in Lua") {
 		t.Fatalf(":set of draw = %v", err)
 	}
-	if _, err := rt.Eval(`gopdf.theme.elements.row.draw = false`); err != nil {
+	if _, err := rt.Eval(`onon.theme.elements.row.draw = false`); err != nil {
 		t.Fatal(err)
 	}
 	if theme := rt.Config().Theme; theme.Style(ElementRow).Draw.V != nil {
@@ -394,8 +394,8 @@ end
 
 func TestDrawFunctionErrors(t *testing.T) {
 	rt := mustLoadThemeTestConfig(t, `
-gopdf.theme.elements.hint.draw = function(canvas) canvas:fill("M 0", "accent") end
-gopdf.theme.elements.panel.draw = function(canvas) canvas:fill("M0,0 L1,1", "acent") end
+onon.theme.elements.hint.draw = function(canvas) canvas:fill("M 0", "accent") end
+onon.theme.elements.panel.draw = function(canvas) canvas:fill("M0,0 L1,1", "acent") end
 `)
 	theme := rt.Config().Theme
 	for e, want := range map[Element]string{ElementHint: "path ends", ElementPanel: `unknown colour "acent"`} {
@@ -403,7 +403,7 @@ gopdf.theme.elements.panel.draw = function(canvas) canvas:fill("M0,0 L1,1", "ace
 			t.Errorf("%s: error = %v, want %q", e, err, want)
 		}
 	}
-	if _, err := loadThemeTestConfig(t, `gopdf.theme.elements.hint.draw = 3`); err == nil || !strings.Contains(err.Error(), "expected a function") {
+	if _, err := loadThemeTestConfig(t, `onon.theme.elements.hint.draw = 3`); err == nil || !strings.Contains(err.Error(), "expected a function") {
 		t.Fatalf("draw = 3: %v", err)
 	}
 }
@@ -422,7 +422,7 @@ func TestFormatPathParsesBack(t *testing.T) {
 func TestKeptCanvasCannotDraw(t *testing.T) {
 	rt := mustLoadThemeTestConfig(t, `
 kept = nil
-gopdf.theme.elements.row.draw = function(canvas) kept = canvas end
+onon.theme.elements.row.draw = function(canvas) kept = canvas end
 `)
 	theme := rt.Config().Theme
 	if err := rt.RunDraw(theme.Style(ElementRow).Draw.V, &recordingCanvas{}, DrawState{}); err != nil {
@@ -437,7 +437,7 @@ gopdf.theme.elements.row.draw = function(canvas) kept = canvas end
 func BenchmarkRunDraw(b *testing.B) {
 	path := filepath.Join(b.TempDir(), "config.lua")
 	source := `
-gopdf.theme.elements.row.draw = function(canvas, box, state)
+onon.theme.elements.row.draw = function(canvas, box, state)
   canvas:default()
   canvas:rect(0, 5, 3, box.h - 10, "accent", 1.5)
   canvas:stroke("M0,100% H100%", "accent/50", 1)

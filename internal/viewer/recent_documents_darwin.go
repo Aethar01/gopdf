@@ -5,7 +5,7 @@ package viewer
 /*
 #cgo LDFLAGS: -framework Cocoa
 #include <stdlib.h>
-void gopdfNoteRecentDocument(const char *path);
+void ononNoteRecentDocument(const char *path);
 */
 import "C"
 
@@ -16,5 +16,5 @@ import "unsafe"
 func noteSystemRecentDocument(path string) {
 	text := C.CString(path)
 	defer C.free(unsafe.Pointer(text))
-	C.gopdfNoteRecentDocument(text)
+	C.ononNoteRecentDocument(text)
 }

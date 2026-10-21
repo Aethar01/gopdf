@@ -7,8 +7,8 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"gopdf/internal/config"
-	"gopdf/internal/mupdf"
+	"onon/internal/config"
+	"onon/internal/mupdf"
 )
 
 type renderRequest struct {

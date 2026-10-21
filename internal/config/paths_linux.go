@@ -10,16 +10,16 @@ import (
 
 func platformDataDir() string {
 	if xdgData := os.Getenv("XDG_DATA_HOME"); xdgData != "" {
-		return filepath.Join(xdgData, "gopdf")
+		return filepath.Join(xdgData, "onon")
 	}
 	if home, err := os.UserHomeDir(); err == nil {
-		return filepath.Join(home, ".local", "share", "gopdf")
+		return filepath.Join(home, ".local", "share", "onon")
 	}
 	return ""
 }
 
 // systemDir holds plugins and themes installed for every user.
-var systemDir = filepath.Join(string(filepath.Separator), "usr", "lib", "gopdf")
+var systemDir = filepath.Join(string(filepath.Separator), "usr", "lib", "onon")
 
 // platformSearchPaths are the directories searched for kind, "plugins" or
 // "themes".
@@ -29,19 +29,19 @@ func platformSearchPaths(kind string) []string {
 		paths = append(paths, filepath.Join(systemDir, kind))
 	}
 	if xdgData := os.Getenv("XDG_DATA_HOME"); xdgData != "" {
-		paths = append(paths, filepath.Join(xdgData, "gopdf", kind))
+		paths = append(paths, filepath.Join(xdgData, "onon", kind))
 	} else if home, err := os.UserHomeDir(); err == nil {
-		paths = append(paths, filepath.Join(home, ".local", "share", "gopdf", kind))
+		paths = append(paths, filepath.Join(home, ".local", "share", "onon", kind))
 	}
 	if xdgConfig := os.Getenv("XDG_CONFIG_HOME"); xdgConfig != "" {
-		paths = append(paths, filepath.Join(xdgConfig, "gopdf", kind))
+		paths = append(paths, filepath.Join(xdgConfig, "onon", kind))
 	}
 	if home, err := os.UserHomeDir(); err == nil {
-		paths = append(paths, filepath.Join(home, ".config", "gopdf", kind))
+		paths = append(paths, filepath.Join(home, ".config", "onon", kind))
 	}
 	for _, dir := range strings.Split(os.Getenv("XDG_CONFIG_DIRS"), ":") {
 		if dir != "" {
-			paths = append(paths, filepath.Join(dir, "gopdf", kind))
+			paths = append(paths, filepath.Join(dir, "onon", kind))
 		}
 	}
 	return paths
@@ -50,29 +50,29 @@ func platformSearchPaths(kind string) []string {
 func platformConfigPaths() []string {
 	paths := make([]string, 0, 6)
 	if home, err := os.UserHomeDir(); err == nil {
-		paths = append(paths, filepath.Join(home, ".config", "gopdf", "config.lua"))
+		paths = append(paths, filepath.Join(home, ".config", "onon", "config.lua"))
 	}
 	if xdg := os.Getenv("XDG_CONFIG_HOME"); xdg != "" {
-		paths = append(paths, filepath.Join(xdg, "gopdf", "config.lua"))
+		paths = append(paths, filepath.Join(xdg, "onon", "config.lua"))
 	}
 	for _, dir := range strings.Split(os.Getenv("XDG_CONFIG_DIRS"), ":") {
 		if dir == "" {
 			continue
 		}
-		paths = append(paths, filepath.Join(dir, "gopdf", "config.lua"))
+		paths = append(paths, filepath.Join(dir, "onon", "config.lua"))
 	}
-	paths = append(paths, filepath.Join(string(filepath.Separator), "etc", "xdg", "gopdf", "config.lua"))
+	paths = append(paths, filepath.Join(string(filepath.Separator), "etc", "xdg", "onon", "config.lua"))
 	return paths
 }
 
-// platformAutogenPath is where gopdf used to keep keybindings changed in
+// platformAutogenPath is where onon used to keep keybindings changed in
 // the viewer; see importAutogen.
 func platformAutogenPath() string {
 	if xdg := os.Getenv("XDG_CONFIG_HOME"); xdg != "" {
-		return filepath.Join(xdg, "gopdf", "autogen.lua")
+		return filepath.Join(xdg, "onon", "autogen.lua")
 	}
 	if home, err := os.UserHomeDir(); err == nil {
-		return filepath.Join(home, ".config", "gopdf", "autogen.lua")
+		return filepath.Join(home, ".config", "onon", "autogen.lua")
 	}
 	return ""
 }

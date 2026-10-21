@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"gopdf/internal/mupdf"
-	"gopdf/internal/testpdf"
+	"onon/internal/mupdf"
+	"onon/internal/testpdf"
 )
 
 func TestSearchDocumentPageOptions(t *testing.T) {

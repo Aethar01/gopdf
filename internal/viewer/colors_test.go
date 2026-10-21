@@ -7,7 +7,7 @@ import (
 	"slices"
 	"testing"
 
-	"gopdf/internal/config"
+	"onon/internal/config"
 )
 
 func TestColorHelpersUseNormalAndAltPalettes(t *testing.T) {

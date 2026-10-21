@@ -7,17 +7,17 @@ import (
 	"path/filepath"
 	"testing"
 
-	"gopdf/internal/mupdf"
+	"onon/internal/mupdf"
 )
 
 func heavyPDFPath(b *testing.B) string {
 	b.Helper()
-	path := os.Getenv("GOPDF_PERF_PDF")
+	path := os.Getenv("ONON_PERF_PDF")
 	if path == "" {
 		path = filepath.Join("..", "..", "testdata", "perf", "heavy.pdf")
 	}
 	if _, err := os.Stat(path); err != nil {
-		b.Skipf("heavy PDF not found; set GOPDF_PERF_PDF or add %s", path)
+		b.Skipf("heavy PDF not found; set ONON_PERF_PDF or add %s", path)
 	}
 	return path
 }
@@ -133,7 +133,7 @@ func BenchmarkPerfHeavyPDFRenderPages(b *testing.B) {
 
 func BenchmarkPerfHeavyPDFSearchAllPages(b *testing.B) {
 	path := heavyPDFPath(b)
-	query := os.Getenv("GOPDF_PERF_QUERY")
+	query := os.Getenv("ONON_PERF_QUERY")
 	if query == "" {
 		query = "the"
 	}

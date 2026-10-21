@@ -4,10 +4,10 @@
 // with a tag run the viewer's action of that tag; the others are the
 // system's own, such as Hide and Minimize.
 
-extern void gopdfMenuBarChose(int tag);
-extern int gopdfMenuBarItemState(int tag);
+extern void ononMenuBarChose(int tag);
+extern int ononMenuBarItemState(int tag);
 
-static NSString *gopdfApplicationName(void) {
+static NSString *ononApplicationName(void) {
     NSDictionary *info = [[NSBundle mainBundle] infoDictionary];
     NSString *name = info[@"CFBundleDisplayName"];
     if (name.length == 0) {
@@ -19,8 +19,8 @@ static NSString *gopdfApplicationName(void) {
     return name;
 }
 
-// gopdfItemMatches reports whether a key press is an item's key equivalent.
-static BOOL gopdfItemMatches(NSMenuItem *item, NSEvent *event) {
+// ononItemMatches reports whether a key press is an item's key equivalent.
+static BOOL ononItemMatches(NSMenuItem *item, NSEvent *event) {
     NSString *key = item.keyEquivalent;
     if (key.length == 0) {
         return NO;
@@ -35,16 +35,16 @@ static BOOL gopdfItemMatches(NSMenuItem *item, NSEvent *event) {
            [event.charactersIgnoringModifiers.lowercaseString isEqualToString:key.lowercaseString];
 }
 
-@interface GoPDFMenuBarTarget : NSObject <NSMenuDelegate>
+@interface OnonMenuBarTarget : NSObject <NSMenuDelegate>
 @end
 
-@implementation GoPDFMenuBarTarget
+@implementation OnonMenuBarTarget
 
 // menuNeedsUpdate: shows each item as the viewer is now, as the menu opens.
 - (void)menuNeedsUpdate:(NSMenu *)menu {
     for (NSMenuItem *item in menu.itemArray) {
         if (item.target == self) {
-            int state = gopdfMenuBarItemState((int)item.tag);
+            int state = ononMenuBarItemState((int)item.tag);
             item.enabled = (state & 1) != 0;
             item.state = (state & 2) != 0 ? NSControlStateValueOn : NSControlStateValueOff;
         }
@@ -55,25 +55,25 @@ static BOOL gopdfItemMatches(NSMenuItem *item, NSEvent *event) {
 // it, so an item chosen by its own key equivalent has run already.
 - (void)choose:(NSMenuItem *)item {
     NSEvent *event = NSApp.currentEvent;
-    if (event.type == NSEventTypeKeyDown && gopdfItemMatches(item, event)) {
+    if (event.type == NSEventTypeKeyDown && ononItemMatches(item, event)) {
         return;
     }
-    gopdfMenuBarChose((int)item.tag);
+    ononMenuBarChose((int)item.tag);
 }
 
 @end
 
-static GoPDFMenuBarTarget *gopdfMenuBarTarget;
+static OnonMenuBarTarget *ononMenuBarTarget;
 
-// GoPDFRecentDocuments fills Open Recent with the documents macOS keeps
-// for gopdf each time it opens. NSDocumentController fills it only for
+// OnonRecentDocuments fills Open Recent with the documents macOS keeps
+// for onon each time it opens. NSDocumentController fills it only for
 // document-based applications. A document chosen goes to SDL's application
 // delegate, as one opened from Finder does, which hands it to the viewer
 // as a drop.
-@interface GoPDFRecentDocuments : NSObject <NSMenuDelegate>
+@interface OnonRecentDocuments : NSObject <NSMenuDelegate>
 @end
 
-@implementation GoPDFRecentDocuments
+@implementation OnonRecentDocuments
 
 - (void)menuNeedsUpdate:(NSMenu *)menu {
     [menu removeAllItems];
@@ -107,9 +107,9 @@ static GoPDFMenuBarTarget *gopdfMenuBarTarget;
 
 @end
 
-static GoPDFRecentDocuments *gopdfRecentDocuments;
+static OnonRecentDocuments *ononRecentDocuments;
 
-static NSMenuItem *gopdfSystemItem(NSString *role, NSString *title, NSMenu **servicesMenu) {
+static NSMenuItem *ononSystemItem(NSString *role, NSString *title, NSMenu **servicesMenu) {
     SEL action = NULL;
     id target = nil;
     NSString *key = @"";
@@ -148,14 +148,14 @@ static NSMenuItem *gopdfSystemItem(NSString *role, NSString *title, NSMenu **ser
         item.submenu = *servicesMenu;
     } else if ([role isEqualToString:@"recent_documents"]) {
         NSMenu *recent = [[[NSMenu alloc] initWithTitle:title] autorelease];
-        recent.delegate = gopdfRecentDocuments;
+        recent.delegate = ononRecentDocuments;
         recent.autoenablesItems = NO;
         item.submenu = recent;
     }
     return item;
 }
 
-static NSMenuItem *gopdfActionItem(NSDictionary *spec, NSString *title) {
+static NSMenuItem *ononActionItem(NSDictionary *spec, NSString *title) {
     NSString *key = spec[@"key"] ?: @"";
     NSMenuItem *item = [[[NSMenuItem alloc] initWithTitle:title action:@selector(choose:) keyEquivalent:key] autorelease];
     NSEventModifierFlags modifiers = 0;
@@ -172,21 +172,21 @@ static NSMenuItem *gopdfActionItem(NSDictionary *spec, NSString *title) {
         modifiers |= NSEventModifierFlagShift;
     }
     item.keyEquivalentModifierMask = modifiers;
-    item.target = gopdfMenuBarTarget;
+    item.target = ononMenuBarTarget;
     item.tag = [spec[@"tag"] integerValue];
     return item;
 }
 
-static void gopdfBuildMenuBar(NSData *data) {
+static void ononBuildMenuBar(NSData *data) {
     NSArray *menus = [NSJSONSerialization JSONObjectWithData:data options:0 error:nil];
     if (![menus isKindOfClass:[NSArray class]]) {
         return;
     }
-    if (gopdfMenuBarTarget == nil) {
-        gopdfMenuBarTarget = [[GoPDFMenuBarTarget alloc] init];
-        gopdfRecentDocuments = [[GoPDFRecentDocuments alloc] init];
+    if (ononMenuBarTarget == nil) {
+        ononMenuBarTarget = [[OnonMenuBarTarget alloc] init];
+        ononRecentDocuments = [[OnonRecentDocuments alloc] init];
     }
-    NSString *appName = gopdfApplicationName();
+    NSString *appName = ononApplicationName();
     NSMenu *mainMenu = [[[NSMenu alloc] init] autorelease];
     NSMenu *servicesMenu = nil;
     NSMenu *windowsMenu = nil;
@@ -195,14 +195,14 @@ static void gopdfBuildMenuBar(NSData *data) {
         NSString *title = [spec[@"title"] stringByReplacingOccurrencesOfString:@"{app}" withString:appName];
         NSMenu *menu = [[[NSMenu alloc] initWithTitle:title] autorelease];
         menu.autoenablesItems = NO;
-        menu.delegate = gopdfMenuBarTarget;
+        menu.delegate = ononMenuBarTarget;
         for (NSDictionary *itemSpec in spec[@"items"]) {
             NSString *itemTitle = [itemSpec[@"title"] ?: @"" stringByReplacingOccurrencesOfString:@"{app}" withString:appName];
             NSMenuItem *item;
             if ([itemSpec[@"tag"] integerValue] > 0) {
-                item = gopdfActionItem(itemSpec, itemTitle);
+                item = ononActionItem(itemSpec, itemTitle);
             } else if (itemSpec[@"role"] != nil) {
-                item = gopdfSystemItem(itemSpec[@"role"], itemTitle, &servicesMenu);
+                item = ononSystemItem(itemSpec[@"role"], itemTitle, &servicesMenu);
             } else {
                 item = [NSMenuItem separatorItem];
             }
@@ -225,17 +225,17 @@ static void gopdfBuildMenuBar(NSData *data) {
     NSApp.helpMenu = helpMenu;
 }
 
-void gopdfSetMenuBar(const char *menus) {
+void ononSetMenuBar(const char *menus) {
     NSData *data = [[NSData alloc] initWithBytes:menus length:strlen(menus)];
     if ([NSThread isMainThread]) {
         @autoreleasepool {
-            gopdfBuildMenuBar(data);
+            ononBuildMenuBar(data);
         }
         [data release];
     } else {
         dispatch_async(dispatch_get_main_queue(), ^{
             @autoreleasepool {
-                gopdfBuildMenuBar(data);
+                ononBuildMenuBar(data);
             }
             [data release];
         });

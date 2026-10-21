@@ -13,7 +13,7 @@ import (
 // fallback is namespaced by uid to avoid one user squatting another's path.
 func runtimeDir() (string, error) {
 	if dir := os.Getenv("XDG_RUNTIME_DIR"); dir != "" {
-		return filepath.Join(dir, "gopdf"), nil
+		return filepath.Join(dir, "onon"), nil
 	}
-	return filepath.Join(os.TempDir(), fmt.Sprintf("gopdf-%d", os.Getuid())), nil
+	return filepath.Join(os.TempDir(), fmt.Sprintf("onon-%d", os.Getuid())), nil
 }

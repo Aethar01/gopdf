@@ -4,8 +4,8 @@ import (
 	"strings"
 	"testing"
 
-	"gopdf/internal/mupdf"
-	"gopdf/internal/testpdf"
+	"onon/internal/mupdf"
+	"onon/internal/testpdf"
 
 	"github.com/jupiterrider/purego-sdl3/sdl"
 )

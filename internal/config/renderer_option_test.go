@@ -11,9 +11,9 @@ func TestRendererOption(t *testing.T) {
 		t.Fatalf("default renderer = %q, want auto", got)
 	}
 	for lua, want := range map[string]string{
-		`gopdf.options.renderer = " Vulkan "`: "vulkan",
-		`gopdf.options.renderer = "gpu"`:      "gpu",
-		`gopdf.options.renderer = ""`:         "auto",
+		`onon.options.renderer = " Vulkan "`: "vulkan",
+		`onon.options.renderer = "gpu"`:      "gpu",
+		`onon.options.renderer = ""`:         "auto",
 	} {
 		path := filepath.Join(t.TempDir(), "config.lua")
 		if err := os.WriteFile(path, []byte(lua), 0o644); err != nil {

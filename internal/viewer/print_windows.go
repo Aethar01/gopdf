@@ -9,8 +9,8 @@ import (
 	"strconv"
 	"strings"
 
-	"gopdf/internal/mupdf"
-	"gopdf/internal/winprint"
+	"onon/internal/mupdf"
+	"onon/internal/winprint"
 )
 
 // printBandRows is how many rows of a page are rendered and sent at a time,

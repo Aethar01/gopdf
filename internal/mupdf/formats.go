@@ -64,7 +64,7 @@ func recognizeName(name string) bool {
 	defer formatProbe.Unlock()
 	cname := C.CString(name)
 	defer C.free(unsafe.Pointer(cname))
-	return C.gopdf_recognize_document_name(cname) != 0
+	return C.onon_recognize_document_name(cname) != 0
 }
 
 // SupportedExtensions returns the lower-case extensions, without a leading dot,

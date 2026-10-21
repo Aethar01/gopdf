@@ -4,7 +4,7 @@
 //
 // The file is shared, so it is edited in place rather than decoded and
 // written out again, which would drop what other applications keep in it:
-// an entry already there for the file gains gopdf as an application, and
+// an entry already there for the file gains onon as an application, and
 // otherwise one is added before the end.
 package xdgrecent
 
@@ -22,10 +22,10 @@ import (
 	"time"
 )
 
-// App is the name and command gopdf is recorded under.
+// App is the name and command onon is recorded under.
 const (
-	App     = "gopdf"
-	AppExec = "'gopdf %u'"
+	App     = "onon"
+	AppExec = "'onon %u'"
 )
 
 const emptyFile = `<?xml version="1.0" encoding="UTF-8"?>
@@ -50,7 +50,7 @@ func Path() (string, error) {
 	return filepath.Join(home, ".local", "share", "recently-used.xbel"), nil
 }
 
-// Add records file as used by gopdf now.
+// Add records file as used by onon now.
 func Add(file string) error {
 	list, err := Path()
 	if err != nil {

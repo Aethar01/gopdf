@@ -3,7 +3,7 @@ package viewer
 import (
 	"testing"
 
-	"gopdf/internal/keys"
+	"onon/internal/keys"
 )
 
 func TestTextEditKeysAreCanonical(t *testing.T) {

@@ -9,7 +9,7 @@ import (
 
 func platformDataDir() string {
 	if home, err := os.UserHomeDir(); err == nil {
-		return filepath.Join(home, "Library", "Application Support", "gopdf")
+		return filepath.Join(home, "Library", "Application Support", "onon")
 	}
 	return ""
 }
@@ -20,8 +20,8 @@ func platformSearchPaths(kind string) []string {
 	paths := make([]string, 0, 2)
 	if home, err := os.UserHomeDir(); err == nil {
 		paths = append(paths,
-			filepath.Join(home, "Library", "Application Support", "gopdf", kind),
-			filepath.Join(home, ".config", "gopdf", kind),
+			filepath.Join(home, "Library", "Application Support", "onon", kind),
+			filepath.Join(home, ".config", "onon", kind),
 		)
 	}
 	return paths
@@ -30,18 +30,18 @@ func platformSearchPaths(kind string) []string {
 func platformConfigPaths() []string {
 	if home, err := os.UserHomeDir(); err == nil {
 		return []string{
-			filepath.Join(home, "Library", "Application Support", "gopdf", "config.lua"),
-			filepath.Join(home, ".config", "gopdf", "config.lua"),
+			filepath.Join(home, "Library", "Application Support", "onon", "config.lua"),
+			filepath.Join(home, ".config", "onon", "config.lua"),
 		}
 	}
 	return nil
 }
 
-// platformAutogenPath is where gopdf used to keep keybindings changed in
+// platformAutogenPath is where onon used to keep keybindings changed in
 // the viewer; see importAutogen.
 func platformAutogenPath() string {
 	if home, err := os.UserHomeDir(); err == nil {
-		return filepath.Join(home, "Library", "Application Support", "gopdf", "autogen.lua")
+		return filepath.Join(home, "Library", "Application Support", "onon", "autogen.lua")
 	}
 	return ""
 }

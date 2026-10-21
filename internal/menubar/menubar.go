@@ -8,7 +8,7 @@ import (
 	"slices"
 	"strings"
 
-	"gopdf/internal/keys"
+	"onon/internal/keys"
 )
 
 // Role names a menu or item the system provides, such as the Services menu

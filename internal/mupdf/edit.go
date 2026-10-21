@@ -17,7 +17,7 @@ import (
 func (d *Document) IsPDF() bool {
 	d.mu.Lock()
 	defer d.mu.Unlock()
-	return d.ensureOpenLocked() == nil && C.gopdf_is_pdf(d.handle) != 0
+	return d.ensureOpenLocked() == nil && C.onon_is_pdf(d.handle) != 0
 }
 
 // Save writes the document to path. Saving over the open file appends the
@@ -32,10 +32,10 @@ func (d *Document) Save(path, openPath string) error {
 	if !sameFile(path, openPath) {
 		return d.saveLocked(path, false)
 	}
-	if C.gopdf_can_save_incrementally(d.handle) != 0 {
+	if C.onon_can_save_incrementally(d.handle) != 0 {
 		return d.saveLocked(path, true)
 	}
-	tmp := path + ".gopdf-tmp"
+	tmp := path + ".onon-tmp"
 	if err := d.saveLocked(tmp, false); err != nil {
 		os.Remove(tmp)
 		return err
@@ -53,19 +53,19 @@ func (d *Document) AddHighlight(page int, quads []Quad, color [3]uint8) error {
 	if len(quads) == 0 {
 		return nil
 	}
-	cquads := make([]C.gopdf_quad, len(quads))
+	cquads := make([]C.onon_quad, len(quads))
 	for i, q := range quads {
-		cquads[i] = C.gopdf_quad{ul: cPoint(q.UL), ur: cPoint(q.UR), ll: cPoint(q.LL), lr: cPoint(q.LR)}
+		cquads[i] = C.onon_quad{ul: cPoint(q.UL), ur: cPoint(q.UR), ll: cPoint(q.LL), lr: cPoint(q.LR)}
 	}
 	rgb := [3]C.float{C.float(color[0]) / 255, C.float(color[1]) / 255, C.float(color[2]) / 255}
 	var cerr *C.char
-	if C.gopdf_add_highlight(d.handle, C.int(page), &cquads[0], C.int(len(cquads)), &rgb[0], &cerr) == 0 {
+	if C.onon_add_highlight(d.handle, C.int(page), &cquads[0], C.int(len(cquads)), &rgb[0], &cerr) == 0 {
 		return consumeError("add highlight", cerr)
 	}
 	return nil
 }
 
-func cPoint(p Point) C.gopdf_point { return C.gopdf_point{x: C.float(p.X), y: C.float(p.Y)} }
+func cPoint(p Point) C.onon_point { return C.onon_point{x: C.float(p.X), y: C.float(p.Y)} }
 
 func (d *Document) saveLocked(path string, incremental bool) error {
 	cpath := C.CString(path)
@@ -75,7 +75,7 @@ func (d *Document) saveLocked(path string, incremental bool) error {
 		inc = 1
 	}
 	var cerr *C.char
-	if C.gopdf_save(d.handle, cpath, inc, &cerr) == 0 {
+	if C.onon_save(d.handle, cpath, inc, &cerr) == 0 {
 		return consumeError("save", cerr)
 	}
 	return nil
@@ -122,12 +122,12 @@ func (d *Document) WidgetAt(page int, p Point) (Widget, bool, error) {
 	if err := d.validatePageLocked(page); err != nil {
 		return Widget{}, false, err
 	}
-	if C.gopdf_is_pdf(d.handle) == 0 {
+	if C.onon_is_pdf(d.handle) == 0 {
 		return Widget{}, false, nil
 	}
-	var info C.gopdf_widget_info
+	var info C.onon_widget_info
 	var cerr *C.char
-	if C.gopdf_widget_at(d.handle, C.int(page), C.float(p.X), C.float(p.Y), &info, &cerr) == 0 {
+	if C.onon_widget_at(d.handle, C.int(page), C.float(p.X), C.float(p.Y), &info, &cerr) == 0 {
 		return Widget{}, false, consumeError("find form field", cerr)
 	}
 	if info.index < 0 {
@@ -163,10 +163,10 @@ func (d *Document) WidgetOptions(page, index int) ([]string, error) {
 	var raw **C.char
 	var count C.int
 	var cerr *C.char
-	if C.gopdf_widget_options(d.handle, C.int(page), C.int(index), &raw, &count, &cerr) == 0 {
+	if C.onon_widget_options(d.handle, C.int(page), C.int(index), &raw, &count, &cerr) == 0 {
 		return nil, consumeError("form field options", cerr)
 	}
-	defer C.gopdf_free_strings(raw, count)
+	defer C.onon_free_strings(raw, count)
 	options := make([]string, int(count))
 	for i, s := range unsafe.Slice(raw, int(count)) {
 		options[i] = C.GoString(s)
@@ -191,7 +191,7 @@ func (d *Document) editWidget(page, index int, value *C.char) error {
 		return err
 	}
 	var cerr *C.char
-	if C.gopdf_widget_edit(d.handle, C.int(page), C.int(index), value, &cerr) == 0 {
+	if C.onon_widget_edit(d.handle, C.int(page), C.int(index), value, &cerr) == 0 {
 		return consumeError("edit form field", cerr)
 	}
 	return nil
@@ -214,7 +214,7 @@ func (d *Document) undo(redo bool) error {
 		r = 1
 	}
 	var cerr *C.char
-	if C.gopdf_undo(d.handle, r, &cerr) == 0 {
+	if C.onon_undo(d.handle, r, &cerr) == 0 {
 		return consumeError("", cerr)
 	}
 	return nil
@@ -235,12 +235,12 @@ func (d *Document) AnnotationAt(page int, p Point) (Annotation, bool, error) {
 	if err := d.validatePageLocked(page); err != nil {
 		return Annotation{}, false, err
 	}
-	if C.gopdf_is_pdf(d.handle) == 0 {
+	if C.onon_is_pdf(d.handle) == 0 {
 		return Annotation{}, false, nil
 	}
 	var index C.int
 	var ctype, cerr *C.char
-	if C.gopdf_annot_at(d.handle, C.int(page), C.float(p.X), C.float(p.Y), &index, &ctype, &cerr) == 0 {
+	if C.onon_annot_at(d.handle, C.int(page), C.float(p.X), C.float(p.Y), &index, &ctype, &cerr) == 0 {
 		return Annotation{}, false, consumeError("find annotation", cerr)
 	}
 	defer C.free(unsafe.Pointer(ctype))
@@ -266,7 +266,7 @@ func (d *Document) editAnnotation(page, index int, rgb *C.float) error {
 		return err
 	}
 	var cerr *C.char
-	if C.gopdf_edit_annot(d.handle, C.int(page), C.int(index), rgb, &cerr) == 0 {
+	if C.onon_edit_annot(d.handle, C.int(page), C.int(index), rgb, &cerr) == 0 {
 		return consumeError("edit annotation", cerr)
 	}
 	return nil

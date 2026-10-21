@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"gopdf/internal/instance"
-	"gopdf/internal/mupdf"
+	"onon/internal/instance"
+	"onon/internal/mupdf"
 )
 
 func TestApplyInstanceJumpMovesToPage(t *testing.T) {

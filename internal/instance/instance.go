@@ -1,4 +1,4 @@
-// Package instance lets one gopdf process hand work to another that is already
+// Package instance lets one onon process hand work to another that is already
 // running: opening a document in the existing window instead of a new one,
 // moving to a page or a point on it, and running a viewer command there.
 package instance
@@ -15,7 +15,7 @@ import (
 )
 
 // ErrInUse reports that another live instance already owns the address.
-var ErrInUse = errors.New("another gopdf instance is already listening")
+var ErrInUse = errors.New("another onon instance is already listening")
 
 // dialTimeout bounds both the liveness probe and a client handoff. It is short
 // because the peer is a local process that either answers at once or is gone.

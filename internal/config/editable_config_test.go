@@ -19,17 +19,17 @@ func TestEditableConfigPathCreatesOnlyAMissingFile(t *testing.T) {
 		t.Fatalf("EditableConfigPath() = %q, %v; want %q", got, err, path)
 	}
 	data, err := os.ReadFile(path)
-	if err != nil || !strings.HasPrefix(string(data), "-- gopdf configuration") {
+	if err != nil || !strings.HasPrefix(string(data), "-- onon configuration") {
 		t.Fatalf("created config holds %q, %v", data, err)
 	}
 
-	if err := os.WriteFile(path, []byte("gopdf.options.page_gap = 4\n"), 0o644); err != nil {
+	if err := os.WriteFile(path, []byte("onon.options.page_gap = 4\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := rt.EditableConfigPath(); err != nil {
 		t.Fatal(err)
 	}
-	if data, _ := os.ReadFile(path); string(data) != "gopdf.options.page_gap = 4\n" {
+	if data, _ := os.ReadFile(path); string(data) != "onon.options.page_gap = 4\n" {
 		t.Fatalf("an existing config was rewritten: %q", data)
 	}
 }

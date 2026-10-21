@@ -16,8 +16,8 @@ import (
 	"strings"
 	"time"
 
-	"gopdf/internal/actions"
-	"gopdf/internal/commands"
+	"onon/internal/actions"
+	"onon/internal/commands"
 
 	lua "github.com/yuin/gopher-lua"
 )
@@ -167,7 +167,7 @@ func discoverPluginCatalog(paths, disabled []string) *pluginCatalog {
 }
 
 func readPluginManifest(dir string) (pluginManifest, bool, error) {
-	path := filepath.Join(dir, "gopdf-plugin.json")
+	path := filepath.Join(dir, "onon-plugin.json")
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -177,7 +177,7 @@ func readPluginManifest(dir string) (pluginManifest, bool, error) {
 	}
 	var manifest pluginManifest
 	if err := json.Unmarshal(data, &manifest); err != nil {
-		return pluginManifest{}, false, fmt.Errorf("invalid gopdf-plugin.json: %w", err)
+		return pluginManifest{}, false, fmt.Errorf("invalid onon-plugin.json: %w", err)
 	}
 	return manifest, true, nil
 }
@@ -235,7 +235,7 @@ func installPluginPackagePath(L *lua.LState, runtime *Runtime) {
 			instance := runtime.plugins.active[manifest.ID]
 			if instance == nil {
 				runtime.rollbackPluginLoad(manifest.ID)
-				L.RaiseError("plugin %q did not call gopdf.plugin.register", manifest.ID)
+				L.RaiseError("plugin %q did not call onon.plugin.register", manifest.ID)
 			}
 			L.Pop(1)
 			L.Push(instance.module)
@@ -270,7 +270,7 @@ func newPluginEnvironment(L *lua.LState, runtime *Runtime, manifest pluginManife
 			}
 			return 1
 		}
-		cacheKey := "gopdf-plugin:" + manifest.ID + ":" + localName
+		cacheKey := "onon-plugin:" + manifest.ID + ":" + localName
 		if loaded != nil {
 			if cached := loaded.RawGetString(cacheKey); cached != lua.LNil {
 				L.Push(cached)
@@ -356,7 +356,7 @@ func (r *Runtime) rollbackPluginLoad(id string) {
 	if loaded == nil {
 		return
 	}
-	prefix := "gopdf-plugin:" + id + ":"
+	prefix := "onon-plugin:" + id + ":"
 	var keys []lua.LValue
 	loaded.ForEach(func(key, _ lua.LValue) {
 		if strings.HasPrefix(lua.LVAsString(key), prefix) {
@@ -395,9 +395,9 @@ func newPluginState(runtime *Runtime) *pluginState {
 
 func newLuaPluginAPI(L *lua.LState, runtime *Runtime) *lua.LTable {
 	api := L.NewTable()
-	registerLuaFunctions(L, api, "gopdf.plugin.", []luaFunctionSpec{
+	registerLuaFunctions(L, api, "onon.plugin.", []luaFunctionSpec{
 		{
-			Signature: "gopdf.plugin.register(id[, spec])",
+			Signature: "onon.plugin.register(id[, spec])",
 			Function:  luaPluginRegister(runtime),
 		},
 	})

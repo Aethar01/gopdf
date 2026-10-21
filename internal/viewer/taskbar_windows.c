@@ -3,30 +3,30 @@
 #include <commctrl.h>
 #include <shobjidl.h>
 
-// The taskbar's thumbnail of a gopdf window carries Previous Page and Next
+// The taskbar's thumbnail of a onon window carries Previous Page and Next
 // Page buttons, as media players' carry theirs. They can be added only once
 // the taskbar has made the window's button, which it announces with a
 // registered message; the window's subclass passes that and the buttons'
 // clicks here.
 
-extern void gopdfTaskbarButton(int id);
+extern void ononTaskbarButton(int id);
 
-enum { gopdfThumbPrevious = 1, gopdfThumbNext = 2 };
+enum { ononThumbPrevious = 1, ononThumbNext = 2 };
 
-static UINT gopdfTaskbarCreated;
+static UINT ononTaskbarCreated;
 
-// gopdfSystemUsesLightTheme reports whether the taskbar, and with it the
+// ononSystemUsesLightTheme reports whether the taskbar, and with it the
 // thumbnail's buttons, are light.
-static BOOL gopdfSystemUsesLightTheme(void) {
+static BOOL ononSystemUsesLightTheme(void) {
     DWORD light = 0, size = sizeof(light);
     RegGetValueW(HKEY_CURRENT_USER, L"Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize",
                  L"SystemUsesLightTheme", RRF_RT_REG_DWORD, NULL, &light, &size);
     return light != 0;
 }
 
-// gopdfArrowIcon draws a small icon of a triangle pointing left or right,
+// ononArrowIcon draws a small icon of a triangle pointing left or right,
 // smoothed by sampling each pixel four by four.
-static HICON gopdfArrowIcon(BOOL right, BOOL dark) {
+static HICON ononArrowIcon(BOOL right, BOOL dark) {
     int size = GetSystemMetrics(SM_CXSMICON);
     BITMAPV5HEADER header = {0};
     header.bV5Size = sizeof(header);
@@ -76,7 +76,7 @@ static HICON gopdfArrowIcon(BOOL right, BOOL dark) {
     return icon;
 }
 
-static void gopdfAddThumbButtons(HWND hwnd) {
+static void ononAddThumbButtons(HWND hwnd) {
     // SDL may have started COM on this thread already, which is fine.
     HRESULT com = CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
     ITaskbarList3 *taskbar = NULL;
@@ -88,16 +88,16 @@ static void gopdfAddThumbButtons(HWND hwnd) {
         return;
     }
     if (SUCCEEDED(ITaskbarList3_HrInit(taskbar))) {
-        BOOL dark = gopdfSystemUsesLightTheme();
+        BOOL dark = ononSystemUsesLightTheme();
         THUMBBUTTON buttons[2] = {0};
         buttons[0].dwMask = THB_ICON | THB_TOOLTIP | THB_FLAGS;
-        buttons[0].iId = gopdfThumbPrevious;
-        buttons[0].hIcon = gopdfArrowIcon(FALSE, dark);
+        buttons[0].iId = ononThumbPrevious;
+        buttons[0].hIcon = ononArrowIcon(FALSE, dark);
         wcscpy_s(buttons[0].szTip, ARRAYSIZE(buttons[0].szTip), L"Previous Page");
         buttons[0].dwFlags = THBF_ENABLED;
         buttons[1] = buttons[0];
-        buttons[1].iId = gopdfThumbNext;
-        buttons[1].hIcon = gopdfArrowIcon(TRUE, dark);
+        buttons[1].iId = ononThumbNext;
+        buttons[1].hIcon = ononArrowIcon(TRUE, dark);
         wcscpy_s(buttons[1].szTip, ARRAYSIZE(buttons[1].szTip), L"Next Page");
         ITaskbarList3_ThumbBarAddButtons(taskbar, hwnd, ARRAYSIZE(buttons), buttons);
         // The taskbar keeps copies of the icons.
@@ -110,18 +110,18 @@ static void gopdfAddThumbButtons(HWND hwnd) {
     }
 }
 
-// gopdfTaskbarMessage handles the window messages about its taskbar
+// ononTaskbarMessage handles the window messages about its taskbar
 // button, reporting whether msg was one.
-BOOL gopdfTaskbarMessage(HWND hwnd, UINT msg, WPARAM wParam) {
-    if (gopdfTaskbarCreated == 0) {
-        gopdfTaskbarCreated = RegisterWindowMessageW(L"TaskbarButtonCreated");
+BOOL ononTaskbarMessage(HWND hwnd, UINT msg, WPARAM wParam) {
+    if (ononTaskbarCreated == 0) {
+        ononTaskbarCreated = RegisterWindowMessageW(L"TaskbarButtonCreated");
     }
-    if (msg == gopdfTaskbarCreated && msg != 0) {
-        gopdfAddThumbButtons(hwnd);
+    if (msg == ononTaskbarCreated && msg != 0) {
+        ononAddThumbButtons(hwnd);
         return TRUE;
     }
     if (msg == WM_COMMAND && HIWORD(wParam) == THBN_CLICKED) {
-        gopdfTaskbarButton(LOWORD(wParam));
+        ononTaskbarButton(LOWORD(wParam));
         return TRUE;
     }
     return FALSE;

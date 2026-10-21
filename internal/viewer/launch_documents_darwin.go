@@ -5,9 +5,9 @@ package viewer
 /*
 #cgo LDFLAGS: -framework Cocoa -framework CoreServices
 #include <stdlib.h>
-void gopdfWatchLaunch(void);
-int gopdfLaunchHandled(void);
-char **gopdfTakeLaunchDocuments(int *count);
+void ononWatchLaunch(void);
+int ononLaunchHandled(void);
+char **ononTakeLaunchDocuments(int *count);
 */
 import "C"
 
@@ -20,22 +20,22 @@ import (
 )
 
 // launchDocumentsWait bounds how long startup waits to learn which documents
-// macOS launched gopdf for. A request that comes later still arrives as a drop.
+// macOS launched onon for. A request that comes later still arrives as a drop.
 const launchDocumentsWait = 2 * time.Second
 
-// LaunchDocuments returns the documents macOS launched gopdf to open. Finder
+// LaunchDocuments returns the documents macOS launched onon to open. Finder
 // and `open` send them in an Apple Event rather than as arguments, and it
 // arrives once the application has finished launching, so this starts SDL; it
 // must run once, before anything else does.
 func LaunchDocuments(verbose bool) []string {
 	start := time.Now()
-	C.gopdfWatchLaunch()
+	C.ononWatchLaunch()
 	if err := initSDL(); err != nil {
 		return nil // Run reports the failure
 	}
 	launchHandled := func() bool {
 		sdl.PumpEvents()
-		return C.gopdfLaunchHandled() != 0
+		return C.ononLaunchHandled() != 0
 	}
 	deadline := start.Add(launchDocumentsWait)
 	handled := launchHandled()
@@ -56,7 +56,7 @@ func LaunchDocuments(verbose bool) []string {
 
 func takeLaunchDocuments() []string {
 	var count C.int
-	array := C.gopdfTakeLaunchDocuments(&count)
+	array := C.ononTakeLaunchDocuments(&count)
 	if array == nil {
 		return nil
 	}

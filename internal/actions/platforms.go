@@ -4,7 +4,7 @@ import "runtime"
 
 // Platform is an operating system whose users expect keys of their own,
 // such as Cmd shortcuts on macOS. Its keys are bound there on top of each
-// action's Keys, never in their place, so the keys gopdf has everywhere
+// action's Keys, never in their place, so the keys onon has everywhere
 // keep working on every system.
 type Platform struct {
 	GOOS string              // as runtime.GOOS names it

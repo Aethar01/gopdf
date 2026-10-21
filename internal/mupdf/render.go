@@ -28,7 +28,7 @@ var ErrCancelled = errors.New("render cancelled")
 type Renderer struct {
 	doc    *Document
 	mu     sync.Mutex // guards handle against Cancel racing Close
-	handle *C.gopdf_renderer
+	handle *C.onon_renderer
 }
 
 func (d *Document) NewRenderer() (*Renderer, error) {
@@ -42,7 +42,7 @@ func (d *Document) NewRenderer() (*Renderer, error) {
 
 func (d *Document) newRendererLocked() (*Renderer, error) {
 	var cerr *C.char
-	handle := C.gopdf_new_renderer(d.handle, &cerr)
+	handle := C.onon_new_renderer(d.handle, &cerr)
 	if handle == nil {
 		return nil, consumeError("new renderer", cerr)
 	}
@@ -52,7 +52,7 @@ func (d *Document) newRendererLocked() (*Renderer, error) {
 func (r *Renderer) Close() {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	C.gopdf_drop_renderer(r.handle)
+	C.onon_drop_renderer(r.handle)
 	r.handle = nil
 }
 
@@ -61,7 +61,7 @@ func (r *Renderer) Close() {
 func (r *Renderer) Arm() {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	C.gopdf_arm_renderer(r.handle)
+	C.onon_arm_renderer(r.handle)
 }
 
 // Cancel aborts the render in progress, or the next one if the renderer is
@@ -69,7 +69,7 @@ func (r *Renderer) Arm() {
 func (r *Renderer) Cancel() {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	C.gopdf_cancel_renderer(r.handle)
+	C.onon_cancel_renderer(r.handle)
 }
 
 // Render rasterises the part of page inside clip, given in device pixels at
@@ -91,7 +91,7 @@ func (r *Renderer) Render(page int, scale float64, clip image.Rectangle, aaLevel
 	var samples *C.uchar
 	var width, height, stride, x, y C.int
 	var cerr *C.char
-	switch C.gopdf_render_display_list(r.handle, list, C.float(scale), irect(clip), C.int(aaLevel), &samples, &width, &height, &stride, &x, &y, &cerr) {
+	switch C.onon_render_display_list(r.handle, list, C.float(scale), irect(clip), C.int(aaLevel), &samples, &width, &height, &stride, &x, &y, &cerr) {
 	case 0:
 		return nil, consumeError("render page", cerr)
 	case 2:
@@ -104,8 +104,8 @@ func (r *Renderer) Render(page int, scale float64, clip image.Rectangle, aaLevel
 	return &RenderedPage{Image: img, X: int(x), Y: int(y), samples: unsafe.Pointer(samples)}, nil
 }
 
-func irect(r image.Rectangle) C.gopdf_irect {
-	return C.gopdf_irect{x0: C.int(r.Min.X), y0: C.int(r.Min.Y), x1: C.int(r.Max.X), y1: C.int(r.Max.Y)}
+func irect(r image.Rectangle) C.onon_irect {
+	return C.onon_irect{x0: C.int(r.Min.X), y0: C.int(r.Min.Y), x1: C.int(r.Max.X), y1: C.int(r.Max.Y)}
 }
 
 // DeviceRect is the pixel bounding box of a page at scale, rounded as
@@ -121,7 +121,7 @@ func DeviceRect(bounds Rect, scale float64) image.Rectangle {
 	)
 }
 
-// displayList returns a reference that gopdf_render_display_list consumes.
+// displayList returns a reference that onon_render_display_list consumes.
 func (d *Document) displayList(page int) (*C.fz_display_list, error) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
@@ -130,7 +130,7 @@ func (d *Document) displayList(page int) (*C.fz_display_list, error) {
 	}
 	var list *C.fz_display_list
 	var cerr *C.char
-	if ok := C.gopdf_page_display_list(d.handle, C.int(page), &list, &cerr); ok == 0 {
+	if ok := C.onon_page_display_list(d.handle, C.int(page), &list, &cerr); ok == 0 {
 		return nil, consumeError("render page", cerr)
 	}
 	return list, nil

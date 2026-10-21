@@ -3,8 +3,8 @@ package viewer
 import (
 	"log"
 
-	"gopdf/internal/config"
-	"gopdf/internal/mupdf"
+	"onon/internal/config"
+	"onon/internal/mupdf"
 
 	"github.com/jupiterrider/purego-sdl3/sdl"
 )
@@ -92,10 +92,10 @@ func (a *App) setWindowTitle() {
 	}
 	a.showWindowDocument()
 	if a.docName == "" {
-		sdl.SetWindowTitle(a.window, "gopdf")
+		sdl.SetWindowTitle(a.window, "onon")
 		return
 	}
-	sdl.SetWindowTitle(a.window, a.docName+" - gopdf")
+	sdl.SetWindowTitle(a.window, a.docName+" - onon")
 }
 
 // showWindowDocument tells the system which file the window shows and

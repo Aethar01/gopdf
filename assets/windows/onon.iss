@@ -1,30 +1,30 @@
-#define MyAppName "GoPDF"
-#define MyAppExeName "gopdf.exe"
-; As gopdf sets itself, so the taskbar groups its windows with these
+#define MyAppName "onon"
+#define MyAppExeName "onon.exe"
+; As onon sets itself, so the taskbar groups its windows with these
 ; shortcuts and lists recent files in its jump list.
-#define MyAppUserModelID "app.gopdf.viewer"
+#define MyAppUserModelID "com.ononreader.onon"
 #define MyAppAssocName "PDF Document"
 #define MyAppAssocExt ".pdf"
 #define MyAppAssocKey StringChange(MyAppName, " ", "") + MyAppAssocExt
-; The other formats gopdf opens are offered under Open With, by these.
+; The other formats onon opens are offered under Open With, by these.
 #define MyAppDocumentKey StringChange(MyAppName, " ", "") + ".Document"
 #define MyAppImageKey StringChange(MyAppName, " ", "") + ".Image"
 
 [Setup]
 AppId={{A0D76E2B-6B7D-4E84-A93A-8C4F8C05F513}
 AppName={#MyAppName}
-AppVersion={#GetEnv("GOPDF_VERSION")}
-AppPublisher=GoPDF
+AppVersion={#GetEnv("ONON_VERSION")}
+AppPublisher=onon
 DefaultDirName={autopf}\{#MyAppName}
 DefaultGroupName={#MyAppName}
 AllowNoIcons=yes
 LicenseFile=..\..\LICENSE
 OutputDir=..\..\dist\installer
-OutputBaseFilename=gopdf-{#GetEnv("GOPDF_VERSION")}-windows-amd64-installer
+OutputBaseFilename=onon-{#GetEnv("ONON_VERSION")}-windows-amd64-installer
 Compression=lzma
 SolidCompression=yes
 WizardStyle=modern
-SetupIconFile=..\gopdf.ico
+SetupIconFile=..\onon.ico
 ChangesAssociations=yes
 ; Installing for all users needs an administrator; the dialog offers
 ; installing for the current user alone instead.
@@ -36,12 +36,12 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Tasks]
 Name: "desktopicon"; Description: "Create a desktop shortcut"; GroupDescription: "Additional icons:"; Flags: unchecked
-Name: "associatepdf"; Description: "Associate PDF files with GoPDF"; GroupDescription: "File associations:"; Flags: checkedonce
-Name: "associatedocuments"; Description: "Offer GoPDF for XPS, e-book and comic book files"; GroupDescription: "File associations:"; Flags: checkedonce
-Name: "associateimages"; Description: "Offer GoPDF for images"; GroupDescription: "File associations:"; Flags: unchecked
+Name: "associatepdf"; Description: "Associate PDF files with onon"; GroupDescription: "File associations:"; Flags: checkedonce
+Name: "associatedocuments"; Description: "Offer onon for XPS, e-book and comic book files"; GroupDescription: "File associations:"; Flags: checkedonce
+Name: "associateimages"; Description: "Offer onon for images"; GroupDescription: "File associations:"; Flags: unchecked
 
 [Files]
-Source: "..\..\dist\gopdf-package\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "..\..\dist\onon-package\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Registry]
 Root: HKA; Subkey: "Software\Classes\{#MyAppAssocExt}\OpenWithProgids"; ValueType: string; ValueName: "{#MyAppAssocKey}"; ValueData: ""; Flags: uninsdeletevalue; Tasks: associatepdf

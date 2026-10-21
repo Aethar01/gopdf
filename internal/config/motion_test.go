@@ -54,9 +54,9 @@ func TestMotionInTheTheme(t *testing.T) {
 		t.Errorf("classic should not move: %+v", theme.Motion)
 	}
 	rt := mustLoadThemeTestConfig(t, `
-gopdf.theme.motion = { scale = 2, panel = "1s linear", cursor = { duration = 30 } }
-gopdf.theme.motion.message = { easing = "ease-in" }
-assert(gopdf.theme.motion.panel == "1000ms linear", gopdf.theme.motion.panel)
+onon.theme.motion = { scale = 2, panel = "1s linear", cursor = { duration = 30 } }
+onon.theme.motion.message = { easing = "ease-in" }
+assert(onon.theme.motion.panel == "1000ms linear", onon.theme.motion.panel)
 `)
 	m := rt.Config().Theme.Motion
 	if m.Scale != 2 || m.Panel.Duration != 1000 || m.Panel.Easing != "linear" || m.Cursor.Duration != 30 || m.Cursor.Easing != "ease-out" {
@@ -71,7 +71,7 @@ assert(gopdf.theme.motion.panel == "1000ms linear", gopdf.theme.motion.panel)
 	if got, _ := rt.OptionValue("theme.motion.selection"); got != `"250ms ease-in-out"` {
 		t.Fatalf("selection = %s", got)
 	}
-	if _, err := loadThemeTestConfig(t, `gopdf.theme.motion.panel = "fast"`); err == nil || !strings.Contains(err.Error(), "expected a duration") {
+	if _, err := loadThemeTestConfig(t, `onon.theme.motion.panel = "fast"`); err == nil || !strings.Contains(err.Error(), "expected a duration") {
 		t.Fatalf("bad transition: %v", err)
 	}
 }

@@ -4,8 +4,8 @@ import (
 	"math"
 	"testing"
 
-	commandmeta "gopdf/internal/commands"
-	"gopdf/internal/mupdf"
+	commandmeta "onon/internal/commands"
+	"onon/internal/mupdf"
 )
 
 func TestEveryCommandHasAHandler(t *testing.T) {

@@ -3,7 +3,7 @@ package viewer
 import (
 	"testing"
 
-	"gopdf/internal/menubar"
+	"onon/internal/menubar"
 )
 
 func TestMenuItemStateFollowsTheViewer(t *testing.T) {

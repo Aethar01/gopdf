@@ -3,7 +3,7 @@ package viewer
 import (
 	"testing"
 
-	"gopdf/internal/keys"
+	"onon/internal/keys"
 
 	"github.com/jupiterrider/purego-sdl3/sdl"
 )

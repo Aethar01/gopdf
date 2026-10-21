@@ -5,7 +5,7 @@ import (
 	"image/color"
 	"slices"
 
-	"gopdf/internal/config"
+	"onon/internal/config"
 )
 
 func (a *App) statusVisible() bool {

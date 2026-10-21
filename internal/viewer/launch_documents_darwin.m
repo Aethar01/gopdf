@@ -12,23 +12,23 @@
 typedef struct {
     AEEventHandlerUPP handler;
     SRefCon refcon;
-} GoPDFAppleEventHandler;
+} OnonAppleEventHandler;
 
-static GoPDFAppleEventHandler gopdfAppKitOpenApplication;
-static GoPDFAppleEventHandler gopdfAppKitOpenDocuments;
+static OnonAppleEventHandler ononAppKitOpenApplication;
+static OnonAppleEventHandler ononAppKitOpenDocuments;
 
-// gopdfLaunchPaths collects the launch documents until they are taken.
-static NSMutableArray<NSString *> *gopdfLaunchPaths;
-static BOOL gopdfLaunchEventHandled;
+// ononLaunchPaths collects the launch documents until they are taken.
+static NSMutableArray<NSString *> *ononLaunchPaths;
+static BOOL ononLaunchEventHandled;
 
-static OSErr gopdfForwardAppleEvent(GoPDFAppleEventHandler appKit, const AppleEvent *event, AppleEvent *reply) {
+static OSErr ononForwardAppleEvent(OnonAppleEventHandler appKit, const AppleEvent *event, AppleEvent *reply) {
     if (appKit.handler == NULL) {
         return noErr;
     }
     return InvokeAEEventHandlerUPP(event, reply, appKit.refcon, appKit.handler);
 }
 
-static void gopdfRecordDocuments(const AppleEvent *event) {
+static void ononRecordDocuments(const AppleEvent *event) {
     AEDesc copy;
     if (AEDuplicateDesc(event, &copy) != noErr) {
         return;
@@ -40,40 +40,40 @@ static void gopdfRecordDocuments(const AppleEvent *event) {
         for (NSInteger i = 1; i <= files.numberOfItems; i++) {
             NSString *path = [[files descriptorAtIndex:i] fileURLValue].path;
             if (path.length > 0) {
-                [gopdfLaunchPaths addObject:path];
+                [ononLaunchPaths addObject:path];
             }
         }
         [descriptor release];
     }
 }
 
-static OSErr gopdfHandleOpenApplication(const AppleEvent *event, AppleEvent *reply, SRefCon refcon) {
+static OSErr ononHandleOpenApplication(const AppleEvent *event, AppleEvent *reply, SRefCon refcon) {
     (void)refcon;
-    gopdfLaunchEventHandled = YES;
-    return gopdfForwardAppleEvent(gopdfAppKitOpenApplication, event, reply);
+    ononLaunchEventHandled = YES;
+    return ononForwardAppleEvent(ononAppKitOpenApplication, event, reply);
 }
 
-static OSErr gopdfHandleOpenDocuments(const AppleEvent *event, AppleEvent *reply, SRefCon refcon) {
+static OSErr ononHandleOpenDocuments(const AppleEvent *event, AppleEvent *reply, SRefCon refcon) {
     (void)refcon;
-    if (gopdfLaunchPaths != nil) {
-        gopdfRecordDocuments(event);
+    if (ononLaunchPaths != nil) {
+        ononRecordDocuments(event);
     }
-    gopdfLaunchEventHandled = YES;
-    return gopdfForwardAppleEvent(gopdfAppKitOpenDocuments, event, reply);
+    ononLaunchEventHandled = YES;
+    return ononForwardAppleEvent(ononAppKitOpenDocuments, event, reply);
 }
 
-static void gopdfWrapAppleEventHandler(AEEventID eventID, AEEventHandlerProcPtr wrapper, GoPDFAppleEventHandler *appKit) {
+static void ononWrapAppleEventHandler(AEEventID eventID, AEEventHandlerProcPtr wrapper, OnonAppleEventHandler *appKit) {
     if (AEGetEventHandler(kCoreEventClass, eventID, &appKit->handler, &appKit->refcon, false) != noErr) {
-        *appKit = (GoPDFAppleEventHandler){0};
+        *appKit = (OnonAppleEventHandler){0};
     }
     AEInstallEventHandler(kCoreEventClass, eventID, NewAEEventHandlerUPP(wrapper), NULL, false);
 }
 
-// gopdfWatchLaunch must run once, before SDL creates NSApp: AppKit installs its
+// ononWatchLaunch must run once, before SDL creates NSApp: AppKit installs its
 // handlers just before it announces it will finish launching, and dispatches
 // the launch event after.
-void gopdfWatchLaunch(void) {
-    gopdfLaunchPaths = [[NSMutableArray alloc] init];
+void ononWatchLaunch(void) {
+    ononLaunchPaths = [[NSMutableArray alloc] init];
     @autoreleasepool {
         NSNotificationCenter *center = [NSNotificationCenter defaultCenter];
         [center addObserverForName:NSApplicationWillFinishLaunchingNotification
@@ -81,38 +81,38 @@ void gopdfWatchLaunch(void) {
                              queue:nil
                         usingBlock:^(NSNotification *notification) {
             (void)notification;
-            gopdfWrapAppleEventHandler(kAEOpenApplication, gopdfHandleOpenApplication, &gopdfAppKitOpenApplication);
-            gopdfWrapAppleEventHandler(kAEOpenDocuments, gopdfHandleOpenDocuments, &gopdfAppKitOpenDocuments);
+            ononWrapAppleEventHandler(kAEOpenApplication, ononHandleOpenApplication, &ononAppKitOpenApplication);
+            ononWrapAppleEventHandler(kAEOpenDocuments, ononHandleOpenDocuments, &ononAppKitOpenDocuments);
         }];
         [center addObserverForName:NSApplicationDidFinishLaunchingNotification
                             object:nil
                              queue:nil
                         usingBlock:^(NSNotification *notification) {
             (void)notification;
-            gopdfLaunchEventHandled = YES;
+            ononLaunchEventHandled = YES;
         }];
     }
 }
 
-// gopdfLaunchHandled reports whether the launch event has been handled, so its
+// ononLaunchHandled reports whether the launch event has been handled, so its
 // documents, if any, are known.
-int gopdfLaunchHandled(void) {
-    return gopdfLaunchEventHandled;
+int ononLaunchHandled(void) {
+    return ononLaunchEventHandled;
 }
 
-// gopdfTakeLaunchDocuments returns the launch documents and stops recording;
+// ononTakeLaunchDocuments returns the launch documents and stops recording;
 // later documents reach the viewer as SDL drops. The caller frees each path
 // and the array.
-char **gopdfTakeLaunchDocuments(int *count) {
-    NSUInteger n = gopdfLaunchPaths.count;
+char **ononTakeLaunchDocuments(int *count) {
+    NSUInteger n = ononLaunchPaths.count;
     char **paths = n > 0 ? calloc(n, sizeof(char *)) : NULL;
     @autoreleasepool {
         for (NSUInteger i = 0; paths != NULL && i < n; i++) {
-            paths[i] = strdup(gopdfLaunchPaths[i].fileSystemRepresentation);
+            paths[i] = strdup(ononLaunchPaths[i].fileSystemRepresentation);
         }
     }
     *count = paths != NULL ? (int)n : 0;
-    [gopdfLaunchPaths release];
-    gopdfLaunchPaths = nil;
+    [ononLaunchPaths release];
+    ononLaunchPaths = nil;
     return paths;
 }

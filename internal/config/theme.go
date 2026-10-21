@@ -11,7 +11,7 @@ import (
 )
 
 // Theme is everything about how the viewer looks: its colours, the UI font
-// and the shape of its panels. It is set as one Lua table, gopdf.theme.
+// and the shape of its panels. It is set as one Lua table, onon.theme.
 type Theme struct {
 	Base             string  // the preset the theme starts from
 	Palette                  // colours in normal mode
@@ -155,7 +155,7 @@ func presetOrError(name string) (Theme, error) {
 	return theme, nil
 }
 
-// themeField is one entry of the theme table, named as in gopdf.theme with
+// themeField is one entry of the theme table, named as in onon.theme with
 // dots for the alt and font tables, such as "alt.accent".
 type themeField struct {
 	name string
@@ -281,7 +281,7 @@ func themeFromLua(cfg *Config, value lua.LValue) (Theme, error) {
 		return presetOrError(string(value))
 	case *lua.LTable:
 		if isLuaThemeProxy(value) {
-			return cfg.Theme, nil // gopdf.theme assigned to itself
+			return cfg.Theme, nil // onon.theme assigned to itself
 		}
 		base := DefaultTheme
 		if b := value.RawGetString("base"); b != lua.LNil {
@@ -352,7 +352,7 @@ func applyThemeTable(cfg *Config, tbl *lua.LTable, prefix string) error {
 }
 
 // setThemeField sets one field, or every field a nested table holds, as for
-// gopdf.theme.alt = { accent = "#..." }; element names start "elements.".
+// onon.theme.alt = { accent = "#..." }; element names start "elements.".
 // Nothing changes if any is invalid.
 func (r *Runtime) setThemeField(name string, value lua.LValue) error {
 	work := r.cfg
@@ -387,7 +387,7 @@ func (r *Runtime) setThemeField(name string, value lua.LValue) error {
 	return nil
 }
 
-// luaThemeTable writes theme as a plain table, as gopdf.theme is set.
+// luaThemeTable writes theme as a plain table, as onon.theme is set.
 func luaThemeTable(L *lua.LState, theme Theme) *lua.LTable {
 	cfg := Config{Theme: theme}
 	tbl := L.NewTable()
@@ -411,17 +411,17 @@ func luaThemeTable(L *lua.LState, theme Theme) *lua.LTable {
 	return tbl
 }
 
-// themeProxyKey marks the metatable of gopdf.theme, which holds no fields
+// themeProxyKey marks the metatable of onon.theme, which holds no fields
 // of its own to copy, with the prefix of the table it stands for.
-const themeProxyKey = "__gopdf_theme"
+const themeProxyKey = "__onon_theme"
 
-// isLuaThemeProxy reports whether tbl is gopdf.theme itself.
+// isLuaThemeProxy reports whether tbl is onon.theme itself.
 func isLuaThemeProxy(tbl *lua.LTable) bool {
 	mt, ok := tbl.Metatable.(*lua.LTable)
 	return ok && mt.RawGetString(themeProxyKey) == lua.LString("")
 }
 
-// newLuaThemeTable is gopdf.theme: reading a field gives its value and
+// newLuaThemeTable is onon.theme: reading a field gives its value and
 // assigning one sets it. prefix names the nested table it stands for.
 func newLuaThemeTable(L *lua.LState, rt *Runtime, cfg *Config, prefix string) *lua.LTable {
 	tbl := L.NewTable()
@@ -439,7 +439,7 @@ func newLuaThemeTable(L *lua.LState, rt *Runtime, cfg *Config, prefix string) *l
 		default:
 			desc, ok := configOptions[themeOptionPrefix+name]
 			if !ok {
-				L.RaiseError("gopdf.theme.%s: unknown theme field", name)
+				L.RaiseError("onon.theme.%s: unknown theme field", name)
 			}
 			L.Push(desc.get(L, cfg))
 		}
@@ -449,9 +449,9 @@ func newLuaThemeTable(L *lua.LState, rt *Runtime, cfg *Config, prefix string) *l
 		name := prefix + strings.ToLower(strings.TrimSpace(L.CheckString(2)))
 		if err := rt.setThemeField(name, L.CheckAny(3)); err != nil {
 			if strings.HasPrefix(name, "elements") {
-				L.RaiseError("gopdf.theme.%v", err) // the error names the element
+				L.RaiseError("onon.theme.%v", err) // the error names the element
 			}
-			L.RaiseError("gopdf.theme.%s: %v", name, err)
+			L.RaiseError("onon.theme.%s: %v", name, err)
 		}
 		return 0
 	}))
@@ -459,8 +459,8 @@ func newLuaThemeTable(L *lua.LState, rt *Runtime, cfg *Config, prefix string) *l
 	return tbl
 }
 
-// newLuaThemesTable is gopdf.themes: each preset as a fresh table to
-// change and assign to gopdf.theme.
+// newLuaThemesTable is onon.themes: each preset as a fresh table to
+// change and assign to onon.theme.
 func newLuaThemesTable(L *lua.LState) *lua.LTable {
 	tbl := L.NewTable()
 	mt := L.NewTable()
@@ -556,7 +556,7 @@ func movedOptionError(name string) error {
 	if !ok {
 		return nil
 	}
-	return fmt.Errorf("%s moved to gopdf.theme.%s (:set theme.%s=...)", name, field, field)
+	return fmt.Errorf("%s moved to onon.theme.%s (:set theme.%s=...)", name, field, field)
 }
 
 // ThemeFieldReference documents one field of the theme table.

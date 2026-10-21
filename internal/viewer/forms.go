@@ -1,6 +1,6 @@
 package viewer
 
-import "gopdf/internal/mupdf"
+import "onon/internal/mupdf"
 
 // Clicking a form field edits it: text fields open a prompt with the value,
 // check boxes and radio buttons toggle, and choice fields open a list.

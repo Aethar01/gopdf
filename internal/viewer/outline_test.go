@@ -4,8 +4,8 @@ import (
 	"reflect"
 	"testing"
 
-	"gopdf/internal/config"
-	"gopdf/internal/mupdf"
+	"onon/internal/config"
+	"onon/internal/mupdf"
 
 	"golang.org/x/image/font/basicfont"
 )

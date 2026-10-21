@@ -4,7 +4,7 @@ import (
 	"slices"
 	"strings"
 
-	"gopdf/internal/config"
+	"onon/internal/config"
 )
 
 // Prompt history lets Up and Down in the : and / prompts step through

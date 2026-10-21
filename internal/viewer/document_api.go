@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"math"
 
-	"gopdf/internal/config"
-	"gopdf/internal/mupdf"
+	"onon/internal/config"
+	"onon/internal/mupdf"
 )
 
 func (a *App) Metadata() (config.DocumentMetadata, error) {

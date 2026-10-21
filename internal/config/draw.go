@@ -10,7 +10,7 @@ import (
 // luaPath is a path Lua builds, for a shape or for a canvas to draw.
 type luaPath struct{ ops []PathOp }
 
-const luaPathType = "gopdf.path"
+const luaPathType = "onon.path"
 
 var errNoMove = errors.New("start the path with move_to")
 
@@ -136,10 +136,10 @@ type DrawState struct {
 	Element    Element
 	X, Y, W, H float64 // the box, in logical pixels from the window's top left
 	Alt        bool    // whether alternate-color mode is on
-	Time       float64 // seconds since gopdf started, for drawing that moves
+	Time       float64 // seconds since onon started, for drawing that moves
 }
 
-const luaCanvasType = "gopdf.canvas"
+const luaCanvasType = "onon.canvas"
 
 // drawCache keeps what draw functions use on every frame: the canvas they
 // are given, and the colours and path data they write, parsed.

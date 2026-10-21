@@ -7,7 +7,7 @@ import (
 )
 
 // skippedFields names theme fields and element properties this version of
-// gopdf does not know. A theme is applied without them rather than
+// onon does not know. A theme is applied without them rather than
 // refused, so that one written for a newer version still loads; the
 // fields are reported as a warning.
 type skippedFields struct{ names []string }

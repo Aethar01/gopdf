@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"gopdf/internal/instance"
+	"onon/internal/instance"
 
 	"github.com/jupiterrider/purego-sdl3/sdl"
 )
@@ -18,7 +18,7 @@ func (a *App) raiseWindow() {
 	sdl.RaiseWindow(a.window)
 }
 
-// EnableSingleInstance makes this window reachable by other gopdf processes
+// EnableSingleInstance makes this window reachable by other onon processes
 // that open the same document. The address follows the open document, so
 // switching files hands the old address back and claims the new one.
 func (a *App) EnableSingleInstance() {

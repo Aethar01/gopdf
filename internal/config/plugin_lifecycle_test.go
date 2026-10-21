@@ -32,7 +32,7 @@ func TestPluginFSSymlinkHandling(t *testing.T) {
 	}
 
 	rt := openPluginRuntime(t, fmt.Sprintf(`
-local M = gopdf.plugin.register("sample")
+local M = onon.plugin.register("sample")
 M.fs:read_dir(%[1]q, function(r) M.unfollowed = r end)
 M.fs:read_dir(%[1]q, {follow_symlinks=true}, function(r) M.followed = r end)
 M.fs:stat(%[2]q, function(r) M.broken_lstat = r end)
@@ -69,7 +69,7 @@ func TestPluginFSUnreadableAndMissingDirectories(t *testing.T) {
 	t.Cleanup(func() { _ = os.Chmod(unreadable, 0o755) })
 
 	rt := openPluginRuntime(t, fmt.Sprintf(`
-local M = gopdf.plugin.register("sample")
+local M = onon.plugin.register("sample")
 M.fs:read_dir(%q, function(r) M.unreadable = r end)
 M.fs:read_dir(%q, function(r) M.missing = r end)
 return M
@@ -86,7 +86,7 @@ assert(sample.unreadable.cancelled == false and sample.unreadable.timed_out == f
 
 func TestPluginShutdownCancelsOperations(t *testing.T) {
 	rt := openPluginRuntime(t, `
-local M = gopdf.plugin.register("sample")
+local M = onon.plugin.register("sample")
 M.timer:every(5000, function() end)
 M.timer:after(5000, function() end)
 return M
@@ -102,7 +102,7 @@ return M
 
 func TestPluginDisabledIDIsNotLoadable(t *testing.T) {
 	root := writeTestPlugin(t, "sample", `
-local M = gopdf.plugin.register("sample")
+local M = onon.plugin.register("sample")
 M.timer:every(5000, function() end)
 return M
 `)
@@ -124,7 +124,7 @@ return M
 
 func TestPluginCallbackErrorDoesNotAbortDispatch(t *testing.T) {
 	rt := openPluginRuntime(t, `
-local M = gopdf.plugin.register("sample")
+local M = onon.plugin.register("sample")
 M.errored = false
 M.after = false
 M.timer:after(1, function() M.errored = true; error("callback exploded") end)
@@ -151,7 +151,7 @@ func TestPluginHTTPCancellationAndTLSFailure(t *testing.T) {
 	// DefaultTransport is left untouched, so the private test CA is untrusted and
 	// the request must fail certificate verification rather than succeed.
 	rt := openPluginRuntime(t, fmt.Sprintf(`
-local M = gopdf.plugin.register("sample")
+local M = onon.plugin.register("sample")
 M.http:request({url=%q}, function(r) M.tls_result = r end)
 M.cancelled = M.http:request({url=%q}, function(r) M.cancelled_result = r end)
 M.cancelled:cancel()
@@ -172,11 +172,11 @@ assert(sample.cancelled_result == nil and not sample.cancelled:active())
 
 func TestPluginJobCancellationAndTimeout(t *testing.T) {
 	rt := openPluginRuntime(t, fmt.Sprintf(`
-local M = gopdf.plugin.register("sample")
-M.timed_out_handle = M:job({command=%[1]q, env={GOPDF_PLUGIN_JOB_SLEEP_MS="5000"}, timeout_ms=20}, function(r)
+local M = onon.plugin.register("sample")
+M.timed_out_handle = M:job({command=%[1]q, env={ONON_PLUGIN_JOB_SLEEP_MS="5000"}, timeout_ms=20}, function(r)
   M.timed_out_result = r
 end)
-M.cancelled_handle = M:job({command=%[1]q, env={GOPDF_PLUGIN_JOB_SLEEP_MS="5000"}}, function(r)
+M.cancelled_handle = M:job({command=%[1]q, env={ONON_PLUGIN_JOB_SLEEP_MS="5000"}}, function(r)
   M.cancelled_result = r
 end)
 M.cancelled_handle:cancel()
@@ -191,7 +191,7 @@ assert(sample.cancelled_result == nil and not sample.cancelled_handle:active())
 	}
 }
 
-// A manifest needs only an id, and anything it carries beyond the fields gopdf
+// A manifest needs only an id, and anything it carries beyond the fields onon
 // reads is ignored rather than gating what the plugin gets.
 func TestPluginManifestIgnoresUnknownFields(t *testing.T) {
 	for _, testCase := range []struct {
@@ -209,10 +209,10 @@ func TestPluginManifestIgnoresUnknownFields(t *testing.T) {
 			if err := os.MkdirAll(filepath.Join(dir, "lua", "sample"), 0o755); err != nil {
 				t.Fatal(err)
 			}
-			if err := os.WriteFile(filepath.Join(dir, "gopdf-plugin.json"), []byte(testCase.manifest), 0o644); err != nil {
+			if err := os.WriteFile(filepath.Join(dir, "onon-plugin.json"), []byte(testCase.manifest), 0o644); err != nil {
 				t.Fatal(err)
 			}
-			source := `local M = gopdf.plugin.register("sample")
+			source := `local M = onon.plugin.register("sample")
 M.storage:set("key", "value")
 return M`
 			if err := os.WriteFile(filepath.Join(dir, "lua", "sample", "init.lua"), []byte(source), 0o644); err != nil {
@@ -240,7 +240,7 @@ func TestPluginReloadDropsPendingCallbacks(t *testing.T) {
 	// the new one has no timer of its own that could set fired.
 	setTestDataDir(t)
 	rt := openPluginRuntime(t, `
-local M = gopdf.plugin.register("sample")
+local M = onon.plugin.register("sample")
 M.fired = false
 if M.storage:get("armed") == nil then
   M.storage:set("armed", true)
@@ -274,7 +274,7 @@ func luaStringField(rt *Runtime, global string, fields ...string) string {
 func TestPluginStorageSurvivesReload(t *testing.T) {
 	setTestDataDir(t)
 	rt := openPluginRuntime(t, `
-local M = gopdf.plugin.register("sample")
+local M = onon.plugin.register("sample")
 if M.storage:get("loads") == nil then M.storage:set("loads", 0) end
 M.storage:set("loads", M.storage:get("loads") + 1)
 return M
@@ -298,14 +298,14 @@ func TestLogAttributesTheRunningPlugin(t *testing.T) {
 	t.Cleanup(func() { log.SetOutput(previous) })
 
 	rt := openPluginRuntime(t, `
-local M = gopdf.plugin.register("sample")
-gopdf.log("info", "during load")
-M.timer:after(1, function() gopdf.log("warn", "during callback") end)
+local M = onon.plugin.register("sample")
+onon.log("info", "during load")
+M.timer:after(1, function() onon.log("warn", "during callback") end)
 return M
 `)
 	pollRuntimeUntil(t, rt, func() bool { return strings.Contains(output.String(), "during callback") })
 	// Configuration Lua is not a plugin, so it is attributed to "config".
-	if _, err := rt.Eval(`gopdf.log("error", "from config")`); err != nil {
+	if _, err := rt.Eval(`onon.log("error", "from config")`); err != nil {
 		t.Fatal(err)
 	}
 	for _, want := range []string{
@@ -320,8 +320,8 @@ return M
 }
 
 func TestLogRejectsUnknownLevels(t *testing.T) {
-	rt := openPluginRuntime(t, `return gopdf.plugin.register("sample")`)
-	if _, err := rt.Eval(`gopdf.log("trace", "message")`); err == nil || !strings.Contains(err.Error(), "invalid level") {
+	rt := openPluginRuntime(t, `return onon.plugin.register("sample")`)
+	if _, err := rt.Eval(`onon.log("trace", "message")`); err == nil || !strings.Contains(err.Error(), "invalid level") {
 		t.Fatalf("err = %v, want one containing \"invalid level\"", err)
 	}
 }
@@ -339,7 +339,7 @@ func TestPluginFSReadDirSurvivesUnstattableEntries(t *testing.T) {
 	}
 
 	rt := openPluginRuntime(t, fmt.Sprintf(`
-local M = gopdf.plugin.register("sample")
+local M = onon.plugin.register("sample")
 M.fs:read_dir(%[1]q, {follow_symlinks=true}, function(r) M.followed = r end)
 M.fs:read_dir(%[1]q, function(r) M.unfollowed = r end)
 return M
@@ -368,11 +368,11 @@ end
 // callback does not wait behind unrelated work.
 func TestPollRunsEveryReadyOperation(t *testing.T) {
 	rt := openPluginRuntime(t, fmt.Sprintf(`
-local M = gopdf.plugin.register("sample")
+local M = onon.plugin.register("sample")
 M.timer_fired = false
 M.job_done = false
 M.timer:after(1, function() M.timer_fired = true end)
-M:job({command=%q, env={GOPDF_PLUGIN_JOB_SLEEP_MS="1"}}, function() M.job_done = true end)
+M:job({command=%q, env={ONON_PLUGIN_JOB_SLEEP_MS="1"}}, function() M.job_done = true end)
 return M
 `, os.Args[0]))
 
@@ -397,7 +397,7 @@ assert(sample.job_done, "the job callback was skipped by the same poll")
 }
 
 func TestFinishedPluginOperationsWakeTheViewer(t *testing.T) {
-	rt := openPluginRuntime(t, `return gopdf.plugin.register("sample")`)
+	rt := openPluginRuntime(t, `return onon.plugin.register("sample")`)
 	woken := make(chan struct{}, 1)
 	rt.SetWake(func() { woken <- struct{}{} })
 	if _, err := rt.Eval(`sample.timer:after(1, function() sample.fired = true end)`); err != nil {

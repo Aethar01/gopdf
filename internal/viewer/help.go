@@ -4,8 +4,8 @@ import (
 	"slices"
 	"strings"
 
-	commandmeta "gopdf/internal/commands"
-	"gopdf/internal/config"
+	commandmeta "onon/internal/commands"
+	"onon/internal/config"
 )
 
 // Help rows carry what Enter does in their id, with the payload in value.

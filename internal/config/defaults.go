@@ -1,6 +1,6 @@
 package config
 
-import "gopdf/internal/actions"
+import "onon/internal/actions"
 
 func Default() Config {
 	cfg := Config{

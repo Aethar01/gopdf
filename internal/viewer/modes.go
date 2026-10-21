@@ -3,7 +3,7 @@ package viewer
 import (
 	"slices"
 
-	"gopdf/internal/config"
+	"onon/internal/config"
 )
 
 // fitMode is how the zoom follows the window: fitting the page, its width

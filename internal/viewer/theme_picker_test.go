@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"gopdf/internal/config"
+	"onon/internal/config"
 )
 
 func testThemePickerApp(t *testing.T, source string) *App {
@@ -78,9 +78,9 @@ func TestThemePickerPreviewsAndPutsBack(t *testing.T) {
 }
 
 func TestThemeCommandSaysWhenTheConfigSetsTheTheme(t *testing.T) {
-	app := testThemePickerApp(t, `gopdf.theme = "classic"`)
+	app := testThemePickerApp(t, `onon.theme = "classic"`)
 	app.runCommand(":theme birch")
-	if want := "theme birch; config.lua sets gopdf.theme, so this lasts until gopdf restarts"; app.message != want {
+	if want := "theme birch; config.lua sets onon.theme, so this lasts until onon restarts"; app.message != want {
 		t.Fatalf("message %q", app.message)
 	}
 	app.runCommand(":theme nonesuch")

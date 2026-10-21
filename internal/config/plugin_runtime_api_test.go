@@ -34,7 +34,7 @@ func TestPluginFSReadDirAndStat(t *testing.T) {
 	}
 
 	rt := openPluginRuntime(t, `
-local M = gopdf.plugin.register("sample")
+local M = onon.plugin.register("sample")
 M.fs:read_dir(`+luaQuote(dir)+`, function(result)
   M.fs_result = result
 end)
@@ -68,7 +68,7 @@ assert(sample.stat_result.type == "file" and sample.stat_result.path == ` + luaQ
 
 func TestPluginOperationCancellationAndReload(t *testing.T) {
 	rt := openPluginRuntime(t, `
-local M = gopdf.plugin.register("sample")
+local M = onon.plugin.register("sample")
 M.cancelled_callback = false
 M.op = M.timer:after(5000, function() M.cancelled_callback = true end)
 return M
@@ -95,13 +95,13 @@ return M
 
 func TestPluginTimersAndSchedule(t *testing.T) {
 	rt := openPluginRuntime(t, `
-local M = gopdf.plugin.register("sample")
+local M = onon.plugin.register("sample")
 M.ticks = 0
 M.timer_handle = M.timer:every(1, function()
   M.ticks = M.ticks + 1
   if M.ticks == 2 then M.timer_handle:cancel() end
 end)
-gopdf.schedule(function() M.scheduled = true end)
+onon.schedule(function() M.scheduled = true end)
 return M
 `)
 	pollRuntimeUntil(t, rt, func() bool {
@@ -133,7 +133,7 @@ func TestPluginHTTPRedirectTimeoutAndBodyLimit(t *testing.T) {
 	defer func() { http.DefaultTransport = oldTransport }()
 
 	rt := openPluginRuntime(t, fmt.Sprintf(`
-local M = gopdf.plugin.register("sample")
+local M = onon.plugin.register("sample")
 M.http:request({url=%q}, function(r) M.redirect_result = r end)
 M.http:request({url=%q, timeout_ms=5}, function(r) M.timeout_result = r end)
 M.http:request({url=%q}, function(r) M.large_result = r end)
@@ -153,11 +153,11 @@ assert(not sample.large_result.success and string.find(sample.large_result.error
 
 func TestPluginJobEnvironmentAndStdin(t *testing.T) {
 	rt := openPluginRuntime(t, fmt.Sprintf(`
-local M = gopdf.plugin.register("sample")
+local M = onon.plugin.register("sample")
 M.job_handle = M:job({
   command=%q,
   args={"-test.run=TestPluginJobEnvironmentAndStdin"},
-  env={GOPDF_PLUGIN_JOB_HELPER="1", GOPDF_TEST_VALUE="value"},
+  env={ONON_PLUGIN_JOB_HELPER="1", ONON_TEST_VALUE="value"},
   stdin="input"
 }, function(r) M.job_result = r end)
 assert(M.job_handle:active())
@@ -170,12 +170,12 @@ return M
 }
 
 func TestMain(m *testing.M) {
-	if os.Getenv("GOPDF_PLUGIN_JOB_HELPER") == "1" {
+	if os.Getenv("ONON_PLUGIN_JOB_HELPER") == "1" {
 		data, _ := io.ReadAll(os.Stdin)
-		fmt.Print(os.Getenv("GOPDF_TEST_VALUE") + ":" + string(data))
+		fmt.Print(os.Getenv("ONON_TEST_VALUE") + ":" + string(data))
 		os.Exit(0)
 	}
-	if sleep := os.Getenv("GOPDF_PLUGIN_JOB_SLEEP_MS"); sleep != "" {
+	if sleep := os.Getenv("ONON_PLUGIN_JOB_SLEEP_MS"); sleep != "" {
 		ms, _ := strconv.Atoi(sleep)
 		time.Sleep(time.Duration(ms) * time.Millisecond)
 		os.Exit(0)
@@ -187,7 +187,7 @@ func TestMain(m *testing.M) {
 // temporary one, so no test reads or writes the real configuration, plugins
 // or session database.
 func runIsolated(m *testing.M) int {
-	dir, err := os.MkdirTemp("", "gopdf-config-test-")
+	dir, err := os.MkdirTemp("", "onon-config-test-")
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		return 1

@@ -5,7 +5,7 @@ package viewer
 /*
 #cgo LDFLAGS: -framework Cocoa
 #include <stdlib.h>
-void gopdfSetMenuBar(const char *menus);
+void ononSetMenuBar(const char *menus);
 */
 import "C"
 
@@ -14,8 +14,8 @@ import (
 	"fmt"
 	"unsafe"
 
-	"gopdf/internal/keys"
-	"gopdf/internal/menubar"
+	"onon/internal/keys"
+	"onon/internal/menubar"
 )
 
 // menuBarActions is the action each item in the menu bar runs, by the
@@ -65,7 +65,7 @@ func setNativeMenuBar(menus []menubar.Menu, bindings map[string]string) {
 	menuBarActions = actions
 	text := C.CString(string(encoded))
 	defer C.free(unsafe.Pointer(text))
-	C.gopdfSetMenuBar(text)
+	C.ononSetMenuBar(text)
 }
 
 // setKey shows key as the item's key equivalent, if Cocoa can show it.
@@ -116,18 +116,18 @@ var cocoaNamedKeys = map[string]rune{
 	"PgDn":  0xF72D,
 }
 
-//export gopdfMenuBarChose
-func gopdfMenuBarChose(tag C.int) {
+//export ononMenuBarChose
+func ononMenuBarChose(tag C.int) {
 	if i := int(tag) - 1; i >= 0 && i < len(menuBarActions) {
 		chooseSystemAction(menuBarActions[i])
 	}
 }
 
-// gopdfMenuBarItemState returns how to show the item of a tag, as a menu
+// ononMenuBarItemState returns how to show the item of a tag, as a menu
 // opens: 1 when it can be chosen, plus 2 when it is checked.
 //
-//export gopdfMenuBarItemState
-func gopdfMenuBarItemState(tag C.int) C.int {
+//export ononMenuBarItemState
+func ononMenuBarItemState(tag C.int) C.int {
 	i := int(tag) - 1
 	if i < 0 || i >= len(menuBarActions) || nativeApp == nil {
 		return 1

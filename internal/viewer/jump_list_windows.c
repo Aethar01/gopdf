@@ -3,15 +3,15 @@
 #include <shobjidl.h>
 #include <propsys.h>
 
-// The jump list, the menu of gopdf's taskbar button and Start entry, lists
-// the documents opened lately and an Open File… task, which starts gopdf
+// The jump list, the menu of onon's taskbar button and Start entry, lists
+// the documents opened lately and an Open File… task, which starts onon
 // showing its file picker.
 
 // PKEY_Title, the name a jump list shows for a link.
-static const PROPERTYKEY gopdfTitleKey = {
+static const PROPERTYKEY ononTitleKey = {
     {0xF29F85E0, 0x4FF9, 0x1068, {0xAB, 0x91, 0x08, 0x00, 0x2B, 0x27, 0xB3, 0xD9}}, 2};
 
-static IShellLinkW *gopdfTaskLink(const wchar_t *exe, const wchar_t *title, const wchar_t *arguments) {
+static IShellLinkW *ononTaskLink(const wchar_t *exe, const wchar_t *title, const wchar_t *arguments) {
     IShellLinkW *link = NULL;
     if (FAILED(CoCreateInstance(&CLSID_ShellLink, NULL, CLSCTX_INPROC_SERVER, &IID_IShellLinkW, (void **)&link))) {
         return NULL;
@@ -26,16 +26,16 @@ static IShellLinkW *gopdfTaskLink(const wchar_t *exe, const wchar_t *title, cons
         PropVariantInit(&value);
         value.vt = VT_LPWSTR;
         value.pwszVal = (wchar_t *)title; // copied by SetValue
-        IPropertyStore_SetValue(properties, &gopdfTitleKey, &value);
+        IPropertyStore_SetValue(properties, &ononTitleKey, &value);
         IPropertyStore_Commit(properties);
         IPropertyStore_Release(properties);
     }
     return link;
 }
 
-// gopdfSetJumpList writes the jump list for the app with the given
+// ononSetJumpList writes the jump list for the app with the given
 // AppUserModelID.
-void gopdfSetJumpList(const char *appID) {
+void ononSetJumpList(const char *appID) {
     wchar_t id[128];
     if (MultiByteToWideChar(CP_UTF8, 0, appID, -1, id, ARRAYSIZE(id)) == 0) {
         return;
@@ -58,12 +58,12 @@ void gopdfSetJumpList(const char *appID) {
     if (FAILED(ICustomDestinationList_BeginList(list, &slots, &IID_IObjectArray, (void **)&removed))) {
         goto done;
     }
-    // A list of gopdf's own replaces the one Windows keeps, so it names the
+    // A list of onon's own replaces the one Windows keeps, so it names the
     // recent documents for Windows to fill in.
     ICustomDestinationList_AppendKnownCategory(list, KDC_RECENT);
     if (SUCCEEDED(CoCreateInstance(&CLSID_EnumerableObjectCollection, NULL, CLSCTX_INPROC_SERVER,
                                    &IID_IObjectCollection, (void **)&tasks))) {
-        IShellLinkW *open = gopdfTaskLink(exe, L"Open File\x2026", L"--command open_file_picker");
+        IShellLinkW *open = ononTaskLink(exe, L"Open File\x2026", L"--command open_file_picker");
         if (open != NULL) {
             IObjectCollection_AddObject(tasks, (IUnknown *)open);
             IShellLinkW_Release(open);

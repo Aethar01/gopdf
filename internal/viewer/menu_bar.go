@@ -1,6 +1,6 @@
 package viewer
 
-import "gopdf/internal/menubar"
+import "onon/internal/menubar"
 
 // On systems with a menu bar, the viewer shows the one menubar describes,
 // each item with a key bound to its action. setNativeMenuBar draws it again

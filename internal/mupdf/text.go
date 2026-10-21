@@ -40,13 +40,13 @@ type pageChar struct {
 // fetching the page's display list takes the document lock; see readText.
 func (d *Document) TextLayer(page int) (*TextLayer, error) {
 	var layer *TextLayer
-	err := d.readText(page, func(r *C.gopdf_renderer, list *C.fz_display_list) error {
-		var result C.gopdf_char_result
+	err := d.readText(page, func(r *C.onon_renderer, list *C.fz_display_list) error {
+		var result C.onon_char_result
 		var cerr *C.char
-		if C.gopdf_display_list_chars(r, list, &result, &cerr) == 0 {
+		if C.onon_display_list_chars(r, list, &result, &cerr) == 0 {
 			return consumeError("extract page chars", cerr)
 		}
-		defer C.gopdf_free_char_result(&result)
+		defer C.onon_free_char_result(&result)
 		var chars []pageChar
 		if result.char_count > 0 && result.chars != nil {
 			raw := unsafe.Slice(result.chars, int(result.char_count))

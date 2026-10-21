@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"gopdf/internal/testpdf"
+	"onon/internal/testpdf"
 )
 
 func TestClosedDocumentReturnsErrors(t *testing.T) {

@@ -3,7 +3,7 @@ package viewer
 import (
 	"math"
 
-	"gopdf/internal/config"
+	"onon/internal/config"
 )
 
 func (a *App) currentScaleFromRows(viewportW, viewportH int, baseRows []rowLayout) float64 {

@@ -5,7 +5,7 @@ import (
 	"log"
 	"strings"
 
-	"gopdf/internal/filepicker"
+	"onon/internal/filepicker"
 
 	lua "github.com/yuin/gopher-lua"
 )
@@ -17,7 +17,7 @@ import (
 //   - key: A printable key, special key name, modified key, or multi-key
 //     sequence, such as `j`, `<PgDn>`, `<C-p>`, or `gg`. See
 //     [Key and mouse names](#key-and-mouse-names).
-//   - action: A bindable action such as gopdf.next_page, or a Lua callback.
+//   - action: A bindable action such as onon.next_page, or a Lua callback.
 //
 // # Returns
 //
@@ -29,8 +29,8 @@ import (
 //
 // # Example
 //
-//	gopdf.bind("<C-p>", function()
-//	  gopdf.page(1)
+//	onon.bind("<C-p>", function()
+//	  onon.page(1)
 //	end)
 func luaBind(rt *Runtime) lua.LGFunction {
 	return func(L *lua.LState) int {
@@ -63,7 +63,7 @@ func luaBind(rt *Runtime) lua.LGFunction {
 //
 // # Example
 //
-//	gopdf.unbind("<C-p>")
+//	onon.unbind("<C-p>")
 func luaUnbind(rt *Runtime) lua.LGFunction {
 	return func(L *lua.LState) int {
 		key := L.CheckString(1)
@@ -92,7 +92,7 @@ func luaUnbind(rt *Runtime) lua.LGFunction {
 //
 // # Example
 //
-//	gopdf.bind_mouse("<C-wheel_up>", gopdf.zoom_in)
+//	onon.bind_mouse("<C-wheel_up>", onon.zoom_in)
 func luaBindMouse(rt *Runtime) lua.LGFunction {
 	return func(L *lua.LState) int {
 		event := L.CheckString(1)
@@ -123,7 +123,7 @@ func luaBindMouse(rt *Runtime) lua.LGFunction {
 //
 // # Example
 //
-//	gopdf.unbind_mouse("middle_down")
+//	onon.unbind_mouse("middle_down")
 func luaUnbindMouse(rt *Runtime) lua.LGFunction {
 	return func(L *lua.LState) int {
 		event := L.CheckString(1)
@@ -146,8 +146,8 @@ func luaUnbindMouse(rt *Runtime) lua.LGFunction {
 //
 // # Example
 //
-//	gopdf.message("ready")
-//	local current = gopdf.message()
+//	onon.message("ready")
+//	local current = onon.message()
 func luaMessage(rt *Runtime, cfg *Config) lua.LGFunction {
 	return func(L *lua.LState) int {
 		if L.GetTop() > 0 {
@@ -181,7 +181,7 @@ func luaMessage(rt *Runtime, cfg *Config) lua.LGFunction {
 //
 // # Example
 //
-//	gopdf.command(":fit width")
+//	onon.command(":fit width")
 func luaCommand(rt *Runtime) lua.LGFunction {
 	return func(L *lua.LState) int {
 		if rt.host == nil {
@@ -210,7 +210,7 @@ func luaCommand(rt *Runtime) lua.LGFunction {
 //
 // # Example
 //
-//	gopdf.open("appendix.pdf")
+//	onon.open("appendix.pdf")
 func luaOpen(rt *Runtime) lua.LGFunction {
 	return func(L *lua.LState) int {
 		if err := rt.open(L.CheckString(1)); err != nil {
@@ -237,8 +237,8 @@ func luaOpen(rt *Runtime) lua.LGFunction {
 //
 // # Example
 //
-//	gopdf.pick_file(function(result)
-//	  if result.success then gopdf.open(result.path) end
+//	onon.pick_file(function(result)
+//	  if result.success then onon.open(result.path) end
 //	end)
 func luaPickFile(rt *Runtime) lua.LGFunction {
 	return func(L *lua.LState) int {
@@ -275,8 +275,8 @@ func luaPickFile(rt *Runtime) lua.LGFunction {
 //
 // # Example
 //
-//	gopdf.pick_directory(function(result)
-//	  if result.success then gopdf.message(result.path) end
+//	onon.pick_directory(function(result)
+//	  if result.success then onon.message(result.path) end
 //	end)
 func luaPickDirectory(rt *Runtime) lua.LGFunction {
 	return func(L *lua.LState) int {
@@ -311,7 +311,7 @@ func luaPickDirectory(rt *Runtime) lua.LGFunction {
 //
 // # Example
 //
-//	local handle = gopdf.schedule(function() gopdf.message("later") end)
+//	local handle = onon.schedule(function() onon.message("later") end)
 func luaSchedule(rt *Runtime) lua.LGFunction {
 	return func(L *lua.LState) int {
 		fn, ok := L.Get(1).(*lua.LFunction)
@@ -341,7 +341,7 @@ func luaSchedule(rt *Runtime) lua.LGFunction {
 //
 // # Example
 //
-//	gopdf.log("info", "plugin loaded")
+//	onon.log("info", "plugin loaded")
 func luaLog(rt *Runtime) lua.LGFunction {
 	return func(L *lua.LState) int {
 		level := strings.ToLower(strings.TrimSpace(L.CheckString(1)))
@@ -369,7 +369,7 @@ func luaLog(rt *Runtime) lua.LGFunction {
 //
 // # Example
 //
-//	gopdf.open_external("https://example.com")
+//	onon.open_external("https://example.com")
 func luaOpenExternal(rt *Runtime) lua.LGFunction {
 	return func(L *lua.LState) int {
 		opener, ok := rt.host.(ExternalOpener)
@@ -395,8 +395,8 @@ func luaOpenExternal(rt *Runtime) lua.LGFunction {
 //
 // # Example
 //
-//	local page = gopdf.page()
-//	gopdf.page(page + 1)
+//	local page = onon.page()
+//	onon.page(page + 1)
 func luaPage(rt *Runtime) lua.LGFunction {
 	return func(L *lua.LState) int {
 		if L.GetTop() > 0 {
@@ -424,7 +424,7 @@ func luaPage(rt *Runtime) lua.LGFunction {
 //
 // # Example
 //
-//	if (gopdf.page_count() or 0) > 100 then gopdf.message("long document") end
+//	if (onon.page_count() or 0) > 100 then onon.message("long document") end
 func luaPageCount(rt *Runtime) lua.LGFunction {
 	return func(L *lua.LState) int {
 		if rt.host == nil {
@@ -448,7 +448,7 @@ func luaPageCount(rt *Runtime) lua.LGFunction {
 //
 // # Example
 //
-//	gopdf.goto_document_point({ page = 3, x = 72, y = 144 })
+//	onon.goto_document_point({ page = 3, x = 72, y = 144 })
 func luaGotoDocumentPoint(rt *Runtime) lua.LGFunction {
 	return func(L *lua.LState) int {
 		if rt.host == nil {
@@ -465,16 +465,16 @@ func luaGotoDocumentPoint(rt *Runtime) lua.LGFunction {
 	}
 }
 
-// luaVersion returns gopdf's version.
+// luaVersion returns onon's version.
 //
 // # Returns
 //
-// The release tag gopdf was built from, such as v0.7.0, or dev for a build not
+// The release tag onon was built from, such as v0.7.0, or dev for a build not
 // made from a tag.
 //
 // # Example
 //
-//	gopdf.log("info", "running gopdf " .. gopdf.version())
+//	onon.log("info", "running onon " .. onon.version())
 func luaVersion(L *lua.LState) int {
 	L.Push(lua.LString(Version))
 	return 1
@@ -488,7 +488,7 @@ func luaVersion(L *lua.LState) int {
 //
 // # Example
 //
-//	if gopdf.mode() == "normal" then gopdf.message("ready") end
+//	if onon.mode() == "normal" then onon.message("ready") end
 func luaMode(rt *Runtime) lua.LGFunction {
 	return func(L *lua.LState) int {
 		if rt.host == nil {
@@ -513,7 +513,7 @@ func luaMode(rt *Runtime) lua.LGFunction {
 //
 // # Example
 //
-//	gopdf.search("-iw introduction")
+//	onon.search("-iw introduction")
 func luaSearch(rt *Runtime) lua.LGFunction {
 	return func(L *lua.LState) int {
 		if rt.host == nil {
@@ -538,7 +538,7 @@ func luaSearch(rt *Runtime) lua.LGFunction {
 //
 // # Example
 //
-//	local query = gopdf.search_query()
+//	local query = onon.search_query()
 func luaSearchQuery(rt *Runtime) lua.LGFunction {
 	return func(L *lua.LState) int {
 		if rt.host == nil {
@@ -558,7 +558,7 @@ func luaSearchQuery(rt *Runtime) lua.LGFunction {
 //
 // # Example
 //
-//	gopdf.message(gopdf.search_match_count() .. " matches")
+//	onon.message(onon.search_match_count() .. " matches")
 func luaSearchMatchCount(rt *Runtime) lua.LGFunction {
 	return func(L *lua.LState) int {
 		if rt.host == nil {
@@ -578,7 +578,7 @@ func luaSearchMatchCount(rt *Runtime) lua.LGFunction {
 //
 // # Example
 //
-//	local index = gopdf.search_match_index()
+//	local index = onon.search_match_index()
 func luaSearchMatchIndex(rt *Runtime) lua.LGFunction {
 	return func(L *lua.LState) int {
 		if rt.host == nil {
@@ -603,7 +603,7 @@ func luaSearchMatchIndex(rt *Runtime) lua.LGFunction {
 //
 // # Example
 //
-//	gopdf.message("count: " .. gopdf.current_count())
+//	onon.message("count: " .. onon.current_count())
 func luaCurrentCount(rt *Runtime) lua.LGFunction {
 	return func(L *lua.LState) int {
 		if rt.host == nil {
@@ -623,7 +623,7 @@ func luaCurrentCount(rt *Runtime) lua.LGFunction {
 //
 // # Example
 //
-//	for _, key in ipairs(gopdf.pending_keys()) do gopdf.log("debug", key) end
+//	for _, key in ipairs(onon.pending_keys()) do onon.log("debug", key) end
 func luaPendingKeys(rt *Runtime) lua.LGFunction {
 	return func(L *lua.LState) int {
 		if rt.host == nil {
@@ -667,7 +667,7 @@ func luaRecentFiles(cfg *Config) lua.LGFunction {
 //
 // # Example
 //
-//	gopdf.clear_pending_keys()
+//	onon.clear_pending_keys()
 func luaClearPendingKeys(rt *Runtime) lua.LGFunction {
 	return func(L *lua.LState) int {
 		if rt.host != nil {
@@ -694,7 +694,7 @@ func luaClearPendingKeys(rt *Runtime) lua.LGFunction {
 //
 // # Example
 //
-//	gopdf.fit_mode("width")
+//	onon.fit_mode("width")
 func luaFitMode(rt *Runtime, cfg *Config) lua.LGFunction {
 	return func(L *lua.LState) int {
 		if L.GetTop() > 0 {
@@ -730,7 +730,7 @@ func luaFitMode(rt *Runtime, cfg *Config) lua.LGFunction {
 //
 // # Example
 //
-//	gopdf.render_mode("single")
+//	onon.render_mode("single")
 func luaRenderMode(rt *Runtime, cfg *Config) lua.LGFunction {
 	return func(L *lua.LState) int {
 		if L.GetTop() > 0 {
@@ -766,7 +766,7 @@ func luaRenderMode(rt *Runtime, cfg *Config) lua.LGFunction {
 //
 // # Example
 //
-//	gopdf.zoom(1.5)
+//	onon.zoom(1.5)
 func luaZoom(rt *Runtime) lua.LGFunction {
 	return func(L *lua.LState) int {
 		if L.GetTop() > 0 {
@@ -798,7 +798,7 @@ func luaZoom(rt *Runtime) lua.LGFunction {
 //
 // # Example
 //
-//	gopdf.rotation(90)
+//	onon.rotation(90)
 func luaRotation(rt *Runtime) lua.LGFunction {
 	return func(L *lua.LState) int {
 		if L.GetTop() > 0 {
@@ -830,7 +830,7 @@ func luaRotation(rt *Runtime) lua.LGFunction {
 //
 // # Example
 //
-//	gopdf.fullscreen(true)
+//	onon.fullscreen(true)
 func luaFullscreen(rt *Runtime) lua.LGFunction {
 	return func(L *lua.LState) int {
 		if L.GetTop() > 0 {
@@ -858,7 +858,7 @@ func luaFullscreen(rt *Runtime) lua.LGFunction {
 //
 // # Example
 //
-//	gopdf.log("debug", tostring(gopdf.cache.entries()))
+//	onon.log("debug", tostring(onon.cache.entries()))
 func luaCacheEntries(rt *Runtime) lua.LGFunction {
 	return func(L *lua.LState) int {
 		if rt.host == nil {
@@ -878,7 +878,7 @@ func luaCacheEntries(rt *Runtime) lua.LGFunction {
 //
 // # Example
 //
-//	if gopdf.cache.pending() > 0 then gopdf.message("rendering") end
+//	if onon.cache.pending() > 0 then onon.message("rendering") end
 func luaCachePending(rt *Runtime) lua.LGFunction {
 	return func(L *lua.LState) int {
 		if rt.host == nil {
@@ -921,7 +921,7 @@ func luaCacheLimit(rt *Runtime) lua.LGFunction {
 //
 // # Example
 //
-//	gopdf.cache.clear()
+//	onon.cache.clear()
 func luaCacheClear(rt *Runtime) lua.LGFunction {
 	return func(L *lua.LState) int {
 		if rt.host != nil {
@@ -943,10 +943,10 @@ func luaCacheClear(rt *Runtime) lua.LGFunction {
 //
 // # Example
 //
-//	local view = gopdf.ui.create({
+//	local view = onon.ui.create({
 //	  title = "Recent files",
-//	  rows = gopdf.recent_files(10),
-//	  on_select = function(_, path) gopdf.open(path) end,
+//	  rows = onon.recent_files(10),
+//	  on_select = function(_, path) onon.open(path) end,
 //	})
 //	view:show()
 func luaUiCreate(rt *Runtime) lua.LGFunction {
@@ -1013,8 +1013,8 @@ func luaClipboardSetText(rt *Runtime) lua.LGFunction {
 //
 // # Example
 //
-//	for _, extension in ipairs(gopdf.formats.extensions()) do
-//	  gopdf.log("debug", extension)
+//	for _, extension in ipairs(onon.formats.extensions()) do
+//	  onon.log("debug", extension)
 //	end
 func luaFormatsExtensions(rt *Runtime) lua.LGFunction {
 	return func(L *lua.LState) int {
@@ -1047,7 +1047,7 @@ func luaFormatsExtensions(rt *Runtime) lua.LGFunction {
 //
 // # Example
 //
-//	if gopdf.formats.supports("book.epub") then gopdf.open("book.epub") end
+//	if onon.formats.supports("book.epub") then onon.open("book.epub") end
 func luaFormatsSupports(rt *Runtime) lua.LGFunction {
 	return func(L *lua.LState) int {
 		host, ok := rt.host.(DocumentFormatHost)
@@ -1077,7 +1077,7 @@ func luaFormatsSupports(rt *Runtime) lua.LGFunction {
 //
 // # Example
 //
-//	local plugin = gopdf.plugin.register("my-plugin")
+//	local plugin = onon.plugin.register("my-plugin")
 func luaPluginRegister(runtime *Runtime) lua.LGFunction {
 	return func(L *lua.LState) int {
 		if runtime == nil {

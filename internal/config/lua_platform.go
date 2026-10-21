@@ -21,7 +21,7 @@ func NewLuaPlatformModule(L *lua.LState) *lua.LTable {
 	return mod
 }
 
-// LuaOSName is how gopdf.platform.os names goos.
+// LuaOSName is how onon.platform.os names goos.
 func LuaOSName(goos string) string {
 	if goos == "darwin" {
 		return "macos"
@@ -36,14 +36,14 @@ func homeDir() string {
 
 func platformLuaConfigDir() string {
 	if dir, err := os.UserConfigDir(); err == nil {
-		return filepath.Join(dir, "gopdf")
+		return filepath.Join(dir, "onon")
 	}
 	return ""
 }
 
 func platformLuaCacheDir() string {
 	if dir, err := os.UserCacheDir(); err == nil {
-		return filepath.Join(dir, "gopdf")
+		return filepath.Join(dir, "onon")
 	}
 	return ""
 }
