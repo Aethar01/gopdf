@@ -4,20 +4,44 @@ package viewer
 
 /*
 #cgo LDFLAGS: -framework Cocoa
+#include <stdlib.h>
 void gopdfConfigureMacOSWindow(void *window);
+void gopdfSetWindowDocument(void *window, const char *path, int edited);
 */
 import "C"
 
-import "github.com/jupiterrider/purego-sdl3/sdl"
+import (
+	"unsafe"
+
+	"github.com/jupiterrider/purego-sdl3/sdl"
+)
 
 func (a *App) configureNativeWindow(window *sdl.Window) {
-	if window == nil {
-		return
+	if nativeWindow := cocoaWindow(window); nativeWindow != nil {
+		C.gopdfConfigureMacOSWindow(nativeWindow)
 	}
-	properties := sdl.GetWindowProperties(window)
-	nativeWindow := sdl.GetPointerProperty(properties, sdl.PropWindowCocoaWindowPointer, nil)
+}
+
+// setNativeWindowDocument gives the window the file it shows, for its
+// proxy icon and path menu, and marks it edited while it has unsaved edits.
+func setNativeWindowDocument(window *sdl.Window, path string, edited bool) {
+	nativeWindow := cocoaWindow(window)
 	if nativeWindow == nil {
 		return
 	}
-	C.gopdfConfigureMacOSWindow(nativeWindow)
+	text := C.CString(path)
+	defer C.free(unsafe.Pointer(text))
+	flag := C.int(0)
+	if edited {
+		flag = 1
+	}
+	C.gopdfSetWindowDocument(nativeWindow, text, flag)
+}
+
+func cocoaWindow(window *sdl.Window) unsafe.Pointer {
+	if window == nil {
+		return nil
+	}
+	properties := sdl.GetWindowProperties(window)
+	return sdl.GetPointerProperty(properties, sdl.PropWindowCocoaWindowPointer, nil)
 }

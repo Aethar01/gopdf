@@ -231,3 +231,25 @@ void gopdfConfigureMacOSWindow(void *windowPointer) {
 int gopdfReduceMotion(void) {
     return [[NSWorkspace sharedWorkspace] accessibilityDisplayShouldReduceMotion] ? 1 : 0;
 }
+
+static void gopdfApplyWindowDocument(NSWindow *window, NSString *path, BOOL edited) {
+    window.representedURL = path.length > 0 ? [NSURL fileURLWithPath:path] : nil;
+    window.documentEdited = edited;
+}
+
+void gopdfSetWindowDocument(void *windowPointer, const char *path, int edited) {
+    NSWindow *window = (__bridge NSWindow *)windowPointer;
+    if (window == nil) {
+        return;
+    }
+    NSString *document = [[NSString alloc] initWithUTF8String:path];
+    if ([NSThread isMainThread]) {
+        gopdfApplyWindowDocument(window, document, edited != 0);
+        [document release];
+    } else {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            gopdfApplyWindowDocument(window, document, edited != 0);
+            [document release];
+        });
+    }
+}

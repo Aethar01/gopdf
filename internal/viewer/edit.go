@@ -21,8 +21,15 @@ func (a *App) markEdited() {
 
 func (a *App) moveEditPos(delta int) {
 	a.editPos += delta
-	a.unsaved = a.editPos != a.savedPos
+	a.setUnsaved(a.editPos != a.savedPos)
 	a.discardWarned = false
+}
+
+// setUnsaved records whether the document has edits not yet written, and
+// shows it on the window where the system marks edited documents.
+func (a *App) setUnsaved(unsaved bool) {
+	a.unsaved = unsaved
+	a.showWindowDocument()
 }
 
 // undoEdit undoes (or redoes) an edit and re-renders the pages on screen.
@@ -80,7 +87,7 @@ func (a *App) writeDocument(path string) {
 	}
 	if target == a.docPath {
 		a.savedPos = a.editPos
-		a.unsaved = false
+		a.setUnsaved(false)
 		a.document.record(a.docPath) // our own write is not an outside change
 	}
 	a.message = "wrote " + filepath.Base(target)

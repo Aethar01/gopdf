@@ -51,3 +51,5 @@ func (a *App) configureNativeWindow(window *sdl.Window) {
 	corner := uint32(dwmCornerRound)
 	_ = windows.DwmSetWindowAttribute(hwnd, windows.DWMWA_WINDOW_CORNER_PREFERENCE, unsafe.Pointer(&corner), uint32(unsafe.Sizeof(corner)))
 }
+
+func setNativeWindowDocument(window *sdl.Window, path string, edited bool) {}

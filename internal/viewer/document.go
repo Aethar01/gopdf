@@ -217,7 +217,8 @@ func (a *App) resetForNewDocument(password string) {
 	a.pendingOpen = ""
 	a.hints = nil
 	a.preview = nil
-	a.unsaved, a.discardWarned, a.editPos, a.savedPos = false, false, 0, 0
+	a.discardWarned, a.editPos, a.savedPos = false, 0, 0
+	a.setUnsaved(false)
 }
 
 func (a *App) promptDocumentPassword(path string, opts openDocumentOptions) {

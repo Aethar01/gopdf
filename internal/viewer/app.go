@@ -90,11 +90,20 @@ func (a *App) setWindowTitle() {
 	if a.window == nil {
 		return
 	}
+	a.showWindowDocument()
 	if a.docName == "" {
 		sdl.SetWindowTitle(a.window, "gopdf")
 		return
 	}
 	sdl.SetWindowTitle(a.window, a.docName+" - gopdf")
+}
+
+// showWindowDocument tells the system which file the window shows and
+// whether it has unsaved edits, on systems that show them.
+func (a *App) showWindowDocument() {
+	if a.window != nil {
+		setNativeWindowDocument(a.window, a.docPath, a.unsaved)
+	}
 }
 
 func (a *App) Close() {
