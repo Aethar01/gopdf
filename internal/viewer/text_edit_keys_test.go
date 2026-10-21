@@ -36,6 +36,7 @@ func TestTextEditKeysPerSystem(t *testing.T) {
 		{goos: "darwin", key: "<D-BS>", value: "one two", cursor: 4, want: "|two"},
 		{goos: "darwin", key: "<C-k>", value: "one two", cursor: 3, want: "one|"},
 		{goos: "darwin", key: "<C-Left>", value: "one two", cursor: 7, want: "one |two"},
+		{goos: "darwin", key: "<C-a>", value: "one two", cursor: 4, want: "|one two"},
 	}
 	for _, tt := range tests {
 		edit, ok := textEditFor(tt.goos, tt.key)
@@ -50,6 +51,19 @@ func TestTextEditKeysPerSystem(t *testing.T) {
 		left, right := splitAtRune(app.input.Value, app.input.Cursor)
 		if got := left + "|" + right; got != tt.want {
 			t.Errorf("%s %s on %q: got %q, want %q", tt.goos, tt.key, tt.value, got, tt.want)
+		}
+	}
+	for goos, key := range map[string]string{"darwin": "<D-a>", "windows": "<C-a>", "linux": "<C-a>"} {
+		edit, ok := textEditFor(goos, key)
+		if !ok {
+			t.Errorf("%s has no select all on %s", goos, key)
+			continue
+		}
+		app := &App{inputState: inputState{mode: modeCommand}}
+		app.input.Set("one two")
+		edit(app)
+		if got, ok := app.input.SelectedText(); !ok || got != "one two" {
+			t.Errorf("%s %s selects %q", goos, key, got)
 		}
 	}
 	for _, key := range []string{"<A-Left>", "<D-BS>", "<C-k>"} {

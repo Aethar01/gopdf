@@ -136,6 +136,12 @@ func (t *textInput) deleteRange(start, end int) {
 	t.selectionActive = false
 }
 
+// SelectAll selects the whole input, leaving the cursor at its end.
+func (t *textInput) SelectAll() {
+	t.SetCursor(0, false)
+	t.MoveToEnd(true)
+}
+
 // MoveToStart moves the cursor to the start of the input, selecting the
 // text it passes when extend is set.
 func (t *textInput) MoveToStart(extend bool) {

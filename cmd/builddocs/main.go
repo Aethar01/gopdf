@@ -179,7 +179,7 @@ func renderBindingNames(b *strings.Builder) {
 	b.WriteString("Modifiers may be written in any order, so `<C-S-Tab>`, `<s-c-tab>` and `<S-C-TAB>` are the same key. Bindings are stored and shown in the first form, with modifiers in C, A, D, S order.\n\n")
 
 	b.WriteString("### Editing a prompt\n\n")
-	b.WriteString("While a prompt is open, these keys edit its text before any binding of theirs runs. On every system, Left and Right move a character and with Ctrl a word, Home and End go to the ends, Shift with any of them selects, Backspace and Delete delete a character and with Ctrl a word, `<C-w>` deletes the word before the cursor, and `<C-v>` pastes. Up and Down step through the prompt's history.\n\n")
+	b.WriteString("While a prompt is open, these keys edit its text before any binding of theirs runs. On every system, Left and Right move a character and with Ctrl a word, Home and End go to the ends, Shift with any of them selects, Backspace and Delete delete a character and with Ctrl a word, `<C-w>` deletes the word before the cursor, and `<C-v>` pastes. Up and Down step through the prompt's history. `<C-a>` on Windows and Linux, and `<D-a>` on macOS, selects all of it.\n\n")
 	b.WriteString("On macOS, prompts also edit as Mac text fields do: Option with Left, Right, Backspace or Delete works by word, Cmd with Left or Right goes to the ends and Cmd-Backspace deletes to the start, and `<C-a>`, `<C-e>`, `<C-b>`, `<C-f>`, `<C-h>`, `<C-d>` and `<C-k>` work as in Emacs.\n\n")
 	b.WriteString("### Mouse events\n\n")
 	b.WriteString("| Event | Fires on |\n|---|---|\n")

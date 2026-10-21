@@ -37,6 +37,7 @@ var (
 	deleteWordRight = editing((*textInput).DeleteWordRight)
 	deleteToStart   = editing((*textInput).DeleteToStart)
 	deleteToEnd     = editing((*textInput).DeleteToEnd)
+	selectAll       = editing((*textInput).SelectAll)
 	pasteClipboard  = textEdit(func(a *App) {
 		a.editInput(func(t *textInput) { t.InsertText(a.GetClipboard()) })
 	})
@@ -68,7 +69,14 @@ var textEditKeys = map[string]textEdit{
 // platformTextEditKeys holds each system's own editing keys, by
 // runtime.GOOS name.
 var platformTextEditKeys = map[string]map[string]textEdit{
-	"darwin": macOSTextEditKeys,
+	"darwin":  macOSTextEditKeys,
+	"windows": desktopTextEditKeys,
+	"linux":   desktopTextEditKeys,
+}
+
+// desktopTextEditKeys are the keys Windows and Linux text fields add.
+var desktopTextEditKeys = map[string]textEdit{
+	"<C-a>": selectAll,
 }
 
 // macOSTextEditKeys are the keys Mac text fields edit with: Option moves
@@ -88,6 +96,7 @@ var macOSTextEditKeys = map[string]textEdit{
 	"<A-BS>":      deleteWordLeft,
 	"<A-Del>":     deleteWordRight,
 	"<D-BS>":      deleteToStart,
+	"<D-a>":       selectAll,
 	"<C-a>":       moveToStart,
 	"<C-e>":       moveToEnd,
 	"<C-b>":       moveLeft,
