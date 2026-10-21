@@ -102,10 +102,10 @@ func TestViewStateRoundTrip(t *testing.T) {
 }
 
 func TestViewStateAtDocumentStartPreservesPreferencesOnly(t *testing.T) {
-	state := viewState{page: 7, scrollX: 12, scrollY: 34, zoom: 1.5, fitMode: fitManual, renderMode: renderSingle, dualPage: true, firstPageOffset: true, statusBarShown: true, altColors: true}
+	state := viewState{page: 7, scrollX: 12, scrollY: 34, anchor: viewportAnchor{valid: true, page: 7}, zoom: 1.5, fitMode: fitManual, renderMode: renderSingle, dualPage: true, firstPageOffset: true, statusBarShown: true, altColors: true}
 	state = state.atDocumentStart()
 
-	if state.page != 0 || state.scrollX != 0 || state.scrollY != 0 {
+	if state.page != 0 || state.scrollX != 0 || state.scrollY != 0 || state.anchor.valid {
 		t.Fatalf("expected document start location, got %#v", state)
 	}
 	if state.zoom != 1.5 || state.fitMode != fitManual || state.renderMode != renderSingle || !state.dualPage || !state.firstPageOffset || !state.statusBarShown || !state.altColors {
