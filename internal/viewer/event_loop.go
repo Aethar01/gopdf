@@ -425,6 +425,7 @@ func (a *App) drawFrame() error {
 		a.winW, a.winH = int(w), int(h)
 	}
 	bg := a.backgroundColor()
+	a.showWindowColors(bg)
 	if !sdl.SetRenderDrawColor(a.renderer, bg.R, bg.G, bg.B, bg.A) {
 		return fmt.Errorf("SDL draw color failed: %s", sdl.GetError())
 	}

@@ -3,6 +3,7 @@
 package viewer
 
 import (
+	"image/color"
 	"unsafe"
 
 	"github.com/jupiterrider/purego-sdl3/sdl"
@@ -52,8 +53,7 @@ func (a *App) configureNativeWindow(window *sdl.Window) {
 		return a.titleBarHitTest(float64(point.X)*density, float64(point.Y)*density)
 	}, nil)
 
-	properties := sdl.GetWindowProperties(window)
-	hwnd := windows.HWND(uintptr(sdl.GetPointerProperty(properties, sdl.PropWindowWin32HwndPointer, nil)))
+	hwnd := win32Window(window)
 	if hwnd == 0 {
 		return
 	}
@@ -67,3 +67,33 @@ func (a *App) configureNativeWindow(window *sdl.Window) {
 }
 
 func setNativeWindowDocument(window *sdl.Window, path string, edited bool) {}
+
+// DWM window attributes Windows 11 reads; Windows 10 ignores the border.
+const (
+	dwmUseImmersiveDarkMode = 20 // DWMWA_USE_IMMERSIVE_DARK_MODE
+	dwmBorderColor          = 34 // DWMWA_BORDER_COLOR
+)
+
+// setNativeWindowColors draws the window's frame dark behind a dark theme,
+// so its shadow and edges match, and its border in the theme's colours.
+func setNativeWindowColors(window *sdl.Window, background, border color.RGBA) {
+	hwnd := win32Window(window)
+	if hwnd == 0 {
+		return
+	}
+	dark := uint32(0)
+	if !isLight(background) {
+		dark = 1
+	}
+	_ = windows.DwmSetWindowAttribute(hwnd, dwmUseImmersiveDarkMode, unsafe.Pointer(&dark), uint32(unsafe.Sizeof(dark)))
+	colorRef := uint32(border.R) | uint32(border.G)<<8 | uint32(border.B)<<16
+	_ = windows.DwmSetWindowAttribute(hwnd, dwmBorderColor, unsafe.Pointer(&colorRef), uint32(unsafe.Sizeof(colorRef)))
+}
+
+func win32Window(window *sdl.Window) windows.HWND {
+	if window == nil {
+		return 0
+	}
+	properties := sdl.GetWindowProperties(window)
+	return windows.HWND(uintptr(sdl.GetPointerProperty(properties, sdl.PropWindowWin32HwndPointer, nil)))
+}

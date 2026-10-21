@@ -32,6 +32,24 @@ func (a *App) foregroundColor() color.RGBA     { return rgb(a.palette().Foregrou
 func (a *App) mutedColor() color.RGBA          { return rgb(a.palette().Muted) }
 func (a *App) statusBarColor() color.RGBA      { return rgb(a.palette().StatusBar) }
 
+// showWindowColors gives the system's window frame the colours behind
+// the pages, on systems that draw one, when they have changed.
+func (a *App) showWindowColors(bg color.RGBA) {
+	muted := a.mutedColor()
+	border := color.RGBA{
+		R: mixChannel(muted.R, bg.R, 190),
+		G: mixChannel(muted.G, bg.G, 190),
+		B: mixChannel(muted.B, bg.B, 190),
+		A: 0xff,
+	}
+	colors := [2]color.RGBA{bg, border}
+	if a.window == nil || a.windowColors == colors {
+		return
+	}
+	a.windowColors = colors
+	setNativeWindowColors(a.window, bg, border)
+}
+
 func rgb(c [3]uint8) color.RGBA {
 	return color.RGBA{R: c[0], G: c[1], B: c[2], A: 0xff}
 }

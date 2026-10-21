@@ -1,6 +1,7 @@
 package viewer
 
 import (
+	"image/color"
 	"sync"
 	"time"
 
@@ -164,6 +165,9 @@ type sdlState struct {
 	// displayFrame is the window's display's refresh interval, or 0 when
 	// unknown; see animationFrameDuration.
 	displayFrame time.Duration
+	// windowColors are the background and border last given to the
+	// window's frame.
+	windowColors [2]color.RGBA
 	// menuBarShown is set once the menu bar shows the key bindings.
 	menuBarShown bool
 	// drawing is set while drawFrame runs; frameStatus is the status bar's

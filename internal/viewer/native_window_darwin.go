@@ -11,6 +11,7 @@ void gopdfSetWindowDocument(void *window, const char *path, int edited);
 import "C"
 
 import (
+	"image/color"
 	"unsafe"
 
 	"github.com/jupiterrider/purego-sdl3/sdl"
@@ -37,6 +38,10 @@ func setNativeWindowDocument(window *sdl.Window, path string, edited bool) {
 	}
 	C.gopdfSetWindowDocument(nativeWindow, text, flag)
 }
+
+// setNativeWindowColors does nothing on macOS, whose hidden title bar
+// leaves no frame to colour.
+func setNativeWindowColors(window *sdl.Window, background, border color.RGBA) {}
 
 func cocoaWindow(window *sdl.Window) unsafe.Pointer {
 	if window == nil {
