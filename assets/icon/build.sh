@@ -1,13 +1,14 @@
 #!/bin/sh
 # Rebuilds onon's icon files in assets/ from the SVG sources here. Needs
-# macOS (swiftc and iconutil, which come with Xcode) and ImageMagick for
+# macOS with Xcode 26 or later (swiftc, iconutil and actool) and ImageMagick for
 # the .ico and .bmp. AppKit draws the SVGs: ImageMagick's own SVG
 # renderer gets the arcs wrong.
 #
 #   onon.svg (in assets/)       Linux scalable icon and 256 px PNG, SDL window icon
 #   onon-macos*.svg             macOS 12-15 .icns, art on Apple's 824/1024 grid
 #   onon-windows*.svg           Windows .ico: no plate, mid greens for any taskbar
-#   ../macos/onon.icon          macOS 26 and later, compiled by actool in release.yml
+#   ../macos/onon.icon          macOS 26 and later, compiled here into ../macos/Assets.car,
+#                               since release runners may lack Xcode 26's actool
 set -eu
 cd "$(dirname "$0")"
 work=$(mktemp -d)
@@ -35,3 +36,7 @@ for s in 128 256 512; do
 done
 iconutil -c icns "$set" -o ../macos/onon.icns
 r onon-macos.svg ../macos/onon-1024.png 1024
+mkdir "$work/car"
+xcrun actool ../macos/onon.icon --compile "$work/car" --app-icon onon --platform macosx \
+	--minimum-deployment-target 12.0 --output-partial-info-plist "$work/car.plist" >/dev/null
+cp "$work/car/Assets.car" ../macos/Assets.car
