@@ -117,7 +117,7 @@ on the next start.
 
 ## Configuration
 
-Configuration is optional and written in Lua. Start with [`config.example.lua`](./config.example.lua), or create a small file containing only the values and bindings you want to change. Reload it with `:reload-config`.
+Configuration is optional and written in Lua. Start with [`config.example.lua`](./config.example.lua), or create a small file containing only the values and bindings you want to change. `:config`, or Settings… (Cmd-,) on macOS, opens the file in your text editor, creating it if there is none. Reload it with `:reload-config`.
 
 The first existing configuration file for the current platform is loaded:
 
