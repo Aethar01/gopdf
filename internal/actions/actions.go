@@ -90,16 +90,6 @@ func Names() []string {
 	return names
 }
 
-func DefaultBindings() map[string]string {
-	bindings := map[string]string{}
-	for _, action := range registry {
-		for _, key := range action.Keys {
-			bindings[key] = action.Name
-		}
-	}
-	return bindings
-}
-
 func IsBuiltin(name string) bool {
 	_, ok := byName[name]
 	return ok

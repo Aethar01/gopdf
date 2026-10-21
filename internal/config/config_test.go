@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"gopdf/internal/actions"
 	"gopdf/internal/keys"
 )
 
@@ -1074,14 +1075,20 @@ func TestLuaBindingsRejectUnknownNames(t *testing.T) {
 
 func TestDefaultBindingsAreValid(t *testing.T) {
 	cfg := Default()
-	for key := range cfg.KeyBindings {
-		seq, err := keys.ParseSequence(key)
-		if err != nil || keys.Format(seq) != key {
-			t.Errorf("default key %q parses to %v, %v", key, seq, err)
-			continue
-		}
-		if err := checkFirstKey(seq[0]); err != nil {
-			t.Errorf("default key %q can never run: %v", key, err)
+	goos := []string{""}
+	for _, platform := range actions.Platforms() {
+		goos = append(goos, platform.GOOS)
+	}
+	for _, system := range goos {
+		for key := range actions.DefaultBindingsFor(system) {
+			seq, err := keys.ParseSequence(key)
+			if err != nil || keys.Format(seq) != key {
+				t.Errorf("default key %q parses to %v, %v", key, seq, err)
+				continue
+			}
+			if err := checkFirstKey(seq[0]); err != nil {
+				t.Errorf("default key %q can never run: %v", key, err)
+			}
 		}
 	}
 	for event := range cfg.MouseBindings {

@@ -101,13 +101,19 @@ func renderReference(luaRefs []config.LuaReferenceEntry, luaDocs map[string]stri
 	renderBindingNames(&b)
 	b.WriteString("\n## Bindable actions\n\n")
 	b.WriteString("Every action is available as `gopdf.<action>`, can be passed to `gopdf.bind`, and can be called from a runtime Lua callback.\n\n")
-	b.WriteString("| Action | Default keys | Countable |\n|---|---|---|\n")
+	platforms := actions.Platforms()
+	b.WriteString("Keys in a system's own column are bound there as well as the default keys.\n\n")
+	b.WriteString("| Action | Default keys |")
+	for _, platform := range platforms {
+		b.WriteString(" " + platform.Name + " |")
+	}
+	b.WriteString(" Countable |\n|---|---|" + strings.Repeat("---|", len(platforms)) + "---|\n")
 	for _, action := range actions.All() {
-		keys := make([]string, len(action.Keys))
-		for i, key := range action.Keys {
-			keys[i] = markdownCode(key)
+		fmt.Fprintf(&b, "| %s | %s |", markdownCode(action.Name), markdownCodeList(action.Keys))
+		for _, platform := range platforms {
+			fmt.Fprintf(&b, " %s |", markdownCodeList(platform.Keys[action.Name]))
 		}
-		fmt.Fprintf(&b, "| %s | %s | %t |\n", markdownCode(action.Name), strings.Join(keys, ", "), action.Countable)
+		fmt.Fprintf(&b, " %t |\n", action.Countable)
 	}
 	b.WriteString("\n## Lua tables\n\n")
 	b.WriteString("- `gopdf.document`: `path`, `name`, `extension`, `exists`, `size_bytes`, and `page_count`.\n")
@@ -233,6 +239,16 @@ func renderExampleConfig() string {
 			fmt.Fprintf(&b, "gopdf.bind(%q, gopdf.%s)\n", key, action.Name)
 		}
 	}
+	for _, platform := range actions.Platforms() {
+		fmt.Fprintf(&b, "\n-- Also bound on %s.\n\n", platform.Name)
+		fmt.Fprintf(&b, "if gopdf.platform.os == %q then\n", config.LuaOSName(platform.GOOS))
+		for _, action := range actions.All() {
+			for _, key := range platform.Keys[action.Name] {
+				fmt.Fprintf(&b, "  gopdf.bind(%q, gopdf.%s)\n", key, action.Name)
+			}
+		}
+		b.WriteString("end\n")
+	}
 	b.WriteString("\n-- Default mouse bindings.\n\n")
 	cfg := config.Default()
 	events := make([]string, 0, len(cfg.MouseBindings))
@@ -344,6 +360,14 @@ func markdownCode(value string) string {
 	value = html.EscapeString(value)
 	value = strings.ReplaceAll(value, "|", "&#124;")
 	return "<code>" + value + "</code>"
+}
+
+func markdownCodeList(values []string) string {
+	codes := make([]string, len(values))
+	for i, value := range values {
+		codes[i] = markdownCode(value)
+	}
+	return strings.Join(codes, ", ")
 }
 
 func fatal(err error) {

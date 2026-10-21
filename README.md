@@ -32,6 +32,8 @@ Useful defaults:
 | `F1` / `g?` | Help: commands, keys, search flags and options |
 | `q` | Quit |
 
+On macOS the usual Cmd shortcuts work as well, such as Cmd-F to search, Cmd-Z to undo and Cmd-= to zoom; the reference lists them with the actions they run.
+
 ## Installation
 
 Download a package for Linux, macOS, or Windows from the [latest release](https://github.com/Aethar01/gopdf/releases/latest).

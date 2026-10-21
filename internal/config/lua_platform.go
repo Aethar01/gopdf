@@ -11,7 +11,7 @@ import (
 // NewLuaPlatformModule returns the synchronous platform information exposed to Lua.
 func NewLuaPlatformModule(L *lua.LState) *lua.LTable {
 	mod := L.NewTable()
-	L.SetField(mod, "os", lua.LString(luaOSName(runtime.GOOS)))
+	L.SetField(mod, "os", lua.LString(LuaOSName(runtime.GOOS)))
 	L.SetField(mod, "arch", lua.LString(runtime.GOARCH))
 	L.SetField(mod, "home_dir", lua.LString(homeDir()))
 	L.SetField(mod, "config_dir", lua.LString(platformLuaConfigDir()))
@@ -21,7 +21,8 @@ func NewLuaPlatformModule(L *lua.LState) *lua.LTable {
 	return mod
 }
 
-func luaOSName(goos string) string {
+// LuaOSName is how gopdf.platform.os names goos.
+func LuaOSName(goos string) string {
 	if goos == "darwin" {
 		return "macos"
 	}

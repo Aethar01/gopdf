@@ -181,6 +181,30 @@ gopdf.bind("g?", gopdf.help)
 gopdf.bind("<Space>", gopdf.pan)
 gopdf.bind("q", gopdf.quit)
 
+-- Also bound on macOS.
+
+if gopdf.platform.os == "macos" then
+  gopdf.bind("<D-Up>", gopdf.first_page)
+  gopdf.bind("<D-Down>", gopdf.last_page)
+  gopdf.bind("<D-f>", gopdf.search_prompt)
+  gopdf.bind("<D-g>", gopdf.search_next)
+  gopdf.bind("<D-S-g>", gopdf.search_prev)
+  gopdf.bind("<D-=>", gopdf.zoom_in)
+  gopdf.bind("<D-S-=>", gopdf.zoom_in)
+  gopdf.bind("<D-->", gopdf.zoom_out)
+  gopdf.bind("<D-0>", gopdf.reset_zoom)
+  gopdf.bind("<D-z>", gopdf.undo)
+  gopdf.bind("<D-S-z>", gopdf.redo)
+  gopdf.bind("<D-c>", gopdf.copy)
+  gopdf.bind("<D-x>", gopdf.cut)
+  gopdf.bind("<D-v>", gopdf.paste)
+  gopdf.bind("<D-]>", gopdf.jump_forward)
+  gopdf.bind("<D-[>", gopdf.jump_backward)
+  gopdf.bind("<D-o>", gopdf.open_file_picker)
+  gopdf.bind("<D-s>", gopdf.save)
+  gopdf.bind("<D-p>", gopdf.print)
+end
+
 -- Default mouse bindings.
 
 gopdf.bind_mouse("<C-wheel_down>", gopdf.zoom_out)
