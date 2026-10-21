@@ -68,15 +68,8 @@ jobs:
 
           cp assets/macos/onon.icns "$app/Contents/Resources/onon.icns"
           # macOS 26 and later take the adaptive icon from Assets.car, which
-          # needs Xcode 26's actool; older macOS keeps using onon.icns.
-          xcode=$(ls -d /Applications/Xcode_2[6-9]*.app /Applications/Xcode_[3-9][0-9]*.app 2>/dev/null | sort -V | tail -1 || true)
-          if [ -n "$xcode" ] && DEVELOPER_DIR="$xcode/Contents/Developer" xcrun actool assets/macos/onon.icon \
-              --compile "$RUNNER_TEMP/icon" --app-icon onon --platform macosx --minimum-deployment-target 12.0 \
-              --output-partial-info-plist "$RUNNER_TEMP/icon.plist" >/dev/null; then
-            cp "$RUNNER_TEMP/icon/Assets.car" "$app/Contents/Resources/Assets.car"
-          else
-            echo "::warning::no Xcode 26 actool; this build has only the legacy macOS icon"
-          fi
+          # assets/icon/build.sh compiles from onon.icon; older macOS uses onon.icns.
+          cp assets/macos/Assets.car "$app/Contents/Resources/Assets.car"
 
           dylibbundler -od -b -x "$app/Contents/MacOS/onon" -d "$app/Contents/Frameworks" -p "@executable_path/../Frameworks"
           cp "$(brew --prefix sdl3)/lib/libSDL3.dylib" "$app/Contents/Frameworks/libSDL3.dylib"
