@@ -1,5 +1,8 @@
 #define MyAppName "GoPDF"
 #define MyAppExeName "gopdf.exe"
+; As gopdf sets itself, so the taskbar groups its windows with these
+; shortcuts and lists recent files in its jump list.
+#define MyAppUserModelID "app.gopdf.viewer"
 #define MyAppAssocName "PDF Document"
 #define MyAppAssocExt ".pdf"
 #define MyAppAssocKey StringChange(MyAppName, " ", "") + MyAppAssocExt
@@ -39,9 +42,11 @@ Source: "..\..\dist\gopdf-package\*"; DestDir: "{app}"; Flags: ignoreversion rec
 [Registry]
 Root: HKA; Subkey: "Software\Classes\{#MyAppAssocExt}\OpenWithProgids"; ValueType: string; ValueName: "{#MyAppAssocKey}"; ValueData: ""; Flags: uninsdeletevalue; Tasks: associatepdf
 Root: HKA; Subkey: "Software\Classes\{#MyAppAssocKey}"; ValueType: string; ValueName: ""; ValueData: "{#MyAppAssocName}"; Flags: uninsdeletekey; Tasks: associatepdf
+Root: HKA; Subkey: "Software\Classes\{#MyAppAssocKey}"; ValueType: string; ValueName: "AppUserModelID"; ValueData: "{#MyAppUserModelID}"; Tasks: associatepdf
 Root: HKA; Subkey: "Software\Classes\{#MyAppAssocKey}\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: "{app}\{#MyAppExeName},0"; Tasks: associatepdf
 Root: HKA; Subkey: "Software\Classes\{#MyAppAssocKey}\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\{#MyAppExeName}"" ""%1"""; Tasks: associatepdf
 Root: HKA; Subkey: "Software\Classes\{#MyAppDocumentKey}"; ValueType: string; ValueName: ""; ValueData: "{#MyAppName} Document"; Flags: uninsdeletekey; Tasks: associatedocuments
+Root: HKA; Subkey: "Software\Classes\{#MyAppDocumentKey}"; ValueType: string; ValueName: "AppUserModelID"; ValueData: "{#MyAppUserModelID}"; Tasks: associatedocuments
 Root: HKA; Subkey: "Software\Classes\{#MyAppDocumentKey}\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: "{app}\{#MyAppExeName},0"; Tasks: associatedocuments
 Root: HKA; Subkey: "Software\Classes\{#MyAppDocumentKey}\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\{#MyAppExeName}"" ""%1"""; Tasks: associatedocuments
 Root: HKA; Subkey: "Software\Classes\.xps\OpenWithProgids"; ValueType: string; ValueName: "{#MyAppDocumentKey}"; ValueData: ""; Flags: uninsdeletevalue; Tasks: associatedocuments
@@ -53,6 +58,7 @@ Root: HKA; Subkey: "Software\Classes\.fb2\OpenWithProgids"; ValueType: string; V
 Root: HKA; Subkey: "Software\Classes\.cbz\OpenWithProgids"; ValueType: string; ValueName: "{#MyAppDocumentKey}"; ValueData: ""; Flags: uninsdeletevalue; Tasks: associatedocuments
 Root: HKA; Subkey: "Software\Classes\.cbt\OpenWithProgids"; ValueType: string; ValueName: "{#MyAppDocumentKey}"; ValueData: ""; Flags: uninsdeletevalue; Tasks: associatedocuments
 Root: HKA; Subkey: "Software\Classes\{#MyAppImageKey}"; ValueType: string; ValueName: ""; ValueData: "{#MyAppName} Image"; Flags: uninsdeletekey; Tasks: associateimages
+Root: HKA; Subkey: "Software\Classes\{#MyAppImageKey}"; ValueType: string; ValueName: "AppUserModelID"; ValueData: "{#MyAppUserModelID}"; Tasks: associateimages
 Root: HKA; Subkey: "Software\Classes\{#MyAppImageKey}\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: "{app}\{#MyAppExeName},0"; Tasks: associateimages
 Root: HKA; Subkey: "Software\Classes\{#MyAppImageKey}\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\{#MyAppExeName}"" ""%1"""; Tasks: associateimages
 Root: HKA; Subkey: "Software\Classes\.png\OpenWithProgids"; ValueType: string; ValueName: "{#MyAppImageKey}"; ValueData: ""; Flags: uninsdeletevalue; Tasks: associateimages
@@ -67,9 +73,9 @@ Root: HKA; Subkey: "Software\Classes\.psd\OpenWithProgids"; ValueType: string; V
 Root: HKA; Subkey: "Software\Classes\.svg\OpenWithProgids"; ValueType: string; ValueName: "{#MyAppImageKey}"; ValueData: ""; Flags: uninsdeletevalue; Tasks: associateimages
 
 [Icons]
-Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
+Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; AppUserModelID: "{#MyAppUserModelID}"
 Name: "{group}\Uninstall {#MyAppName}"; Filename: "{uninstallexe}"
-Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
+Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; AppUserModelID: "{#MyAppUserModelID}"; Tasks: desktopicon
 
 [Run]
 Filename: "{app}\{#MyAppExeName}"; Parameters: "-v"; Flags: runhidden

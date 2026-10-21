@@ -12,7 +12,21 @@ import (
 var (
 	dwmapi                           = windows.NewLazySystemDLL("dwmapi.dll")
 	procDwmExtendFrameIntoClientArea = dwmapi.NewProc("DwmExtendFrameIntoClientArea")
+
+	procSetAppUserModelID = windows.NewLazySystemDLL("shell32.dll").NewProc("SetCurrentProcessExplicitAppUserModelID")
 )
+
+// appUserModelID ties gopdf's windows, taskbar button, jump list and
+// shortcuts together. The installer gives its shortcuts and file types
+// the same one.
+const appUserModelID = "app.gopdf.viewer"
+
+// The ID must be set before the first window is made.
+func init() {
+	if id, err := windows.UTF16PtrFromString(appUserModelID); err == nil {
+		procSetAppUserModelID.Call(uintptr(unsafe.Pointer(id)))
+	}
+}
 
 // dwmMargins is the MARGINS of DwmExtendFrameIntoClientArea.
 type dwmMargins struct {
