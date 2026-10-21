@@ -235,7 +235,7 @@ go build -o onon.exe
 
 ## The name
 
-onon is named after Onon, an island in the West Reach of Ursula K. Le Guin's Earthsea, as it appears on her map of the archipelago.
+onon (said oh-non) is named after Onon, an island in the West Reach of Ursula K. Le Guin's Earthsea, as it appears on her map of the archipelago.
 
 ## License
 
