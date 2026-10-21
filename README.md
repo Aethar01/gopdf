@@ -233,6 +233,10 @@ pacman -S --needed mingw-w64-ucrt-x86_64-go mingw-w64-ucrt-x86_64-gcc mingw-w64-
 go build -o onon.exe
 ```
 
+## The name
+
+onon is named after Onon, an island in the West Reach of Ursula K. Le Guin's Earthsea, as it appears on her map of the archipelago.
+
 ## License
 
 onon is licensed under the [AGPL](./LICENSE).
