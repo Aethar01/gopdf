@@ -5,7 +5,7 @@ import (
 	"math"
 	"time"
 
-	"gopdf/internal/config"
+	"onon/internal/config"
 
 	"github.com/jupiterrider/purego-sdl3/sdl"
 )
@@ -19,7 +19,7 @@ const (
 	inkEllipseSides = 24
 )
 
-// startTime is when gopdf started, which animations count from.
+// startTime is when onon started, which animations count from.
 var startTime = time.Now()
 
 // drawInkLoader draws the loader centred on the page at (x, y) with the

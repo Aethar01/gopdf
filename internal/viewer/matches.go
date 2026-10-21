@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"strings"
 
-	"gopdf/internal/mupdf"
+	"onon/internal/mupdf"
 )
 
 // showSearchMatches lists every match of the current search with the line

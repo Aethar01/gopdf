@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
-	"gopdf/internal/config"
-	"gopdf/internal/mupdf"
-	"gopdf/internal/testpdf"
+	"onon/internal/config"
+	"onon/internal/mupdf"
+	"onon/internal/testpdf"
 )
 
 func testTile(page int, scale float64, x, y, size int) *renderedTile {

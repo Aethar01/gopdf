@@ -7,9 +7,9 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"gopdf/internal/actions"
-	"gopdf/internal/keys"
-	"gopdf/internal/mupdf"
+	"onon/internal/actions"
+	"onon/internal/keys"
+	"onon/internal/mupdf"
 
 	"github.com/jupiterrider/purego-sdl3/sdl"
 )

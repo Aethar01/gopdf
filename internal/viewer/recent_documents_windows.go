@@ -13,7 +13,7 @@ var procSHAddToRecentDocs = windows.NewLazySystemDLL("shell32.dll").NewProc("SHA
 const shardPathW = 3 // SHARD_PATHW
 
 // noteSystemRecentDocument adds path to the recent documents Windows lists
-// in gopdf's jump list and in Quick Access.
+// in onon's jump list and in Quick Access.
 func noteSystemRecentDocument(path string) {
 	name, err := windows.UTF16PtrFromString(path)
 	if err != nil {

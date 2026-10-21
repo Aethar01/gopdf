@@ -77,7 +77,7 @@ var elementSpecs = [ElementCount]struct {
 	ElementHint:              {"hint", noElement, slices.Concat(boxProps, textProps), "A link hint label. Its secondary colour is for the letters already typed."},
 	ElementOverviewSelection: {"overview_selection", noElement, slices.Concat(boxProps, []string{"padding"}), "The outline around the overview's selected page; padding is its distance from the page."},
 	ElementLinkPreview:       {"link_preview", noElement, []string{"radius", "fill", "border", "shadow", "opacity", "draw"}, "The popup previewing a link's target, a rect with corners rounded by its radius. Its fill shows while the page renders."},
-	ElementTitleBar:          {"title_bar", noElement, slices.Concat(boxProps, []string{"text"}), "Behind the window buttons gopdf draws where the system draws no title bar, as on Windows. Its text colour draws the buttons' symbols."},
+	ElementTitleBar:          {"title_bar", noElement, slices.Concat(boxProps, []string{"text"}), "Behind the window buttons onon draws where the system draws no title bar, as on Windows. Its text colour draws the buttons' symbols."},
 	ElementTitleButton:       {"title_button", noElement, slices.Concat(boxProps, []string{"text"}), "A window button under the pointer, drawn a little fainter while pressed."},
 	ElementTitleClose:        {"title_close", ElementTitleButton, slices.Concat(boxProps, []string{"text"}), "The close button under the pointer."},
 	ElementLoader:            {"loader", noElement, []string{"fill", "opacity", "draw"}, "The drops bouncing on a page still rendering; its box is the page."},
@@ -1154,7 +1154,7 @@ func luaElementsTable(L *lua.LState, elements *[ElementCount]Style) *lua.LTable 
 	return tbl
 }
 
-// newLuaElementsTable is gopdf.theme.elements, or with prefix one element
+// newLuaElementsTable is onon.theme.elements, or with prefix one element
 // or its border: reading a property gives the value in effect, and
 // assigning one sets it.
 func newLuaElementsTable(L *lua.LState, rt *Runtime, cfg *Config, prefix string) *lua.LTable {
@@ -1164,7 +1164,7 @@ func newLuaElementsTable(L *lua.LState, rt *Runtime, cfg *Config, prefix string)
 		name := prefix + strings.ToLower(strings.TrimSpace(L.CheckString(2)))
 		elementName, propName, hasProp := strings.Cut(name, ".")
 		if _, ok := elementNamed(elementName); !ok {
-			L.RaiseError("gopdf.theme.elements.%s: unknown element", elementName)
+			L.RaiseError("onon.theme.elements.%s: unknown element", elementName)
 		}
 		if !hasProp || propName == "border" {
 			L.Push(newLuaElementsTable(L, rt, cfg, name+"."))
@@ -1173,7 +1173,7 @@ func newLuaElementsTable(L *lua.LState, rt *Runtime, cfg *Config, prefix string)
 		desc, ok := elementOption(elementsOptionPrefix + name)
 		if !ok {
 			_, _, err := elementProperty(name)
-			L.RaiseError("gopdf.theme.elements.%s: %v", name, err)
+			L.RaiseError("onon.theme.elements.%s: %v", name, err)
 		}
 		L.Push(desc.get(L, cfg))
 		return 1
@@ -1181,7 +1181,7 @@ func newLuaElementsTable(L *lua.LState, rt *Runtime, cfg *Config, prefix string)
 	L.SetField(mt, "__newindex", L.NewFunction(func(L *lua.LState) int {
 		name := prefix + strings.ToLower(strings.TrimSpace(L.CheckString(2)))
 		if err := rt.setThemeField("elements."+name, L.CheckAny(3)); err != nil {
-			L.RaiseError("gopdf.theme.%v", err)
+			L.RaiseError("onon.theme.%v", err)
 		}
 		return 0
 	}))

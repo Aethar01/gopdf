@@ -5,7 +5,7 @@ import (
 	"os"
 	"testing"
 
-	"gopdf/internal/config"
+	"onon/internal/config"
 )
 
 // TestMain runs the tests with the user's directories pointed at a
@@ -16,7 +16,7 @@ func TestMain(m *testing.M) {
 }
 
 func runIsolated(m *testing.M) int {
-	dir, err := os.MkdirTemp("", "gopdf-viewer-test-")
+	dir, err := os.MkdirTemp("", "onon-viewer-test-")
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		return 1

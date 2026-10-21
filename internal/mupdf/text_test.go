@@ -8,7 +8,7 @@ import (
 	"sync"
 	"testing"
 
-	"gopdf/internal/testpdf"
+	"onon/internal/testpdf"
 )
 
 var wholePage = image.Rect(-1<<30, -1<<30, 1<<30, 1<<30)

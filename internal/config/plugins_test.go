@@ -11,20 +11,20 @@ import (
 
 func TestPluginsAreLazyAndExposeModuleConfiguration(t *testing.T) {
 	pluginRoot := writeTestPlugin(t, "sample", `
-local M = gopdf.plugin.register("sample", {
+local M = onon.plugin.register("sample", {
   options = {
     enabled = { type = "boolean", default = false, description = "Enable the sample plugin." },
     command = { type = "string", default = "sample", description = "Sample command." }
   }
 })
 M:register_action("hello", { description = "Say hello" }, function()
-  gopdf.message("hello")
+  onon.message("hello")
 end)
 M:register_command("say", { description = ":sample-say - Say something" }, function(ctx)
-  gopdf.message(ctx.args[1] or "nothing")
+  onon.message(ctx.args[1] or "nothing")
 end)
 M:on("document_opened", function(event)
-  gopdf.message("opened " .. event.document.name)
+  onon.message("opened " .. event.document.name)
 end)
 return M
 `)
@@ -47,7 +47,7 @@ sample = require("sample")
 assert(sample.enabled == false)
 sample.enabled = true
 sample.command = "sample-tool"
-gopdf.bind("X", sample.actions.hello)
+onon.bind("X", sample.actions.hello)
 `)
 	if err != nil || !dirty {
 		t.Fatalf("require and configure plugin, dirty=%v err=%v", dirty, err)
@@ -91,13 +91,13 @@ gopdf.bind("X", sample.actions.hello)
 
 func TestPluginActionBindingCanBeLoadedBeforePluginRequire(t *testing.T) {
 	pluginRoot := writeTestPlugin(t, "sample", `
-local M = gopdf.plugin.register("sample")
+local M = onon.plugin.register("sample")
 M:register_action("hello", function() end)
 return M
 `)
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.lua")
-	if err := os.WriteFile(configPath, []byte(`gopdf.bind("X", "sample.hello")`), 0o644); err != nil {
+	if err := os.WriteFile(configPath, []byte(`onon.bind("X", "sample.hello")`), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -113,7 +113,7 @@ return M
 
 func TestPluginReloadRequiresPluginAgain(t *testing.T) {
 	pluginRoot := writeTestPlugin(t, "sample", `
-local M = gopdf.plugin.register("sample", {
+local M = onon.plugin.register("sample", {
   options = { value = { type = "integer", default = 1 } }
 })
 return M
@@ -138,8 +138,8 @@ return M
 }
 
 func TestPluginCannotRegisterAsAnotherPlugin(t *testing.T) {
-	firstRoot := writeTestPlugin(t, "first", `return gopdf.plugin.register("second")`)
-	secondRoot := writeTestPlugin(t, "second", `return gopdf.plugin.register("second")`)
+	firstRoot := writeTestPlugin(t, "first", `return onon.plugin.register("second")`)
+	secondRoot := writeTestPlugin(t, "second", `return onon.plugin.register("second")`)
 	rt, err := OpenWithOptions(filepath.Join(t.TempDir(), "missing.lua"), "", OpenOptions{PluginPaths: []string{firstRoot, secondRoot}})
 	if err != nil {
 		t.Fatal(err)
@@ -156,10 +156,10 @@ func TestPluginManifestModuleSelectsEntrypoint(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(dir, "lua", "entry"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, "gopdf-plugin.json"), []byte(`{"id":"sample","module":"entry.main"}`), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "onon-plugin.json"), []byte(`{"id":"sample","module":"entry.main"}`), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, "lua", "entry", "main.lua"), []byte(`return gopdf.plugin.register("sample")`), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "lua", "entry", "main.lua"), []byte(`return onon.plugin.register("sample")`), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	rt, err := OpenWithOptions(filepath.Join(t.TempDir(), "missing.lua"), "", OpenOptions{PluginPaths: []string{root}})
@@ -178,7 +178,7 @@ func TestMalformedPluginManifestIsRejected(t *testing.T) {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, "gopdf-plugin.json"), []byte(`{`), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "onon-plugin.json"), []byte(`{`), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	catalog := discoverPluginCatalog([]string{root}, nil)
@@ -188,7 +188,7 @@ func TestMalformedPluginManifestIsRejected(t *testing.T) {
 }
 
 func TestNoPluginsIgnoresExplicitPluginPaths(t *testing.T) {
-	root := writeTestPlugin(t, "sample", `return gopdf.plugin.register("sample")`)
+	root := writeTestPlugin(t, "sample", `return onon.plugin.register("sample")`)
 	rt, err := OpenWithOptions(filepath.Join(t.TempDir(), "missing.lua"), "", OpenOptions{PluginPaths: []string{root}, NoPlugins: true})
 	if err != nil {
 		t.Fatal(err)
@@ -230,7 +230,7 @@ func TestFailedReloadPreservesRunningPluginJobs(t *testing.T) {
 
 func TestFailedPluginEntrypointRollsBackRegistration(t *testing.T) {
 	root := writeTestPlugin(t, "sample", `
-local M = gopdf.plugin.register("sample")
+local M = onon.plugin.register("sample")
 M:register_action("partial", function() end)
 error("entrypoint failed")
 `)
@@ -254,7 +254,7 @@ func TestPluginEntrypointMustRegister(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer rt.Close()
-	if _, err := rt.Eval(`require("sample")`); err == nil || !strings.Contains(err.Error(), "did not call gopdf.plugin.register") {
+	if _, err := rt.Eval(`require("sample")`); err == nil || !strings.Contains(err.Error(), "did not call onon.plugin.register") {
 		t.Fatalf("expected registration postcondition error, got %v", err)
 	}
 }
@@ -262,14 +262,14 @@ func TestPluginEntrypointMustRegister(t *testing.T) {
 func TestPluginLocalModulesAreIsolated(t *testing.T) {
 	first := writeTestPlugin(t, "first", `
 local util = require("util")
-local M = gopdf.plugin.register("first")
-M:register_action("value", function() gopdf.message(util.value) end)
+local M = onon.plugin.register("first")
+M:register_action("value", function() onon.message(util.value) end)
 return M
 `)
 	second := writeTestPlugin(t, "second", `
 local util = require("util")
-local M = gopdf.plugin.register("second")
-M:register_action("value", function() gopdf.message(util.value) end)
+local M = onon.plugin.register("second")
+M:register_action("value", function() onon.message(util.value) end)
 return M
 `)
 	if err := os.WriteFile(filepath.Join(first, "first", "lua", "util.lua"), []byte(`return { value = "first" }`), 0o644); err != nil {
@@ -299,9 +299,9 @@ return M
 func TestDeferredOpenRunsAfterAllEventSubscribers(t *testing.T) {
 	second := filepath.Join(t.TempDir(), "second.pdf")
 	root := writeTestPlugin(t, "sample", `
-local M = gopdf.plugin.register("sample")
-M:on("app_ready", function() gopdf.open(`+strconv.Quote(second)+`) end)
-M:on("app_ready", function() gopdf.message("all callbacks ran") end)
+local M = onon.plugin.register("sample")
+M:on("app_ready", function() onon.open(`+strconv.Quote(second)+`) end)
+M:on("app_ready", function() onon.message("all callbacks ran") end)
 return M
 `)
 	dir := t.TempDir()
@@ -334,10 +334,10 @@ func TestPluginCatalogRefreshesOnReload(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(dir, "lua", "late"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, "gopdf-plugin.json"), []byte(`{"id":"late"}`), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "onon-plugin.json"), []byte(`{"id":"late"}`), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, "lua", "late", "init.lua"), []byte(`return gopdf.plugin.register("late")`), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "lua", "late", "init.lua"), []byte(`return onon.plugin.register("late")`), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	if err := rt.Reload(); err != nil {
@@ -360,16 +360,16 @@ func TestPluginCatalogRefreshesOnReload(t *testing.T) {
 
 func TestPluginEventsFollowDependencyActivationOrder(t *testing.T) {
 	dependencyRoot := writeTestPlugin(t, "zzz", `
-local M = gopdf.plugin.register("zzz")
-M:on("app_ready", function() gopdf.message(gopdf.message() .. "dependency,") end)
+local M = onon.plugin.register("zzz")
+M:on("app_ready", function() onon.message(onon.message() .. "dependency,") end)
 return M
 `)
 	pluginRoot := writeTestPlugin(t, "aaa", `
-local M = gopdf.plugin.register("aaa")
-M:on("app_ready", function() gopdf.message(gopdf.message() .. "dependent") end)
+local M = onon.plugin.register("aaa")
+M:on("app_ready", function() onon.message(onon.message() .. "dependent") end)
 return M
 `)
-	manifestPath := filepath.Join(pluginRoot, "aaa", "gopdf-plugin.json")
+	manifestPath := filepath.Join(pluginRoot, "aaa", "onon-plugin.json")
 	if err := os.WriteFile(manifestPath, []byte(`{"id":"aaa","version":"0.1.0","dependencies":["zzz"]}`), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -397,7 +397,7 @@ func writeTestPlugin(t *testing.T, id, source string) string {
 		t.Fatal(err)
 	}
 	manifest := `{"id":"` + id + `","version":"0.1.0"}`
-	if err := os.WriteFile(filepath.Join(dir, "gopdf-plugin.json"), []byte(manifest), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "onon-plugin.json"), []byte(manifest), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(dir, "lua", id, "init.lua"), []byte(source), 0o644); err != nil {
@@ -417,7 +417,7 @@ func containsString(values []string, want string) bool {
 
 func TestPluginCommandNamesCannotContainHyphens(t *testing.T) {
 	root := writeTestPlugin(t, "sample", `
-local M = gopdf.plugin.register("sample")
+local M = onon.plugin.register("sample")
 M:register_command("say-hi", function() end)
 return M
 `)
@@ -434,11 +434,11 @@ return M
 
 func TestPluginMembersOfHyphenatedIDsResolve(t *testing.T) {
 	root := writeTestPlugin(t, "file-browser", `
-local M = gopdf.plugin.register("file-browser", {
+local M = onon.plugin.register("file-browser", {
   options = { root = { type = "string", default = "/", description = "Root." } }
 })
-M:register_action("open", function() gopdf.message("action") end)
-M:register_command("open", { arg_completions = { "here", "there" } }, function(ctx) gopdf.message(ctx.name) end)
+M:register_action("open", function() onon.message("action") end)
+M:register_command("open", { arg_completions = { "here", "there" } }, function(ctx) onon.message(ctx.name) end)
 return M
 `)
 	rt, err := OpenWithOptions(filepath.Join(t.TempDir(), "missing.lua"), "", OpenOptions{PluginPaths: []string{root}})

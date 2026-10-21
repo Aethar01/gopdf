@@ -9,7 +9,7 @@ import (
 
 func platformDataDir() string {
 	if dir := appDataDir(); dir != "" {
-		return filepath.Join(dir, "gopdf")
+		return filepath.Join(dir, "onon")
 	}
 	return ""
 }
@@ -19,26 +19,26 @@ func platformDataDir() string {
 func platformSearchPaths(kind string) []string {
 	paths := make([]string, 0, 2)
 	if dir := os.Getenv("LOCALAPPDATA"); dir != "" {
-		paths = append(paths, filepath.Join(dir, "gopdf", kind))
+		paths = append(paths, filepath.Join(dir, "onon", kind))
 	}
 	if dir := os.Getenv("APPDATA"); dir != "" {
-		paths = append(paths, filepath.Join(dir, "gopdf", kind))
+		paths = append(paths, filepath.Join(dir, "onon", kind))
 	}
 	return paths
 }
 
 func platformConfigPaths() []string {
 	if dir := appDataDir(); dir != "" {
-		return []string{filepath.Join(dir, "gopdf", "config.lua")}
+		return []string{filepath.Join(dir, "onon", "config.lua")}
 	}
 	return nil
 }
 
-// platformAutogenPath is where gopdf used to keep keybindings changed in
+// platformAutogenPath is where onon used to keep keybindings changed in
 // the viewer; see importAutogen.
 func platformAutogenPath() string {
 	if dir := appDataDir(); dir != "" {
-		return filepath.Join(dir, "gopdf", "autogen.lua")
+		return filepath.Join(dir, "onon", "autogen.lua")
 	}
 	return ""
 }
@@ -48,4 +48,17 @@ func appDataDir() string {
 		return dir
 	}
 	return os.Getenv("USERPROFILE")
+}
+
+// platformAppDirParents are the directories that hold an onon directory
+// of the user's.
+func platformAppDirParents() []string {
+	parents := make([]string, 0, 2)
+	if dir := appDataDir(); dir != "" {
+		parents = append(parents, dir)
+	}
+	if dir := os.Getenv("LOCALAPPDATA"); dir != "" {
+		parents = append(parents, dir)
+	}
+	return parents
 }

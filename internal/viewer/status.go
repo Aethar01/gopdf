@@ -7,7 +7,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"gopdf/internal/config"
+	"onon/internal/config"
 
 	"github.com/jupiterrider/purego-sdl3/sdl"
 	"golang.org/x/image/font"

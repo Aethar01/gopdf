@@ -7,7 +7,7 @@ import (
 	"math"
 	"slices"
 
-	"gopdf/internal/mupdf"
+	"onon/internal/mupdf"
 
 	"github.com/jupiterrider/purego-sdl3/sdl"
 )

@@ -8,12 +8,12 @@ import (
 
 	_ "embed"
 
-	"gopdf/internal/config"
-	"gopdf/internal/instance"
-	"gopdf/internal/viewer"
+	"onon/internal/config"
+	"onon/internal/instance"
+	"onon/internal/viewer"
 )
 
-//go:embed assets/gopdf.bmp
+//go:embed assets/onon.bmp
 var iconBMP []byte
 
 func main() {
@@ -49,6 +49,7 @@ func run() error {
 	if noConfig && cfgPath != "" {
 		return fmt.Errorf("--no-config and --config are contradictory; pass only one")
 	}
+	config.MigrateLegacyDirs() // before anything opens the session database
 
 	target, err := instance.ParseTarget(gotoSpec)
 	if err != nil {
@@ -147,7 +148,7 @@ func handOffToRunningInstance(docPath string, target *instance.Request, command 
 		request.Page, request.X, request.Y, request.HasPoint = target.Page, target.X, target.Y, target.HasPoint
 	}
 	if _, err := instance.Send(address, request); err != nil {
-		return false, fmt.Errorf("hand off to running gopdf: %w", err)
+		return false, fmt.Errorf("hand off to running onon: %w", err)
 	}
 	// The command runs after the open so it acts on the requested document.
 	if command != "" {

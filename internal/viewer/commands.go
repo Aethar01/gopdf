@@ -9,9 +9,9 @@ import (
 	"strings"
 	"time"
 
-	"gopdf/internal/config"
-	"gopdf/internal/filepicker"
-	"gopdf/internal/keys"
+	"onon/internal/config"
+	"onon/internal/filepicker"
+	"onon/internal/keys"
 
 	"github.com/jupiterrider/purego-sdl3/sdl"
 )
@@ -529,7 +529,7 @@ func init() {
 		"recent":           func(a *App, _ string) { a.showRecentFiles() },
 		"lua":              (*App).runLuaCommand,
 		"help":             func(a *App, _ string) { a.toggleHelp() },
-		"version":          func(a *App, _ string) { a.message = "gopdf " + config.Version },
+		"version":          func(a *App, _ string) { a.message = "onon " + config.Version },
 	}
 	for name, action := range actionCommands {
 		commandHandlers[name] = func(a *App, _ string) { a.runAction(action) }

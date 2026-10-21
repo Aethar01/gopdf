@@ -38,13 +38,13 @@ func TestLuaDocumentInspection(t *testing.T) {
 	defer rt.Close()
 	rt.AttachHost(&documentAPIHost{})
 	if _, err := rt.Eval(`
-local metadata = gopdf.document.metadata()
-local outline = gopdf.document.outline()
-local page = gopdf.document.page_info(4)
+local metadata = onon.document.metadata()
+local outline = onon.document.outline()
+local page = onon.document.page_info(4)
 assert(metadata.title == "Paper" and metadata.author == "Author")
 assert(outline[1].title == "Chapter" and outline[1].children[1].page == 2)
 assert(page.page == 4 and page.label == "iv" and page.bounds.x1 == 612)
-local selection = gopdf.document.selection()
+local selection = onon.document.selection()
 assert(selection.active and selection.text == "selected")
 assert(#selection.pages == 1 and selection.pages[1].page == 3)
 assert(#selection.pages[1].quads == 1 and selection.pages[1].quads[1].y1 == 6)
@@ -54,7 +54,7 @@ assert(#selection.pages[1].quads == 1 and selection.pages[1].quads[1].y1 == 6)
 }
 
 func TestPluginDocumentExtraction(t *testing.T) {
-	root := writeTestPlugin(t, "sample", `return gopdf.plugin.register("sample")`)
+	root := writeTestPlugin(t, "sample", `return onon.plugin.register("sample")`)
 	rt, err := OpenWithOptions(filepath.Join(t.TempDir(), "missing.lua"), "", OpenOptions{PluginPaths: []string{root}})
 	if err != nil {
 		t.Fatal(err)
@@ -98,13 +98,13 @@ func TestLuaFormatsReportsEngineSupport(t *testing.T) {
 	defer rt.Close()
 	rt.AttachHost(&formatHost{})
 	if _, err := rt.Eval(`
-local extensions = gopdf.formats.extensions()
+local extensions = onon.formats.extensions()
 assert(#extensions == 3 and extensions[1] == "pdf" and extensions[2] == "epub")
-assert(gopdf.formats.supports("/books/paper.pdf"))
-assert(gopdf.formats.supports("/books/Novel.EPUB"), "matching should ignore case")
-assert(gopdf.formats.supports("comic.cbz"))
-assert(not gopdf.formats.supports("/books/notes.md"))
-assert(not gopdf.formats.supports("/books/no-extension"))
+assert(onon.formats.supports("/books/paper.pdf"))
+assert(onon.formats.supports("/books/Novel.EPUB"), "matching should ignore case")
+assert(onon.formats.supports("comic.cbz"))
+assert(not onon.formats.supports("/books/notes.md"))
+assert(not onon.formats.supports("/books/no-extension"))
 `); err != nil {
 		t.Fatal(err)
 	}
@@ -117,7 +117,7 @@ func TestLuaFormatsWithoutADocumentEngine(t *testing.T) {
 	}
 	defer rt.Close()
 	rt.AttachHost(&stubHost{})
-	if _, err := rt.Eval(`gopdf.formats.extensions()`); err == nil || !strings.Contains(err.Error(), "document engine unavailable") {
+	if _, err := rt.Eval(`onon.formats.extensions()`); err == nil || !strings.Contains(err.Error(), "document engine unavailable") {
 		t.Fatalf("err = %v, want one containing \"document engine unavailable\"", err)
 	}
 }

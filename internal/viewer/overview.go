@@ -5,8 +5,8 @@ import (
 	"math"
 	"slices"
 
-	"gopdf/internal/config"
-	"gopdf/internal/mupdf"
+	"onon/internal/config"
+	"onon/internal/mupdf"
 
 	"github.com/jupiterrider/purego-sdl3/sdl"
 )

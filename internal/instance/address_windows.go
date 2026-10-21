@@ -12,7 +12,7 @@ import (
 // fails and single-instance support is simply unavailable.
 func runtimeDir() (string, error) {
 	if dir := os.Getenv("LOCALAPPDATA"); dir != "" {
-		return filepath.Join(dir, "gopdf"), nil
+		return filepath.Join(dir, "onon"), nil
 	}
-	return filepath.Join(os.TempDir(), "gopdf"), nil
+	return filepath.Join(os.TempDir(), "onon"), nil
 }

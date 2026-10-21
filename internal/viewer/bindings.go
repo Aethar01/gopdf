@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"unicode"
 
-	"gopdf/internal/keys"
+	"onon/internal/keys"
 
 	"github.com/jupiterrider/purego-sdl3/sdl"
 )

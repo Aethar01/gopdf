@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	"gopdf/internal/actions"
-	"gopdf/internal/keys"
+	"onon/internal/actions"
+	"onon/internal/keys"
 )
 
 type stubHost struct {
@@ -204,7 +204,7 @@ func TestOpenAppliesDocumentSpecificLuaConfig(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "config.lua")
 	if err := os.WriteFile(path, []byte(`
-if gopdf.document.name == "special.pdf" then
+if onon.document.name == "special.pdf" then
   options.first_page_offset = false
 end
 `), 0o644); err != nil {
@@ -226,10 +226,10 @@ func TestSetDocumentReloadsDocumentSpecificLuaConfig(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "config.lua")
 	if err := os.WriteFile(path, []byte(`
-if gopdf.document.name == "first.pdf" then
+if onon.document.name == "first.pdf" then
   options.page_gap_vertical = 11
 end
-if gopdf.document.name == "second.pdf" then
+if onon.document.name == "second.pdf" then
   options.page_gap_vertical = 22
 end
 `), 0o644); err != nil {
@@ -257,7 +257,7 @@ func TestSetDocumentPageCountIsAvailableDuringReload(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "config.lua")
 	if err := os.WriteFile(path, []byte(`
-if gopdf.document.page_count == 42 then
+if onon.document.page_count == 42 then
   options.page_gap_vertical = 42
 end
 `), 0o644); err != nil {
@@ -286,7 +286,7 @@ func TestOpenStoresAbsoluteDocumentPath(t *testing.T) {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(path, []byte(`
-if gopdf.document.path == `+strconv.Quote(want)+` then
+if onon.document.path == `+strconv.Quote(want)+` then
   options.page_gap_vertical = 12
 end
 `), 0o644); err != nil {
@@ -400,7 +400,7 @@ func TestFailedSetDocumentKeepsNewDocumentMetadata(t *testing.T) {
 	if rt.docPath != second || rt.docName != filepath.Base(second) || rt.docMeta.pageCount != 42 || !rt.docMeta.hasPages {
 		t.Fatalf("failed document reload changed metadata: path=%q name=%q meta=%+v", rt.docPath, rt.docName, rt.docMeta)
 	}
-	if _, err := rt.Eval(`assert(gopdf.document.path == ` + strconv.Quote(second) + ` and gopdf.document.page_count == 42)`); err != nil {
+	if _, err := rt.Eval(`assert(onon.document.path == ` + strconv.Quote(second) + ` and onon.document.page_count == 42)`); err != nil {
 		t.Fatalf("new Lua document metadata was not retained: %v", err)
 	}
 }
@@ -409,11 +409,11 @@ func TestActionValuesBindAndExecuteAgainstViewerHost(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "config.lua")
 	if err := os.WriteFile(path, []byte(`
-bind("J", gopdf.next_page)
+bind("J", onon.next_page)
 bind("H", function()
-  gopdf.next_page()
-  gopdf.message("page " .. gopdf.page() .. "/" .. gopdf.page_count())
-  gopdf.command(":fit width")
+  onon.next_page()
+  onon.message("page " .. onon.page() .. "/" .. onon.page_count())
+  onon.command(":fit width")
 end)
 `), 0o644); err != nil {
 		t.Fatal(err)
@@ -459,7 +459,7 @@ func TestEvalWorksWithoutConfigFile(t *testing.T) {
 
 	host := &stubHost{}
 	rt.AttachHost(host)
-	if dirty, err := rt.Eval(`gopdf.message("inline lua works")`); dirty || err != nil {
+	if dirty, err := rt.Eval(`onon.message("inline lua works")`); dirty || err != nil {
 		t.Fatalf("expected inline lua to run without config file: %v", err)
 	}
 	if host.message != "inline lua works" {
@@ -478,7 +478,7 @@ func TestLuaVersionReportsBuildVersion(t *testing.T) {
 	previous := Version
 	Version = "v1.2.3"
 	defer func() { Version = previous }()
-	if _, err := rt.Eval(`assert(gopdf.version() == "v1.2.3", gopdf.version())`); err != nil {
+	if _, err := rt.Eval(`assert(onon.version() == "v1.2.3", onon.version())`); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -500,8 +500,8 @@ func TestLuaRecentFilesReturnsLimitedList(t *testing.T) {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(path, []byte(`
-local default_files = gopdf.recent_files()
-local limited_files = gopdf.recent_files(2)
+local default_files = onon.recent_files()
+local limited_files = onon.recent_files(2)
 if #default_files == 3 then
   options.outline_initial_depth = 31
 end
@@ -509,7 +509,7 @@ if #limited_files == 2 and limited_files[1] == `+strconv.Quote(three)+` and limi
   options.outline_width_percent = 32
 end
 options.session_database = false
-if #gopdf.recent_files(2) == 0 then
+if #onon.recent_files(2) == 0 then
   options.outline_height_percent = 33
 end
 `), 0o644); err != nil {
@@ -542,7 +542,7 @@ options.invert_smooth_scroll = true
 options.anti_aliasing = 4
 options.render_oversample = 0.75
 options.page_cache_size = 12
-bind_mouse("right_down", gopdf.pan)
+bind_mouse("right_down", onon.pan)
 `), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -666,7 +666,7 @@ func TestOutlineConfig(t *testing.T) {
 options.outline_initial_depth = 2
 options.outline_width_percent = 60
 options.outline_height_percent = 75
-bind("O", gopdf.outline)
+bind("O", onon.outline)
 `), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -689,7 +689,7 @@ bind("O", gopdf.outline)
 func TestCallingActionDuringConfigLoadFails(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "config.lua")
-	if err := os.WriteFile(path, []byte(`bind("J", gopdf.next_page())`), 0o644); err != nil {
+	if err := os.WriteFile(path, []byte(`bind("J", onon.next_page())`), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -710,7 +710,7 @@ func TestDocumentMetadataExposesFileFacts(t *testing.T) {
 	}
 	path := filepath.Join(dir, "config.lua")
 	if err := os.WriteFile(path, []byte(`
-if gopdf.document.exists and gopdf.document.extension == ".txt" and gopdf.document.size_bytes > 0 then
+if onon.document.exists and onon.document.extension == ".txt" and onon.document.size_bytes > 0 then
   options.page_gap_vertical = 12
 end
 `), 0o644); err != nil {
@@ -736,41 +736,41 @@ func TestExpandedLuaHostAPI(t *testing.T) {
 	path := filepath.Join(dir, "config.lua")
 	if err := os.WriteFile(path, []byte(`
 bind("X", function()
-  local page = gopdf.page(9)
-  local fit_mode = gopdf.fit_mode("width")
-  local render_mode = gopdf.render_mode("single")
-  local zoom = gopdf.zoom(1.75)
-  local rotation = gopdf.rotation(180)
-  local fullscreen = gopdf.fullscreen(false)
-  gopdf.search("needle", true)
-  local keys = gopdf.pending_keys()
-  local cache_limit = gopdf.cache.limit(48)
-  gopdf.cache.clear()
-  if page ~= gopdf.page() or
-     fit_mode ~= gopdf.fit_mode() or
-     render_mode ~= gopdf.render_mode() or
-     zoom ~= gopdf.zoom() or
-     rotation ~= gopdf.rotation() or
-     fullscreen ~= gopdf.fullscreen() or
-     cache_limit ~= gopdf.cache.limit() then
+  local page = onon.page(9)
+  local fit_mode = onon.fit_mode("width")
+  local render_mode = onon.render_mode("single")
+  local zoom = onon.zoom(1.75)
+  local rotation = onon.rotation(180)
+  local fullscreen = onon.fullscreen(false)
+  onon.search("needle", true)
+  local keys = onon.pending_keys()
+  local cache_limit = onon.cache.limit(48)
+  onon.cache.clear()
+  if page ~= onon.page() or
+     fit_mode ~= onon.fit_mode() or
+     render_mode ~= onon.render_mode() or
+     zoom ~= onon.zoom() or
+     rotation ~= onon.rotation() or
+     fullscreen ~= onon.fullscreen() or
+     cache_limit ~= onon.cache.limit() then
     error("setter did not return the current value")
   end
   local message =
     tostring(page) .. ":" ..
-    gopdf.mode() .. ":" ..
+    onon.mode() .. ":" ..
     fit_mode .. ":" ..
     render_mode .. ":" ..
     tostring(zoom) .. ":" ..
     tostring(rotation) .. ":" ..
     tostring(fullscreen) .. ":" ..
     tostring(cache_limit) .. ":" ..
-    tostring(gopdf.search_match_index()) .. "/" .. tostring(gopdf.search_match_count()) .. ":" ..
-    gopdf.current_count() .. ":" ..
+    tostring(onon.search_match_index()) .. "/" .. tostring(onon.search_match_count()) .. ":" ..
+    onon.current_count() .. ":" ..
     keys[1]
-  if gopdf.message(message) ~= message or gopdf.message() ~= message then
+  if onon.message(message) ~= message or onon.message() ~= message then
     error("message setter did not return the current value")
   end
-  gopdf.clear_pending_keys()
+  onon.clear_pending_keys()
 end)
 `), 0o644); err != nil {
 		t.Fatal(err)
@@ -827,16 +827,16 @@ func TestPluginUIViewShowsMenuAndRunsSelectionCallback(t *testing.T) {
 	path := filepath.Join(dir, "config.lua")
 	if err := os.WriteFile(path, []byte(`
 bind("u", function()
-  local view = gopdf.ui.create({
+  local view = onon.ui.create({
     title = "Open PDF",
     rows = { "a.pdf", "b.pdf" },
     selected = 2,
     on_select = function(index, value)
-      gopdf.message(tostring(index) .. ":" .. value)
-      gopdf.open(value)
+      onon.message(tostring(index) .. ":" .. value)
+      onon.open(value)
     end,
     on_close = function()
-      gopdf.message("closed")
+      onon.message("closed")
     end,
   })
   view:show()
@@ -884,15 +884,15 @@ func TestPluginUIViewSelectionCanOpenDocument(t *testing.T) {
 	path := filepath.Join(dir, "config.lua")
 	second := filepath.Join(dir, "second.pdf")
 	if err := os.WriteFile(path, []byte(`
-if gopdf.document.name == "second.pdf" then
-  gopdf.options.first_page_offset = false
+if onon.document.name == "second.pdf" then
+  onon.options.first_page_offset = false
 end
 
 bind("u", function()
-  local view = gopdf.ui.create({
+  local view = onon.ui.create({
     rows = { `+strconv.Quote(second)+` },
     on_select = function(_, value)
-      gopdf.open(value)
+      onon.open(value)
     end,
   })
   view:show()
@@ -928,8 +928,8 @@ func TestPluginUIViewHostControls(t *testing.T) {
 	path := filepath.Join(dir, "config.lua")
 	if err := os.WriteFile(path, []byte(`
 bind("u", function()
-  local first = gopdf.ui.create({ id = "shared", rows = { "old" } })
-  local view = gopdf.ui.create({ id = "shared", rows = { "old" } })
+  local first = onon.ui.create({ id = "shared", rows = { "old" } })
+  local view = onon.ui.create({ id = "shared", rows = { "old" } })
   assert(first.id ~= view.id)
   view:show()
   if view:visible() then
@@ -970,7 +970,7 @@ end)
 func TestPluginUIViewShowDuringConfigLoadFails(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "config.lua")
-	if err := os.WriteFile(path, []byte(`local view = gopdf.ui.create({ rows = { "x" } }); view:show()`), 0o644); err != nil {
+	if err := os.WriteFile(path, []byte(`local view = onon.ui.create({ rows = { "x" } }); view:show()`), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -1017,9 +1017,9 @@ func TestLuaBindingsUseCanonicalNames(t *testing.T) {
 	path := filepath.Join(dir, "config.lua")
 	if err := os.WriteFile(path, []byte(`
 unbind("<s-c-R>")
-bind("<S-C-tab>", gopdf.quit)
-bind("<Space>", gopdf.quit)
-bind_mouse("<C-wheel-up>", gopdf.quit)
+bind("<S-C-tab>", onon.quit)
+bind("<Space>", onon.quit)
+bind_mouse("<C-wheel-up>", onon.quit)
 `), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -1048,12 +1048,12 @@ func TestLuaBindingsRejectUnknownNames(t *testing.T) {
 	tests := []struct {
 		lua, want string
 	}{
-		{`bind("<C-Sapce>", gopdf.quit)`, `unknown key name "Sapce"`},
-		{`bind("5x", gopdf.quit)`, `digits 1 to 9 start a count`},
-		{`bind("'a", gopdf.quit)`, `' is used for marks`},
-		{`bind('"', gopdf.quit)`, `" is used for marks`},
+		{`bind("<C-Sapce>", onon.quit)`, `unknown key name "Sapce"`},
+		{`bind("5x", onon.quit)`, `digits 1 to 9 start a count`},
+		{`bind("'a", onon.quit)`, `' is used for marks`},
+		{`bind('"', onon.quit)`, `" is used for marks`},
 		{`unbind("<X-j>")`, `unknown modifier "X-"`},
-		{`bind_mouse("left_dwn", gopdf.quit)`, `unknown mouse event "left_dwn"`},
+		{`bind_mouse("left_dwn", onon.quit)`, `unknown mouse event "left_dwn"`},
 		{`unbind_mouse("<C-left_down>")`, `unknown mouse event "<C-left_down>"`},
 	}
 	for _, tt := range tests {
@@ -1108,8 +1108,8 @@ func TestLuaOptionTypeErrorsIncludeSettingName(t *testing.T) {
 		{name: "number", lua: `options.page_gap = true`, wantErr: "options.page_gap: expected number"},
 		{name: "string", lua: `options.fit_mode = false`, wantErr: "options.fit_mode: expected string"},
 		{name: "table", lua: `options.link_schemes = 10`, wantErr: "options.link_schemes: expected table"},
-		{name: "theme colour", lua: `gopdf.theme.accent = 10`, wantErr: "gopdf.theme.accent: expected"},
-		{name: "moved to theme", lua: `options.background = {1, 2, 3}`, wantErr: "options.background: background moved to gopdf.theme.background"},
+		{name: "theme colour", lua: `onon.theme.accent = 10`, wantErr: "onon.theme.accent: expected"},
+		{name: "moved to theme", lua: `options.background = {1, 2, 3}`, wantErr: "options.background: background moved to onon.theme.background"},
 		{name: "removed natural scroll", lua: `options.natural_scroll = true`, wantErr: "options.natural_scroll: unknown setting"},
 		{name: "unknown", lua: `options.no_such_setting = 1`, wantErr: "options.no_such_setting: unknown setting"},
 	}
@@ -1144,7 +1144,7 @@ options.fit_mode = " WIDTH "
 options.render_mode = "SINGLE"
 options.anchor_position = "BOTTOM"
 options.completion_max_items = 0
-gopdf.theme.background = { -5, 128, 999 }
+onon.theme.background = { -5, 128, 999 }
 `), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -1176,7 +1176,7 @@ gopdf.theme.background = { -5, 128, 999 }
 func TestLoadReturnsConfigFromExplicitPath(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "config.lua")
-	if err := os.WriteFile(path, []byte(`gopdf.options.status_bar_visible = false`), 0o644); err != nil {
+	if err := os.WriteFile(path, []byte(`onon.options.status_bar_visible = false`), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -1224,7 +1224,7 @@ func TestLuaThemeColorsClampEveryColorField(t *testing.T) {
 		if field.desc.kind != "color" {
 			continue
 		}
-		fmt.Fprintf(&source, "gopdf.theme.%s = { -1, %d, 300 }\n", field.name, i)
+		fmt.Fprintf(&source, "onon.theme.%s = { -1, %d, 300 }\n", field.name, i)
 		want[field.name] = FormatColor([3]uint8{0, uint8(i), 255})
 	}
 	dir := t.TempDir()
@@ -1251,7 +1251,7 @@ func TestLuaThemeColorsClampEveryColorField(t *testing.T) {
 func TestNoConfigIgnoresConfigurationFiles(t *testing.T) {
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.lua")
-	if err := os.WriteFile(configPath, []byte(`gopdf.options.scroll_off = 12`), 0o644); err != nil {
+	if err := os.WriteFile(configPath, []byte(`onon.options.scroll_off = 12`), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -1276,7 +1276,7 @@ func TestNoConfigIgnoresConfigurationFiles(t *testing.T) {
 		t.Errorf("ConfigPath = %q, want empty", skipped.Config().ConfigPath)
 	}
 	// The Lua runtime still exists, so plugins and callbacks remain usable.
-	if _, err := skipped.Eval(`assert(type(gopdf) == "table")`); err != nil {
+	if _, err := skipped.Eval(`assert(type(onon) == "table")`); err != nil {
 		t.Fatalf("no-config runtime is unusable: %v", err)
 	}
 }
@@ -1284,7 +1284,7 @@ func TestNoConfigIgnoresConfigurationFiles(t *testing.T) {
 func TestLinkSchemesOption(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "config.lua")
-	if err := os.WriteFile(path, []byte(`gopdf.options.link_schemes = {"HTTPS", "gemini:"}`), 0o644); err != nil {
+	if err := os.WriteFile(path, []byte(`onon.options.link_schemes = {"HTTPS", "gemini:"}`), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	rt, err := Open(path, "")

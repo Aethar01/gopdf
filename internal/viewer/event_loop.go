@@ -34,7 +34,7 @@ func (a *App) Run() error {
 		return err
 	}
 	sdl.SetHint("SDL_RENDER_SCALE_QUALITY", "2")
-	window := sdl.CreateWindow("gopdf", 1400, 900, sdl.WindowResizable|sdl.WindowHighPixelDensity)
+	window := sdl.CreateWindow("onon", 1400, 900, sdl.WindowResizable|sdl.WindowHighPixelDensity)
 	if window == nil {
 		sdl.Quit()
 		return fmt.Errorf("SDL window creation failed: %s", sdl.GetError())

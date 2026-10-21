@@ -2,7 +2,7 @@
 
 package viewer
 
-// LaunchDocuments returns the documents the system launched gopdf to open
+// LaunchDocuments returns the documents the system launched onon to open
 // without passing them as arguments. Only macOS does that.
 func LaunchDocuments(verbose bool) []string {
 	return nil

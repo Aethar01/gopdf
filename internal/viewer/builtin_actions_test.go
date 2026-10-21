@@ -3,7 +3,7 @@ package viewer
 import (
 	"testing"
 
-	"gopdf/internal/actions"
+	"onon/internal/actions"
 )
 
 func TestEveryRegisteredActionHasAHandler(t *testing.T) {

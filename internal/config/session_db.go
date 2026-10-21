@@ -286,7 +286,7 @@ func GetDocumentMark(path string, name string) (DocumentMark, bool) {
 	return mark, true
 }
 
-// getSetting returns a setting gopdf keeps for itself, or "" when it has
+// getSetting returns a setting onon keeps for itself, or "" when it has
 // none or there is no database.
 func getSetting(name string) (string, error) {
 	db, err := openSessionDatabase()

@@ -4,7 +4,7 @@ package viewer
 
 /*
 #cgo LDFLAGS: -lcomctl32
-void gopdfSubclassTitleBar(void *hwnd);
+void ononSubclassTitleBar(void *hwnd);
 */
 import "C"
 
@@ -23,10 +23,10 @@ var (
 	procSetAppUserModelID = windows.NewLazySystemDLL("shell32.dll").NewProc("SetCurrentProcessExplicitAppUserModelID")
 )
 
-// appUserModelID ties gopdf's windows, taskbar button, jump list and
+// appUserModelID ties onon's windows, taskbar button, jump list and
 // shortcuts together. The installer gives its shortcuts and file types
 // the same one.
-const appUserModelID = "app.gopdf.viewer"
+const appUserModelID = "com.ononreader.onon"
 
 // The ID must be set before the first window is made.
 func init() {
@@ -43,7 +43,7 @@ type dwmMargins struct {
 const dwmCornerRound = 2 // DWMWCP_ROUND
 
 // configureNativeWindow drops the system title bar, keeping the window's
-// frame for snapping and the system menu, and draws gopdf's own controls
+// frame for snapping and the system menu, and draws onon's own controls
 // in its place.
 func (a *App) configureNativeWindow(window *sdl.Window) {
 	if window == nil || !sdl.SetWindowBordered(window, false) {
@@ -63,7 +63,7 @@ func (a *App) configureNativeWindow(window *sdl.Window) {
 	if hwnd == 0 {
 		return
 	}
-	C.gopdfSubclassTitleBar(win32WindowPointer(window))
+	C.ononSubclassTitleBar(win32WindowPointer(window))
 	setJumpList()
 	// Extending the frame into the window brings back the shadow a window
 	// without a frame loses. Windows 10 has no rounded corners and fails
@@ -111,22 +111,22 @@ func win32WindowPointer(window *sdl.Window) unsafe.Pointer {
 	return sdl.GetPointerProperty(properties, sdl.PropWindowWin32HwndPointer, nil)
 }
 
-// gopdfTitleBarMaximizeAt reports whether the maximize button is shown at
+// ononTitleBarMaximizeAt reports whether the maximize button is shown at
 // x, y, in the window's pixels.
 //
-//export gopdfTitleBarMaximizeAt
-func gopdfTitleBarMaximizeAt(x, y C.int) C.int {
+//export ononTitleBarMaximizeAt
+func ononTitleBarMaximizeAt(x, y C.int) C.int {
 	if a := nativeApp; a != nil && a.titleBarButtonAt(float64(x), float64(y)) == titleButtonMaximize {
 		return 1
 	}
 	return 0
 }
 
-// gopdfTitleBarMaximizePress presses or releases the maximize button,
+// ononTitleBarMaximizePress presses or releases the maximize button,
 // which Windows reports as its own once it is told the pointer is there.
 //
-//export gopdfTitleBarMaximizePress
-func gopdfTitleBarMaximizePress(down C.int) {
+//export ononTitleBarMaximizePress
+func ononTitleBarMaximizePress(down C.int) {
 	a := nativeApp
 	if a == nil || !a.titleBarActive() {
 		return

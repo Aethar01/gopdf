@@ -4,7 +4,7 @@ import (
 	"math"
 	"time"
 
-	"gopdf/internal/config"
+	"onon/internal/config"
 )
 
 const smoothZoomSnap = 0.0001

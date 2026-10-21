@@ -3,8 +3,8 @@ package viewer
 import (
 	"fmt"
 
-	"gopdf/internal/filepicker"
-	"gopdf/internal/mupdf"
+	"onon/internal/filepicker"
+	"onon/internal/mupdf"
 )
 
 // builtinActions runs each action in the actions registry; a test keeps

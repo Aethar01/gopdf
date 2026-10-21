@@ -3,8 +3,8 @@ package menubar
 import (
 	"testing"
 
-	"gopdf/internal/actions"
-	"gopdf/internal/keys"
+	"onon/internal/actions"
+	"onon/internal/keys"
 )
 
 func TestItemsRunKnownActions(t *testing.T) {

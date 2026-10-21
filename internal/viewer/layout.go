@@ -5,7 +5,7 @@ import (
 	"slices"
 	"sort"
 
-	"gopdf/internal/mupdf"
+	"onon/internal/mupdf"
 )
 
 func (a *App) updatePageMetricSizes() {

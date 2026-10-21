@@ -1,9 +1,9 @@
 #import <Cocoa/Cocoa.h>
 #import <objc/runtime.h>
 
-static const void *GoPDFTitlebarHoverControllerKey = &GoPDFTitlebarHoverControllerKey;
+static const void *OnonTitlebarHoverControllerKey = &OnonTitlebarHoverControllerKey;
 
-static void gopdfApplyMacOSWindowStyleProperties(NSWindow *window) {
+static void ononApplyMacOSWindowStyleProperties(NSWindow *window) {
     if (window == nil) {
         return;
     }
@@ -18,10 +18,10 @@ static void gopdfApplyMacOSWindowStyleProperties(NSWindow *window) {
     }
 }
 
-@interface GoPDFTitlebarDragView : NSView
+@interface OnonTitlebarDragView : NSView
 @end
 
-@implementation GoPDFTitlebarDragView
+@implementation OnonTitlebarDragView
 
 - (BOOL)isOpaque {
     return NO;
@@ -37,11 +37,11 @@ static void gopdfApplyMacOSWindowStyleProperties(NSWindow *window) {
 
 @end
 
-@interface GoPDFTitlebarHoverController : NSObject {
+@interface OnonTitlebarHoverController : NSObject {
     NSWindow *_window;
     NSView *_trackingView;
     NSTrackingArea *_trackingArea;
-    GoPDFTitlebarDragView *_dragView;
+    OnonTitlebarDragView *_dragView;
     NSButton *_buttons[3];
     BOOL _visible;
 }
@@ -50,7 +50,7 @@ static void gopdfApplyMacOSWindowStyleProperties(NSWindow *window) {
 
 @end
 
-@implementation GoPDFTitlebarHoverController
+@implementation OnonTitlebarHoverController
 
 - (instancetype)initWithWindow:(NSWindow *)window {
     self = [super init];
@@ -112,7 +112,7 @@ static void gopdfApplyMacOSWindowStyleProperties(NSWindow *window) {
         return NO;
     }
 
-    _dragView = [[GoPDFTitlebarDragView alloc] initWithFrame:_trackingView.bounds];
+    _dragView = [[OnonTitlebarDragView alloc] initWithFrame:_trackingView.bounds];
     _dragView.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
     [_trackingView addSubview:_dragView positioned:NSWindowBelow relativeTo:nil];
 
@@ -181,7 +181,7 @@ static void gopdfApplyMacOSWindowStyleProperties(NSWindow *window) {
 - (void)windowDidExitFullScreen:(NSNotification *)notification {
     (void)notification;
 
-    gopdfApplyMacOSWindowStyleProperties(_window);
+    ononApplyMacOSWindowStyleProperties(_window);
     [self rebuildTitlebarViews];
 }
 
@@ -193,19 +193,19 @@ static void gopdfApplyMacOSWindowStyleProperties(NSWindow *window) {
 
 @end
 
-static void gopdfApplyMacOSWindowStyle(NSWindow *window) {
+static void ononApplyMacOSWindowStyle(NSWindow *window) {
     if (window == nil) {
         return;
     }
 
-    gopdfApplyMacOSWindowStyleProperties(window);
+    ononApplyMacOSWindowStyleProperties(window);
 
-    GoPDFTitlebarHoverController *controller =
-        [[GoPDFTitlebarHoverController alloc] initWithWindow:window];
+    OnonTitlebarHoverController *controller =
+        [[OnonTitlebarHoverController alloc] initWithWindow:window];
     if (controller != nil) {
         objc_setAssociatedObject(
             window,
-            GoPDFTitlebarHoverControllerKey,
+            OnonTitlebarHoverControllerKey,
             controller,
             OBJC_ASSOCIATION_RETAIN_NONATOMIC
         );
@@ -213,42 +213,42 @@ static void gopdfApplyMacOSWindowStyle(NSWindow *window) {
     }
 }
 
-void gopdfConfigureMacOSWindow(void *windowPointer) {
+void ononConfigureMacOSWindow(void *windowPointer) {
     NSWindow *window = (__bridge NSWindow *)windowPointer;
     if (window == nil) {
         return;
     }
 
     if ([NSThread isMainThread]) {
-        gopdfApplyMacOSWindowStyle(window);
+        ononApplyMacOSWindowStyle(window);
     } else {
         dispatch_async(dispatch_get_main_queue(), ^{
-            gopdfApplyMacOSWindowStyle(window);
+            ononApplyMacOSWindowStyle(window);
         });
     }
 }
 
-int gopdfReduceMotion(void) {
+int ononReduceMotion(void) {
     return [[NSWorkspace sharedWorkspace] accessibilityDisplayShouldReduceMotion] ? 1 : 0;
 }
 
-static void gopdfApplyWindowDocument(NSWindow *window, NSString *path, BOOL edited) {
+static void ononApplyWindowDocument(NSWindow *window, NSString *path, BOOL edited) {
     window.representedURL = path.length > 0 ? [NSURL fileURLWithPath:path] : nil;
     window.documentEdited = edited;
 }
 
-void gopdfSetWindowDocument(void *windowPointer, const char *path, int edited) {
+void ononSetWindowDocument(void *windowPointer, const char *path, int edited) {
     NSWindow *window = (__bridge NSWindow *)windowPointer;
     if (window == nil) {
         return;
     }
     NSString *document = [[NSString alloc] initWithUTF8String:path];
     if ([NSThread isMainThread]) {
-        gopdfApplyWindowDocument(window, document, edited != 0);
+        ononApplyWindowDocument(window, document, edited != 0);
         [document release];
     } else {
         dispatch_async(dispatch_get_main_queue(), ^{
-            gopdfApplyWindowDocument(window, document, edited != 0);
+            ononApplyWindowDocument(window, document, edited != 0);
             [document release];
         });
     }

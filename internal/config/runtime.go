@@ -66,6 +66,10 @@ func OpenWithOptions(explicitPath, docPath string, options OpenOptions) (*Runtim
 	if err := rt.Reload(); err != nil {
 		return nil, err
 	}
+	for _, note := range migrationNotes {
+		rt.warnings = append(rt.warnings, note) // logged when made
+	}
+	migrationNotes = nil
 	return rt, nil
 }
 
@@ -234,16 +238,16 @@ func (r *Runtime) findConfig() (string, error) {
 	return "", nil
 }
 
-// newConfigFile is what a config file gopdf creates for editing holds.
-const newConfigFile = `-- gopdf configuration. Set only what you want to change; every option,
+// newConfigFile is what a config file onon creates for editing holds.
+const newConfigFile = `-- onon configuration. Set only what you want to change; every option,
 -- theme field and default binding is in the reference:
--- https://aethar01.github.io/gopdf_docs/
+-- https://ononreader.com/
 -- :reload-config applies changes without restarting.
 
 `
 
 // EditableConfigPath returns the config file to edit: the one loaded, else
-// the one given with --config, else the first place gopdf looks for one,
+// the one given with --config, else the first place onon looks for one,
 // where it creates one.
 func (r *Runtime) EditableConfigPath() (string, error) {
 	if r.cfg.ConfigPath != "" {

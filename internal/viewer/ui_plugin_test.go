@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"gopdf/internal/config"
+	"onon/internal/config"
 
 	"github.com/jupiterrider/purego-sdl3/sdl"
 )
@@ -61,10 +61,10 @@ func TestLuaUISelectionCallbackReceivesRowID(t *testing.T) {
 	configPath := filepath.Join(dir, "config.lua")
 	source := `
 bind("u", function()
-  local view = gopdf.ui.create({
+  local view = onon.ui.create({
     rows = { { id = "stable-id", text = "row", value = "value" } },
     on_select = function(index, value, text, id)
-      gopdf.message(tostring(index) .. ":" .. value .. ":" .. text .. ":" .. id)
+      onon.message(tostring(index) .. ":" .. value .. ":" .. text .. ":" .. id)
     end,
   })
   view:show()
@@ -122,12 +122,12 @@ func TestLuaUIViewGenerationSurvivesSuccessfulReload(t *testing.T) {
 	app := testLayoutApp(0)
 	app.runtime = runtime
 	runtime.AttachHost(app)
-	if _, err := runtime.Eval(`local view = gopdf.ui.create({ title = "old", rows = { "old" } }); view:show()`); err != nil {
+	if _, err := runtime.Eval(`local view = onon.ui.create({ title = "old", rows = { "old" } }); view:show()`); err != nil {
 		t.Fatal(err)
 	}
 	old := app.activeUIView()
 
-	if err := os.WriteFile(configPath, []byte(`local view = gopdf.ui.create({ title = "new", rows = { "new" } }); view:show()`), 0o644); err != nil {
+	if err := os.WriteFile(configPath, []byte(`local view = onon.ui.create({ title = "new", rows = { "new" } }); view:show()`), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	app.reloadConfig()
@@ -154,12 +154,12 @@ func TestLuaUIViewGenerationRollsBackAfterFailedReload(t *testing.T) {
 	app := testLayoutApp(0)
 	app.runtime = runtime
 	runtime.AttachHost(app)
-	if _, err := runtime.Eval(`local view = gopdf.ui.create({ title = "old", rows = { "old" } }); view:show()`); err != nil {
+	if _, err := runtime.Eval(`local view = onon.ui.create({ title = "old", rows = { "old" } }); view:show()`); err != nil {
 		t.Fatal(err)
 	}
 	old := app.activeUIView()
 
-	broken := `local view = gopdf.ui.create({ title = "broken", rows = { "broken" } }); view:show(); error("reload failed")`
+	broken := `local view = onon.ui.create({ title = "broken", rows = { "broken" } }); view:show(); error("reload failed")`
 	if err := os.WriteFile(configPath, []byte(broken), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -183,14 +183,14 @@ func TestMouseButtonPreCanConsumeButtonUp(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(pluginDir, "lua", "mouse"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(pluginDir, "gopdf-plugin.json"), []byte(`{"id":"mouse"}`), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(pluginDir, "onon-plugin.json"), []byte(`{"id":"mouse"}`), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	plugin := `
-local M = gopdf.plugin.register("mouse")
+local M = onon.plugin.register("mouse")
 M:on("mouse_button_pre", function(event)
   if event.phase == "up" then
-    gopdf.message("consumed up")
+    onon.message("consumed up")
     return true
   end
 end)

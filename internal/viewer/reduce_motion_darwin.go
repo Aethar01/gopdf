@@ -3,10 +3,10 @@
 package viewer
 
 /*
-int gopdfReduceMotion(void);
+int ononReduceMotion(void);
 */
 import "C"
 
 // osReducesMotion reports whether Reduce motion is on in macOS's
 // accessibility settings.
-func osReducesMotion() bool { return C.gopdfReduceMotion() != 0 }
+func osReducesMotion() bool { return C.ononReduceMotion() != 0 }

@@ -3,7 +3,7 @@ package viewer
 import (
 	"fmt"
 
-	"gopdf/internal/mupdf"
+	"onon/internal/mupdf"
 )
 
 type pageMetricUpdate struct {

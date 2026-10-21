@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"gopdf/internal/config"
+	"onon/internal/config"
 )
 
 func TestShowCompletionAcceptsUniqueCommand(t *testing.T) {

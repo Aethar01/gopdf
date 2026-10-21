@@ -70,7 +70,7 @@ func (a *App) chooseTheme(name string) {
 	a.applyRuntimeChanges("theme")
 	a.message = "theme " + name
 	if a.runtime.ConfigSetsTheme() {
-		a.message += "; config.lua sets gopdf.theme, so this lasts until gopdf restarts"
+		a.message += "; config.lua sets onon.theme, so this lasts until onon restarts"
 	}
 }
 

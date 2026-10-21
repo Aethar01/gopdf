@@ -5,9 +5,9 @@ import (
 	"sync"
 	"time"
 
-	"gopdf/internal/config"
-	"gopdf/internal/instance"
-	"gopdf/internal/mupdf"
+	"onon/internal/config"
+	"onon/internal/instance"
+	"onon/internal/mupdf"
 
 	"github.com/jupiterrider/purego-sdl3/sdl"
 	"golang.org/x/image/font"

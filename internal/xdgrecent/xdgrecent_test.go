@@ -50,7 +50,7 @@ func TestAddNewFile(t *testing.T) {
 	for _, want := range []string{
 		`<bookmark href="file:///home/u/book.pdf" added="` + stamp + `"`,
 		`<mime:mime-type type="application/pdf"/>`,
-		`<bookmark:application name="gopdf" exec="&#39;gopdf %u&#39;" modified="` + stamp + `" count="1"/>`,
+		`<bookmark:application name="onon" exec="&#39;onon %u&#39;" modified="` + stamp + `" count="1"/>`,
 	} {
 		if !strings.Contains(text, want) {
 			t.Errorf("missing %s in\n%s", want, text)
@@ -73,7 +73,7 @@ func TestAddKeepsOtherApplications(t *testing.T) {
 		`added="2026-01-01T00:00:00.000000Z"`,
 		`name="Document Viewer"`,
 		`count="3"`,
-		`<bookmark:application name="gopdf"`,
+		`<bookmark:application name="onon"`,
 		`notes.txt`,
 	} {
 		if !strings.Contains(text, want) {
@@ -86,11 +86,11 @@ func TestAddKeepsOtherApplications(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if n := strings.Count(string(again), `name="gopdf"`); n != 1 {
-		t.Fatalf("gopdf recorded %d times", n)
+	if n := strings.Count(string(again), `name="onon"`); n != 1 {
+		t.Fatalf("onon recorded %d times", n)
 	}
-	if !strings.Contains(string(again), `name="gopdf" exec="&#39;gopdf %u&#39;" modified="`+stamp+`" count="2"`) {
-		t.Fatalf("expected gopdf's count to rise:\n%s", again)
+	if !strings.Contains(string(again), `name="onon" exec="&#39;onon %u&#39;" modified="`+stamp+`" count="2"`) {
+		t.Fatalf("expected onon's count to rise:\n%s", again)
 	}
 }
 

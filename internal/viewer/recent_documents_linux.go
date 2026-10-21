@@ -2,7 +2,7 @@
 
 package viewer
 
-import "gopdf/internal/xdgrecent"
+import "onon/internal/xdgrecent"
 
 // noteSystemRecentDocument adds path to the recent files the desktop
 // shares, which file managers and GTK's file chooser list. It writes a

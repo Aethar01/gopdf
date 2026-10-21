@@ -1,4 +1,4 @@
-module gopdf
+module onon
 
 go 1.27.0
 

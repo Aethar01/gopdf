@@ -26,12 +26,12 @@ func TestLinuxSearchPaths(t *testing.T) {
 	t.Setenv("XDG_CONFIG_DIRS", "/etc/xdg:/opt/xdg")
 	for name, got := range map[string][]string{"plugins": PluginPaths(), "themes": ThemePaths()} {
 		want := []string{
-			"/usr/lib/gopdf/" + name,
-			"/data/gopdf/" + name,
-			"/config/gopdf/" + name,
-			"/home/reader/.config/gopdf/" + name,
-			"/etc/xdg/gopdf/" + name,
-			"/opt/xdg/gopdf/" + name,
+			"/usr/lib/onon/" + name,
+			"/data/onon/" + name,
+			"/config/onon/" + name,
+			"/home/reader/.config/onon/" + name,
+			"/etc/xdg/onon/" + name,
+			"/opt/xdg/onon/" + name,
 		}
 		if !slices.Equal(got, want) {
 			t.Errorf("%s paths = %v\nwant %v", name, got, want)
@@ -42,9 +42,9 @@ func TestLinuxSearchPaths(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", "")
 	t.Setenv("XDG_CONFIG_DIRS", "")
 	want := []string{
-		"/usr/lib/gopdf/themes",
-		"/home/reader/.local/share/gopdf/themes",
-		"/home/reader/.config/gopdf/themes",
+		"/usr/lib/onon/themes",
+		"/home/reader/.local/share/onon/themes",
+		"/home/reader/.config/onon/themes",
 	}
 	if got := ThemePaths(); !slices.Equal(got, want) {
 		t.Errorf("theme paths without XDG variables = %v\nwant %v", got, want)
@@ -59,11 +59,11 @@ func TestPluginsLoadFromEverySearchPath(t *testing.T) {
 	t.Setenv("HOME", home)
 	t.Setenv("XDG_DATA_HOME", "")
 	for id, base := range map[string]string{
-		"local":  filepath.Join(home, ".local", "share", "gopdf", "plugins"),
-		"config": filepath.Join(home, ".config", "gopdf", "plugins"),
+		"local":  filepath.Join(home, ".local", "share", "onon", "plugins"),
+		"config": filepath.Join(home, ".config", "onon", "plugins"),
 		"system": filepath.Join(systemDir, "plugins"),
 	} {
-		root := writeTestPlugin(t, id, `return gopdf.plugin.register("`+id+`")`)
+		root := writeTestPlugin(t, id, `return onon.plugin.register("`+id+`")`)
 		if err := os.MkdirAll(base, 0o755); err != nil {
 			t.Fatal(err)
 		}
@@ -99,8 +99,8 @@ func TestThemesLoadFromEverySearchPath(t *testing.T) {
 	}
 	configDir := t.TempDir()
 	write(filepath.Join(configDir, "themes"), "forest", `return { accent = "#111111" }`)
-	write(filepath.Join(home, ".local", "share", "gopdf", "themes"), "dusk", `return { accent = "#222222" }`)
-	write(filepath.Join(home, ".config", "gopdf", "themes"), "forest", `return { accent = "#333333" }`)
+	write(filepath.Join(home, ".local", "share", "onon", "themes"), "dusk", `return { accent = "#222222" }`)
+	write(filepath.Join(home, ".config", "onon", "themes"), "forest", `return { accent = "#333333" }`)
 	write(filepath.Join(systemDir, "themes"), "slate", `return { accent = "#444444" }`)
 	rt := openThemeChoiceRuntime(t, configDir, "", nil)
 

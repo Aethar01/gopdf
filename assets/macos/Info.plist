@@ -5,22 +5,24 @@
   <key>CFBundleDevelopmentRegion</key>
   <string>en</string>
   <key>CFBundleDisplayName</key>
-  <string>GoPDF</string>
+  <string>onon</string>
   <key>CFBundleExecutable</key>
-  <string>GoPDF</string>
+  <string>onon</string>
   <key>CFBundleIconFile</key>
-  <string>gopdf</string>
+  <string>onon</string>
+  <key>CFBundleIconName</key>
+  <string>onon</string>
   <key>CFBundleIdentifier</key>
-  <string>app.gopdf.viewer</string>
+  <string>com.ononreader.onon</string>
   <key>CFBundleInfoDictionaryVersion</key>
   <string>6.0</string>
   <key>CFBundleName</key>
-  <string>GoPDF</string>
+  <string>onon</string>
   <key>CFBundleDocumentTypes</key>
   <array>
     <dict>
       <key>CFBundleTypeIconFile</key>
-      <string>gopdf</string>
+      <string>onon</string>
       <key>CFBundleTypeName</key>
       <string>PDF Document</string>
       <key>CFBundleTypeRole</key>
@@ -32,7 +34,7 @@
     </dict>
     <dict>
       <key>CFBundleTypeIconFile</key>
-      <string>gopdf</string>
+      <string>onon</string>
       <key>CFBundleTypeName</key>
       <string>XPS Document</string>
       <key>CFBundleTypeRole</key>
@@ -47,7 +49,7 @@
     </dict>
     <dict>
       <key>CFBundleTypeIconFile</key>
-      <string>gopdf</string>
+      <string>onon</string>
       <key>CFBundleTypeName</key>
       <string>E-book</string>
       <key>CFBundleTypeRole</key>
@@ -57,12 +59,12 @@
       <key>LSItemContentTypes</key>
       <array>
         <string>com.amazon.mobipocket</string>
-        <string>app.gopdf.fictionbook</string>
+        <string>com.ononreader.onon.fictionbook</string>
       </array>
     </dict>
     <dict>
       <key>CFBundleTypeIconFile</key>
-      <string>gopdf</string>
+      <string>onon</string>
       <key>CFBundleTypeName</key>
       <string>Comic Book Archive</string>
       <key>CFBundleTypeRole</key>
@@ -71,8 +73,8 @@
       <string>Default</string>
       <key>LSItemContentTypes</key>
       <array>
-        <string>app.gopdf.cbz</string>
-        <string>app.gopdf.cbt</string>
+        <string>com.ononreader.onon.cbz</string>
+        <string>com.ononreader.onon.cbt</string>
       </array>
     </dict>
     <dict>
@@ -179,7 +181,7 @@
     </dict>
     <dict>
       <key>UTTypeIdentifier</key>
-      <string>app.gopdf.fictionbook</string>
+      <string>com.ononreader.onon.fictionbook</string>
       <key>UTTypeDescription</key>
       <string>FictionBook E-book</string>
       <key>UTTypeConformsTo</key>
@@ -201,7 +203,7 @@
     </dict>
     <dict>
       <key>UTTypeIdentifier</key>
-      <string>app.gopdf.cbz</string>
+      <string>com.ononreader.onon.cbz</string>
       <key>UTTypeDescription</key>
       <string>Comic Book Archive (ZIP)</string>
       <key>UTTypeConformsTo</key>
@@ -223,7 +225,7 @@
     </dict>
     <dict>
       <key>UTTypeIdentifier</key>
-      <string>app.gopdf.cbt</string>
+      <string>com.ononreader.onon.cbt</string>
       <key>UTTypeDescription</key>
       <string>Comic Book Archive (TAR)</string>
       <key>UTTypeConformsTo</key>

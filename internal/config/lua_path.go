@@ -66,7 +66,7 @@ func NewLuaPathModule(L *lua.LState) *lua.LTable {
 			return 1
 		},
 	}
-	// Short names remain useful when requiring the standalone module; gopdf.path
+	// Short names remain useful when requiring the standalone module; onon.path
 	// documents the explicit names below.
 	functions["base"] = functions["basename"]
 	functions["dir"] = functions["dirname"]

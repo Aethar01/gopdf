@@ -5,7 +5,7 @@ import (
 	"math"
 	"time"
 
-	"gopdf/internal/config"
+	"onon/internal/config"
 
 	"github.com/jupiterrider/purego-sdl3/sdl"
 )
@@ -144,7 +144,7 @@ func (a *App) titleBarLayout() titleBarLayout {
 	return newTitleBarLayout(a.winW, a.displayScale(), !a.windowMaximized())
 }
 
-// titleBarActive reports whether the window has a title bar of gopdf's own.
+// titleBarActive reports whether the window has a title bar of onon's own.
 // A fullscreen window has none at all.
 func (a *App) titleBarActive() bool {
 	return a.titleBar != nil && !a.fullscreen

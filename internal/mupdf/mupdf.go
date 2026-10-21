@@ -20,7 +20,7 @@ import (
 const passwordErrorText = "invalid or missing document password"
 
 // pageCacheSize is how many loaded pages the bridge keeps per document.
-const pageCacheSize = C.GOPDF_PAGE_CACHE_SIZE
+const pageCacheSize = C.ONON_PAGE_CACHE_SIZE
 
 type Rect struct {
 	X0 float32
@@ -31,7 +31,7 @@ type Rect struct {
 
 type Document struct {
 	mu     sync.Mutex
-	handle *C.gopdf_doc
+	handle *C.onon_doc
 	pages  int
 	// text is a context of the document's own for reading page text off
 	// the document lock; textMu keeps it to one call at a time.
@@ -50,7 +50,7 @@ func (p *RenderedPage) Close() {
 	if p == nil || p.samples == nil {
 		return
 	}
-	C.gopdf_free_rendered_page((*C.uchar)(p.samples))
+	C.onon_free_rendered_page((*C.uchar)(p.samples))
 	p.samples = nil
 	if p.Image != nil {
 		p.Image.Pix = nil
@@ -159,7 +159,7 @@ func Open(path string, opts OpenOptions) (*Document, error) {
 		store = C.size_t(opts.StoreBytes)
 	}
 	var cerr *C.char
-	handle := C.gopdf_open_document(cpath, cpassword, store, &cerr)
+	handle := C.onon_open_document(cpath, cpassword, store, &cerr)
 	if handle == nil {
 		return nil, consumeError("open document", cerr)
 	}
@@ -192,7 +192,7 @@ func (d *Document) Close() {
 	if d.handle == nil {
 		return
 	}
-	C.gopdf_close_document(d.handle)
+	C.onon_close_document(d.handle)
 	d.handle = nil
 }
 
@@ -204,7 +204,7 @@ func (d *Document) PageCount() (int, error) {
 	}
 	var count C.int
 	var cerr *C.char
-	if ok := C.gopdf_count_pages(d.handle, &count, &cerr); ok == 0 {
+	if ok := C.onon_count_pages(d.handle, &count, &cerr); ok == 0 {
 		return 0, consumeError("count pages", cerr)
 	}
 	return int(count), nil
@@ -227,9 +227,9 @@ func (d *Document) ContentBounds(page int) (Rect, error) {
 	if err := d.validatePageLocked(page); err != nil {
 		return Rect{}, err
 	}
-	var r C.gopdf_rect
+	var r C.onon_rect
 	var cerr *C.char
-	if ok := C.gopdf_page_content_bounds(d.handle, C.int(page), &r, &cerr); ok == 0 {
+	if ok := C.onon_page_content_bounds(d.handle, C.int(page), &r, &cerr); ok == 0 {
 		return Rect{}, consumeError("page content bounds", cerr)
 	}
 	return Rect{X0: float32(r.x0), Y0: float32(r.y0), X1: float32(r.x1), Y1: float32(r.y1)}, nil
@@ -242,10 +242,10 @@ func (d *Document) ImageBounds(page int) ([]Rect, error) {
 	if err := d.validatePageLocked(page); err != nil {
 		return nil, err
 	}
-	var raw *C.gopdf_rect
+	var raw *C.onon_rect
 	var count C.int
 	var cerr *C.char
-	if ok := C.gopdf_page_image_bounds(d.handle, C.int(page), &raw, &count, &cerr); ok == 0 {
+	if ok := C.onon_page_image_bounds(d.handle, C.int(page), &raw, &count, &cerr); ok == 0 {
 		return nil, consumeError("page images", cerr)
 	}
 	defer C.free(unsafe.Pointer(raw))
@@ -267,9 +267,9 @@ func (d *Document) PageInfo(page int) (PageInfo, error) {
 	if err := d.validatePageLocked(page); err != nil {
 		return PageInfo{}, err
 	}
-	var rect C.gopdf_rect
+	var rect C.onon_rect
 	var label, cerr *C.char
-	if ok := C.gopdf_page_info(d.handle, C.int(page), &rect, &label, &cerr); ok == 0 {
+	if ok := C.onon_page_info(d.handle, C.int(page), &rect, &label, &cerr); ok == 0 {
 		return PageInfo{}, consumeError("page info", cerr)
 	}
 	info := PageInfo{Bounds: Rect{X0: float32(rect.x0), Y0: float32(rect.y0), X1: float32(rect.x1), Y1: float32(rect.y1)}}
@@ -291,14 +291,14 @@ func (d *Document) Metadata() (Metadata, error) {
 	for i, key := range keys {
 		ckey := C.CString(key)
 		var value, cerr *C.char
-		ok := C.gopdf_lookup_metadata(d.handle, ckey, &value, &cerr)
+		ok := C.onon_lookup_metadata(d.handle, ckey, &value, &cerr)
 		C.free(unsafe.Pointer(ckey))
 		if ok == 0 {
 			return Metadata{}, consumeError("lookup metadata", cerr)
 		}
 		if value != nil {
 			values[i] = C.GoString(value)
-			C.gopdf_free_string(value)
+			C.onon_free_string(value)
 		}
 	}
 	return Metadata{
@@ -322,12 +322,12 @@ func (d *Document) ExtractSelection(page int, a, b Point, mode SelectMode) (*Sel
 	if err := d.validatePageLocked(page); err != nil {
 		return nil, err
 	}
-	var sel C.gopdf_selection
+	var sel C.onon_selection
 	var cerr *C.char
-	if ok := C.gopdf_extract_selection(d.handle, C.int(page), C.float(a.X), C.float(a.Y), C.float(b.X), C.float(b.Y), C.int(mode), &sel, &cerr); ok == 0 {
+	if ok := C.onon_extract_selection(d.handle, C.int(page), C.float(a.X), C.float(a.Y), C.float(b.X), C.float(b.Y), C.int(mode), &sel, &cerr); ok == 0 {
 		return nil, consumeError("extract selection", cerr)
 	}
-	defer C.gopdf_free_selection(d.handle, &sel)
+	defer C.onon_free_selection(d.handle, &sel)
 	result := &Selection{}
 	if sel.text != nil {
 		result.Text = C.GoString(sel.text)
@@ -344,10 +344,10 @@ func (d *Document) TextEnds(page int) (start, end Point, ok bool, err error) {
 	if err := d.validatePageLocked(page); err != nil {
 		return Point{}, Point{}, false, err
 	}
-	var s, e C.gopdf_point
+	var s, e C.onon_point
 	var found C.int
 	var cerr *C.char
-	if C.gopdf_page_text_ends(d.handle, C.int(page), &s, &e, &found, &cerr) == 0 {
+	if C.onon_page_text_ends(d.handle, C.int(page), &s, &e, &found, &cerr) == 0 {
 		return Point{}, Point{}, false, consumeError("page text ends", cerr)
 	}
 	return Point{X: float64(s.x), Y: float64(s.y)}, Point{X: float64(e.x), Y: float64(e.y)}, found != 0, nil
@@ -360,15 +360,15 @@ func (d *Document) SearchPage(page int, needle string) ([]SearchHit, error) {
 		return nil, nil
 	}
 	var hits []SearchHit
-	err := d.readText(page, func(r *C.gopdf_renderer, list *C.fz_display_list) error {
+	err := d.readText(page, func(r *C.onon_renderer, list *C.fz_display_list) error {
 		cneedle := C.CString(needle)
 		defer C.free(unsafe.Pointer(cneedle))
-		var result C.gopdf_search_result
+		var result C.onon_search_result
 		var cerr *C.char
-		if C.gopdf_search_display_list(r, list, cneedle, &result, &cerr) == 0 {
+		if C.onon_search_display_list(r, list, cneedle, &result, &cerr) == 0 {
 			return consumeError("search page", cerr)
 		}
-		defer C.gopdf_free_search_result(&result)
+		defer C.onon_free_search_result(&result)
 		if result.hit_count == 0 || result.hits == nil {
 			return nil
 		}
@@ -386,7 +386,7 @@ func (d *Document) SearchPage(page int, needle string) ([]SearchHit, error) {
 // context for reading text, which read must consume. Only fetching the list
 // takes the document lock, so reading text neither holds up renders nor
 // waits on them beyond that.
-func (d *Document) readText(page int, read func(*C.gopdf_renderer, *C.fz_display_list) error) error {
+func (d *Document) readText(page int, read func(*C.onon_renderer, *C.fz_display_list) error) error {
 	d.textMu.Lock()
 	defer d.textMu.Unlock()
 	list, err := d.textList(page)
@@ -411,7 +411,7 @@ func (d *Document) textList(page int) (*C.fz_display_list, error) {
 	}
 	var list *C.fz_display_list
 	var cerr *C.char
-	if C.gopdf_page_text_list(d.handle, C.int(page), &list, &cerr) == 0 {
+	if C.onon_page_text_list(d.handle, C.int(page), &list, &cerr) == 0 {
 		return nil, consumeError("page text", cerr)
 	}
 	return list, nil
@@ -425,10 +425,10 @@ func (d *Document) PageText(page int) (string, error) {
 	}
 	var text *C.char
 	var cerr *C.char
-	if ok := C.gopdf_extract_page_text(d.handle, C.int(page), &text, &cerr); ok == 0 {
+	if ok := C.onon_extract_page_text(d.handle, C.int(page), &text, &cerr); ok == 0 {
 		return "", consumeError("extract page text", cerr)
 	}
-	defer C.gopdf_free_text(d.handle, text)
+	defer C.onon_free_text(d.handle, text)
 	if text == nil {
 		return "", nil
 	}
@@ -441,12 +441,12 @@ func (d *Document) Links(page int) ([]Link, error) {
 	if err := d.validatePageLocked(page); err != nil {
 		return nil, err
 	}
-	var result C.gopdf_link_result
+	var result C.onon_link_result
 	var cerr *C.char
-	if ok := C.gopdf_load_links(d.handle, C.int(page), &result, &cerr); ok == 0 {
+	if ok := C.onon_load_links(d.handle, C.int(page), &result, &cerr); ok == 0 {
 		return nil, consumeError("load links", cerr)
 	}
-	defer C.gopdf_free_link_result(&result)
+	defer C.onon_free_link_result(&result)
 	if result.link_count == 0 || result.links == nil {
 		return nil, nil
 	}
@@ -474,12 +474,12 @@ func (d *Document) Outline() ([]OutlineItem, error) {
 	if err := d.ensureOpenLocked(); err != nil {
 		return nil, err
 	}
-	var result C.gopdf_outline_result
+	var result C.onon_outline_result
 	var cerr *C.char
-	if ok := C.gopdf_load_outline(d.handle, &result, &cerr); ok == 0 {
+	if ok := C.onon_load_outline(d.handle, &result, &cerr); ok == 0 {
 		return nil, consumeError("load outline", cerr)
 	}
-	defer C.gopdf_free_outline_result(&result)
+	defer C.onon_free_outline_result(&result)
 	if result.item_count == 0 || result.items == nil {
 		return nil, nil
 	}
@@ -516,7 +516,7 @@ func decodeDestination(rawX, rawY C.float, rawHasX, rawHasY C.int) (x, y float64
 	return
 }
 
-func copyQuads(raw *C.gopdf_quad, count int) []Quad {
+func copyQuads(raw *C.onon_quad, count int) []Quad {
 	if count <= 0 || raw == nil {
 		return nil
 	}
@@ -528,7 +528,7 @@ func copyQuads(raw *C.gopdf_quad, count int) []Quad {
 	return quads
 }
 
-func copyQuad(q C.gopdf_quad) Quad {
+func copyQuad(q C.onon_quad) Quad {
 	return Quad{
 		UL: Point{X: float64(q.ul.x), Y: float64(q.ul.y)},
 		UR: Point{X: float64(q.ur.x), Y: float64(q.ur.y)},

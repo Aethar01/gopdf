@@ -5,8 +5,8 @@ package viewer
 /*
 #cgo LDFLAGS: -framework Cocoa
 #include <stdlib.h>
-void gopdfConfigureMacOSWindow(void *window);
-void gopdfSetWindowDocument(void *window, const char *path, int edited);
+void ononConfigureMacOSWindow(void *window);
+void ononSetWindowDocument(void *window, const char *path, int edited);
 */
 import "C"
 
@@ -19,7 +19,7 @@ import (
 
 func (a *App) configureNativeWindow(window *sdl.Window) {
 	if nativeWindow := cocoaWindow(window); nativeWindow != nil {
-		C.gopdfConfigureMacOSWindow(nativeWindow)
+		C.ononConfigureMacOSWindow(nativeWindow)
 	}
 }
 
@@ -36,7 +36,7 @@ func setNativeWindowDocument(window *sdl.Window, path string, edited bool) {
 	if edited {
 		flag = 1
 	}
-	C.gopdfSetWindowDocument(nativeWindow, text, flag)
+	C.ononSetWindowDocument(nativeWindow, text, flag)
 }
 
 // setNativeWindowColors does nothing on macOS, whose hidden title bar

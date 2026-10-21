@@ -6,8 +6,8 @@ import (
 	"strings"
 	"sync"
 
-	"gopdf/internal/actions"
-	"gopdf/internal/keys"
+	"onon/internal/actions"
+	"onon/internal/keys"
 
 	lua "github.com/yuin/gopher-lua"
 )
@@ -65,7 +65,7 @@ func (r *Runtime) initLuaState() *lua.LState {
 	}
 	installPluginPackagePath(L, r)
 	mod := newLuaModule(L, r, &r.cfg)
-	L.SetGlobal("gopdf", mod)
+	L.SetGlobal("onon", mod)
 	L.SetGlobal("bind", L.GetField(mod, "bind"))
 	L.SetGlobal("unbind", L.GetField(mod, "unbind"))
 	L.SetGlobal("bind_mouse", L.GetField(mod, "bind_mouse"))
@@ -78,7 +78,7 @@ func (r *Runtime) updateLuaDocument() {
 	if r.state == nil {
 		return
 	}
-	mod, ok := r.state.GetGlobal("gopdf").(*lua.LTable)
+	mod, ok := r.state.GetGlobal("onon").(*lua.LTable)
 	if ok {
 		r.state.SetField(mod, "document", newLuaDocumentTable(r.state, r))
 	}
@@ -95,43 +95,43 @@ func newLuaModule(L *lua.LState, rt *Runtime, cfg *Config) *lua.LTable {
 	L.SetField(mod, "json", NewLuaJSONModule(L))
 	L.SetField(mod, "clipboard", newLuaClipboardTable(L, rt))
 	L.SetField(mod, "formats", newLuaFormatsTable(L, rt))
-	registerLuaFunctions(L, mod, "gopdf.", []luaFunctionSpec{
-		{Signature: "gopdf.bind(key, action)", Function: luaBind(rt)},
-		{Signature: "gopdf.unbind(key)", Function: luaUnbind(rt)},
-		{Signature: "gopdf.bind_mouse(event, action)", Function: luaBindMouse(rt)},
-		{Signature: "gopdf.unbind_mouse(event)", Function: luaUnbindMouse(rt)},
-		{Signature: "gopdf.message([text])", Function: luaMessage(rt, cfg)},
-		{Signature: "gopdf.command(command)", Function: luaCommand(rt)},
-		{Signature: "gopdf.open(path)", Function: luaOpen(rt)},
-		{Signature: "gopdf.pick_file(callback)", Function: luaPickFile(rt)},
-		{Signature: "gopdf.pick_directory(callback)", Function: luaPickDirectory(rt)},
-		{Signature: "gopdf.schedule(callback)", Function: luaSchedule(rt)},
-		{Signature: "gopdf.log(level, message)", Function: luaLog(rt)},
-		{Signature: "gopdf.open_external(uri_or_path)", Function: luaOpenExternal(rt)},
-		{Signature: "gopdf.page([page])", Function: luaPage(rt)},
-		{Signature: "gopdf.page_count()", Function: luaPageCount(rt)},
-		{Signature: "gopdf.version()", Function: luaVersion},
-		{Signature: "gopdf.goto_document_point(spec)", Function: luaGotoDocumentPoint(rt)},
-		{Signature: "gopdf.mode()", Function: luaMode(rt)},
-		{Signature: "gopdf.search(query[, backward])", Function: luaSearch(rt)},
-		{Signature: "gopdf.search_query()", Function: luaSearchQuery(rt)},
-		{Signature: "gopdf.search_match_count()", Function: luaSearchMatchCount(rt)},
-		{Signature: "gopdf.search_match_index()", Function: luaSearchMatchIndex(rt)},
-		{Signature: "gopdf.current_count()", Function: luaCurrentCount(rt)},
-		{Signature: "gopdf.pending_keys()", Function: luaPendingKeys(rt)},
-		{Signature: "gopdf.recent_files([limit])", Function: luaRecentFiles(cfg)},
-		{Signature: "gopdf.clear_pending_keys()", Function: luaClearPendingKeys(rt)},
-		{Signature: "gopdf.fit_mode([mode])", Function: luaFitMode(rt, cfg)},
-		{Signature: "gopdf.render_mode([mode])", Function: luaRenderMode(rt, cfg)},
-		{Signature: "gopdf.zoom([scale])", Function: luaZoom(rt)},
-		{Signature: "gopdf.rotation([degrees])", Function: luaRotation(rt)},
-		{Signature: "gopdf.fullscreen([enabled])", Function: luaFullscreen(rt)},
+	registerLuaFunctions(L, mod, "onon.", []luaFunctionSpec{
+		{Signature: "onon.bind(key, action)", Function: luaBind(rt)},
+		{Signature: "onon.unbind(key)", Function: luaUnbind(rt)},
+		{Signature: "onon.bind_mouse(event, action)", Function: luaBindMouse(rt)},
+		{Signature: "onon.unbind_mouse(event)", Function: luaUnbindMouse(rt)},
+		{Signature: "onon.message([text])", Function: luaMessage(rt, cfg)},
+		{Signature: "onon.command(command)", Function: luaCommand(rt)},
+		{Signature: "onon.open(path)", Function: luaOpen(rt)},
+		{Signature: "onon.pick_file(callback)", Function: luaPickFile(rt)},
+		{Signature: "onon.pick_directory(callback)", Function: luaPickDirectory(rt)},
+		{Signature: "onon.schedule(callback)", Function: luaSchedule(rt)},
+		{Signature: "onon.log(level, message)", Function: luaLog(rt)},
+		{Signature: "onon.open_external(uri_or_path)", Function: luaOpenExternal(rt)},
+		{Signature: "onon.page([page])", Function: luaPage(rt)},
+		{Signature: "onon.page_count()", Function: luaPageCount(rt)},
+		{Signature: "onon.version()", Function: luaVersion},
+		{Signature: "onon.goto_document_point(spec)", Function: luaGotoDocumentPoint(rt)},
+		{Signature: "onon.mode()", Function: luaMode(rt)},
+		{Signature: "onon.search(query[, backward])", Function: luaSearch(rt)},
+		{Signature: "onon.search_query()", Function: luaSearchQuery(rt)},
+		{Signature: "onon.search_match_count()", Function: luaSearchMatchCount(rt)},
+		{Signature: "onon.search_match_index()", Function: luaSearchMatchIndex(rt)},
+		{Signature: "onon.current_count()", Function: luaCurrentCount(rt)},
+		{Signature: "onon.pending_keys()", Function: luaPendingKeys(rt)},
+		{Signature: "onon.recent_files([limit])", Function: luaRecentFiles(cfg)},
+		{Signature: "onon.clear_pending_keys()", Function: luaClearPendingKeys(rt)},
+		{Signature: "onon.fit_mode([mode])", Function: luaFitMode(rt, cfg)},
+		{Signature: "onon.render_mode([mode])", Function: luaRenderMode(rt, cfg)},
+		{Signature: "onon.zoom([scale])", Function: luaZoom(rt)},
+		{Signature: "onon.rotation([degrees])", Function: luaRotation(rt)},
+		{Signature: "onon.fullscreen([enabled])", Function: luaFullscreen(rt)},
 	})
 	options := newLuaOptionsTable(L, rt, cfg)
 	L.SetField(mod, "options", options)
 	L.SetField(mod, "o", options)
 	L.SetField(mod, "themes", newLuaThemesTable(L))
-	// gopdf.theme is read and assigned through the metatable, as assigning
+	// onon.theme is read and assigned through the metatable, as assigning
 	// it sets the theme rather than replacing the field.
 	mt := L.NewTable()
 	L.SetField(mt, "__index", L.NewFunction(func(L *lua.LState) int {
@@ -146,7 +146,7 @@ func newLuaModule(L *lua.LState, rt *Runtime, cfg *Config) *lua.LTable {
 		key := L.CheckAny(2)
 		if key.String() == "theme" {
 			if err := rt.setOption("theme", L.CheckAny(3)); err != nil {
-				L.RaiseError("gopdf.theme: %v", err)
+				L.RaiseError("onon.theme: %v", err)
 			}
 			return 0
 		}
@@ -195,19 +195,19 @@ func newLuaOptionsTable(L *lua.LState, rt *Runtime, cfg *Config) *lua.LTable {
 
 func newLuaCacheTable(L *lua.LState, rt *Runtime) *lua.LTable {
 	tbl := L.NewTable()
-	registerLuaFunctions(L, tbl, "gopdf.cache.", []luaFunctionSpec{
-		{Signature: "gopdf.cache.entries()", Function: luaCacheEntries(rt)},
-		{Signature: "gopdf.cache.pending()", Function: luaCachePending(rt)},
-		{Signature: "gopdf.cache.limit([mib])", Function: luaCacheLimit(rt)},
-		{Signature: "gopdf.cache.clear()", Function: luaCacheClear(rt)},
+	registerLuaFunctions(L, tbl, "onon.cache.", []luaFunctionSpec{
+		{Signature: "onon.cache.entries()", Function: luaCacheEntries(rt)},
+		{Signature: "onon.cache.pending()", Function: luaCachePending(rt)},
+		{Signature: "onon.cache.limit([mib])", Function: luaCacheLimit(rt)},
+		{Signature: "onon.cache.clear()", Function: luaCacheClear(rt)},
 	})
 	return tbl
 }
 
 func newLuaViewAPI(L *lua.LState, rt *Runtime) *lua.LTable {
 	tbl := L.NewTable()
-	registerLuaFunctions(L, tbl, "gopdf.ui.", []luaFunctionSpec{
-		{Signature: "gopdf.ui.create(spec)", Function: luaUiCreate(rt)},
+	registerLuaFunctions(L, tbl, "onon.ui.", []luaFunctionSpec{
+		{Signature: "onon.ui.create(spec)", Function: luaUiCreate(rt)},
 	})
 	return tbl
 }
@@ -400,7 +400,7 @@ func luaStringsTable(L *lua.LState, values []string) *lua.LTable {
 
 func newLuaActionValue(L *lua.LState, rt *Runtime, action string) *lua.LTable {
 	tbl := L.NewTable()
-	L.SetField(tbl, "__gopdf_action", lua.LString(action))
+	L.SetField(tbl, "__onon_action", lua.LString(action))
 	mt := L.NewTable()
 	L.SetField(mt, "__call", L.NewFunction(func(L *lua.LState) int {
 		if err := rt.executeAction(action); err != nil {
@@ -421,7 +421,7 @@ func luaActionName(rt *Runtime, value lua.LValue) (string, error) {
 		return rt.registerCallback(fn), nil
 	}
 	if tbl, ok := value.(*lua.LTable); ok {
-		if action := tbl.RawGetString("__gopdf_action"); action.Type() == lua.LTString {
+		if action := tbl.RawGetString("__onon_action"); action.Type() == lua.LTString {
 			return action.String(), nil
 		}
 	}

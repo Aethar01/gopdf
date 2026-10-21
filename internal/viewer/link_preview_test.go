@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"gopdf/internal/mupdf"
+	"onon/internal/mupdf"
 )
 
 func TestLinkPreviewAppearsAfterDelayAndRequestsTiles(t *testing.T) {

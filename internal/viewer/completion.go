@@ -7,8 +7,8 @@ import (
 	"sort"
 	"strings"
 
-	"gopdf/internal/commands"
-	"gopdf/internal/config"
+	"onon/internal/commands"
+	"onon/internal/config"
 
 	"github.com/jupiterrider/purego-sdl3/sdl"
 	"golang.org/x/image/font"

@@ -5,8 +5,8 @@ import (
 	"log"
 	"sort"
 
-	"gopdf/internal/actions"
-	"gopdf/internal/keys"
+	"onon/internal/actions"
+	"onon/internal/keys"
 )
 
 // Keybindings changed in the viewer are kept in the session database, each
@@ -64,7 +64,7 @@ func (r *Runtime) UnbindKey(key string) error {
 
 // applyStoredKeyBindings applies the keybindings changed in the viewer.
 // One a newer or older version cannot read is dropped, so it cannot stop
-// gopdf from starting. They are not essential, so a database that cannot
+// onon from starting. They are not essential, so a database that cannot
 // be read leaves the defaults rather than failing.
 func (r *Runtime) applyStoredKeyBindings() {
 	r.importAutogen()

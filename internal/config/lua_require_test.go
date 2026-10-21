@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-// A config can require the Lua files beside it, wherever gopdf runs from:
+// A config can require the Lua files beside it, wherever onon runs from:
 // require("helper") loads helper.lua, and dots in a name are directories.
 func TestConfigRequiresLuaFilesBesideIt(t *testing.T) {
 	dir := t.TempDir()
@@ -21,12 +21,12 @@ func TestConfigRequiresLuaFilesBesideIt(t *testing.T) {
 		}
 	}
 	write("settings/gaps.lua", `return { page = 14 }`)
-	write("helper.lua", `gopdf.options.status_bar_left = "from helper"`)
+	write("helper.lua", `onon.options.status_bar_left = "from helper"`)
 	write("layout/init.lua", `return "width"`)
 	write("config.lua", `
-gopdf.options.page_gap = require("settings.gaps").page
+onon.options.page_gap = require("settings.gaps").page
 require("helper")
-gopdf.options.fit_mode = require("layout")
+onon.options.fit_mode = require("layout")
 `)
 	t.Chdir(t.TempDir())
 	rt, err := OpenWithOptions(filepath.Join(dir, "config.lua"), "", OpenOptions{NoPlugins: true})

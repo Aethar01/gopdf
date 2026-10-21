@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"gopdf/internal/config"
+	"onon/internal/config"
 )
 
 // stepMotion starts a frame at start plus elapsed.

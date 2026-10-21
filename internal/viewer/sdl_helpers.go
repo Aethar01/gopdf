@@ -13,7 +13,7 @@ import (
 	"strings"
 	"unsafe"
 
-	"gopdf/internal/config"
+	"onon/internal/config"
 
 	textfont "github.com/go-text/typesetting/font"
 	"github.com/go-text/typesetting/fontscan"
@@ -160,7 +160,7 @@ func loadUIFontFaces(f config.ThemeFont, size int) (regular, heading font.Face, 
 	}
 	fontMap, err := systemFontMap()
 	if err != nil {
-		return basicfont.Face7x13, basicfont.Face7x13, fmt.Errorf("listing installed fonts: %w; set gopdf.theme.font.path", err)
+		return basicfont.Face7x13, basicfont.Face7x13, fmt.Errorf("listing installed fonts: %w; set onon.theme.font.path", err)
 	}
 	families := systemUIFamilies()
 	if f.Family != "" {
@@ -186,7 +186,7 @@ func loadUIFontFaces(f config.ThemeFont, size int) (regular, heading font.Face, 
 		}
 		return regular, heading, warning
 	}
-	return basicfont.Face7x13, basicfont.Face7x13, fmt.Errorf("no interface font found (tried %s); set gopdf.theme.font.family or gopdf.theme.font.path", strings.Join(families, ", "))
+	return basicfont.Face7x13, basicfont.Face7x13, fmt.Errorf("no interface font found (tried %s); set onon.theme.font.family or onon.theme.font.path", strings.Join(families, ", "))
 }
 
 func systemFontMap() (*fontscan.FontMap, error) {

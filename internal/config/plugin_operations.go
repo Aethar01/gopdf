@@ -183,7 +183,7 @@ func (r *Runtime) schedule(callback *lua.LFunction) (int, error) {
 func (r *Runtime) PollPluginOperations() bool { return r.pollPluginOperations() }
 
 // callPluginLua dispatches a plugin-owned callback with the plugin attributed
-// so diagnostics such as gopdf.log() name the owner rather than the loader.
+// so diagnostics such as onon.log() name the owner rather than the loader.
 func (r *Runtime) callPluginLua(pluginID string, params lua.P, args ...lua.LValue) error {
 	previous := r.activePlugin
 	r.activePlugin = pluginID

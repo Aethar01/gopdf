@@ -5,9 +5,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	"gopdf/internal/config"
-	"gopdf/internal/mupdf"
-	"gopdf/internal/testpdf"
+	"onon/internal/config"
+	"onon/internal/mupdf"
+	"onon/internal/testpdf"
 
 	"github.com/jupiterrider/purego-sdl3/sdl"
 )

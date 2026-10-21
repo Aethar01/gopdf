@@ -26,7 +26,7 @@ func TestLuaPlatformModule(t *testing.T) {
 		wantOS = "macos"
 	}
 	script := `
-local platform = require("gopdf.platform")
+local platform = require("onon.platform")
 assert(platform.os == ` + luaQuote(wantOS) + `)
 assert(platform.arch == ` + luaQuote(runtime.GOARCH) + `)
 assert(type(platform.home_dir) == "string")
@@ -49,7 +49,7 @@ func TestLuaPathModule(t *testing.T) {
 	wantJoined := filepath.Join("one", "two", "file.pdf")
 	wantExpanded := filepath.Join(home, "docs", "file.pdf")
 	script := `
-local path = require("gopdf.path")
+local path = require("onon.path")
 assert(path.join("one", "two", "file.pdf") == ` + luaQuote(wantJoined) + `)
 assert(path.base(path.join("one", "file.pdf")) == "file.pdf")
 assert(path.dir(path.join("one", "file.pdf")) == "one")
@@ -70,7 +70,7 @@ assert(path.rel("one", path.join("one", "two")) == "two")
 func TestLuaPathModuleUsesNativeRules(t *testing.T) {
 	L := newPortableLuaState(t)
 	script := `
-local path = require("gopdf.path")
+local path = require("onon.path")
 assert(path.separator == ` + luaQuote(string(filepath.Separator)) + `)
 `
 	if runtime.GOOS == "windows" {
@@ -102,8 +102,8 @@ assert(path.relative("/users", "/users/reader") == "reader")
 func TestLuaJSONRoundTripPreservesShapesAndNull(t *testing.T) {
 	L := newPortableLuaState(t)
 	if err := L.DoString(`
-local json = require("gopdf.json")
-assert(json.null == require("gopdf.json").null)
+local json = require("onon.json")
+assert(json.null == require("onon.json").null)
 local value = json.decode('{"array":[],"object":{},"values":[null,true,2.5,"x"]}')
 assert(value.values[1] == json.null)
 assert(json.encode(value) == '{"array":[],"object":{},"values":[null,true,2.5,"x"]}')
@@ -120,17 +120,17 @@ func TestLuaJSONRejectsInvalidValues(t *testing.T) {
 		code string
 		want string
 	}{
-		{"cycle", `local t = {}; t.self = t; require("gopdf.json").encode(t)`, "cycle detected"},
-		{"function", `require("gopdf.json").encode(function() end)`, "unsupported function"},
-		{"sparse array", `require("gopdf.json").encode({[2] = "x"})`, "contiguous positive integer keys"},
-		{"mixed table", `require("gopdf.json").encode({"x", key = "y"})`, "contiguous positive integer keys"},
-		{"nil", `require("gopdf.json").encode(nil)`, "use json.null"},
-		{"trailing input", `require("gopdf.json").decode('{} {}')`, "unexpected data after JSON value"},
-		{"truncated object", `require("gopdf.json").decode('{"a":')`, "unexpected"},
-		{"unquoted key", `require("gopdf.json").decode('{a:1}')`, "invalid character"},
-		{"empty input", `require("gopdf.json").decode('')`, "EOF"},
-		{"nan", `require("gopdf.json").encode(0/0)`, "finite"},
-		{"infinity", `require("gopdf.json").encode(1/0)`, "finite"},
+		{"cycle", `local t = {}; t.self = t; require("onon.json").encode(t)`, "cycle detected"},
+		{"function", `require("onon.json").encode(function() end)`, "unsupported function"},
+		{"sparse array", `require("onon.json").encode({[2] = "x"})`, "contiguous positive integer keys"},
+		{"mixed table", `require("onon.json").encode({"x", key = "y"})`, "contiguous positive integer keys"},
+		{"nil", `require("onon.json").encode(nil)`, "use json.null"},
+		{"trailing input", `require("onon.json").decode('{} {}')`, "unexpected data after JSON value"},
+		{"truncated object", `require("onon.json").decode('{"a":')`, "unexpected"},
+		{"unquoted key", `require("onon.json").decode('{a:1}')`, "invalid character"},
+		{"empty input", `require("onon.json").decode('')`, "EOF"},
+		{"nan", `require("onon.json").encode(0/0)`, "finite"},
+		{"infinity", `require("onon.json").encode(1/0)`, "finite"},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {

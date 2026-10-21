@@ -3,8 +3,8 @@ package viewer
 import (
 	"testing"
 
-	"gopdf/internal/mupdf"
-	"gopdf/internal/testpdf"
+	"onon/internal/mupdf"
+	"onon/internal/testpdf"
 )
 
 func TestClickingFormFieldsEditsThem(t *testing.T) {

@@ -11,14 +11,14 @@ import (
 	"strings"
 )
 
-// gopdf used to keep keybindings changed in the viewer in a generated
+// onon used to keep keybindings changed in the viewer in a generated
 // autogen.lua beside config.lua. importAutogen moves one it finds into the
 // session database, once, and renames it so it is not read again; this can
 // go once few are likely to be left.
 
-// autogenLine is one line gopdf wrote to autogen.lua: an unbind, or a bind
-// to a built-in action (gopdf.name) or a plugin's ("plugin.name").
-var autogenLine = regexp.MustCompile(`^gopdf\.(bind|unbind)\(("(?:[^"\\]|\\.)*")(?:,\s*(?:gopdf\.([a-z0-9_]+)|("(?:[^"\\]|\\.)*")))?\)$`)
+// autogenLine is one line onon wrote to autogen.lua: an unbind, or a bind
+// to a built-in action (onon.name) or a plugin's ("plugin.name").
+var autogenLine = regexp.MustCompile(`^onon\.(bind|unbind)\(("(?:[^"\\]|\\.)*")(?:,\s*(?:onon\.([a-z0-9_]+)|("(?:[^"\\]|\\.)*")))?\)$`)
 
 func (r *Runtime) autogenPath() string {
 	if r.explicitPath != "" {
@@ -65,7 +65,7 @@ func (r *Runtime) importAutogen() {
 	log.Printf("moved the keybindings in %s into the session database; the file is now %s", path, backup)
 }
 
-// parseAutogen reads the bindings gopdf wrote to an autogen.lua, as a key's
+// parseAutogen reads the bindings onon wrote to an autogen.lua, as a key's
 // action or "" for a key unbound. Lines it did not write are skipped.
 func parseAutogen(path string, data []byte) map[string]string {
 	bindings := map[string]string{}

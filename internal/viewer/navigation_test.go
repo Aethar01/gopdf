@@ -3,7 +3,7 @@ package viewer
 import (
 	"testing"
 
-	"gopdf/internal/config"
+	"onon/internal/config"
 )
 
 func TestZoomUsesConfiguredBounds(t *testing.T) {

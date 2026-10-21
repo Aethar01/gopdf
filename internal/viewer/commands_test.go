@@ -5,7 +5,7 @@ import (
 	"slices"
 	"testing"
 
-	"gopdf/internal/config"
+	"onon/internal/config"
 )
 
 func TestRunCommandValidationPaths(t *testing.T) {
@@ -51,7 +51,7 @@ func TestVersionCommandShowsBuildVersion(t *testing.T) {
 	defer func() { config.Version = previous }()
 	app := testLayoutApp(1)
 	app.runCommand(":version")
-	if app.message != "gopdf v1.2.3" {
+	if app.message != "onon v1.2.3" {
 		t.Fatalf("expected version message, got %q", app.message)
 	}
 }
@@ -185,7 +185,7 @@ func TestLuaCommandAppliesChangedOptions(t *testing.T) {
 	app.runtime = rt
 	rt.AttachHost(app)
 
-	app.runCommand(":lua gopdf.options.dual_page = false")
+	app.runCommand(":lua onon.options.dual_page = false")
 	if app.dualPage {
 		t.Fatal("expected inline lua option assignment to disable dual-page mode")
 	}
@@ -244,7 +244,7 @@ func TestConfigChangesKeepActionSettingsUnlessAssigned(t *testing.T) {
 
 	app.runAction("toggle_dual_page")
 	app.runCommand(":set scroll_step=80")
-	app.runCommand(":lua gopdf.o.status_bar_right = '{page}'")
+	app.runCommand(":lua onon.o.status_bar_right = '{page}'")
 	if !app.dualPage {
 		t.Fatal("unrelated config changes undid dual-page mode set by an action")
 	}

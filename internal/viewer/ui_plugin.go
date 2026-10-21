@@ -1,7 +1,7 @@
 package viewer
 
 import (
-	"gopdf/internal/config"
+	"onon/internal/config"
 
 	"github.com/jupiterrider/purego-sdl3/sdl"
 )

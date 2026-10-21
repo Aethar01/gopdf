@@ -8,7 +8,7 @@ import (
 	"os"
 	"strings"
 
-	"gopdf/internal/config"
+	"onon/internal/config"
 )
 
 // loadLuaFunctionDocs reads ordinary Go doc comments from the named Lua

@@ -12,11 +12,11 @@ import (
 )
 
 // The theme picked with :theme is kept in the session database and applied
-// over the defaults before config.lua runs. Assigning gopdf.theme whole in
+// over the defaults before config.lua runs. Assigning onon.theme whole in
 // config.lua replaces it, as config.lua has the last word; changing single
-// fields, as gopdf.theme.accent = "#335533" does, changes the picked theme.
+// fields, as onon.theme.accent = "#335533" does, changes the picked theme.
 // Those changes are recorded as config.lua makes them, so a theme previewed
-// later gets them too, and looks as it will once gopdf restarts.
+// later gets them too, and looks as it will once onon restarts.
 
 // themeChoiceSetting names the picked theme in the settings table.
 const themeChoiceSetting = "theme"
@@ -50,8 +50,8 @@ func (r *Runtime) recordThemeOp(op themeOp) {
 	r.themeOps = append(r.themeOps, op)
 }
 
-// ConfigSetsTheme reports whether config.lua assigns gopdf.theme whole, so
-// that a theme picked with :theme lasts only until gopdf restarts.
+// ConfigSetsTheme reports whether config.lua assigns onon.theme whole, so
+// that a theme picked with :theme lasts only until onon restarts.
 func (r *Runtime) ConfigSetsTheme() bool { return r.configSetsTheme }
 
 // ChosenTheme is the theme picked with :theme, or "" when none is.
@@ -174,7 +174,7 @@ func (r *Runtime) PreviewTheme(name string) error {
 }
 
 // ChooseTheme switches to the theme name stands for and keeps it for the
-// next time gopdf starts.
+// next time onon starts.
 func (r *Runtime) ChooseTheme(name string) error {
 	name = strings.TrimSpace(name)
 	theme, err := r.loadTheme(name)

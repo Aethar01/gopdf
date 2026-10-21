@@ -14,11 +14,11 @@ func TestLuaOptionsShortAlias(t *testing.T) {
 	defer rt.Close()
 
 	if dirty, err := rt.Eval(`
-assert(gopdf.o == gopdf.options)
-gopdf.o.page_gap_vertical = 17
-assert(gopdf.options.page_gap_vertical == 17)
+assert(onon.o == onon.options)
+onon.o.page_gap_vertical = 17
+assert(onon.options.page_gap_vertical == 17)
 `); !dirty || err != nil {
-		t.Fatalf("expected gopdf.o to mutate options, dirty=%v err=%v", dirty, err)
+		t.Fatalf("expected onon.o to mutate options, dirty=%v err=%v", dirty, err)
 	}
 	if got := rt.Config().PageGapVertical; got != 17 {
 		t.Fatalf("expected page_gap_vertical=17, got %d", got)

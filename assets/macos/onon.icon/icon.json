@@ -1,0 +1,52 @@
+{
+  "fill" : { "solid" : "srgb:0.90196,0.89412,0.86667,1.00000" },
+  "fill-specializations" : [
+    { "value" : { "solid" : "srgb:0.90196,0.89412,0.86667,1.00000" } },
+    { "appearance" : "dark", "value" : { "solid" : "srgb:0.12157,0.14118,0.12549,1.00000" } }
+  ],
+  "groups" : [
+    {
+      "name" : "drop",
+      "layers" : [ {
+        "name" : "drop", "image-name" : "drop.svg", "glass" : true,
+        "fill-specializations" : [
+          { "value" : { "solid" : "srgb:0.16471,0.18039,0.16078,1.00000" } },
+          { "appearance" : "dark", "value" : { "solid" : "srgb:0.94902,0.86275,0.54902,1.00000" } }
+        ]
+      } ],
+      "shadow" : { "kind" : "layer-color", "opacity" : 0.5 },
+      "specular" : true,
+      "translucency" : { "enabled" : true, "value" : 0.2 }
+    },
+    {
+      "name" : "rings",
+      "layers" : [
+        { "name" : "ring-inner", "image-name" : "ring-inner.svg", "glass" : true,
+          "fill-specializations" : [
+            { "value" : { "solid" : "srgb:0.30196,0.43922,0.26667,1.00000" } },
+            { "appearance" : "dark", "value" : { "solid" : "srgb:0.61569,0.76863,0.54510,1.00000" } }
+          ] },
+        { "name" : "ring-outer", "image-name" : "ring-outer.svg", "glass" : true, "opacity" : 0.55,
+          "fill-specializations" : [
+            { "value" : { "solid" : "srgb:0.30196,0.43922,0.26667,1.00000" } },
+            { "appearance" : "dark", "value" : { "solid" : "srgb:0.61569,0.76863,0.54510,1.00000" } }
+          ] }
+      ],
+      "shadow" : { "kind" : "neutral", "opacity" : 0.35 },
+      "specular" : true,
+      "translucency" : { "enabled" : true, "value" : 0.35 }
+    },
+    {
+      "name" : "reflections",
+      "layers" : [ { "name" : "reflections", "image-name" : "reflections.svg", "glass" : false, "opacity" : 0.5,
+        "fill-specializations" : [
+          { "value" : { "solid" : "srgb:0.30196,0.43922,0.26667,1.00000" } },
+          { "appearance" : "dark", "value" : { "solid" : "srgb:0.61569,0.76863,0.54510,1.00000" } }
+        ] } ],
+      "shadow" : { "kind" : "none", "opacity" : 0 },
+      "specular" : false,
+      "translucency" : { "enabled" : false, "value" : 0 }
+    }
+  ],
+  "supported-platforms" : { "squares" : [ "macOS" ] }
+}

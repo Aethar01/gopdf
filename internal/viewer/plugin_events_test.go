@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"gopdf/internal/config"
+	"onon/internal/config"
 )
 
 // The viewer names plugin events as literals; this keeps them in step with

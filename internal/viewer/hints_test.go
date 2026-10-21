@@ -4,7 +4,7 @@ import (
 	"slices"
 	"testing"
 
-	"gopdf/internal/mupdf"
+	"onon/internal/mupdf"
 )
 
 func TestHintLabelsAreUniqueAndShortest(t *testing.T) {

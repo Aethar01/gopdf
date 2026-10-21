@@ -35,7 +35,7 @@ func openThemeChoiceRuntime(t *testing.T, dir, source string, themes map[string]
 func TestChosenThemeIsKeptUnderTheConfigsChanges(t *testing.T) {
 	setTestDataDir(t)
 	dir := t.TempDir()
-	config := `gopdf.theme.accent = "#112233"`
+	config := `onon.theme.accent = "#112233"`
 	rt := openThemeChoiceRuntime(t, dir, config, nil)
 	birch := mustPreset(t, "birch")
 
@@ -81,9 +81,9 @@ func TestConfigAssigningTheThemeOutranksTheChoice(t *testing.T) {
 	if err := setSetting(themeChoiceSetting, "birch"); err != nil {
 		t.Fatal(err)
 	}
-	rt := openThemeChoiceRuntime(t, dir, `gopdf.theme.accent = "#445566"
-gopdf.theme = "classic"
-gopdf.theme.muted = "#778899"`, nil)
+	rt := openThemeChoiceRuntime(t, dir, `onon.theme.accent = "#445566"
+onon.theme = "classic"
+onon.theme.muted = "#778899"`, nil)
 	got := rt.Config().Theme
 	if got.Background != mustPreset(t, "classic").Background || !rt.ConfigSetsTheme() {
 		t.Fatalf("background %v, config sets theme %v", got.Background, rt.ConfigSetsTheme())

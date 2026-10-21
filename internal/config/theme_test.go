@@ -67,7 +67,7 @@ func TestEveryPresetSetsEveryField(t *testing.T) {
 
 func TestThemeTableStartsFromItsBase(t *testing.T) {
 	rt := mustLoadThemeTestConfig(t, `
-gopdf.theme = {
+onon.theme = {
   base = "birch",
   accent = "#010203",
   alt = { accent = { 4, 5, 6 } },
@@ -88,8 +88,8 @@ gopdf.theme = {
 
 func TestThemeTableWithoutBaseStartsFromDefault(t *testing.T) {
 	rt := mustLoadThemeTestConfig(t, `
-gopdf.theme.radius = 1
-gopdf.theme = { panel = "#ffffff" }
+onon.theme.radius = 1
+onon.theme = { panel = "#ffffff" }
 `)
 	got := rt.Config().Theme
 	want := mustPreset(t, DefaultTheme)
@@ -101,16 +101,16 @@ gopdf.theme = { panel = "#ffffff" }
 
 func TestThemeFieldsCanBeSetOneByOne(t *testing.T) {
 	rt := mustLoadThemeTestConfig(t, `
-gopdf.theme = "classic"
-gopdf.theme.accent = "#336633"
-gopdf.theme.alt.panel = "#101010"
-gopdf.theme.font.family = "Iosevka"
-gopdf.theme.alt = { border = "#202020" }
-gopdf.options.theme.shadow = true
-assert(gopdf.theme.accent == "#336633", gopdf.theme.accent)
-assert(gopdf.theme.alt.panel == "#101010")
-assert(gopdf.theme.base == "classic")
-assert(gopdf.options.theme.font.family == "Iosevka")
+onon.theme = "classic"
+onon.theme.accent = "#336633"
+onon.theme.alt.panel = "#101010"
+onon.theme.font.family = "Iosevka"
+onon.theme.alt = { border = "#202020" }
+onon.options.theme.shadow = true
+assert(onon.theme.accent == "#336633", onon.theme.accent)
+assert(onon.theme.alt.panel == "#101010")
+assert(onon.theme.base == "classic")
+assert(onon.options.theme.font.family == "Iosevka")
 `)
 	got := rt.Config().Theme
 	want := mustPreset(t, "classic")
@@ -124,14 +124,14 @@ assert(gopdf.options.theme.font.family == "Iosevka")
 	}
 }
 
-// gopdf.theme holds no fields of its own, so assigning it back must keep
+// onon.theme holds no fields of its own, so assigning it back must keep
 // the theme rather than copy nothing.
 func TestThemeAssignedToItselfIsKept(t *testing.T) {
 	rt := mustLoadThemeTestConfig(t, `
-local theme = gopdf.theme
+local theme = onon.theme
 theme.accent = "#123456"
-gopdf.theme = theme
-gopdf.theme = gopdf.options.theme
+onon.theme = theme
+onon.theme = onon.options.theme
 `)
 	want := mustPreset(t, DefaultTheme)
 	want.Accent = [3]uint8{0x12, 0x34, 0x56}
@@ -142,12 +142,12 @@ gopdf.theme = gopdf.options.theme
 
 func TestThemesTableGivesPresetsToChange(t *testing.T) {
 	rt := mustLoadThemeTestConfig(t, `
-local mine = gopdf.themes.birch
+local mine = onon.themes.birch
 mine.accent = "#123456"
 mine.alt.accent = "#654321"
-assert(gopdf.themes.birch.accent ~= "#123456", "gopdf.themes must give a fresh copy")
-assert(gopdf.themes.jungle == nil)
-gopdf.theme = mine
+assert(onon.themes.birch.accent ~= "#123456", "onon.themes must give a fresh copy")
+assert(onon.themes.jungle == nil)
+onon.theme = mine
 `)
 	got := rt.Config().Theme
 	want := mustPreset(t, "birch")
@@ -203,11 +203,11 @@ func TestThemeErrors(t *testing.T) {
 	tests := []struct {
 		name, lua, want string
 	}{
-		{"unknown preset", `gopdf.theme = "jungle"`, `unknown theme "jungle"; expected one of birch, classic, moss`},
-		{"unknown base", `gopdf.theme = { base = "jungle" }`, `unknown theme "jungle"`},
-		{"bad colour", `gopdf.theme.accent = "green"`, "gopdf.theme.accent: expected #RRGGBB or r,g,b"},
-		{"read unknown", `local _ = gopdf.theme.nope`, "gopdf.theme.nope: unknown theme field"},
-		{"moved option", `gopdf.options.ui_font_size = 12`, "ui_font_size moved to gopdf.theme.font.size"},
+		{"unknown preset", `onon.theme = "jungle"`, `unknown theme "jungle"; expected one of birch, classic, moss`},
+		{"unknown base", `onon.theme = { base = "jungle" }`, `unknown theme "jungle"`},
+		{"bad colour", `onon.theme.accent = "green"`, "onon.theme.accent: expected #RRGGBB or r,g,b"},
+		{"read unknown", `local _ = onon.theme.nope`, "onon.theme.nope: unknown theme field"},
+		{"moved option", `onon.options.ui_font_size = 12`, "ui_font_size moved to onon.theme.font.size"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -291,7 +291,7 @@ func TestExampleConfigThemeIsTheDefault(t *testing.T) {
 	var theme []string
 	for _, line := range strings.Split(string(data), "\n") {
 		line = strings.TrimSuffix(line, "\r") // as Windows checks it out
-		if strings.HasPrefix(line, "-- gopdf.theme = {") || len(theme) > 0 {
+		if strings.HasPrefix(line, "-- onon.theme = {") || len(theme) > 0 {
 			theme = append(theme, strings.TrimPrefix(line, "-- "))
 			if line == "-- }" {
 				break
@@ -330,9 +330,9 @@ func TestConfigRequiresThemeFilesBesideIt(t *testing.T) {
 		}
 	}
 	write("themes/forest.lua", `return { base = "birch", accent = "#2f5d3a", alt = { accent = "#8fbf8f" } }`)
-	write("fern/init.lua", `gopdf.theme.radius = 3`)
+	write("fern/init.lua", `onon.theme.radius = 3`)
 	write("config.lua", `
-gopdf.theme = require("themes.forest")
+onon.theme = require("themes.forest")
 require("fern")
 `)
 	// The search must not depend on the working directory.
@@ -351,18 +351,18 @@ require("fern")
 	}
 }
 
-// A theme written for a newer gopdf, with fields this one does not know,
+// A theme written for a newer onon, with fields this one does not know,
 // loads without them, and they are reported.
 func TestUnknownThemeFieldsAreSkipped(t *testing.T) {
 	rt := mustLoadThemeTestConfig(t, `
-gopdf.theme = {
+onon.theme = {
   accent = "#123456",
   glow = 3,
   alt = { sparkle = true },
   elements = { panel = { radius = 2, wobble = 1 }, sidebar = { fill = "accent" }, prompt = { radius = 4 } },
 }
-gopdf.theme.newthing = 1
-gopdf.theme.elements.pannel = { radius = 2 }
+onon.theme.newthing = 1
+onon.theme.elements.pannel = { radius = 2 }
 `)
 	theme := rt.Config().Theme
 	if theme.Accent != [3]uint8{0x12, 0x34, 0x56} || theme.Style(ElementPanel).Radius.V != corners(2) {
@@ -385,8 +385,8 @@ gopdf.theme.elements.pannel = { radius = 2 }
 
 func TestAltColorsCanFollowTheSystem(t *testing.T) {
 	rt := mustLoadThemeTestConfig(t, `
-gopdf.options.alt_colors = "system"
-assert(gopdf.options.alt_colors == "system")
+onon.options.alt_colors = "system"
+assert(onon.options.alt_colors == "system")
 `)
 	if cfg := rt.Config(); !cfg.AltColorsSystem {
 		t.Fatalf("alt_colors = %+v", cfg.AltColors)
