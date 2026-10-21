@@ -61,6 +61,8 @@ var registry = []Action{
 	{Name: "jump_backward", Keys: []string{"<C-o>"}},
 	{Name: "open_file_picker", Keys: []string{"<C-S-o>"}},
 	{Name: "show_recent_files", Keys: []string{"gr"}},
+	{Name: "save"},
+	{Name: "print"},
 	{Name: "help", Keys: []string{"<F1>", "g?"}},
 	{Name: "keybinds"},
 	{Name: "pan", Keys: []string{"<Space>"}},
