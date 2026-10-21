@@ -24,6 +24,7 @@ var macOSKeys = map[string][]string{
 	"save":              {"<D-s>"},
 	"print":             {"<D-p>"},
 	"quit":              {"<D-q>", "<D-w>"},
+	"open_config":       {"<D-,>"},
 	"undo":              {"<D-z>"},
 	"redo":              {"<D-S-z>"},
 	"cut":               {"<D-x>"},

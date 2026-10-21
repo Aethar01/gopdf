@@ -1,6 +1,7 @@
 package config
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -231,6 +232,44 @@ func (r *Runtime) findConfig() (string, error) {
 		}
 	}
 	return "", nil
+}
+
+// newConfigFile is what a config file gopdf creates for editing holds.
+const newConfigFile = `-- gopdf configuration. Set only what you want to change; every option,
+-- theme field and default binding is in the reference:
+-- https://aethar01.github.io/gopdf_docs/
+-- :reload-config applies changes without restarting.
+
+`
+
+// EditableConfigPath returns the config file to edit: the one loaded, else
+// the one given with --config, else the first place gopdf looks for one,
+// where it creates one.
+func (r *Runtime) EditableConfigPath() (string, error) {
+	if r.cfg.ConfigPath != "" {
+		return r.cfg.ConfigPath, nil
+	}
+	path := r.explicitPath
+	if path == "" {
+		candidates := candidatePaths("")
+		if len(candidates) == 0 {
+			return "", fmt.Errorf("no place for a config file")
+		}
+		path = candidates[0]
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return "", err
+	}
+	file, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
+	if errors.Is(err, os.ErrExist) {
+		return path, nil
+	}
+	if err != nil {
+		return "", err
+	}
+	defer file.Close()
+	_, err = file.WriteString(newConfigFile)
+	return path, err
 }
 
 func (r *Runtime) Generation() int {

@@ -99,6 +99,7 @@ func init() {
 		"save":              do(func(a *App) { a.writeDocument("") }),
 		"print":             do(func(a *App) { a.printDocument("") }),
 		"reload_config":     do((*App).reloadConfig),
+		"open_config":       do((*App).openConfig),
 		"quit":              do(func(a *App) { a.quit = a.confirmDiscard("quit") }),
 	}
 }

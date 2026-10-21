@@ -69,6 +69,8 @@ func Menus() []Menu {
 		{Title: "{app}", Role: RoleApp, Items: []Item{
 			{Title: "About {app}", Role: RoleAbout},
 			Separator,
+			{Title: "Settings…", Action: "open_config"},
+			Separator,
 			{Title: "Services", Role: RoleServices},
 			Separator,
 			{Title: "Hide {app}", Role: RoleHide},

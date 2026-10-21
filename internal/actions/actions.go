@@ -41,6 +41,7 @@ var registry = []Action{
 	{Name: "fit_page", Keys: []string{"s"}},
 	{Name: "fit_height", Keys: []string{"S"}},
 	{Name: "reload_config", Keys: []string{"<C-S-r>"}},
+	{Name: "open_config"},
 	{Name: "rotate_cw", Keys: []string{"r"}},
 	{Name: "rotate_ccw", Keys: []string{"R"}},
 	{Name: "goto_page_prompt", Keys: []string{"<C-g>"}},

@@ -631,6 +631,20 @@ func (a *App) reloadConfig() {
 	a.message = boolWord(cfg.ConfigPath != "", "config reloaded", "defaults reloaded")
 }
 
+// openConfig opens the config file in the system's text editor, creating
+// it if there is none.
+func (a *App) openConfig() {
+	path, err := a.runtime.EditableConfigPath()
+	if err == nil {
+		err = openTextFile(path)
+	}
+	if err != nil {
+		a.message = err.Error()
+		return
+	}
+	a.message = "editing " + path + "; :reload-config applies it"
+}
+
 func (a *App) showRecentFiles() {
 	if !a.config.SessionDatabase {
 		a.message = "session database disabled"

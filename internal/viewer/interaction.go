@@ -398,6 +398,20 @@ func (a *App) OpenExternal(uri string) error {
 	return cmd.Start()
 }
 
+// openTextFile opens path in the system's text editor.
+func openTextFile(path string) error {
+	var cmd *exec.Cmd
+	switch runtime.GOOS {
+	case "darwin":
+		cmd = exec.Command("open", "-t", path)
+	case "windows":
+		cmd = exec.Command("rundll32", "url.dll,FileProtocolHandler", path)
+	default:
+		cmd = exec.Command("xdg-open", path)
+	}
+	return cmd.Start()
+}
+
 func (a *App) drawSelection(renderer *sdl.Renderer) {
 	for _, part := range a.selection.parts {
 		if x, y, ok := a.pageScreenOrigin(part.page); ok {

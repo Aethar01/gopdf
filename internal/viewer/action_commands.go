@@ -21,6 +21,7 @@ var actionCommands = map[string]string{
 	"hints":    "follow_link",
 	"next":     "search_next",
 	"prev":     "search_prev",
+	"config":   "open_config",
 }
 
 // toggleCommand switches a setting: on, off, or with no argument to the

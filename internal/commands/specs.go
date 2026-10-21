@@ -16,6 +16,7 @@ type CommandReferenceEntry struct {
 var specs = []Spec{
 	{Name: "back", Help: ":back - Jump back to the previous position"},
 	{Name: "colors", ArgCompletions: []string{"alt", "normal"}, Help: ":colors normal|alt - Set color mode"},
+	{Name: "config", Help: ":config - Open the config file in a text editor, creating it if there is none"},
 	{Name: "copy", Help: ":copy - Copy the selection"},
 	{Name: "cover", ArgCompletions: []string{"on", "off"}, Help: ":cover [on|off] - Show the first page alone in dual-page mode"},
 	{Name: "dual", ArgCompletions: []string{"on", "off"}, Help: ":dual [on|off] - Toggle or set dual-page mode"},

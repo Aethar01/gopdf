@@ -196,6 +196,7 @@ if gopdf.platform.os == "macos" then
   gopdf.bind("<D-S-=>", gopdf.zoom_in)
   gopdf.bind("<D-->", gopdf.zoom_out)
   gopdf.bind("<D-0>", gopdf.reset_zoom)
+  gopdf.bind("<D-,>", gopdf.open_config)
   gopdf.bind("<D-z>", gopdf.undo)
   gopdf.bind("<D-S-z>", gopdf.redo)
   gopdf.bind("<D-c>", gopdf.copy)
