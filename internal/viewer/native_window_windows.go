@@ -64,6 +64,7 @@ func (a *App) configureNativeWindow(window *sdl.Window) {
 		return
 	}
 	C.gopdfSubclassTitleBar(win32WindowPointer(window))
+	setJumpList()
 	// Extending the frame into the window brings back the shadow a window
 	// without a frame loses. Windows 10 has no rounded corners and fails
 	// the second call, which is fine.
