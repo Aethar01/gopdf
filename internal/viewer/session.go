@@ -256,6 +256,7 @@ func (a *App) recordRecentFile(path string) {
 		return
 	}
 	_ = config.RecordRecentFile(path, a.config.RecentFilesMax)
+	noteSystemRecentDocument(path)
 }
 
 func (a *App) handleMarkToken(token string) bool {

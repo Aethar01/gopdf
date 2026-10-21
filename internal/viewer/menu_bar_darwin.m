@@ -53,6 +53,50 @@ static BOOL gopdfItemMatches(NSMenuItem *item, NSEvent *event) {
 
 static GoPDFMenuBarTarget *gopdfMenuBarTarget;
 
+// GoPDFRecentDocuments fills Open Recent with the documents macOS keeps
+// for gopdf each time it opens. NSDocumentController fills it only for
+// document-based applications. A document chosen goes to SDL's application
+// delegate, as one opened from Finder does, which hands it to the viewer
+// as a drop.
+@interface GoPDFRecentDocuments : NSObject <NSMenuDelegate>
+@end
+
+@implementation GoPDFRecentDocuments
+
+- (void)menuNeedsUpdate:(NSMenu *)menu {
+    [menu removeAllItems];
+    NSDocumentController *documents = [NSDocumentController sharedDocumentController];
+    for (NSURL *url in documents.recentDocumentURLs) {
+        NSMenuItem *item = [menu addItemWithTitle:url.lastPathComponent action:@selector(open:) keyEquivalent:@""];
+        item.target = self;
+        item.representedObject = url;
+        item.image = [[NSWorkspace sharedWorkspace] iconForFile:url.path];
+        item.image.size = NSMakeSize(16, 16);
+    }
+    if (menu.numberOfItems > 0) {
+        [menu addItem:[NSMenuItem separatorItem]];
+    }
+    NSMenuItem *clear = [menu addItemWithTitle:@"Clear Menu" action:@selector(clear:) keyEquivalent:@""];
+    clear.target = self;
+    clear.enabled = documents.recentDocumentURLs.count > 0;
+}
+
+- (void)open:(NSMenuItem *)item {
+    NSURL *url = item.representedObject;
+    if ([NSApp.delegate respondsToSelector:@selector(application:openFile:)]) {
+        [NSApp.delegate application:NSApp openFile:url.path];
+    }
+}
+
+- (void)clear:(NSMenuItem *)item {
+    (void)item;
+    [[NSDocumentController sharedDocumentController] clearRecentDocuments:nil];
+}
+
+@end
+
+static GoPDFRecentDocuments *gopdfRecentDocuments;
+
 static NSMenuItem *gopdfSystemItem(NSString *role, NSString *title, NSMenu **servicesMenu) {
     SEL action = NULL;
     id target = nil;
@@ -81,7 +125,7 @@ static NSMenuItem *gopdfSystemItem(NSString *role, NSString *title, NSMenu **ser
     } else if ([role isEqualToString:@"front"]) {
         action = @selector(arrangeInFront:);
         target = NSApp;
-    } else if (![role isEqualToString:@"services"]) {
+    } else if (![role isEqualToString:@"services"] && ![role isEqualToString:@"recent_documents"]) {
         return nil; // a role macOS has no item for
     }
     NSMenuItem *item = [[[NSMenuItem alloc] initWithTitle:title action:action keyEquivalent:key] autorelease];
@@ -90,6 +134,11 @@ static NSMenuItem *gopdfSystemItem(NSString *role, NSString *title, NSMenu **ser
     if ([role isEqualToString:@"services"]) {
         *servicesMenu = [[[NSMenu alloc] initWithTitle:title] autorelease];
         item.submenu = *servicesMenu;
+    } else if ([role isEqualToString:@"recent_documents"]) {
+        NSMenu *recent = [[[NSMenu alloc] initWithTitle:title] autorelease];
+        recent.delegate = gopdfRecentDocuments;
+        recent.autoenablesItems = NO;
+        item.submenu = recent;
     }
     return item;
 }
@@ -120,6 +169,7 @@ static void gopdfBuildMenuBar(NSData *data) {
     }
     if (gopdfMenuBarTarget == nil) {
         gopdfMenuBarTarget = [[GoPDFMenuBarTarget alloc] init];
+        gopdfRecentDocuments = [[GoPDFRecentDocuments alloc] init];
     }
     NSString *appName = gopdfApplicationName();
     NSMenu *mainMenu = [[[NSMenu alloc] init] autorelease];

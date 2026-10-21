@@ -32,6 +32,9 @@ const (
 	RoleMinimize   Role = "minimize"
 	RoleZoom       Role = "zoom"
 	RoleFront      Role = "front"
+
+	// RoleRecentDocuments is the system's list of documents opened lately.
+	RoleRecentDocuments Role = "recent_documents"
 )
 
 // Item is one entry in a menu: an action, a system item, or, with neither,
@@ -76,6 +79,7 @@ func Menus() []Menu {
 		}},
 		{Title: "File", Items: []Item{
 			{Title: "Open…", Action: "open_file_picker"},
+			{Title: "Open Recent", Role: RoleRecentDocuments},
 			{Title: "Recent Files…", Action: "show_recent_files"},
 			Separator,
 			{Title: "Save", Action: "save"},
