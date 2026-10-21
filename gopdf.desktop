@@ -1,9 +1,9 @@
 [Desktop Entry]
 Type=Application
 Name=GoPDF
-GenericName=PDF Viewer
-Comment=Lightweight PDF viewer written in Go
+GenericName=Document Viewer
+Comment=Keyboard-driven viewer for PDF, XPS, e-books, comics and images
 Exec=gopdf %F
 Icon=gopdf
 Categories=Office;Viewer;
-MimeType=application/pdf;
+MimeType=application/pdf;application/vnd.ms-xpsdocument;application/oxps;application/epub+zip;application/x-mobipocket-ebook;application/x-fictionbook+xml;application/vnd.comicbook+zip;application/x-cbz;application/vnd.comicbook+tar;application/x-cbt;image/png;image/jpeg;image/tiff;image/gif;image/bmp;image/jp2;image/vnd.adobe.photoshop;image/x-portable-bitmap;image/x-portable-graymap;image/x-portable-pixmap;image/svg+xml;
