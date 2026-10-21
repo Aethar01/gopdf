@@ -9,15 +9,17 @@ import (
 	"github.com/ebitengine/purego"
 )
 
-func loadSDLSetClipboardTextSymbol(dst *func(string) bool) error {
+// loadSDLSymbol points dst, a pointer to a func variable, at the SDL
+// function name, for functions the SDL binding leaves out.
+func loadSDLSymbol(name string, dst any) error {
 	var lastErr error
-	for _, name := range sdlLibraryNames() {
-		handle, err := purego.Dlopen(name, 1)
+	for _, library := range sdlLibraryNames() {
+		handle, err := purego.Dlopen(library, 1)
 		if err != nil {
 			lastErr = err
 			continue
 		}
-		sym, err := purego.Dlsym(handle, "SDL_SetClipboardText")
+		sym, err := purego.Dlsym(handle, name)
 		if err != nil {
 			lastErr = err
 			continue

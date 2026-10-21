@@ -30,7 +30,7 @@ func setSDLClipboardText(text string) error {
 }
 
 func loadSDLSetClipboardText() error {
-	if err := loadSDLSetClipboardTextSymbol(&sdlSetClipboardText); err != nil {
+	if err := loadSDLSymbol("SDL_SetClipboardText", &sdlSetClipboardText); err != nil {
 		return fmt.Errorf("SDL_SetClipboardText unavailable: %w", err)
 	}
 	return nil
