@@ -184,6 +184,9 @@ func (state viewState) atDocumentStart() viewState {
 	state.page = 0
 	state.scrollX = 0
 	state.scrollY = 0
+	// The anchor names a place in the old document, and restoreViewState
+	// prefers it to the scroll position.
+	state.anchor = viewportAnchor{}
 	return state
 }
 
