@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"runtime"
 	"time"
 
 	"github.com/jupiterrider/purego-sdl3/sdl"
@@ -59,10 +60,15 @@ func (a *App) Run() error {
 	a.loadUIFont() // again, now the display scale is known
 	a.waker = newLoopWaker()
 	a.installMenuBar()
-	if rw := sdl.IOFromConstMem(a.iconBytes); rw != nil {
-		if icon := sdl.LoadBMPIO(rw, true); icon != nil {
-			sdl.SetWindowIcon(window, icon)
-			sdl.DestroySurface(icon)
+	// Only Linux needs the window icon set. macOS takes the app icon from the
+	// bundle and Windows from the exe's icon resource, and setting one here
+	// would replace them: the Dock's adaptive icon, or the .ico's small sizes.
+	if runtime.GOOS == "linux" {
+		if rw := sdl.IOFromConstMem(a.iconBytes); rw != nil {
+			if icon := sdl.LoadBMPIO(rw, true); icon != nil {
+				sdl.SetWindowIcon(window, icon)
+				sdl.DestroySurface(icon)
+			}
 		}
 	}
 	sdl.SetEventEnabled(sdl.EventDropFile, true)
