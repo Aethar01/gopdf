@@ -2,6 +2,12 @@
 
 package viewer
 
+/*
+#cgo LDFLAGS: -lcomctl32
+void gopdfSubclassTitleBar(void *hwnd);
+*/
+import "C"
+
 import (
 	"image/color"
 	"unsafe"
@@ -57,6 +63,8 @@ func (a *App) configureNativeWindow(window *sdl.Window) {
 	if hwnd == 0 {
 		return
 	}
+	titleBarApp = a
+	C.gopdfSubclassTitleBar(win32WindowPointer(window))
 	// Extending the frame into the window brings back the shadow a window
 	// without a frame loses. Windows 10 has no rounded corners and fails
 	// the second call, which is fine.
@@ -91,9 +99,43 @@ func setNativeWindowColors(window *sdl.Window, background, border color.RGBA) {
 }
 
 func win32Window(window *sdl.Window) windows.HWND {
+	return windows.HWND(uintptr(win32WindowPointer(window)))
+}
+
+// win32WindowPointer is the window's HWND as SDL gives it, for C.
+func win32WindowPointer(window *sdl.Window) unsafe.Pointer {
 	if window == nil {
-		return 0
+		return nil
 	}
 	properties := sdl.GetWindowProperties(window)
-	return windows.HWND(uintptr(sdl.GetPointerProperty(properties, sdl.PropWindowWin32HwndPointer, nil)))
+	return sdl.GetPointerProperty(properties, sdl.PropWindowWin32HwndPointer, nil)
+}
+
+// titleBarApp is the app whose title bar the window's subclass asks
+// about. It is called on the main thread, from the system's handling of
+// the window's messages while the event loop waits on them.
+var titleBarApp *App
+
+// gopdfTitleBarMaximizeAt reports whether the maximize button is shown at
+// x, y, in the window's pixels.
+//
+//export gopdfTitleBarMaximizeAt
+func gopdfTitleBarMaximizeAt(x, y C.int) C.int {
+	if a := titleBarApp; a != nil && a.titleBarButtonAt(float64(x), float64(y)) == titleButtonMaximize {
+		return 1
+	}
+	return 0
+}
+
+// gopdfTitleBarMaximizePress presses or releases the maximize button,
+// which Windows reports as its own once it is told the pointer is there.
+//
+//export gopdfTitleBarMaximizePress
+func gopdfTitleBarMaximizePress(down C.int) {
+	a := titleBarApp
+	if a == nil || !a.titleBarActive() {
+		return
+	}
+	a.pressTitleBarButton(titleButtonMaximize, down != 0)
+	a.wakeLoop()
 }

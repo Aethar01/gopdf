@@ -197,6 +197,12 @@ func (a *App) advanceTitleBar() {
 		return
 	}
 	t := a.titleBar
+	// A press the system took for its own, as Windows does the maximize
+	// button's, may be released where the window hears nothing of it.
+	if t.pressed != titleButtonNone && sdl.GetGlobalMouseState(nil, nil)&sdl.ButtonLMask == 0 {
+		t.pressed = titleButtonNone
+		a.pendingRedraw = true
+	}
 	if t.shown && t.pressed == titleButtonNone {
 		x, y, ok := a.pointerInWindow()
 		a.noteTitleBarPointer(x, y, ok)
@@ -256,9 +262,16 @@ func (a *App) handleTitleBarButton(e *sdl.MouseButtonEvent) bool {
 	if !a.titleBarActive() || e.Button != uint8(sdl.ButtonLeft) {
 		return false
 	}
-	t := a.titleBar
 	b := a.titleBarButtonAt(float64(e.X), float64(e.Y))
-	if e.Type == sdl.EventMouseButtonDown {
+	return a.pressTitleBarButton(b, e.Type == sdl.EventMouseButtonDown)
+}
+
+// pressTitleBarButton presses b, or with down unset releases the button
+// pressed over b, running it when b is that button. It reports whether it
+// took the press or release.
+func (a *App) pressTitleBarButton(b titleButton, down bool) bool {
+	t := a.titleBar
+	if down {
 		if b == titleButtonNone {
 			return false
 		}
