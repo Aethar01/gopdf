@@ -47,21 +47,21 @@ var namedKeycodes = func() map[sdl.Keycode]string {
 }()
 
 // keyToken returns the key a keydown or keyup names, or false for keys
-// that have no name, such as the modifiers themselves, and for keys pressed
-// with Alt, which bindings cannot express.
+// that have no name, such as the modifiers themselves.
 //
-// A printable key pressed without Ctrl or Cmd is the character it types.
-// Letters come from the event's keycode, which SDL gives as the QWERTY
-// letter on layouts without Latin letters, upper case with Shift or Caps
-// Lock. Other characters come from the layout with Shift and AltGr applied,
-// because the event's keycode is always the unshifted one.
+// A printable key pressed without Ctrl, Alt or Cmd is the character it
+// types. Letters come from the event's keycode, which SDL gives as the
+// QWERTY letter on layouts without Latin letters, upper case with Shift or
+// Caps Lock. Other characters come from the layout with Shift and AltGr
+// applied, because the event's keycode is always the unshifted one. With
+// those modifiers, a key is its unshifted character, as bindings write it.
 func keyToken(e *sdl.KeyboardEvent) (keys.Key, bool) {
-	if e.Mod&sdl.KeymodAlt != 0 {
-		return keys.Key{}, false
-	}
 	var m keys.Mod
 	if e.Mod&sdl.KeymodCtrl != 0 {
 		m |= keys.Ctrl
+	}
+	if e.Mod&sdl.KeymodAlt != 0 {
+		m |= keys.Alt
 	}
 	if e.Mod&sdl.KeymodGui != 0 {
 		m |= keys.Cmd
@@ -79,7 +79,7 @@ func keyToken(e *sdl.KeyboardEvent) (keys.Key, bool) {
 		return keys.Key{}, false
 	}
 	switch {
-	case m&(keys.Ctrl|keys.Cmd) != 0:
+	case m&(keys.Ctrl|keys.Alt|keys.Cmd) != 0:
 		r = unicode.ToLower(r)
 	case unicode.IsLetter(r):
 		if (e.Mod&sdl.KeymodShift != 0) != (e.Mod&sdl.KeymodCaps != 0) {

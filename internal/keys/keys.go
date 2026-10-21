@@ -17,9 +17,12 @@ const (
 	Ctrl Mod = 1 << iota
 	Cmd      // Cmd on macOS; the Super or Windows key elsewhere.
 	Shift
+	Alt // Option on macOS.
 )
 
-var modPrefixes = map[rune]Mod{'c': Ctrl, 'd': Cmd, 's': Shift}
+// modPrefixes are the letters modifiers are written with. M-, Vim's Meta,
+// is Alt too.
+var modPrefixes = map[rune]Mod{'c': Ctrl, 'a': Alt, 'm': Alt, 'd': Cmd, 's': Shift}
 
 // Key is one key press. Name is either a single printable character or the
 // canonical name of a named key, such as "CR" or "F5".
@@ -32,7 +35,7 @@ type Key struct {
 
 // String formats k the one way the configuration stores it: a printable
 // character on its own, anything else in angle brackets with modifiers in
-// C, D, S order, as in "j", "<CR>" or "<C-S-Tab>".
+// C, A, D, S order, as in "j", "<CR>" or "<C-S-Tab>".
 func (k Key) String() string {
 	name := k.Name
 	if k.Mod == 0 && utf8.RuneCountInString(name) == 1 && name != "<" {
@@ -48,6 +51,9 @@ func (k Key) String() string {
 	b.WriteByte('<')
 	if k.Mod&Ctrl != 0 {
 		b.WriteString("C-")
+	}
+	if k.Mod&Alt != 0 {
+		b.WriteString("A-")
 	}
 	if k.Mod&Cmd != 0 {
 		b.WriteString("D-")
@@ -155,17 +161,17 @@ func parseBracketed(s string) (Key, string, error) {
 	return key, rest, err
 }
 
-// printableKey applies the modifier rules for a character key. With Ctrl or
-// Cmd, a letter's case is ignored because Shift is written as S-. Shift on
-// its own turns a letter upper case; on other characters it is refused,
-// since what Shift types there depends on the keyboard layout.
+// printableKey applies the modifier rules for a character key. With Ctrl,
+// Alt or Cmd, a letter's case is ignored because Shift is written as S-.
+// Shift on its own turns a letter upper case; on other characters it is
+// refused, since what Shift types there depends on the keyboard layout.
 func printableKey(mod Mod, r rune) (Key, error) {
 	switch {
 	case r == ' ':
 		return Key{Mod: mod, Name: "Space"}, nil
 	case r == utf8.RuneError || !unicode.IsPrint(r):
 		return Key{}, fmt.Errorf("%q is not a printable key", r)
-	case mod&(Ctrl|Cmd) != 0:
+	case mod&(Ctrl|Alt|Cmd) != 0:
 		r = unicode.ToLower(r)
 	case mod == Shift:
 		if !unicode.IsLetter(r) {

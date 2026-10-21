@@ -153,6 +153,9 @@ static NSMenuItem *gopdfActionItem(NSDictionary *spec, NSString *title) {
     if ([spec[@"ctrl"] boolValue]) {
         modifiers |= NSEventModifierFlagControl;
     }
+    if ([spec[@"alt"] boolValue]) {
+        modifiers |= NSEventModifierFlagOption;
+    }
     if ([spec[@"shift"] boolValue]) {
         modifiers |= NSEventModifierFlagShift;
     }

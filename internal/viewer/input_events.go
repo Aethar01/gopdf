@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"gopdf/internal/actions"
 	"gopdf/internal/keys"
@@ -117,9 +118,13 @@ func (a *App) ignoreKeyText(key keys.Key) {
 }
 
 // handleInputModeBinding runs the binding of a key that types no text while
-// a prompt is open.
+// a prompt is open. A character pressed with Alt alone is typed too: Option
+// on macOS and AltGr elsewhere type characters of their own.
 func (a *App) handleInputModeBinding(key keys.Key) bool {
 	if _, ok := key.Text(); ok {
+		return false
+	}
+	if key.Mod&(keys.Ctrl|keys.Cmd) == 0 && key.Mod&keys.Alt != 0 && utf8.RuneCountInString(key.Name) == 1 {
 		return false
 	}
 	action, ok := a.sequenceLookup[key.String()]

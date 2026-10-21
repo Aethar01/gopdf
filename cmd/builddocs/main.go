@@ -169,13 +169,14 @@ func renderBindingNames(b *strings.Builder) {
 	}
 
 	b.WriteString("\n### Modifiers\n\n")
-	b.WriteString("Modifiers go inside the brackets before the key name, as in `<C-p>`, `<C-S-Tab>` or `<D-c>`.\n\n")
+	b.WriteString("Modifiers go inside the brackets before the key name, as in `<C-p>`, `<C-S-Tab>`, `<A-Left>` or `<D-c>`.\n\n")
 	b.WriteString("| Prefix | Modifier |\n|---|---|\n")
 	b.WriteString("| `C-` | Ctrl. |\n")
+	b.WriteString("| `A-` | Alt; Option on macOS. `M-` is the same. |\n")
 	b.WriteString("| `D-` | Cmd on macOS; the Super or Windows key elsewhere. |\n")
 	b.WriteString("| `S-` | Shift. |\n\n")
-	b.WriteString("Ctrl and Cmd combine with any key: letters, digits, symbols and the names above, as in `<C-a>`, `<C-=>`, `<C-Space>` or `<D-Up>`. With them, a key is named by its unshifted character and Shift is written out: `<C-S-r>` is Ctrl+Shift+r, `<C-S-1>` is Ctrl+Shift+1, and `<C-R>` is Ctrl+r. Write `>` as `<gt>` after a modifier, as in `<C-gt>`. Without Ctrl or Cmd, Shift applies to named keys, as in `<S-Tab>` or `<S-F5>`, and `<S-j>` means `J`; for other printable keys, write the shifted character. Alt is not a modifier: a key pressed with Alt runs no binding.\n\n")
-	b.WriteString("Modifiers may be written in any order, so `<C-S-Tab>`, `<s-c-tab>` and `<S-C-TAB>` are the same key. Bindings are stored and shown in the first form.\n\n")
+	b.WriteString("Ctrl, Alt and Cmd combine with any key: letters, digits, symbols and the names above, as in `<C-a>`, `<C-=>`, `<A-Space>` or `<D-Up>`. With them, a key is named by its unshifted character and Shift is written out: `<C-S-r>` is Ctrl+Shift+r, `<C-S-1>` is Ctrl+Shift+1, `<A-j>` is Alt+j, whatever character Option+j types on macOS, and `<C-R>` is Ctrl+r. Write `>` as `<gt>` after a modifier, as in `<C-gt>`. Without Ctrl, Alt or Cmd, Shift applies to named keys, as in `<S-Tab>` or `<S-F5>`, and `<S-j>` means `J`; for other printable keys, write the shifted character. While a prompt is open, a character pressed with Alt alone is typed rather than running its binding, since Option on macOS and AltGr elsewhere type characters of their own.\n\n")
+	b.WriteString("Modifiers may be written in any order, so `<C-S-Tab>`, `<s-c-tab>` and `<S-C-TAB>` are the same key. Bindings are stored and shown in the first form, with modifiers in C, A, D, S order.\n\n")
 
 	b.WriteString("### Mouse events\n\n")
 	b.WriteString("| Event | Fires on |\n|---|---|\n")

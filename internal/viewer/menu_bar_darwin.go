@@ -36,6 +36,7 @@ type cocoaItem struct {
 	Key   string `json:"key,omitempty"`
 	Cmd   bool   `json:"cmd,omitempty"`
 	Ctrl  bool   `json:"ctrl,omitempty"`
+	Alt   bool   `json:"alt,omitempty"`
 	Shift bool   `json:"shift,omitempty"`
 }
 
@@ -76,6 +77,7 @@ func (i *cocoaItem) setKey(key keys.Key) {
 	i.Key = name
 	i.Cmd = key.Mod&keys.Cmd != 0
 	i.Ctrl = key.Mod&keys.Ctrl != 0
+	i.Alt = key.Mod&keys.Alt != 0
 	i.Shift = key.Mod&keys.Shift != 0
 }
 

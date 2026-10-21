@@ -32,6 +32,10 @@ func TestKeyToken(t *testing.T) {
 		{name: "ctrl shift letter", key: sdl.KeycodeR, scancode: sdl.ScancodeR, mod: sdl.KeymodCtrl | sdl.KeymodShift, want: "<C-S-r>"},
 		{name: "ctrl shift digit", key: sdl.Keycode1, scancode: sdl.Scancode1, mod: sdl.KeymodCtrl | sdl.KeymodShift, want: "<C-S-1>"},
 		{name: "cmd letter", key: sdl.KeycodeC, scancode: sdl.ScancodeC, mod: sdl.KeymodGui, want: "<D-c>"},
+		{name: "alt letter", key: sdl.KeycodeJ, scancode: sdl.ScancodeJ, mod: sdl.KeymodLAlt, want: "<A-j>"},
+		{name: "alt shift letter", key: sdl.KeycodeJ, scancode: sdl.ScancodeJ, mod: sdl.KeymodRAlt | sdl.KeymodShift, want: "<A-S-j>"},
+		{name: "ctrl alt letter", key: sdl.KeycodeJ, scancode: sdl.ScancodeJ, mod: sdl.KeymodCtrl | sdl.KeymodRAlt, want: "<C-A-j>"},
+		{name: "alt arrow", key: sdl.KeycodeLeft, scancode: sdl.ScancodeLeft, mod: sdl.KeymodLAlt, want: "<A-Left>"},
 		{name: "ctrl symbol", key: sdl.KeycodeMinus, scancode: sdl.ScancodeMinus, mod: sdl.KeymodCtrl, want: "<C-->"},
 		{name: "ctrl shift special", key: sdl.KeycodeTab, scancode: sdl.ScancodeTab, mod: sdl.KeymodCtrl | sdl.KeymodShift, want: "<C-S-Tab>"},
 		{name: "shift return", key: sdl.KeycodeReturn, scancode: sdl.ScancodeReturn, mod: sdl.KeymodShift, want: "<S-CR>"},
@@ -50,15 +54,10 @@ func TestKeyToken(t *testing.T) {
 	}
 }
 
-func TestKeyTokenIgnoresUnnamedKeysAndAlt(t *testing.T) {
+func TestKeyTokenIgnoresUnnamedKeys(t *testing.T) {
 	for _, key := range []sdl.Keycode{sdl.KeycodeLCtrl, sdl.KeycodeRCtrl, sdl.KeycodeLShift, sdl.KeycodeRShift, sdl.KeycodeLAlt, sdl.KeycodeRAlt, sdl.KeycodeLGui, sdl.KeycodeRGui, sdl.KeycodeCapsLock, sdl.KeycodeUnknown} {
 		if got, ok := keyToken(&sdl.KeyboardEvent{Key: key, Mod: sdl.KeymodCtrl}); ok {
 			t.Fatalf("expected key %v to be ignored, got %q", key, got)
-		}
-	}
-	for _, mod := range []sdl.Keymod{sdl.KeymodLAlt, sdl.KeymodRAlt, sdl.KeymodCtrl | sdl.KeymodRAlt} {
-		if got, ok := keyToken(&sdl.KeyboardEvent{Key: sdl.KeycodeJ, Scancode: sdl.ScancodeJ, Mod: mod}); ok {
-			t.Fatalf("expected j with modifiers %v to be ignored, got %q", mod, got)
 		}
 	}
 }

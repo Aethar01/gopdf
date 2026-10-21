@@ -1052,7 +1052,7 @@ func TestLuaBindingsRejectUnknownNames(t *testing.T) {
 		{`bind("5x", gopdf.quit)`, `digits 1 to 9 start a count`},
 		{`bind("'a", gopdf.quit)`, `' is used for marks`},
 		{`bind('"', gopdf.quit)`, `" is used for marks`},
-		{`unbind("<A-j>")`, `unknown modifier "A-"`},
+		{`unbind("<X-j>")`, `unknown modifier "X-"`},
 		{`bind_mouse("left_dwn", gopdf.quit)`, `unknown mouse event "left_dwn"`},
 		{`unbind_mouse("<C-left_down>")`, `unknown mouse event "<C-left_down>"`},
 	}
