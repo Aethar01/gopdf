@@ -48,6 +48,7 @@ func (a *App) Run() error {
 	a.updateDisplayFrame()
 	a.loadUIFont() // again, now the display scale is known
 	a.waker = newLoopWaker()
+	a.installMenuBar()
 	if rw := sdl.IOFromConstMem(a.iconBytes); rw != nil {
 		if icon := sdl.LoadBMPIO(rw, true); icon != nil {
 			sdl.SetWindowIcon(window, icon)
@@ -98,6 +99,9 @@ func (a *App) Run() error {
 			}
 		}
 		if a.pollInstanceCommands() {
+			a.pendingRedraw = true
+		}
+		if a.pollMenuBar() {
 			a.pendingRedraw = true
 		}
 		a.pollRenderUpdates()

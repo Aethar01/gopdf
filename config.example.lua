@@ -189,6 +189,7 @@ if gopdf.platform.os == "macos" then
   gopdf.bind("<D-f>", gopdf.search_prompt)
   gopdf.bind("<D-g>", gopdf.search_next)
   gopdf.bind("<D-S-g>", gopdf.search_prev)
+  gopdf.bind("<C-D-f>", gopdf.toggle_fullscreen)
   gopdf.bind("<D-=>", gopdf.zoom_in)
   gopdf.bind("<D-S-=>", gopdf.zoom_in)
   gopdf.bind("<D-->", gopdf.zoom_out)
@@ -203,6 +204,8 @@ if gopdf.platform.os == "macos" then
   gopdf.bind("<D-o>", gopdf.open_file_picker)
   gopdf.bind("<D-s>", gopdf.save)
   gopdf.bind("<D-p>", gopdf.print)
+  gopdf.bind("<D-q>", gopdf.quit)
+  gopdf.bind("<D-w>", gopdf.quit)
 end
 
 -- Default mouse bindings.

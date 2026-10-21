@@ -164,6 +164,8 @@ type sdlState struct {
 	// displayFrame is the window's display's refresh interval, or 0 when
 	// unknown; see animationFrameDuration.
 	displayFrame time.Duration
+	// menuBarShown is set once the menu bar shows the key bindings.
+	menuBarShown bool
 	// drawing is set while drawFrame runs; frameStatus is the status bar's
 	// layout for that frame, once something has asked for it.
 	drawing     bool

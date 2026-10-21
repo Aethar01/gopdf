@@ -27,7 +27,10 @@ func newLoopWaker() *loopWaker {
 
 // wakeLoop may be called from any goroutine.
 func (a *App) wakeLoop() {
-	w := a.waker
+	a.waker.wake()
+}
+
+func (w *loopWaker) wake() {
 	if w == nil || !w.queued.CompareAndSwap(false, true) {
 		return
 	}

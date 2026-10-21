@@ -32,7 +32,7 @@ Useful defaults:
 | `F1` / `g?` | Help: commands, keys, search flags and options |
 | `q` | Quit |
 
-On macOS the usual Cmd shortcuts work as well, such as Cmd-F to search, Cmd-Z to undo and Cmd-= to zoom; the reference lists them with the actions they run.
+On macOS the usual Cmd shortcuts work as well, such as Cmd-F to search, Cmd-Z to undo and Cmd-= to zoom, and the menu bar lists the actions with the keys bound to them.
 
 ## Installation
 

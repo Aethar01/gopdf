@@ -71,6 +71,7 @@ func (a *App) setKeyBindings(bindings map[string]string) {
 			a.sequencePrefixes[keys.Format(seq[:n])] = struct{}{}
 		}
 	}
+	a.updateMenuBar()
 }
 
 // hasPrefix reports whether a longer bound sequence starts with joined.
