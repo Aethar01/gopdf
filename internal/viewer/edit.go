@@ -8,8 +8,9 @@ import (
 // Edits such as highlights and form values stay in memory until :write.
 
 // Edits are counted along the undo history: editPos is the number of edits
-// applied and savedPos the count when the file was last written, or -1 once
-// that state can no longer be reached by undo and redo.
+// applied, editEnd the number redo can reach, and savedPos the count when
+// the file was last written, or -1 once that state can no longer be reached
+// by undo and redo.
 
 // markEdited records a new edit.
 func (a *App) markEdited() {
@@ -17,6 +18,7 @@ func (a *App) markEdited() {
 		a.savedPos = -1 // the edit discards the redo history holding the saved state
 	}
 	a.moveEditPos(1)
+	a.editEnd = a.editPos
 }
 
 func (a *App) moveEditPos(delta int) {

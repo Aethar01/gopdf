@@ -5,11 +5,15 @@ import "gopdf/internal/menubar"
 // On systems with a menu bar, the viewer shows the one menubar describes,
 // each item with a key bound to its action. setNativeMenuBar draws it again
 // whenever the bindings change, and the items chosen reach the event loop
-// through menuBarChoices, which wakes it.
+// through menuBarChoices, which wakes it. When a menu opens, the system's
+// menu code asks menuItemState how to show each item.
 
 var (
 	menuBarChoices = make(chan string, 16)
-	menuBarWaker   *loopWaker
+	// menuBarApp is the app the menu bar is shown for. The system's menu
+	// code reads it only on the main thread, while the event loop waits in
+	// the system's event handling.
+	menuBarApp *App
 )
 
 // chooseMenuBarAction queues an action chosen from the menu bar. The
@@ -17,13 +21,13 @@ var (
 func chooseMenuBarAction(action string) {
 	select {
 	case menuBarChoices <- action:
-		menuBarWaker.wake()
+		menuBarApp.wakeLoop()
 	default: // a burst too quick to keep up with
 	}
 }
 
 func (a *App) installMenuBar() {
-	menuBarWaker = a.waker
+	menuBarApp = a
 	a.menuBarShown = true
 	a.updateMenuBar()
 }
@@ -46,4 +50,63 @@ func (a *App) pollMenuBar() bool {
 			return ran
 		}
 	}
+}
+
+// menuItemState reports whether an item running action can be chosen now,
+// and whether it is checked, as a setting that is on or a choice in effect.
+func (a *App) menuItemState(action string) (enabled, checked bool) {
+	enabled = a.pageCount > 0 || menuItemsWithoutDocument[action]
+	if can, ok := menuItemEnabled[action]; ok {
+		enabled = enabled && can(a)
+	}
+	for _, toggle := range toggleCommands {
+		if toggle.action == action {
+			return enabled, toggle.on(a)
+		}
+	}
+	if on, ok := menuItemChecked[action]; ok {
+		checked = on(a)
+	}
+	return enabled, checked
+}
+
+// menuItemsWithoutDocument are the actions that do something with no
+// document open; the others are disabled then.
+var menuItemsWithoutDocument = map[string]bool{
+	"quit":              true,
+	"open_file_picker":  true,
+	"show_recent_files": true,
+	"help":              true,
+	"keybinds":          true,
+	"cut":               true,
+	"copy":              true,
+	"paste":             true,
+	"toggle_fullscreen": true,
+	"toggle_status_bar": true,
+	"toggle_alt_colors": true,
+}
+
+// menuItemEnabled holds the actions that have something to act on only
+// some of the time.
+var menuItemEnabled = map[string]func(*App) bool{
+	"save":           func(a *App) bool { return a.unsaved },
+	"undo":           func(a *App) bool { return a.editPos > 0 },
+	"redo":           func(a *App) bool { return a.editPos < a.editEnd },
+	"search_next":    func(a *App) bool { return len(a.search.order) > 0 },
+	"search_prev":    func(a *App) bool { return len(a.search.order) > 0 },
+	"search_matches": func(a *App) bool { return len(a.search.order) > 0 },
+	"jump_backward":  func(a *App) bool { return len(a.jumpBack) > 0 },
+	"jump_forward":   func(a *App) bool { return len(a.jumpAhead) > 0 },
+}
+
+// menuItemChecked holds the actions, besides those with a toggle command,
+// that turn something on or pick one of several.
+var menuItemChecked = map[string]func(*App) bool{
+	"toggle_render_mode": func(a *App) bool { return a.renderMode == renderContinuous },
+	"toggle_alt_colors":  func(a *App) bool { return a.altColors },
+	"fit_width":          func(a *App) bool { return a.fitMode == fitWidth },
+	"fit_page":           func(a *App) bool { return a.fitMode == fitPage },
+	"fit_height":         func(a *App) bool { return a.fitMode == fitHeight },
+	"overview":           func(a *App) bool { return a.overview != nil },
+	"presentation":       func(a *App) bool { return a.presentation != nil },
 }

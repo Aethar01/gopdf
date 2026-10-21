@@ -122,3 +122,23 @@ func gopdfMenuBarChose(tag C.int) {
 		chooseMenuBarAction(menuBarActions[i])
 	}
 }
+
+// gopdfMenuBarItemState returns how to show the item of a tag, as a menu
+// opens: 1 when it can be chosen, plus 2 when it is checked.
+//
+//export gopdfMenuBarItemState
+func gopdfMenuBarItemState(tag C.int) C.int {
+	i := int(tag) - 1
+	if i < 0 || i >= len(menuBarActions) || menuBarApp == nil {
+		return 1
+	}
+	enabled, checked := menuBarApp.menuItemState(menuBarActions[i])
+	state := C.int(0)
+	if enabled {
+		state |= 1
+	}
+	if checked {
+		state |= 2
+	}
+	return state
+}

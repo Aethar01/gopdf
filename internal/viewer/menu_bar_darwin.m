@@ -5,6 +5,7 @@
 // system's own, such as Hide and Minimize.
 
 extern void gopdfMenuBarChose(int tag);
+extern int gopdfMenuBarItemState(int tag);
 
 static NSString *gopdfApplicationName(void) {
     NSDictionary *info = [[NSBundle mainBundle] infoDictionary];
@@ -34,10 +35,21 @@ static BOOL gopdfItemMatches(NSMenuItem *item, NSEvent *event) {
            [event.charactersIgnoringModifiers.lowercaseString isEqualToString:key.lowercaseString];
 }
 
-@interface GoPDFMenuBarTarget : NSObject
+@interface GoPDFMenuBarTarget : NSObject <NSMenuDelegate>
 @end
 
 @implementation GoPDFMenuBarTarget
+
+// menuNeedsUpdate: shows each item as the viewer is now, as the menu opens.
+- (void)menuNeedsUpdate:(NSMenu *)menu {
+    for (NSMenuItem *item in menu.itemArray) {
+        if (item.target == self) {
+            int state = gopdfMenuBarItemState((int)item.tag);
+            item.enabled = (state & 1) != 0;
+            item.state = (state & 2) != 0 ? NSControlStateValueOn : NSControlStateValueOff;
+        }
+    }
+}
 
 // SDL hands every key press to the viewer, which runs the action bound to
 // it, so an item chosen by its own key equivalent has run already.
@@ -183,6 +195,7 @@ static void gopdfBuildMenuBar(NSData *data) {
         NSString *title = [spec[@"title"] stringByReplacingOccurrencesOfString:@"{app}" withString:appName];
         NSMenu *menu = [[[NSMenu alloc] initWithTitle:title] autorelease];
         menu.autoenablesItems = NO;
+        menu.delegate = gopdfMenuBarTarget;
         for (NSDictionary *itemSpec in spec[@"items"]) {
             NSString *itemTitle = [itemSpec[@"title"] ?: @"" stringByReplacingOccurrencesOfString:@"{app}" withString:appName];
             NSMenuItem *item;
