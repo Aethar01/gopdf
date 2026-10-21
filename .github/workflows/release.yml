@@ -62,59 +62,9 @@ jobs:
           mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources" "$app/Contents/Frameworks"
           cp dist/gopdf "$app/Contents/MacOS/GoPDF"
 
-          cat > "$app/Contents/Info.plist" <<EOF
-          <?xml version="1.0" encoding="UTF-8"?>
-          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-          <plist version="1.0">
-          <dict>
-            <key>CFBundleDevelopmentRegion</key>
-            <string>en</string>
-            <key>CFBundleDisplayName</key>
-            <string>GoPDF</string>
-            <key>CFBundleExecutable</key>
-            <string>GoPDF</string>
-            <key>CFBundleIconFile</key>
-            <string>gopdf</string>
-            <key>CFBundleIdentifier</key>
-            <string>app.gopdf.viewer</string>
-            <key>CFBundleInfoDictionaryVersion</key>
-            <string>6.0</string>
-            <key>CFBundleName</key>
-            <string>GoPDF</string>
-            <key>CFBundleDocumentTypes</key>
-            <array>
-              <dict>
-                <key>CFBundleTypeExtensions</key>
-                <array>
-                  <string>pdf</string>
-                </array>
-                <key>CFBundleTypeIconFile</key>
-                <string>gopdf</string>
-                <key>CFBundleTypeName</key>
-                <string>PDF Document</string>
-                <key>CFBundleTypeRole</key>
-                <string>Viewer</string>
-                <key>LSItemContentTypes</key>
-                <array>
-                  <string>com.adobe.pdf</string>
-                </array>
-              </dict>
-            </array>
-            <key>LSApplicationCategoryType</key>
-            <string>public.app-category.productivity</string>
-            <key>CFBundlePackageType</key>
-            <string>APPL</string>
-            <key>CFBundleShortVersionString</key>
-            <string>${version}</string>
-            <key>CFBundleVersion</key>
-            <string>${GITHUB_RUN_NUMBER}</string>
-            <key>LSMinimumSystemVersion</key>
-            <string>12.0</string>
-            <key>NSHighResolutionCapable</key>
-            <true/>
-          </dict>
-          </plist>
-          EOF
+          sed -e "s/@VERSION@/${version}/" -e "s/@BUILD@/${GITHUB_RUN_NUMBER}/" \
+            assets/macos/Info.plist > "$app/Contents/Info.plist"
+          plutil -lint "$app/Contents/Info.plist"
 
           cp assets/macos/gopdf.icns "$app/Contents/Resources/gopdf.icns"
 

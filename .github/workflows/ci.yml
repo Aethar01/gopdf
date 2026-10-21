@@ -69,6 +69,8 @@ jobs:
         run: |
           app="GoPDF.app"
           mkdir -p "$app/Contents/MacOS" "$app/Contents/Frameworks"
+          sed -e "s/@VERSION@/0.0.0/" -e "s/@BUILD@/0/" assets/macos/Info.plist > "$app/Contents/Info.plist"
+          plutil -lint "$app/Contents/Info.plist"
           go build -trimpath -o "$app/Contents/MacOS/GoPDF" .
           dylibbundler -od -b -x "$app/Contents/MacOS/GoPDF" -d "$app/Contents/Frameworks" -p "@executable_path/../Frameworks"
           cp "$(brew --prefix sdl3)/lib/libSDL3.dylib" "$app/Contents/Frameworks/libSDL3.dylib"
