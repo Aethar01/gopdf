@@ -18,6 +18,9 @@ func initSDL() error {
 	// Keep the floating-point wheel values so continuous devices can scroll by
 	// fractional scroll steps. The integer mode would quantize them upstream.
 	sdl.SetHint("SDL_MOUSE_INTEGER_MODE", "0")
+	// Touch is handled as touch, so a finger pans rather than selects; see
+	// handleTouch.
+	sdl.SetHint("SDL_TOUCH_MOUSE_EVENTS", "0")
 	if !sdl.Init(sdl.InitVideo) {
 		return fmt.Errorf("SDL init failed: %s", sdl.GetError())
 	}
@@ -292,12 +295,10 @@ func (a *App) handleSDLEvent(event *sdl.Event) error {
 		a.handleMouseButtonEvent(&e)
 	case sdl.EventMouseMotion:
 		e := event.Motion()
-		a.noteTitleBarPointer(float64(e.X), float64(e.Y), true)
-		if a.handleInputMouseMotion(&e) {
-			redraw = true
-		} else {
-			redraw = a.handleSDLMouseMotion(&e)
-		}
+		redraw = a.handleMouseMotionEvent(&e)
+	case sdl.EventFingerDown, sdl.EventFingerMotion, sdl.EventFingerUp, sdl.EventFingerCanceled:
+		e := event.TFinger()
+		a.handleTouch(event.Type(), &e)
 	case sdl.EventDropFile:
 		e := event.Drop()
 		a.handleDroppedFile(e.Data())
@@ -309,6 +310,16 @@ func (a *App) handleSDLEvent(event *sdl.Event) error {
 		a.pendingRedraw = true
 	}
 	return nil
+}
+
+// handleMouseMotionEvent moves the pointer, reporting whether the window
+// needs drawing again.
+func (a *App) handleMouseMotionEvent(e *sdl.MouseMotionEvent) bool {
+	a.noteTitleBarPointer(float64(e.X), float64(e.Y), true)
+	if a.handleInputMouseMotion(e) {
+		return true
+	}
+	return a.handleSDLMouseMotion(e)
 }
 
 func (a *App) handleMouseButtonEvent(e *sdl.MouseButtonEvent) {

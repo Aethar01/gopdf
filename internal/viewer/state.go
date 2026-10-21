@@ -201,6 +201,7 @@ type inputState struct {
 	ignoreText     string
 	message        string
 	links          linkInputState
+	touch          touchState
 	hints          *hintState     // non-nil while link hints are shown
 	overview       *overviewState // non-nil while the page overview is shown
 	presentation   *presentationState
