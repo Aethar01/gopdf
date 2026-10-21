@@ -26,6 +26,10 @@ SolidCompression=yes
 WizardStyle=modern
 SetupIconFile=..\gopdf.ico
 ChangesAssociations=yes
+; Installing for all users needs an administrator; the dialog offers
+; installing for the current user alone instead.
+PrivilegesRequiredOverridesAllowed=dialog
+UninstallDisplayIcon={app}\{#MyAppExeName}
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"

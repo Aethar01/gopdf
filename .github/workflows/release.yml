@@ -154,7 +154,7 @@ jobs:
               BLOCK "040904b0"
               BEGIN
                 VALUE "CompanyName", "GoPDF\\0"
-                VALUE "FileDescription", "GoPDF PDF Viewer\\0"
+                VALUE "FileDescription", "GoPDF Document Viewer\\0"
                 VALUE "FileVersion", "${version}\\0"
                 VALUE "InternalName", "gopdf\\0"
                 VALUE "OriginalFilename", "gopdf.exe\\0"
