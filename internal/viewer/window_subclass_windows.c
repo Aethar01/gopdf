@@ -2,6 +2,9 @@
 #include <windowsx.h>
 #include <commctrl.h>
 
+// A subclass of SDL's window answers the messages SDL has no use for: those
+// about gopdf's title bar buttons and its taskbar button.
+//
 // gopdf draws its own title bar buttons, and SDL's hit test can only call
 // them part of the window. Windows 11 shows its snap layouts over a window's
 // maximize button only when the system is told the pointer is over one, so
@@ -10,10 +13,14 @@
 
 extern int gopdfTitleBarMaximizeAt(int x, int y);
 extern void gopdfTitleBarMaximizePress(int down);
+BOOL gopdfTaskbarMessage(HWND hwnd, UINT msg, WPARAM wParam);
 
 static LRESULT CALLBACK gopdfTitleBarProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam,
                                           UINT_PTR id, DWORD_PTR data) {
     (void)data;
+    if (gopdfTaskbarMessage(hwnd, msg, wParam)) {
+        return 0;
+    }
     switch (msg) {
     case WM_NCHITTEST: {
         // SDL answers first, which also reveals the buttons.
