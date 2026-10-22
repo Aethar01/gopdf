@@ -16,6 +16,11 @@ AppName={#MyAppName}
 AppVersion={#GetEnv("ONON_VERSION")}
 AppPublisher=onon
 DefaultDirName={autopf}\{#MyAppName}
+; Upgrades from GoPDF would otherwise stay in its directory; the code
+; below uninstalls that copy instead.
+UsePreviousAppDir=no
+ArchitecturesAllowed=x64compatible
+ArchitecturesInstallIn64BitMode=x64compatible
 DefaultGroupName={#MyAppName}
 AllowNoIcons=yes
 LicenseFile=..\..\LICENSE
@@ -83,3 +88,31 @@ Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; AppUserMo
 
 [Run]
 Filename: "{app}\{#MyAppExeName}"; Parameters: "-v"; Flags: runhidden
+
+[Code]
+// Earlier installs went to GoPDF, under 32-bit Program Files. Uninstall
+// one that lives elsewhere than {app}, so its files, shortcuts and file
+// associations go with it.
+procedure UninstallPrevious(RootKey: Integer);
+var
+  Key, Location, Uninstaller: String;
+  ResultCode: Integer;
+begin
+  Key := ExpandConstant('Software\Microsoft\Windows\CurrentVersion\Uninstall\{#emit SetupSetting("AppId")}_is1');
+  if not RegQueryStringValue(RootKey, Key, 'InstallLocation', Location) then
+    Exit;
+  if CompareText(AddBackslash(Location), AddBackslash(ExpandConstant('{app}'))) = 0 then
+    Exit;
+  if RegQueryStringValue(RootKey, Key, 'UninstallString', Uninstaller) then
+    Exec(RemoveQuotes(Uninstaller), '/VERYSILENT /SUPPRESSMSGBOXES /NORESTART', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+end;
+
+procedure CurStepChanged(CurStep: TSetupStep);
+begin
+  if CurStep = ssInstall then
+  begin
+    UninstallPrevious(HKLM32);
+    UninstallPrevious(HKLM64);
+    UninstallPrevious(HKCU);
+  end;
+end;
