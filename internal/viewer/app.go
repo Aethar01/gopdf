@@ -13,6 +13,8 @@ type App struct {
 	runtime *config.Runtime
 	config  config.Config
 	verbose bool
+	// launchArgs are the flags a new window's process inherits.
+	launchArgs []string
 
 	documentState
 	viewStateFields
@@ -30,6 +32,9 @@ type App struct {
 type NewOptions struct {
 	Verbose           bool
 	StartPageExplicit bool
+	// LaunchArgs are the flags a new window's process inherits, such as
+	// --config.
+	LaunchArgs []string
 }
 
 func New(docPath string, runtime *config.Runtime, startPage int, iconBytes []byte, opts NewOptions) (*App, error) {
@@ -38,8 +43,9 @@ func New(docPath string, runtime *config.Runtime, startPage int, iconBytes []byt
 		startPage = 0
 	}
 	app := &App{
-		runtime: runtime,
-		verbose: opts.Verbose,
+		runtime:    runtime,
+		verbose:    opts.Verbose,
+		launchArgs: opts.LaunchArgs,
 		documentState: documentState{
 			page:      startPage,
 			pageLinks: map[int][]mupdf.Link{},

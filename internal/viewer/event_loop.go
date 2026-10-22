@@ -335,7 +335,7 @@ func (a *App) handleSDLEvent(event *sdl.Event) error {
 		a.handleTouch(event.Type(), &e)
 	case sdl.EventDropFile:
 		e := event.Drop()
-		a.handleDroppedFile(e.Data())
+		a.handleDroppedFile(e.Data(), e.WindowID)
 		redraw = e.Data() != ""
 	default:
 		redraw = false
@@ -453,8 +453,18 @@ func pinchEventScale(event *sdl.Event) float32 {
 	return math.Float32frombits(binary.NativeEndian.Uint32(event[commonEventSize:]))
 }
 
-func (a *App) handleDroppedFile(path string) {
+// handleDroppedFile opens a file dropped on the window, or one the system asked
+// a running onon to open: on macOS, Finder and `open` send that to this process
+// as a drop on no window. With open_in_new_window, that one gets a window of its
+// own, as it would on other platforms, unless this window is still empty.
+func (a *App) handleDroppedFile(path string, windowID sdl.WindowID) {
 	if path == "" {
+		return
+	}
+	if windowID == 0 && a.config.OpenInNewWindow && a.docPath != "" {
+		if err := a.openInNewWindow(path); err != nil {
+			a.message = err.Error()
+		}
 		return
 	}
 	if err := a.Open(path); err != nil {

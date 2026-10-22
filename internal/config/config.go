@@ -56,6 +56,7 @@ type Config struct {
 	AutoscrollSpeedFactor float64
 	AutoscrollMaxSpeed    float64
 	SessionDatabase       bool
+	OpenInNewWindow       bool
 	AntiAliasing          int
 	OutlineInitialDepth   int
 	OutlineWidthPercent   int

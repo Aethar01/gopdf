@@ -113,7 +113,7 @@ func run() error {
 	defer runtime.Close()
 	defer config.CloseSessionDatabase() // after the viewer saves its session
 
-	app, err := viewer.New(docPath, runtime, startPage-1, iconBMP, viewer.NewOptions{Verbose: verbose, StartPageExplicit: pageSet})
+	app, err := viewer.New(docPath, runtime, startPage-1, iconBMP, viewer.NewOptions{Verbose: verbose, StartPageExplicit: pageSet, LaunchArgs: launchArgs()})
 	if err != nil {
 		return fmt.Errorf("start viewer: %w", err)
 	}
@@ -157,6 +157,19 @@ func handOffToRunningInstance(docPath string, target *instance.Request, command 
 		}
 	}
 	return true, nil
+}
+
+// launchArgs returns the flags set for this process that a new window's
+// process should share, so it loads the same configuration.
+func launchArgs() []string {
+	var args []string
+	flag.Visit(func(f *flag.Flag) {
+		switch f.Name {
+		case "config", "no-config", "no-plugins", "V":
+			args = append(args, "-"+f.Name+"="+f.Value.String())
+		}
+	})
+	return args
 }
 
 func explicitDocumentPath(path string) (string, error) {
