@@ -23,7 +23,7 @@ var specs = []Spec{
 	{Name: "fit", ArgCompletions: []string{"height", "manual", "page", "width"}, Help: ":fit width|height|page|manual - Set fit mode"},
 	{Name: "forward", Help: ":forward - Jump forward again after :back"},
 	{Name: "fullscreen", ArgCompletions: []string{"on", "off"}, Help: ":fullscreen [on|off] - Toggle or set fullscreen"},
-	{Name: "help", Help: ":help - Show commands, key bindings, search flags and options"},
+	{Name: "help", Help: ":help - Show commands, key bindings, search modifiers and options"},
 	{Name: "highlight", Help: ":highlight - Highlight the selection in the last colour used"},
 	{Name: "hints", Help: ":hints - Label links on screen to follow one by typing its hint"},
 	{Name: "keybinds", Help: ":keybinds - Toggle the keybinds menu"},
@@ -45,7 +45,7 @@ var specs = []Spec{
 	{Name: "redo", Help: ":redo - Reapply the last undone edit"},
 	{Name: "reload-config", Help: ":reload-config - Reload the config file"},
 	{Name: "rotate", ArgCompletions: []string{"cw", "ccw", "0", "90", "180", "270"}, Help: ":rotate [cw|ccw|DEGREES] - Rotate by a quarter turn, or to 0, 90, 180 or 270"},
-	{Name: "search", Help: ":search [-r] [-i] [-w] [-p] <text> - Search document text"},
+	{Name: "search", Help: ":search <text> - Search document text"},
 	{Name: "set", Help: ":set [option[?]|option!|option=value] - Inspect or change options"},
 	{Name: "statusbar", ArgCompletions: []string{"on", "off"}, Help: ":statusbar [on|off] - Show or hide the status bar"},
 	{Name: "theme", Help: ":theme [name] - Pick a theme, seeing each as it is selected, or switch to one"},
@@ -80,18 +80,24 @@ func ArgCompletionValues(name string) []string {
 	return nil
 }
 
-type SearchFlag struct {
-	Flag        string
+type SearchModifier struct {
+	Modifier    string
 	Description string
 }
 
-// SearchFlags are the flags a search query may start with, such as -ri.
-func SearchFlags() []SearchFlag {
-	return []SearchFlag{
-		{Flag: "r", Description: "regular expression"},
-		{Flag: "i", Description: "ignore case"},
-		{Flag: "w", Description: "whole word"},
-		{Flag: "p", Description: "current page only"},
+// SearchModifiers are the vim-style modifiers a search query may contain, such as \v.
+func SearchModifiers() []SearchModifier {
+	return []SearchModifier{
+		{Modifier: `\v`, Description: "regular expression from here on"},
+		{Modifier: `\V`, Description: "literal text from here on (the default)"},
+		{Modifier: `\c`, Description: "ignore case (the default)"},
+		{Modifier: `\C`, Description: "match case"},
+		{Modifier: `\<`, Description: "start of a word"},
+		{Modifier: `\>`, Description: "end of a word"},
+		{Modifier: `\%.p`, Description: "current page only"},
+		{Modifier: `\%3p`, Description: "page 3 only"},
+		{Modifier: `\%<3p`, Description: "pages before page 3"},
+		{Modifier: `\%>3p`, Description: "pages after page 3"},
 	}
 }
 

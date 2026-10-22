@@ -5,6 +5,7 @@ import (
 	"image/color"
 	"math"
 	"regexp"
+	"strconv"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -34,20 +35,27 @@ type searchState struct {
 	running    bool
 	generation int
 	mode       searchMode
-	options    searchOptions
 }
 
-type searchOptions struct {
-	regex           bool
-	caseInsensitive bool
-	wholeWord       bool
-	currentPageOnly bool
+// searchPattern is a search query with its vim-style modifiers resolved.
+type searchPattern struct {
+	text      string // what MuPDF searches for, ignoring case, when regex is false
+	regex     bool   // match source with Go's regexp instead
+	source    string
+	matchCase bool
+	firstPage int // 0-based bounds of the pages searched, inclusive
+	lastPage  int
 }
+
+// Names of the empty groups that stand for \< and \> in a compiled pattern.
+const (
+	wordStartGroup = "ononWordStart"
+	wordEndGroup   = "ononWordEnd"
+)
 
 type searchRequest struct {
 	generation int
-	query      string
-	options    searchOptions
+	pattern    searchPattern
 	startPage  int
 	pageCount  int
 }
@@ -113,21 +121,20 @@ func (w *searchWorker) run(doc *mupdf.Document) {
 		case req = <-w.requests:
 		}
 		for {
-			if strings.TrimSpace(req.query) == "" {
+			if req.pattern.empty() {
 				sendWorkerUpdate(&w.workerLifecycle, w.updates, searchUpdate{generation: req.generation, done: true})
 				break
 			}
-			re, err := compileSearchPattern(req.query, req.options)
+			re, err := compileSearchPattern(req.pattern)
 			if err != nil {
 				sendWorkerUpdate(&w.workerLifecycle, w.updates, searchUpdate{generation: req.generation, done: true, err: err})
 				break
 			}
 			restarted := false
-			pages := searchPageOrder(req.startPage, req.pageCount)
-			if req.options.currentPageOnly && req.pageCount > 0 {
-				pages = []int{clampInt(req.startPage, 0, req.pageCount-1)}
-			}
-			for _, page := range pages {
+			for _, page := range searchPageOrder(req.startPage, req.pageCount) {
+				if page < req.pattern.firstPage || page > req.pattern.lastPage {
+					continue
+				}
 				select {
 				case <-w.closing:
 					return
@@ -139,7 +146,7 @@ func (w *searchWorker) run(doc *mupdf.Document) {
 				if restarted {
 					break
 				}
-				hits, err := searchDocumentPage(doc, page, req.query, re, req.options)
+				hits, err := searchDocumentPage(doc, page, req.pattern.text, re)
 				if err != nil {
 					sendWorkerUpdate(&w.workerLifecycle, w.updates, searchUpdate{generation: req.generation, done: true, err: err})
 					restarted = true
@@ -158,36 +165,133 @@ func (w *searchWorker) run(doc *mupdf.Document) {
 	}
 }
 
-// compileSearchPattern returns nil when MuPDF's plain search suffices.
-func compileSearchPattern(query string, options searchOptions) (*regexp.Regexp, error) {
-	if !options.regex && !options.caseInsensitive && !options.wholeWord {
-		return nil, nil
+// parseSearchQuery resolves the vim-style modifiers in a query. The text is
+// literal until \v, after which it is a regular expression until \V. \c and
+// \C ignore or match case, \< and \> match the start and end of a word, and
+// \%.p, \%3p, \%<3p and \%>3p keep to the current page, page 3, or the pages
+// before or after it. \\ is a backslash in literal text.
+func parseSearchQuery(query string, currentPage int) searchPattern {
+	p := searchPattern{lastPage: math.MaxInt}
+	var text, source strings.Builder
+	literal := true
+	write := func(s string) {
+		if literal {
+			text.WriteString(s)
+			s = regexp.QuoteMeta(s)
+		}
+		source.WriteString(s)
 	}
-	pattern := query
-	if !options.regex {
-		pattern = regexp.QuoteMeta(pattern)
+	words := 0
+	for i := 0; i < len(query); i++ {
+		if query[i] != '\\' || i+1 == len(query) {
+			write(query[i : i+1])
+			continue
+		}
+		switch query[i+1] {
+		case 'v':
+			literal, p.regex = false, true
+		case 'V':
+			literal = true
+		case 'c':
+			p.matchCase = false
+		case 'C':
+			p.matchCase, p.regex = true, true
+		case '<', '>':
+			group := wordStartGroup
+			if query[i+1] == '>' {
+				group = wordEndGroup
+			}
+			fmt.Fprintf(&source, "(?P<%s%d>)", group, words)
+			words++
+			p.regex = true
+		case '%':
+			n, ok := p.restrictPages(query[i+2:], currentPage)
+			if !ok {
+				write(query[i : i+2])
+			}
+			i += n
+		case '\\':
+			if literal {
+				write(`\`)
+				break
+			}
+			fallthrough
+		default:
+			write(query[i : i+2])
+		}
+		i++
 	}
-	if options.caseInsensitive {
-		pattern = "(?i)" + pattern
-	}
-	return regexp.Compile(pattern)
+	p.text, p.source = text.String(), source.String()
+	return p
 }
 
-func searchDocumentPage(doc *mupdf.Document, page int, query string, re *regexp.Regexp, options searchOptions) ([]mupdf.SearchHit, error) {
+// restrictPages applies a page modifier such as .p, 3p or <3p from the start
+// of s, the rest of a \% item, and reports how many bytes it took.
+func (p *searchPattern) restrictPages(s string, currentPage int) (int, bool) {
+	rest := strings.TrimLeft(s, "<>")
+	if len(s)-len(rest) > 1 {
+		return 0, false
+	}
+	var page, n int
+	if strings.HasPrefix(rest, ".") {
+		page, n = currentPage, 1
+	} else {
+		for n < len(rest) && rest[n] >= '0' && rest[n] <= '9' {
+			n++
+		}
+		number, err := strconv.Atoi(rest[:n])
+		if err != nil || number < 1 {
+			return 0, false
+		}
+		page = number - 1
+	}
+	if n == len(rest) || rest[n] != 'p' {
+		return 0, false
+	}
+	switch s[0] {
+	case '<':
+		p.lastPage = min(p.lastPage, page-1)
+	case '>':
+		p.firstPage = max(p.firstPage, page+1)
+	default:
+		p.firstPage, p.lastPage = max(p.firstPage, page), min(p.lastPage, page)
+	}
+	return len(s) - len(rest) + n + 1, true
+}
+
+func (p searchPattern) empty() bool {
+	if p.regex {
+		return p.source == ""
+	}
+	return strings.TrimSpace(p.text) == ""
+}
+
+// compileSearchPattern returns nil when MuPDF's plain search suffices.
+func compileSearchPattern(p searchPattern) (*regexp.Regexp, error) {
+	if !p.regex {
+		return nil, nil
+	}
+	if !p.matchCase {
+		return regexp.Compile("(?i)" + p.source)
+	}
+	return regexp.Compile(p.source)
+}
+
+func searchDocumentPage(doc *mupdf.Document, page int, text string, re *regexp.Regexp) ([]mupdf.SearchHit, error) {
 	if re == nil {
-		return doc.SearchPage(page, query)
+		return doc.SearchPage(page, text)
 	}
 	layer, err := doc.TextLayer(page)
 	if err != nil {
 		return nil, err
 	}
-	return matchTextLayer(layer, re, options.wholeWord), nil
+	return matchTextLayer(layer, re), nil
 }
 
-func matchTextLayer(layer *mupdf.TextLayer, re *regexp.Regexp, wholeWord bool) []mupdf.SearchHit {
+func matchTextLayer(layer *mupdf.TextLayer, re *regexp.Regexp) []mupdf.SearchHit {
 	var hits []mupdf.SearchHit
-	for _, loc := range re.FindAllStringIndex(layer.Text, -1) {
-		if loc[0] == loc[1] || wholeWord && !isWholeWordMatch(layer.Text, loc[0], loc[1]) {
+	for _, loc := range re.FindAllStringSubmatchIndex(layer.Text, -1) {
+		if loc[0] == loc[1] || !wordBoundsHold(re, layer.Text, loc) {
 			continue
 		}
 		if quads := layer.Quads(loc[0], loc[1]); len(quads) > 0 {
@@ -197,20 +301,31 @@ func matchTextLayer(layer *mupdf.TextLayer, re *regexp.Regexp, wholeWord bool) [
 	return hits
 }
 
-func isWholeWordMatch(text string, start, end int) bool {
-	if start > 0 {
-		r, _ := utf8.DecodeLastRuneInString(text[:start])
-		if isWordRune(r) {
-			return false
+// wordBoundsHold checks where a match passed through \< and \>, which Go's
+// regexp cannot test itself: its \b knows only ASCII words.
+func wordBoundsHold(re *regexp.Regexp, text string, loc []int) bool {
+	for i, name := range re.SubexpNames() {
+		at := loc[2*i]
+		if at < 0 {
+			continue
 		}
-	}
-	if end < len(text) {
-		r, _ := utf8.DecodeRuneInString(text[end:])
-		if isWordRune(r) {
+		before, after := wordRuneBefore(text, at), wordRuneAfter(text, at)
+		if strings.HasPrefix(name, wordStartGroup) && (before || !after) ||
+			strings.HasPrefix(name, wordEndGroup) && (!before || after) {
 			return false
 		}
 	}
 	return true
+}
+
+func wordRuneBefore(text string, at int) bool {
+	r, size := utf8.DecodeLastRuneInString(text[:at])
+	return size > 0 && isWordRune(r)
+}
+
+func wordRuneAfter(text string, at int) bool {
+	r, size := utf8.DecodeRuneInString(text[at:])
+	return size > 0 && isWordRune(r)
 }
 
 func isWordRune(r rune) bool {
@@ -263,7 +378,7 @@ func (a *App) pollSearchUpdates() {
 			if update.done {
 				a.search.running = false
 				if len(a.search.order) == 0 && a.search.query != "" {
-					a.message = fmt.Sprintf("no matches for %s", a.searchDisplayQuery())
+					a.message = fmt.Sprintf("no matches for %s", a.search.query)
 				} else if len(a.search.order) > 0 {
 					a.message = a.searchStatusMessage()
 				}
@@ -288,7 +403,7 @@ func (a *App) pollSearchUpdates() {
 
 func (a *App) startSearch(query string, mode searchMode) {
 	query = strings.TrimSpace(query)
-	query, options := parseSearchQuery(query)
+	pattern := parseSearchQuery(query, a.page)
 	a.search.generation++
 	a.search.query = query
 	a.search.matches = map[int][]mupdf.SearchHit{}
@@ -296,8 +411,8 @@ func (a *App) startSearch(query string, mode searchMode) {
 	a.search.current = -1
 	a.search.running = false
 	a.search.mode = mode
-	a.search.options = options
-	if query == "" {
+	if pattern.empty() {
+		a.search.query = ""
 		a.message = ""
 		return
 	}
@@ -310,58 +425,17 @@ func (a *App) startSearch(query string, mode searchMode) {
 		return
 	}
 	a.search.running = true
-	a.logf("start search query=%q options=%+v page=%d", query, options, a.page+1)
-	a.message = fmt.Sprintf("searching for %s", a.searchDisplayQuery())
+	a.logf("start search query=%q pattern=%+v page=%d", query, pattern, a.page+1)
+	a.message = fmt.Sprintf("searching for %s", query)
 	if !a.searchWorker.Start(searchRequest{
 		generation: a.search.generation,
-		query:      query,
-		options:    options,
+		pattern:    pattern,
 		startPage:  a.page,
 		pageCount:  a.pageCount,
 	}) {
 		a.search.running = false
 		a.message = "search unavailable"
 	}
-}
-
-func parseSearchQuery(query string) (string, searchOptions) {
-	query = strings.TrimSpace(query)
-	options := searchOptions{}
-	for query != "" {
-		field, rest, _ := strings.Cut(query, " ")
-		if field == "--" {
-			return strings.TrimSpace(rest), options
-		}
-		if len(field) < 2 || field[0] != '-' || !applySearchFlags(field[1:], &options) {
-			break
-		}
-		query = strings.TrimSpace(rest)
-	}
-	return query, options
-}
-
-func applySearchFlags(flags string, options *searchOptions) bool {
-	if flags == "" {
-		return false
-	}
-	for _, flag := range flags {
-		if !strings.ContainsRune("riwp", flag) {
-			return false
-		}
-	}
-	for _, flag := range flags {
-		switch flag {
-		case 'r':
-			options.regex = true
-		case 'i':
-			options.caseInsensitive = true
-		case 'w':
-			options.wholeWord = true
-		case 'p':
-			options.currentPageOnly = true
-		}
-	}
-	return true
 }
 
 func (a *App) clearSearch() {
@@ -372,7 +446,6 @@ func (a *App) clearSearch() {
 	a.search.current = -1
 	a.search.running = false
 	a.search.mode = searchModeForward
-	a.search.options = searchOptions{}
 	a.message = ""
 }
 
@@ -394,10 +467,10 @@ func (a *App) moveSearch(delta int) {
 	}
 	if len(a.search.order) == 0 {
 		if a.search.running {
-			a.message = fmt.Sprintf("searching for %s", a.searchDisplayQuery())
+			a.message = fmt.Sprintf("searching for %s", a.search.query)
 			return
 		}
-		a.message = fmt.Sprintf("no matches for %s", a.searchDisplayQuery())
+		a.message = fmt.Sprintf("no matches for %s", a.search.query)
 		return
 	}
 	if a.search.current < 0 {
@@ -478,29 +551,9 @@ func (a *App) searchStatusMessage() string {
 		return ""
 	}
 	if len(a.search.order) == 0 || a.search.current < 0 {
-		return fmt.Sprintf("search /%s", a.searchDisplayQuery())
+		return fmt.Sprintf("search /%s", a.search.query)
 	}
-	return fmt.Sprintf("match %d/%d /%s", a.search.current+1, len(a.search.order), a.searchDisplayQuery())
-}
-
-func (a *App) searchDisplayQuery() string {
-	flags := ""
-	if a.search.options.regex {
-		flags += "r"
-	}
-	if a.search.options.caseInsensitive {
-		flags += "i"
-	}
-	if a.search.options.wholeWord {
-		flags += "w"
-	}
-	if a.search.options.currentPageOnly {
-		flags += "p"
-	}
-	if flags != "" {
-		return "-" + flags + " " + a.search.query
-	}
-	return a.search.query
+	return fmt.Sprintf("match %d/%d /%s", a.search.current+1, len(a.search.order), a.search.query)
 }
 
 func (a *App) searchStatusCounter() string {

@@ -3,6 +3,7 @@ package viewer
 import (
 	"math"
 	"reflect"
+	"regexp"
 	"testing"
 	"time"
 
@@ -22,19 +23,25 @@ func TestSearchDocumentPageOptions(t *testing.T) {
 		wantHits  int
 		wantQuads int
 	}{
-		{query: "-w cat", wantHits: 1, wantQuads: 1},
-		{query: "-i CAT", wantHits: 2, wantQuads: 2},
-		{query: "-r wrapped\\s+phrase", wantHits: 1, wantQuads: 2},
-		{query: "-w wrapped phrase", wantHits: 1, wantQuads: 2},
+		{query: `\<cat\>`, wantHits: 1, wantQuads: 1},
+		{query: `\<cat`, wantHits: 2, wantQuads: 2},
+		{query: `cat\>`, wantHits: 1, wantQuads: 1},
+		{query: "CAT", wantHits: 2, wantQuads: 2},
+		{query: `\CCAT`, wantHits: 0, wantQuads: 0},
+		{query: `\Ccat`, wantHits: 2, wantQuads: 2},
+		{query: `\vwrapped\s+phrase`, wantHits: 1, wantQuads: 2},
+		{query: `\v\<cat\w+`, wantHits: 1, wantQuads: 1},
+		{query: `\<wrapped phrase\>`, wantHits: 1, wantQuads: 2},
+		{query: `t\vh?e\V c.t`, wantHits: 0, wantQuads: 0},
 	}
 	for _, tt := range tests {
 		t.Run(tt.query, func(t *testing.T) {
-			query, options := parseSearchQuery(tt.query)
-			re, err := compileSearchPattern(query, options)
+			pattern := parseSearchQuery(tt.query, 0)
+			re, err := compileSearchPattern(pattern)
 			if err != nil {
 				t.Fatal(err)
 			}
-			hits, err := searchDocumentPage(doc, 0, query, re, options)
+			hits, err := searchDocumentPage(doc, 0, pattern.text, re)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -85,7 +92,7 @@ func TestSearchMatchesListsContextAndSelects(t *testing.T) {
 	app.recomputeLayout(app.viewportSize())
 	app.search = searchState{query: "needle", current: 0, matches: map[int][]mupdf.SearchHit{}}
 	for page := range 3 {
-		hits, err := searchDocumentPage(doc, page, "needle", nil, searchOptions{})
+		hits, err := searchDocumentPage(doc, page, "needle", nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -172,36 +179,45 @@ func TestSearchStatusStrings(t *testing.T) {
 }
 
 func TestParseSearchQuery(t *testing.T) {
-	query, options := parseSearchQuery("-ri -w foo.*bar")
-	if query != "foo.*bar" || !options.regex || !options.caseInsensitive || !options.wholeWord || options.currentPageOnly {
-		t.Fatalf("parseSearchQuery flags = %q, %+v", query, options)
+	const current = 4 // page 5
+	tests := []struct {
+		query string
+		want  searchPattern
+	}{
+		{query: "a.b", want: searchPattern{text: "a.b", source: `a\.b`, lastPage: math.MaxInt}},
+		{query: `\va.b`, want: searchPattern{regex: true, source: "a.b", lastPage: math.MaxInt}},
+		{query: `\va.\Vb.`, want: searchPattern{text: "b.", regex: true, source: `a.b\.`, lastPage: math.MaxInt}},
+		{query: `C:\\x \d`, want: searchPattern{text: `C:\x \d`, source: `C:\\x \\d`, lastPage: math.MaxInt}},
+		{query: `\cfoo\C`, want: searchPattern{text: "foo", regex: true, source: "foo", matchCase: true, lastPage: math.MaxInt}},
+		{query: `\<a\>`, want: searchPattern{text: "a", regex: true, source: "(?P<ononWordStart0>)a(?P<ononWordEnd1>)", lastPage: math.MaxInt}},
+		{query: `\%.pfoo`, want: searchPattern{text: "foo", source: "foo", firstPage: 4, lastPage: 4}},
+		{query: `\%12pfoo`, want: searchPattern{text: "foo", source: "foo", firstPage: 11, lastPage: 11}},
+		{query: `\%>2p\%<.pfoo`, want: searchPattern{text: "foo", source: "foo", firstPage: 2, lastPage: 3}},
+		{query: `\%<<2pfoo`, want: searchPattern{text: `\%<<2pfoo`, source: `\\%<<2pfoo`, lastPage: math.MaxInt}},
+		{query: `\%0p`, want: searchPattern{text: `\%0p`, source: `\\%0p`, lastPage: math.MaxInt}},
+		{query: `foo\`, want: searchPattern{text: `foo\`, source: `foo\\`, lastPage: math.MaxInt}},
 	}
-	query, options = parseSearchQuery("-- -plain text")
-	if query != "-plain text" || options != (searchOptions{}) {
-		t.Fatalf("parseSearchQuery escaped plain = %q, %+v", query, options)
+	for _, tt := range tests {
+		if got := parseSearchQuery(tt.query, current); got != tt.want {
+			t.Errorf("parseSearchQuery(%q) = %+v, want %+v", tt.query, got, tt.want)
+		}
 	}
-	query, options = parseSearchQuery("-unknown text")
-	if query != "-unknown text" || options != (searchOptions{}) {
-		t.Fatalf("parseSearchQuery unknown flag = %q, %+v", query, options)
+	if !parseSearchQuery(`\c\v`, 0).empty() || parseSearchQuery(`\%.px`, 0).empty() {
+		t.Fatal("empty() misjudges modifier-only queries")
 	}
 }
 
-func TestWholeWordMatchUsesUnicodeWordCharacters(t *testing.T) {
-	text := "foo foobar café_2 café"
-	tests := []struct {
-		start int
-		end   int
-		want  bool
-	}{
-		{start: 0, end: 3, want: true},
-		{start: 4, end: 7, want: false},
-		{start: 11, end: 16, want: false},
-		{start: 19, end: len(text), want: true},
-	}
-	for _, tt := range tests {
-		if got := isWholeWordMatch(text, tt.start, tt.end); got != tt.want {
-			t.Fatalf("isWholeWordMatch(%d, %d) = %t, want %t", tt.start, tt.end, got, tt.want)
+func TestWordBoundsUseUnicodeWordCharacters(t *testing.T) {
+	re := regexp.MustCompile(parseSearchQuery(`\v\<\pL+\>`, 0).source)
+	text := "foo café_2 café"
+	var got []string
+	for _, loc := range re.FindAllStringSubmatchIndex(text, -1) {
+		if wordBoundsHold(re, text, loc) {
+			got = append(got, text[loc[0]:loc[1]])
 		}
+	}
+	if !reflect.DeepEqual(got, []string{"foo", "café"}) {
+		t.Fatalf("whole words = %q", got)
 	}
 }
 
@@ -284,7 +300,7 @@ func TestSearchWorkerReportsOnlyPagesWithHits(t *testing.T) {
 	defer doc.Close()
 	w := newSearchWorker(doc, nil)
 	defer w.Close()
-	w.Start(searchRequest{generation: 1, query: "needle", pageCount: 3})
+	w.Start(searchRequest{generation: 1, pattern: parseSearchQuery("needle", 0), pageCount: 3})
 	var pages []int
 	timeout := time.After(5 * time.Second)
 	for {

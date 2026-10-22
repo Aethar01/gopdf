@@ -29,7 +29,7 @@ Useful defaults:
 | `F` | Follow a link by typing its hint |
 | `gr` | Open recent files |
 | `:` | Open the command prompt |
-| `F1` / `g?` | Help: commands, keys, search flags and options |
+| `F1` / `g?` | Help: commands, keys, search modifiers and options |
 | `q` | Quit |
 
 The usual shortcuts of each system work as well: on macOS Cmd-F to search, Cmd-Z to undo and Cmd-= to zoom, with the menu bar listing the actions and their keys, and on Windows and Linux Ctrl-F, Ctrl-Z, Ctrl-= and F11.
@@ -86,7 +86,7 @@ onon -v                     # print version
 onon -V                     # enable verbose logs
 ```
 
-Use `F1`, `g?` or `:help` to browse commands, key bindings, search flags and options; choosing a row runs it or fills in the prompt. `:keybinds` edits key bindings.
+Use `F1`, `g?` or `:help` to browse commands, key bindings, search modifiers and options; choosing a row runs it or fills in the prompt. `:keybinds` edits key bindings.
 
 ### Single instance
 
@@ -201,7 +201,7 @@ Session data, such as each document's place, recent files, prompt history and ke
 The [documentation site](https://ononreader.com/) covers:
 
 - Configuration options and defaults
-- Commands and search flags
+- Commands and search modifiers
 - Lua functions and tables
 - Bindable actions and default keys
 
