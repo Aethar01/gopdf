@@ -1,0 +1,26 @@
+name: Update website
+
+# onon-site regenerates its reference, changelog and downloads from main and
+# the latest release whenever this runs its Update generated pages workflow.
+on:
+  push:
+    branches:
+      - main
+  # A tag's release only exists once the Release workflow has finished.
+  workflow_run:
+    workflows:
+      - Release
+    types:
+      - completed
+  workflow_dispatch:
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    steps:
+      - name: Run onon-site's Update generated pages
+        env:
+          # A fine-grained token with Actions read and write on onon-site.
+          GH_TOKEN: ${{ secrets.DOCS_REPO_TOKEN }}
+        run: gh workflow run generate.yml --repo Aethar01/onon-site
