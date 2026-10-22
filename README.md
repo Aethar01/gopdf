@@ -1,6 +1,6 @@
 # onon
 
-A minimal, keyboard-driven document viewer backed by MuPDF and configured with Lua.
+A quiet reader for the keyboard, built on MuPDF and configured with Lua.
 
 onon provides Vim-style navigation, continuous and single-page layouts, dual-page spreads, text search and selection, outlines, links, persistent sessions and marks, themes, commands, and scriptable keybindings without a permanent toolbar.
 
