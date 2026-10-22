@@ -1,7 +1,7 @@
 name: Update Homebrew cask
 
-# homebrew-tap bumps its onon cask to the latest release whenever it receives
-# an onon-release dispatch, and checks hourly in case one is missed.
+# homebrew-tap bumps its onon cask to the latest release whenever its Update
+# onon cask workflow runs, and runs it hourly in case this is missed.
 on:
   # A tag's release only exists once the Release workflow has finished.
   workflow_run:
@@ -16,8 +16,8 @@ jobs:
     runs-on: ubuntu-latest
     if: github.event_name != 'workflow_run' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
     steps:
-      - name: Send homebrew-tap an onon-release dispatch
+      - name: Run homebrew-tap's Update onon cask
         env:
-          # A fine-grained token with Contents read and write on homebrew-tap.
+          # A fine-grained token with Actions read and write on homebrew-tap.
           GH_TOKEN: ${{ secrets.TAP_REPO_TOKEN }}
-        run: gh api repos/Aethar01/homebrew-tap/dispatches -f event_type=onon-release
+        run: gh workflow run update.yml --repo Aethar01/homebrew-tap
