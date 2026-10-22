@@ -146,14 +146,17 @@ Plugins and theme files are looked for in every one of these directories, with `
 | Windows | `%LOCALAPPDATA%\onon\NAME` |
 | Windows | `%APPDATA%\onon\NAME` |
 
-Example plugins and themes live in [onon-plugins](https://github.com/Aethar01/onon-plugins) and [onon-themes](https://github.com/Aethar01/onon-themes). Clone either one as the matching directory:
+Example plugins and themes live in [onon-plugins](https://github.com/Aethar01/onon-plugins) and [onon-themes](https://github.com/Aethar01/onon-themes). Clone them into your onon directory and link their `plugins` and `themes` directories beside them:
 
 ```bash
-git clone https://github.com/Aethar01/onon-plugins ~/.config/onon/plugins
-git clone https://github.com/Aethar01/onon-themes ~/.config/onon/themes
+cd ~/.config/onon
+git clone https://github.com/Aethar01/onon-plugins
+git clone https://github.com/Aethar01/onon-themes
+ln -s onon-plugins/plugins plugins
+ln -s onon-themes/themes themes
 ```
 
-Themes then appear in `:theme`. Plugins run once `config.lua` requires them; each plugin's README shows how.
+Themes then appear in `:theme`. Plugins run once `config.lua` requires them; each plugin's README shows how. On Windows, or with `plugins` and `themes` directories of your own, copy in what you want instead.
 
 ### Themes
 
