@@ -76,9 +76,9 @@ func (a *App) helpRows() []uiRow {
 		add(helpRowAction, b.action, strings.Join(b.keys, " "), b.action)
 	}
 
-	section("Search flags")
-	for _, flag := range commandmeta.SearchFlags() {
-		add(helpRowSearch, "/-"+flag.Flag+" …", flag.Description, "-"+flag.Flag+" ")
+	section("Search modifiers")
+	for _, m := range commandmeta.SearchModifiers() {
+		add(helpRowSearch, "/"+m.Modifier+"…", m.Description, m.Modifier)
 	}
 
 	section("Options")

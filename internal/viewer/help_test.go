@@ -2,6 +2,7 @@ package viewer
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 
 	commandmeta "onon/internal/commands"
@@ -27,8 +28,8 @@ func TestHelpRowsCoverEverySection(t *testing.T) {
 	if row, ok := find(helpRowAction, "scroll_down"); !ok || row.secondary != "<Down> j" {
 		t.Fatalf("scroll_down row = %+v, %v", row, ok)
 	}
-	if row, ok := find(helpRowSearch, "/-w …"); !ok || row.value != "-w " {
-		t.Fatalf("whole-word flag row = %+v, %v", row, ok)
+	if row, ok := find(helpRowSearch, `/\<…`); !ok || row.value != `\<` {
+		t.Fatalf("word-start modifier row = %+v, %v", row, ok)
 	}
 	if row, ok := find(helpRowCommand, "fit_mode"); !ok || row.value != "set fit_mode=" {
 		t.Fatalf("fit_mode option row = %+v, %v", row, ok)
@@ -46,16 +47,16 @@ func TestActivateHelpRowFillsPrompts(t *testing.T) {
 	if app.mode != modeCommand || app.input.Value != "fit " {
 		t.Fatalf("command row: mode=%v input=%q", app.mode, app.input.Value)
 	}
-	app.activateHelpRow(uiRow{id: helpRowSearch, value: "-r "})
-	if app.mode != modeSearch || app.input.Value != "-r " {
+	app.activateHelpRow(uiRow{id: helpRowSearch, value: `\v`})
+	if app.mode != modeSearch || app.input.Value != `\v` {
 		t.Fatalf("search row: mode=%v input=%q", app.mode, app.input.Value)
 	}
 }
 
-func TestDocumentedSearchFlagsParse(t *testing.T) {
-	for _, flag := range commandmeta.SearchFlags() {
-		if _, options := parseSearchQuery("-" + flag.Flag + " x"); options == (searchOptions{}) {
-			t.Errorf("documented flag -%s is not parsed", flag.Flag)
+func TestDocumentedSearchModifiersParse(t *testing.T) {
+	for _, m := range commandmeta.SearchModifiers() {
+		if p := parseSearchQuery(m.Modifier+"x", 0); strings.ContainsRune(p.source, '\\') {
+			t.Errorf("documented modifier %s is not parsed: %+v", m.Modifier, p)
 		}
 	}
 }

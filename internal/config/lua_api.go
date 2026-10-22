@@ -504,7 +504,7 @@ func luaMode(rt *Runtime) lua.LGFunction {
 //
 // # Parameters
 //
-//   - query: Search text, optionally prefixed with -r, -i, -w, or -p flags.
+//   - query: Search text, which may contain search modifiers such as `\v` or `\<`.
 //   - backward: Optional boolean selecting backward search.
 //
 // # Returns
@@ -534,7 +534,7 @@ func luaSearch(rt *Runtime) lua.LGFunction {
 //
 // # Returns
 //
-// The active query without search flags, or an empty string when search is inactive.
+// The active query as typed, modifiers included, or an empty string when search is inactive.
 //
 // # Example
 //

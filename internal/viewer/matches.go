@@ -22,7 +22,7 @@ func (a *App) showSearchMatches() {
 	for i, ref := range a.search.order {
 		rows[i] = uiRow{index: i, text: a.searchMatchContext(ref), secondary: "p. " + a.pageLabel(ref.page), value: strconv.Itoa(i)}
 	}
-	a.showRowList("matches", fmt.Sprintf("Matches for /%s", a.searchDisplayQuery()), rows, 80, 70, func(view *uiView) {
+	a.showRowList("matches", fmt.Sprintf("Matches for /%s", a.search.query), rows, 80, 70, func(view *uiView) {
 		view.onSelect = func(a *App, row uiRow) {
 			a.closeUIView(view, false)
 			a.search.current, _ = strconv.Atoi(row.value)
