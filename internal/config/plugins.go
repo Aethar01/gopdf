@@ -128,8 +128,8 @@ func discoverPluginCatalog(paths, disabled []string) *pluginCatalog {
 			continue
 		}
 		for _, entry := range entries {
-			if !entry.IsDir() {
-				continue
+			if !entry.IsDir() || strings.HasPrefix(entry.Name(), ".") {
+				continue // .git and the like, in a plugin directory that is a clone
 			}
 			dir := filepath.Join(base, entry.Name())
 			manifest, ok, err := readPluginManifest(dir)
