@@ -27,6 +27,7 @@ onon.options.max_zoom = 8 -- Maximum manual zoom scale.
 onon.options.min_zoom = 0.5 -- Minimum manual zoom scale.
 onon.options.mouse_text_select = true -- Enable text selection with the left mouse button.
 onon.options.mupdf_store_mb = 256 -- MuPDF cache for fonts and decoded images in MiB; applies to newly opened documents.
+onon.options.open_in_new_window = true -- On macOS, open a document Finder or `open` sends to a running onon in a new window rather than the current one.
 onon.options.outline_height_percent = 80 -- Outline overlay height as a percentage of the window.
 onon.options.outline_initial_depth = 1 -- Outline levels expanded when the outline opens.
 onon.options.outline_width_percent = 70 -- Outline overlay width as a percentage of the window.

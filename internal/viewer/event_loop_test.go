@@ -3,7 +3,9 @@ package viewer
 import (
 	"encoding/binary"
 	"math"
+	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -229,13 +231,59 @@ func TestHandleDroppedFileQueuesOpenWithoutRuntime(t *testing.T) {
 	path := filepath.Join(dir, "dropped.pdf")
 	app := &App{}
 
-	app.handleDroppedFile(path)
+	app.handleDroppedFile(path, 1)
 
 	if app.pendingOpen != path {
 		t.Fatalf("expected dropped path %q to be queued, got %q", path, app.pendingOpen)
 	}
 	if !app.quit {
 		t.Fatal("expected drop open without runtime to quit for restart")
+	}
+}
+
+func TestHandleDroppedFileOpensSystemRequestsInNewWindow(t *testing.T) {
+	var started [][]string
+	startProcess = func(cmd *exec.Cmd) error {
+		started = append(started, cmd.Args[1:])
+		return nil
+	}
+	t.Cleanup(func() { startProcess = (*exec.Cmd).Start })
+	path := filepath.Join(t.TempDir(), "requested.pdf")
+	tests := []struct {
+		name      string
+		windowID  sdl.WindowID
+		option    bool
+		docPath   string
+		newWindow bool
+	}{
+		{"system request", 0, true, "/shown.pdf", true},
+		{"drop on the window", 1, true, "/shown.pdf", false},
+		{"option off", 0, false, "/shown.pdf", false},
+		{"empty window", 0, true, "", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			started = nil
+			app := &App{launchArgs: []string{"-config=/c.lua"}}
+			app.config.OpenInNewWindow = tt.option
+			app.docPath = tt.docPath
+
+			app.handleDroppedFile(path, tt.windowID)
+
+			if !tt.newWindow {
+				if len(started) != 0 || app.pendingOpen != path {
+					t.Fatalf("expected %q to open here, started %q, queued %q", path, started, app.pendingOpen)
+				}
+				return
+			}
+			want := []string{"-config=/c.lua", "--unique", "--", path}
+			if len(started) != 1 || !slices.Equal(started[0], want) {
+				t.Fatalf("expected one new window with %q, got %q", want, started)
+			}
+			if app.pendingOpen != "" {
+				t.Fatalf("expected this window to keep its document, queued %q", app.pendingOpen)
+			}
+		})
 	}
 }
 
