@@ -220,27 +220,110 @@ jobs:
             onon-${{ github.ref_name }}-windows-amd64-installer.exe
           if-no-files-found: error
 
-  linux-appimage:
-    name: Build Linux AppImage x86_64
+  linux:
+    name: Build Linux x86_64
     runs-on: ubuntu-latest
-    container: archlinux:base-devel
+    # The oldest Ubuntu LTS still supported sets the glibc the packages need,
+    # so they run there and on anything newer. Its MuPDF is too old and it has
+    # no SDL3, so both are built from source.
+    container: ubuntu:22.04
+    env:
+      DEBIAN_FRONTEND: noninteractive
+      MUPDF_VERSION: 1.28.5
+      SDL3_VERSION: 3.4.18
+      NFPM_VERSION: v2.48.0
     steps:
+      - name: Install native dependencies
+        # SDL loads X11, Wayland and the rest when it starts, so it needs only
+        # their headers to build.
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends \
+            build-essential ca-certificates cmake curl desktop-file-utils file git pkg-config \
+            libgtk-3-dev \
+            libdbus-1-dev libdecor-0-dev libdrm-dev libegl1-mesa-dev libgbm-dev libgl1-mesa-dev \
+            libgles2-mesa-dev libibus-1.0-dev libudev-dev libwayland-dev libx11-dev libxcursor-dev \
+            libxext-dev libxfixes-dev libxi-dev libxkbcommon-dev libxrandr-dev libxss-dev libxtst-dev
+
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install native dependencies
-        run: pacman -Syu --noconfirm ca-certificates desktop-file-utils fuse2 git go gtk3 libmupdf patchelf pkgconf sdl3 wget
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
 
-      - name: Verify native dependencies
-        run: pkg-config --cflags --libs mupdf sdl3
+      - name: Build MuPDF
+        # Linked statically, so the packages need no MuPDF from the system,
+        # whose version differs between distributions.
+        run: |
+          curl -fsSL "https://mupdf.com/downloads/archive/mupdf-${MUPDF_VERSION}-source.tar.gz" | tar -xz
+          make -C "mupdf-${MUPDF_VERSION}-source" -j"$(nproc)" build=release \
+            HAVE_X11=no HAVE_GLUT=no HAVE_LIBCRYPTO=no XCFLAGS=-fPIC \
+            prefix=/opt/mupdf install-libs
+          mkdir -p /opt/mupdf/lib/pkgconfig
+          cat > /opt/mupdf/lib/pkgconfig/mupdf.pc <<EOF
+          Name: mupdf
+          Description: MuPDF
+          Version: ${MUPDF_VERSION}
+          Cflags: -I/opt/mupdf/include
+          Libs: -L/opt/mupdf/lib -lmupdf -lmupdf-third -lm -lpthread
+          EOF
+
+      - name: Build SDL3
+        run: |
+          curl -fsSL "https://github.com/libsdl-org/SDL/releases/download/release-${SDL3_VERSION}/SDL3-${SDL3_VERSION}.tar.gz" | tar -xz
+          cmake -S "SDL3-${SDL3_VERSION}" -B sdl3-build -DCMAKE_BUILD_TYPE=Release -DSDL_STATIC=OFF -DSDL_TESTS=OFF
+          cmake --build sdl3-build -j"$(nproc)"
 
       - name: Build
         env:
           CGO_ENABLED: 1
+          PKG_CONFIG_PATH: /opt/mupdf/lib/pkgconfig
+        # onon dlopen()s libSDL3.so.0 by bare name, which the rpath resolves to
+        # the copy installed beside it in lib/onon.
         run: |
-          mkdir -p dist
-          go build -trimpath -ldflags "-s -w -X onon/internal/config.Version=${VERSION}" -o dist/onon .
-          dist/onon -v
+          # The container's root does not own the checkout, which git refuses
+          # to read for go build's VCS stamp otherwise.
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          pkg-config --cflags --libs mupdf
+          mkdir -p dist/linux/bin
+          go build -trimpath -ldflags "-s -w -X onon/internal/config.Version=${VERSION} -extldflags=-Wl,-rpath,\$ORIGIN/../lib/onon" -o dist/linux/bin/onon .
+
+      - name: Stage
+        # dist/linux is laid out as under /usr, for the packages and tarball.
+        run: |
+          stage=dist/linux
+          install -Dm644 sdl3-build/libSDL3.so.0 "$stage/lib/onon/libSDL3.so.0"
+          install -Dm644 onon.desktop "$stage/share/applications/onon.desktop"
+          install -Dm644 assets/onon.svg "$stage/share/icons/hicolor/scalable/apps/onon.svg"
+          install -Dm644 assets/onon.png "$stage/share/icons/hicolor/256x256/apps/onon.png"
+          install -Dm644 LICENSE "$stage/share/licenses/onon/LICENSE"
+
+          # SDL is found through the rpath alone and MuPDF is linked in.
+          "$stage/bin/onon" -v
+          if ldd "$stage/bin/onon" | grep -E 'mupdf|not found'; then
+            exit 1
+          fi
+
+          # The packages require the newest glibc version either file uses.
+          glibc="$(objdump -T "$stage/bin/onon" "$stage/lib/onon/libSDL3.so.0" | grep -o 'GLIBC_[0-9.]*' | cut -d_ -f2 | sort -uV | tail -n1)"
+          echo "Requires glibc ${glibc}"
+          echo "ONON_GLIBC=${glibc}" >> "$GITHUB_ENV"
+
+      - name: Package deb, rpm and tarball
+        run: |
+          case "$VERSION" in
+            [0-9]*.[0-9]*.[0-9]*) export ONON_PACKAGE_VERSION="$VERSION" ;;
+            *) export ONON_PACKAGE_VERSION=0.0.0 ;;
+          esac
+          name="onon-${VERSION}-linux-x86_64"
+          for packager in deb rpm; do
+            go run "github.com/goreleaser/nfpm/v2/cmd/nfpm@${NFPM_VERSION}" package \
+              --config assets/linux/nfpm.yaml --packager "$packager" --target "${name}.${packager}"
+          done
+          cp -R dist/linux "$name"
+          tar -czf "${name}.tar.gz" "$name"
 
       - name: Package AppImage
         env:
@@ -249,26 +332,30 @@ jobs:
           NO_STRIP: 1
           LDAI_OUTPUT: onon-${{ github.ref_name }}-linux-x86_64.AppImage
         run: |
-          mkdir -p AppDir/usr/bin AppDir/usr/share/applications AppDir/usr/share/icons/hicolor/scalable/apps AppDir/usr/share/icons/hicolor/256x256/apps
-          cp dist/onon AppDir/usr/bin/onon
-          cp onon.desktop AppDir/usr/share/applications/onon.desktop
-          cp assets/onon.svg AppDir/usr/share/icons/hicolor/scalable/apps/onon.svg
-          cp assets/onon.png AppDir/usr/share/icons/hicolor/256x256/apps/onon.png
+          mkdir -p AppDir/usr
+          cp -R dist/linux/bin dist/linux/share AppDir/usr/
 
-          wget -O linuxdeploy-x86_64.AppImage https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
+          curl -fsSL -o linuxdeploy-x86_64.AppImage https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
           chmod +x linuxdeploy-x86_64.AppImage
+          # linuxdeploy points the binary's rpath at usr/lib, so SDL goes there.
           ./linuxdeploy-x86_64.AppImage \
             --appdir AppDir \
             --desktop-file AppDir/usr/share/applications/onon.desktop \
             --icon-file AppDir/usr/share/icons/hicolor/scalable/apps/onon.svg \
             --executable AppDir/usr/bin/onon \
+            --library dist/linux/lib/onon/libSDL3.so.0 \
             --output appimage
+          "./${LDAI_OUTPUT}" -v
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: onon-${{ github.ref_name }}-linux-x86_64
-          path: onon-${{ github.ref_name }}-linux-x86_64.AppImage
+          path: |
+            onon-${{ github.ref_name }}-linux-x86_64.AppImage
+            onon-${{ github.ref_name }}-linux-x86_64.deb
+            onon-${{ github.ref_name }}-linux-x86_64.rpm
+            onon-${{ github.ref_name }}-linux-x86_64.tar.gz
           if-no-files-found: error
 
   release:
@@ -277,7 +364,7 @@ jobs:
     needs:
       - macos
       - windows
-      - linux-appimage
+      - linux
     if: startsWith(github.ref, 'refs/tags/')
     steps:
       - name: Checkout

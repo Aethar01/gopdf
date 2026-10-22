@@ -1,0 +1,41 @@
+# Builds the .deb and .rpm from dist/linux, which release.yml stages as it
+# lies under /usr: libSDL3.so.0 sits in lib/onon, where the binary's
+# $ORIGIN/../lib/onon rpath finds it.
+name: onon
+arch: amd64
+platform: linux
+version: ${ONON_PACKAGE_VERSION}
+section: graphics
+priority: optional
+maintainer: Elliott Ashby <elliott.ashby88@gmail.com>
+description: A quiet reader for the keyboard, built on MuPDF and configured with Lua.
+homepage: https://github.com/Aethar01/onon
+license: AGPL-3.0
+
+# Files are listed one by one, as a tree would also claim /usr/bin and the
+# like, which the rpm then conflicts with Fedora's filesystem package over.
+contents:
+  - src: dist/linux/bin/onon
+    dst: /usr/bin/onon
+  - src: dist/linux/lib/onon/libSDL3.so.0
+    dst: /usr/lib/onon/libSDL3.so.0
+  - src: dist/linux/share/applications/onon.desktop
+    dst: /usr/share/applications/onon.desktop
+  - src: dist/linux/share/icons/hicolor/scalable/apps/onon.svg
+    dst: /usr/share/icons/hicolor/scalable/apps/onon.svg
+  - src: dist/linux/share/icons/hicolor/256x256/apps/onon.png
+    dst: /usr/share/icons/hicolor/256x256/apps/onon.png
+  - src: dist/linux/share/licenses/onon/LICENSE
+    dst: /usr/share/licenses/onon/LICENSE
+
+# MuPDF is linked in statically and SDL3 is bundled, so GTK 3, for the file
+# dialogs, and glibc are all the system has to provide.
+overrides:
+  deb:
+    depends:
+      - libc6 (>= ${ONON_GLIBC})
+      - libgtk-3-0t64 | libgtk-3-0
+  rpm:
+    depends:
+      - glibc >= ${ONON_GLIBC}
+      - libgtk-3.so.0()(64bit)

@@ -1,0 +1,172 @@
+name: Test Linux packages
+
+# Installs the Linux packages on distributions nobody here runs and opens a
+# PDF with each under X11 and Wayland. Run by hand, on a Release run's
+# artifacts or, with no run given, the latest release.
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: Release workflow run whose packages to test (empty for the latest release)
+        required: false
+        default: ""
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  fetch:
+    name: Fetch packages
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ inputs.run_id }}
+        run: |
+          if [ -n "$RUN_ID" ]; then
+            gh run download "$RUN_ID" --repo "$GITHUB_REPOSITORY" --pattern 'onon-*-linux-x86_64' --dir downloaded
+          else
+            gh release download --repo "$GITHUB_REPOSITORY" --pattern 'onon-*-linux-x86_64.*' --dir downloaded
+          fi
+          # Named without the version, so the tests need not know it.
+          mkdir packages
+          for ext in deb rpm AppImage; do
+            find downloaded -name "onon-*-linux-x86_64.${ext}" -exec cp {} "packages/onon.${ext}" \;
+          done
+          ls -l packages
+
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: packages
+          path: packages
+          if-no-files-found: error
+
+  test:
+    name: ${{ matrix.name }}
+    needs: fetch
+    runs-on: ubuntu-latest
+    container: ${{ matrix.image }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Ubuntu 22.04 deb
+            slug: ubuntu-22.04-deb
+            image: ubuntu:22.04
+            package: deb
+          - name: Ubuntu 24.04 deb
+            slug: ubuntu-24.04-deb
+            image: ubuntu:24.04
+            package: deb
+          - name: Debian 12 deb
+            slug: debian-12-deb
+            image: debian:12
+            package: deb
+          - name: Fedora rpm
+            slug: fedora-rpm
+            image: fedora:latest
+            package: rpm
+          - name: Fedora AppImage
+            slug: fedora-appimage
+            image: fedora:latest
+            package: AppImage
+    env:
+      DEBIAN_FRONTEND: noninteractive
+      APPIMAGE_EXTRACT_AND_RUN: 1
+    steps:
+      - name: Download packages
+        uses: actions/download-artifact@v4
+        with:
+          name: packages
+
+      # Beside onon's own package, a virtual X server, a headless Wayland
+      # compositor, Mesa and a font, as any desktop has.
+      - name: Install
+        run: |
+          case "${{ matrix.package }}" in
+            deb)
+              apt-get update
+              apt-get install -y --no-install-recommends \
+                fonts-dejavu-core imagemagick libgl1-mesa-dri weston xvfb ./onon.deb
+              onon=onon
+              ;;
+            rpm)
+              dnf install -y dejavu-sans-fonts ImageMagick mesa-dri-drivers weston xorg-x11-server-Xvfb ./onon.rpm
+              onon=onon
+              ;;
+            AppImage)
+              dnf install -y dejavu-sans-fonts gtk3 ImageMagick mesa-dri-drivers weston xorg-x11-server-Xvfb
+              chmod +x onon.AppImage
+              onon="${PWD}/onon.AppImage"
+              ;;
+          esac
+          echo "ONON=${onon}" >> "$GITHUB_ENV"
+
+          # One page of text; MuPDF rebuilds the missing xref table.
+          cat > smoke.pdf <<'EOF'
+          %PDF-1.4
+          1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj
+          2 0 obj << /Type /Pages /Kids [3 0 R] /Count 1 >> endobj
+          3 0 obj << /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >> endobj
+          4 0 obj << /Length 46 >> stream
+          BT /F1 36 Tf 72 680 Td (onon smoke test) Tj ET
+          endstream endobj
+          5 0 obj << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> endobj
+          trailer << /Root 1 0 R >>
+          %%EOF
+          EOF
+
+      - name: Open a PDF under X11
+        # Each display gets its own runtime directory, as killing the
+        # AppImage leaves onon running and holding its instance socket.
+        run: |
+          export XDG_RUNTIME_DIR=/tmp/xdg-x11
+          mkdir -m 700 -p "$XDG_RUNTIME_DIR"
+          Xvfb :99 -screen 0 1280x800x24 &
+          sleep 2
+          export DISPLAY=:99
+          "$ONON" -V smoke.pdf > x11.log 2>&1 &
+          pid=$!
+          sleep 8
+          if ! kill -0 "$pid"; then
+            cat x11.log
+            exit 1
+          fi
+          import -window root "${{ matrix.slug }}-x11.png"
+          kill "$pid"
+
+      - name: Open a PDF under Wayland
+        # With no DISPLAY, SDL cannot fall back to X11.
+        run: |
+          export XDG_RUNTIME_DIR=/tmp/xdg-wayland
+          mkdir -m 700 -p "$XDG_RUNTIME_DIR"
+          if weston --help 2>&1 | grep -q 'headless-backend.so'; then
+            backend=headless-backend.so
+          else
+            backend=headless
+          fi
+          weston --backend="$backend" --socket=wayland-1 > weston.log 2>&1 &
+          sleep 3
+          export WAYLAND_DISPLAY=wayland-1
+          unset DISPLAY
+          "$ONON" -V smoke.pdf > wayland.log 2>&1 &
+          pid=$!
+          sleep 8
+          if ! kill -0 "$pid"; then
+            cat weston.log wayland.log
+            exit 1
+          fi
+          kill "$pid"
+
+      - name: Upload screenshot and logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.slug }}
+          path: |
+            *.png
+            *.log
+          if-no-files-found: ignore
