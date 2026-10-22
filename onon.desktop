@@ -2,7 +2,7 @@
 Type=Application
 Name=onon
 GenericName=Document Viewer
-Comment=Keyboard-driven viewer for PDF, XPS, e-books, comics and images
+Comment=A quiet reader for the keyboard
 Exec=onon %F
 Icon=onon
 Categories=Office;Viewer;
