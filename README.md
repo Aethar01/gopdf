@@ -146,6 +146,15 @@ Plugins and theme files are looked for in every one of these directories, with `
 | Windows | `%LOCALAPPDATA%\onon\NAME` |
 | Windows | `%APPDATA%\onon\NAME` |
 
+Example plugins and themes live in [onon-plugins](https://github.com/Aethar01/onon-plugins) and [onon-themes](https://github.com/Aethar01/onon-themes). Clone either one as the matching directory:
+
+```bash
+git clone https://github.com/Aethar01/onon-plugins ~/.config/onon/plugins
+git clone https://github.com/Aethar01/onon-themes ~/.config/onon/themes
+```
+
+Themes then appear in `:theme`. Plugins run once `config.lua` requires them; each plugin's README shows how.
+
 ### Themes
 
 Colours, the UI font and the shape of panels come from one table, `onon.theme`. Fields left out keep the values of the base theme, so a theme can be as small as you like:

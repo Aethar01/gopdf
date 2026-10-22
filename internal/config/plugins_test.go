@@ -187,6 +187,17 @@ func TestMalformedPluginManifestIsRejected(t *testing.T) {
 	}
 }
 
+func TestHiddenPluginDirectoriesAreSkipped(t *testing.T) {
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, ".git"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	catalog := discoverPluginCatalog([]string{root}, nil)
+	if len(catalog.manifests) != 0 || len(catalog.warnings) != 0 {
+		t.Fatalf("expected .git to be skipped, catalog=%+v", catalog)
+	}
+}
+
 func TestNoPluginsIgnoresExplicitPluginPaths(t *testing.T) {
 	root := writeTestPlugin(t, "sample", `return onon.plugin.register("sample")`)
 	rt, err := OpenWithOptions(filepath.Join(t.TempDir(), "missing.lua"), "", OpenOptions{PluginPaths: []string{root}, NoPlugins: true})
