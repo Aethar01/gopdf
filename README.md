@@ -41,11 +41,31 @@ Download a package for Linux, macOS, or Windows from the [latest release](https:
 <details open>
 <summary>Linux</summary>
 
-Run the AppImage directly:
+The release packages run on Ubuntu 22.04, Fedora 36, Debian 12 and anything newer. They bundle MuPDF and SDL3, so only GTK 3 has to come from the system.
+
+Debian and Ubuntu:
+
+```bash
+sudo apt install ./onon-*-linux-x86_64.deb
+```
+
+Fedora and openSUSE:
+
+```bash
+sudo dnf install ./onon-*-linux-x86_64.rpm    # or: sudo zypper install
+```
+
+Any distribution, without installing:
 
 ```bash
 chmod +x onon-*-linux-x86_64.AppImage
 ./onon-*-linux-x86_64.AppImage file.pdf
+```
+
+Or unpack the tarball into `~/.local`, which puts `onon` in `~/.local/bin`:
+
+```bash
+tar -xzf onon-*-linux-x86_64.tar.gz -C ~/.local --strip-components=1
 ```
 
 Arch-based systems can install [onon-git from the AUR](https://aur.archlinux.org/packages/onon-git):
