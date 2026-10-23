@@ -209,8 +209,11 @@ const (
 	maxPendingPrefetchRenders = 4
 	renderPrefetchPriority    = 10
 	renderUpgradeTolerance    = 0.95
-	renderDowngradeHeadroom   = 2.0
-	renderScaleSettleDelay    = 75 * time.Millisecond
+	// renderDowngradeHeadroom is how far tiles may be scaled down before they
+	// are re-rendered; linear filtering has no mipmaps, so shrinking much
+	// past this aliases thin strokes such as text diagonals.
+	renderDowngradeHeadroom = 1.05
+	renderScaleSettleDelay  = 75 * time.Millisecond
 )
 
 func validRenderScale(v float64) bool {

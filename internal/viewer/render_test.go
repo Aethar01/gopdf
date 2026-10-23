@@ -320,6 +320,24 @@ func TestRenderScalePolicy(t *testing.T) {
 	}
 }
 
+func TestRenderScaleTargetDowngradesAfterModestZoomOut(t *testing.T) {
+	app := &App{viewStateFields: viewStateFields{scale: 1, zoom: 1, fitMode: fitManual}, config: config.Config{RenderOversample: 1}, renderService: renderService{minRenderBaseScale: 0.25, renderBaseScale: 1.8}}
+
+	app.scheduleRenderScaleTarget(1.3)
+	app.renderScaleReadyAt = time.Now().Add(-time.Millisecond)
+	if !app.applyScheduledRenderScaleTarget() {
+		t.Fatal("expected zooming out to 1.3 from 1.8 to re-render")
+	}
+	assertClose(t, app.renderBaseScale, 1.3)
+
+	app.scheduleRenderScaleTarget(1.25) // within the headroom, so the tiles stay
+	app.renderScaleReadyAt = time.Now().Add(-time.Millisecond)
+	if app.applyScheduledRenderScaleTarget() {
+		t.Fatal("expected a slight zoom out to keep the render scale")
+	}
+	assertClose(t, app.renderBaseScale, 1.3)
+}
+
 func TestRenderBaseScaleOversamplesOnce(t *testing.T) {
 	app := &App{viewStateFields: viewStateFields{scale: 1, zoom: 1, fitMode: fitManual}, config: config.Config{RenderOversample: 2}, renderService: renderService{minRenderBaseScale: 0.25}}
 	app.ensureRenderBaseScale()
